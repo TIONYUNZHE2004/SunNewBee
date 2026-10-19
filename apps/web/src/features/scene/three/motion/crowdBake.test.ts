@@ -81,7 +81,6 @@ describe("crowd bake", () => {
     expect(CROWD_ANIM_MAX_BYTES).toBe(4 * 1024 * 1024);
     // Node, no GPU: the CPU bake of all six bodies (the browser does it one body per idle slice).
     expect(bakeMs).toBeLessThan(2000);
-    console.info(`crowd bake: ${rows} rows, ${kit.anim.bytes} B, ${bakeMs.toFixed(0)} ms`);
   });
 
   it("P4: per-look geometry per LOD equals the manifest triangle counts (LOD0 <= 1.5k, LOD1 <= 400)", () => {
@@ -172,9 +171,6 @@ describe("crowd bake", () => {
     // (30 fps walks, 10 fps idles) stays within a few millimetres of the slerped pose.
     expect(worst).toBeLessThan(0.003);
     expect(worstMid).toBeLessThan(0.01);
-    console.info(
-      `bake error: frames ${(worst * 1000).toFixed(2)} mm, mid ${(worstMid * 1000).toFixed(2)} mm`,
-    );
   });
 
   it("the last baked frame is the clip's end pose (wheels a quarter turn on), so the loop wraps seamlessly", () => {

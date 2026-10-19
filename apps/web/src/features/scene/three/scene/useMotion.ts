@@ -5,7 +5,7 @@ import type { Tier } from "../../shared/quality";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
 import type { CrowdKit } from "../motion/crowdBake";
-import { loadCrowdKit } from "../motion/crowdKit";
+import { CROWD_LOAD_TIMEOUT_MS, loadCrowdKit } from "../motion/crowdKit";
 import { createMotionDriver, type MotionDriver, motionRunning } from "../motion/motionClock";
 import { createMotionLayer, type YawMemory } from "../motion/motionLayer";
 import type { ActiveTile } from "../stream/streamer";
@@ -127,25 +127,38 @@ export function useMotion({
   // arriving or leaving never reset the others' yaw (each rebuild prunes it to the new agent set).
   const [yaw] = useState<YawMemory>(() => new Map());
   // The crowd kit (C-T7): loaded and baked once, body by body in idle slices, the first time there
-  // are agents. null while loading (no people drawn yet); undefined if it failed (the legacy people
-  // kit then draws them).
+  // are agents. null while loading (no people drawn yet); undefined if it failed or timed out (the
+  // legacy people kit then draws them). A kit that resolves after unmount is disposed.
   const [crowd, setCrowd] = useState<CrowdKit | null | undefined>(null);
-  const crowdRef = useRef<{ started: boolean; kit: CrowdKit | null }>({
-    started: false,
+  const crowdRef = useRef<{ failed: boolean; kit: CrowdKit | null }>({
+    failed: false,
     kit: null,
   });
   const wantCrowd = agents.length > 0;
   useEffect(() => {
     const ref = crowdRef.current;
-    if (!wantCrowd || ref.started) return;
-    ref.started = true;
-    loadCrowdKit().then(
+    if (!wantCrowd || ref.kit || ref.failed) return;
+    const ac = new AbortController();
+    let live = true;
+    loadCrowdKit({ signal: ac.signal, timeoutMs: CROWD_LOAD_TIMEOUT_MS }).then(
       (k) => {
+        if (!live) {
+          k.dispose();
+          return;
+        }
         ref.kit = k;
         setCrowd(k);
       },
-      () => setCrowd(undefined),
+      () => {
+        if (!live) return;
+        ref.failed = true;
+        setCrowd(undefined);
+      },
     );
+    return () => {
+      live = false;
+      ac.abort();
+    };
   }, [wantCrowd]);
   useEffect(() => () => crowdRef.current.kit?.dispose(), []);
   useEffect(() => {

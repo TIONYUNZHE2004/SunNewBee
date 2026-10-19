@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createMotionUniforms, createRoleUniforms } from "../assets/roleMaterial";
-import type { Agent } from "./agents";
+import { type Agent, displayScale, easedDistance } from "./agents";
 import type { CrowdKit } from "./crowdBake";
-import { framePair, seedPhase } from "./crowdGait";
+import { framePair, gaitStartPhase, seedPhase } from "./crowdGait";
 import { loadCrowdKit } from "./crowdKit";
 import { patchCrowdShader } from "./crowdRenderer";
 import { createMotionLayer, crowdLookIndex } from "./motionLayer";
@@ -52,9 +52,44 @@ const make = (agents: Agent[], crowd: CrowdKit | null = kit) =>
   });
 const cam = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 describe("crowd renderer", () => {
-  it("loads and bakes the kit off the first frame: per-body slices, total bake < 200 ms", () => {
-    expect(kit.bakeMs).toBeLessThan(200);
-    console.info(`crowd kit: load+bake ${loadMs.toFixed(0)} ms, bake ${kit.bakeMs.toFixed(0)} ms`);
+  it("loads and bakes the kit (loose wall-clock ceiling; the < 200 ms target is a gate measurement)", () => {
+    expect(kit.bakeMs).toBeLessThan(2000);
+    expect(loadMs).toBeLessThan(10_000);
+  });
+
+  it("a load that times out or is aborted rejects (useMotion then falls back to the legacy people kit)", async () => {
+    const never = () => new Promise<never>(() => {});
+    await expect(loadCrowdKit({ fetchJson: never, loadGlb: never, timeoutMs: 20 })).rejects.toThrow(
+      /timed out/,
+    );
+    const ac = new AbortController();
+    const p = loadCrowdKit({
+      fetchJson: async (u) => JSON.parse(readFileSync(pub(u), "utf8")),
+      loadGlb: async (u) => readBuf(u),
+      signal: ac.signal,
+    });
+    ac.abort();
+    await expect(p).rejects.toThrow(/aborted/);
+  });
+
+  it("gait phase is a pure function of id and distance on first sight (two runs agree)", () => {
+    const run = () => {
+      const layer = make([person("same", 0, 0)]);
+      layer.tick(7300, cam(0, 30, 0));
+      const out = Array.from(layer.crowd?.instances().slice(0, 3) ?? []);
+      layer.dispose();
+      return out;
+    };
+    expect(run()).toEqual(run());
+    const a = person("same", 0, 0);
+    const look = kit.manifest.looks[crowdLookIndex(kit, a)];
+    const clip = look ? kit.clips[look.body][look.clips.walk] : undefined;
+    if (!clip) throw new Error("no walk clip");
+    const f = framePair(
+      gaitStartPhase(a.id, easedDistance(a, 7.3), clip, displayScale(30)),
+      clip.frames,
+    );
+    expect(run()[0]).toBe(clip.row + f.f0);
   });
 
   it("P4: 400 people of every look cost at most 2 draw calls (<= 20); LOD0 and LOD1 by distance", () => {

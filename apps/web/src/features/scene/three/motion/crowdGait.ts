@@ -47,6 +47,15 @@ export interface GaitState {
 const wrap01 = (v: number) => v - Math.floor(v);
 
 /**
+ * The phase on first sight: a pure function of the agent id and the distance it has walked
+ * (`wrap01(seedPhase(id) + dist / (stride x scale))`), so two runs (or a seek) give the same pose.
+ */
+export function gaitStartPhase(id: string, dist: number, walk: GaitClip, scale: number): number {
+  const per = walk.stride * scale;
+  return wrap01(seedPhase(id) + (per > 0 ? dist / per : 0));
+}
+
+/**
  * One update: `dist` is the agent's distance travelled now (m), `dtSec` the real time since the last
  * update, `scale` its display scale. Moving: the phase advances by distance / (stride x scale). Standing
  * (speed below IDLE_BELOW_MPS): the idle clip plays at its own rate. Mutates and returns `st`.

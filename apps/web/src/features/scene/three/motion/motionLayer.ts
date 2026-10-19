@@ -21,7 +21,7 @@ import {
   smoothYaw,
 } from "./agents";
 import type { BakedClip, CrowdKit } from "./crowdBake";
-import { advanceGait, framePair, type GaitState, seedPhase } from "./crowdGait";
+import { advanceGait, framePair, type GaitState, gaitStartPhase } from "./crowdGait";
 import { type CrowdRenderer, createCrowdRenderer } from "./crowdRenderer";
 
 /**
@@ -331,7 +331,8 @@ export function createMotionLayer(
         const { yaw, dt, mem } = smoothed(s.agent.id, nowMs);
         const k = displayScale(d);
         const dist = easedDistance(s.agent, t);
-        if (!mem.gait) mem.gait = { phase: seedPhase(s.agent.id), dist, idle: false };
+        if (!mem.gait)
+          mem.gait = { phase: gaitStartPhase(s.agent.id, dist, s.walk, k), dist, idle: false };
         else advanceGait(mem.gait, dist, dt, k, s.walk, s.idle);
         if (frustum && !frustum.intersectsSphere(_sphere.set(_p, FRUSTUM_MARGIN_M))) {
           crowd.hide(i);
