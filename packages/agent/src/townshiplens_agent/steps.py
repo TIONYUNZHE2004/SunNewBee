@@ -62,7 +62,12 @@ TURN = {
     "u_turn": ("Turn back", "Pusing balik", "掉头"),
 }
 _I = {"en": 0, "ms": 1, "zh": 2}
-ARRIVE = {"en": "Arrive at your destination.", "ms": "Tiba di destinasi.", "zh": "到达目的地。"}
+# The route ends on the mapped graph; the place's own entrance may be off it (T-021 review).
+ARRIVE = {
+    "en": "Reach the end of the mapped route.",
+    "ms": "Sampai di hujung laluan yang dipetakan.",
+    "zh": "到达已绘制路线的终点。",
+}
 
 
 def _where(m: dict, lang: str) -> str:
@@ -144,55 +149,125 @@ def maneuver_steps(route: dict, lang: str = "en", max_steps: int = MAX_STEPS) ->
     keep = max_steps - 2  # first steps, one "more on the map" line, the arrival
     hidden = len(lines) - keep - 1
     more = {
-        "en": f"… {hidden} more steps are shown on the map.",
-        "ms": f"… {hidden} langkah lagi ditunjukkan pada peta.",
-        "zh": f"……另有{hidden}个步骤显示在地图上。",
+        "en": f"… {hidden} more steps are not listed here (shortened directions).",
+        "ms": f"… {hidden} langkah lagi tidak disenaraikan di sini (arah dipendekkan).",
+        "zh": f"……另有{hidden}个步骤未在此列出（路线说明已缩短）。",
     }[lang if lang in _I else "en"]
     return [*lines[:keep], more, lines[-1]]
 
 
 # --------------------------------------------------------------------------- answer checks
+# Model text may repeat a direction only as one maneuver states it (T-021 review): the street
+# name exactly, the turn on its side, the distance of that same stretch.
 STREET = re.compile(
     r"\b(?:Jalan|Persiaran|Lebuh(?:raya)?|Lorong|Bulatan|Lingkaran|Lengkok|Laman)"
     r"(?:\s+[A-Z0-9][\w/-]*)+"
 )
-_TURN_WORDS = (
-    (re.compile(r"\bturn(?:s|ing)?\s+left\b|\bbelok\s+kiri\b|左转|向左转", re.I), "left"),
-    (re.compile(r"\bturn(?:s|ing)?\s+right\b|\bbelok\s+kanan\b|右转|向右转", re.I), "right"),
+SIDES = (
+    (
+        "left",
+        re.compile(
+            r"\b(?:turn|bear|keep|veer|slight(?:ly)?)\s+(?:to\s+the\s+)?left\b"
+            r"|\bbelok\s+(?:sedikit\s+)?(?:ke\s+)?kiri\b|左转|向左|稍向左|靠左",
+            re.I,
+        ),
+    ),
+    (
+        "right",
+        re.compile(
+            r"\b(?:turn|bear|keep|veer|slight(?:ly)?)\s+(?:to\s+the\s+)?right\b"
+            r"|\bbelok\s+(?:sedikit\s+)?(?:ke\s+)?kanan\b|右转|向右|稍向右|靠右",
+            re.I,
+        ),
+    ),
+    ("u", re.compile(r"\bu[- ]?turn\b|\bturn (?:back|around)\b|\bpusing balik\b|掉头", re.I)),
 )
+_SENTENCES = re.compile(r"(?<!\d)[.;!?。；！？\n]+|[.;](?!\d)")
+_CONTINUE = re.compile(
+    r"^\s*(?:then\s+|and\s+)?(?:continue|keep going|go on|walk|follow it|teruskan|terus|"
+    r"继续|再走)",
+    re.I,
+)
+_CLOSED = re.compile(r"\bclosed\b|\bditutup\b|\btutup\b|已关闭|关闭|封闭", re.I)
 
 
 def _norm(s: str) -> str:
     return " ".join(s.casefold().split())
 
 
-def maneuver_errors(text: str, route: dict) -> list[str]:
-    """Model text about a route with maneuvers: every street name it gives is a maneuver's
-    street_name, and a stated turn side exists among the maneuvers."""
+def _side(action: str | None) -> str | None:
+    a = action or ""
+    return (
+        "left"
+        if a.endswith("left")
+        else "right"
+        if a.endswith("right")
+        else ("u" if a == "u_turn" else None)
+    )
+
+
+def maneuver_errors(text: str, route: dict, closed_names: set[str] | frozenset = frozenset()):
+    """Model text about a route with maneuvers, sentence by sentence: a street name equals a
+    maneuver's street_name (or a road section name); a turn or bear on a named street has that
+    street's maneuver side (else some maneuver's side); a distance in that sentence, or in the
+    next "continue …" sentence, is that street's stretch. A closure sentence may name the
+    closed street (staff report), which the route avoids."""
+    from .facts import _matches, extract_facts
+
     ms = route.get("maneuvers") or []
     if not ms:
         return []
-    errs = []
-    streets = {_norm(m["street_name"]) for m in ms if m.get("street_name")}
-    streets |= {_norm(r.get("name") or "") for r in route.get("road_sections") or []}
-    named = {m.group(0).strip() for m in STREET.finditer(text)}
-    unknown = sorted(
-        n
-        for n in named
-        if not any(s.startswith(_norm(n)) or _norm(n).startswith(s) for s in streets if s)
-    )
-    if unknown:
-        errs.append(
-            f"Street names {unknown} are not on this route's maneuvers: name only the streets the "
-            "route uses, as plan_route gives them (an unnamed stretch is 'the footway')."
-        )
-    sides = {
-        side for m in ms for side in ("left", "right") if (m.get("action") or "").endswith(side)
-    }
-    for pattern, side in _TURN_WORDS:
-        if pattern.search(text) and side not in sides:
+    by_street: dict[str, list[dict]] = {}
+    for m in ms:
+        if m.get("street_name"):
+            by_street.setdefault(_norm(m["street_name"]), []).append(m)
+    sections: dict[str, list[float]] = {}
+    for r in route.get("road_sections") or []:
+        if r.get("name"):
+            sections.setdefault(_norm(r["name"]), []).append(float(r.get("length_m") or 0))
+    known = set(by_street) | set(sections)
+    closed = {_norm(n) for n in closed_names}
+    all_sides = {_side(m.get("action")) for m in ms} - {None}
+    errs: list[str] = []
+    context: str | None = None
+    for sentence in _SENTENCES.split(text):
+        if not sentence.strip():
+            continue
+        found = {_norm(m.group(0)): m.group(0).strip() for m in STREET.finditer(sentence)}
+        if _CLOSED.search(sentence):
+            found = {n: raw for n, raw in found.items() if n not in closed}
+        names = list(found)
+        bad = [found[n] for n in names if n not in known]
+        if bad:
             errs.append(
-                f"No maneuver on this route turns {side}: give turns only as the route's "
-                "maneuvers list them (the app writes the steps)."
+                f"Street names {sorted(set(bad))} are not on this route's maneuvers: name a street "
+                "exactly as plan_route gives it (an unnamed stretch is 'the footway')."
             )
-    return errs
+        said = [side for side, pattern in SIDES if pattern.search(sentence)]
+        street = next((n for n in names if n in by_street), None)
+        for side in said:
+            sides = (
+                {_side(m.get("action")) for m in by_street.get(street, [])} if street else all_sides
+            )
+            if side not in sides:
+                where = f"onto {found[street]}" if street else "on this route"
+                errs.append(
+                    f"No maneuver {where} turns {side}: give turns only as the route's "
+                    "maneuvers list them (the app writes the steps)."
+                )
+        if street:
+            context = street
+        elif not _CONTINUE.search(sentence):
+            context = None
+        if context:
+            allowed = [float(m.get("distance_m") or 0) for m in by_street.get(context, [])]
+            allowed += sections.get(context, [])
+            allowed += [sum(allowed[: len(by_street.get(context, []))])] if allowed else []
+            allowed.append(sum(sections.get(context, [])))
+            for f in extract_facts(sentence):
+                if f.kind == "length" and not any(_matches(f, v) for v in allowed if v):
+                    errs.append(
+                        f"The distance {f.raw!r} is not the {context} stretch in this route's "
+                        "maneuvers: give each stretch its own distance (the app writes the steps)."
+                    )
+    return list(dict.fromkeys(errs))

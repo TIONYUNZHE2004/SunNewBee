@@ -167,6 +167,7 @@ def outside_note(ans: FinalAnswer, rec: TurnRecord, world, lang: str = "en") -> 
     return OUTSIDE_NOTE.get(lang, OUTSIDE_NOTE["en"]).format(name=spots[0].name)
 
 
+MANDATORY_WARNING = re.compile(r"distance and time stop at the road|not modelled; indicative only")
 CAVEAT_HEAD = "Worth knowing:"
 URGENT_MARK = "⚠"
 
@@ -266,6 +267,17 @@ def _answer_events(
     )
     if (steps := maneuver_steps(answered, lang)) and ans.answer_status != "cannot_answer":
         ans = ans.model_copy(update={"steps": steps})
+    # Engine warnings an answer may never drop: the route stops short of the place, and the
+    # driving limits (legal turns, changing directions). Added after the check if missing.
+    have = " ".join(_norm(c) for c in ans.caveats)
+    missing = [
+        w
+        for w in rec.route_warnings.get(answered.get("id", ""), [])
+        if MANDATORY_WARNING.search(w)
+        and not any(_norm(localize(w, lg)) in have for lg in ("en", "ms", "zh"))
+    ]
+    if missing:
+        ans = ans.model_copy(update={"caveats": [*ans.caveats, *missing]})
     if note := outside_note(ans, rec, ctx.world, lang):
         ans = ans.model_copy(update={"caveats": [*ans.caveats, note]})
     text = answer_text(ans, _route_status_line(ans, rec, lang), rec, lang)
