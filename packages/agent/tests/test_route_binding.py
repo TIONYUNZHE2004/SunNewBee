@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 import pytest
 from pydantic_ai import ModelRetry
 from tests_support import TINY
@@ -328,3 +329,80 @@ def test_map_flood_level_must_match_the_checked_route():
     assert not [e for e in _answer_events(ans, rec, context()) if e.type == "scene.intent"]
     ans.scenario_id = "stage_p5m"
     assert any("answer scenario" in e for e in validate_answer(ans, rec))
+
+
+# AI cross-check 20 Oct (evals/audits/2026-10-20-route-binding): honest phrasings the guards
+# blocked, and the dishonest selections they must still block.
+from townshiplens_agent.route_binding import RouteSelectionError as _RSE  # noqa: E402
+from townshiplens_agent.route_binding import effective_profile as _profile  # noqa: E402
+from townshiplens_agent.route_binding import guard_endpoints as _guard  # noqa: E402
+from townshiplens_agent.settings import ROOT as _ROOT  # noqa: E402
+
+_SEED = _ROOT / "data/seed/elmina"
+_MAHDI, _TAQWA = "osm-way-910405528", "osm-way-910378231"
+
+
+@pytest.mark.parametrize(
+    "question, ui, want",
+    [
+        ("My mum is not in a wheelchair, she walks with a stick.", "default", "default"),
+        ("Saya tidak guna kerusi roda.", "wheelchair", "default"),
+        ("我不坐轮椅，走路去。", "wheelchair", "default"),
+        (
+            "Can my father in a wheelchair go there, and are there rest points?",
+            "wheelchair",
+            "wheelchair",
+        ),
+        ("A route with rest points for my grandmother", "default", "older_adult_rest"),
+        ("Push a stroller there", "default", "stroller"),
+    ],
+)
+def test_mode_words_respect_negation_and_rest_points(question, ui, want):
+    assert _profile(question, ui) == want
+
+
+@pytest.mark.parametrize(
+    "question, supplied",
+    [
+        ("Is the wheelchair route from A to B ok?", "default"),  # named mode, walking substituted
+        ("Wheelchair or stroller to B", None),  # "or" is allowed, but walking is not
+    ],
+)
+def test_named_mode_cannot_be_replaced_by_walking(question, supplied):
+    with pytest.raises(_RSE):
+        _profile(question, "default", supplied or "default")
+
+
+@pytest.mark.skipif(not (_SEED / "site.json").exists(), reason="Elmina seed not built")
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Take me to Surau At Taqwa, starting at Surau Al Mahdi.",
+        "I'm at Surau Al Mahdi. Is Surau At Taqwa reachable on foot?",
+        "How far is Surau At Taqwa from Surau Al Mahdi?",
+    ],
+)
+def test_both_named_endpoints_are_accepted(question):
+    world = load_world(_SEED)
+    _guard(world, question, {"from_id": _MAHDI, "to_id": _TAQWA}, strict=True)
+
+
+@pytest.mark.skipif(not (_SEED / "site.json").exists(), reason="Elmina seed not built")
+@pytest.mark.parametrize(
+    "question, args",
+    [
+        (
+            "Take me to Surau At Taqwa, starting at Surau Al Mahdi.",
+            {"from_id": "park-b", "to_id": _TAQWA},
+        ),
+        (
+            "I'm at Surau Al Mahdi. Is Surau At Taqwa reachable?",
+            {"from_id": _MAHDI, "to_id": "playground"},
+        ),
+        ("How far is it?", {"from_id": _MAHDI, "to_id": _TAQWA}),  # nothing named, no context
+    ],
+)
+def test_substituted_or_unnamed_endpoints_are_still_blocked(question, args):
+    world = load_world(_SEED)
+    with pytest.raises(_RSE):
+        _guard(world, question, args, strict=True)

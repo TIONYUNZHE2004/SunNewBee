@@ -104,22 +104,36 @@ def mentions(text, places):
     }
 
 
+# A negation governs a mode word up to three words later, inside its clause ("not in a
+# wheelchair", "tidak guna kerusi roda", "不坐轮椅").
+_MODE_NEGATION = re.compile(
+    r"(?:\b(?:not|never|no|without|instead of|bukan|tidak|tak|tanpa)\b(?:\s+[^\s,.;!?]+){0,3}\s+"
+    r"|(?:不是|不用|不坐|没有|不)[^，。,.;；！？!?]{0,4})$",
+    re.I,
+)
+
+
+def _negated_mode(question, start):
+    clause = re.split(r"[,.;!?，。；！？]", question[:start])[-1]
+    return bool(_MODE_NEGATION.search(clause))
+
+
 def effective_profile(question, ui_profile, supplied=None):
-    explicit = {
-        p
-        for p, pattern in MODE_WORDS.items()
-        if any(
-            not re.search(
-                r"(?:\bnot\s+|\binstead of\s+|\bbukan\s+|\btidak\s+|不|不是)$",
-                question[: match.start()],
-                re.I,
-            )
-            for match in re.finditer(pattern, question, re.I)
-        )
+    every = {p: list(re.finditer(pattern, question, re.I)) for p, pattern in MODE_WORDS.items()}
+    found = {
+        p: [m for m in ms if not _negated_mode(question, m.start())] for p, ms in every.items()
     }
+    explicit = {p for p, ms in found.items() if ms}
+    negated = {p for p, ms in every.items() if ms and not found[p]}
     # A wheelchair/stroller question can also contain the ordinary word "walking".
     if explicit & {"wheelchair", "stroller", "older_adult_rest"}:
         explicit.discard("default")
+    # "...in a wheelchair, and are there rest points?" asks about rest points on that route; it
+    # does not name a second travel mode.
+    if explicit & {"wheelchair", "stroller"} and all(
+        re.fullmatch(r"rest points?", m.group(0), re.I) for m in found["older_adult_rest"]
+    ):
+        explicit.discard("older_adult_rest")
     if (
         explicit == {"default"}
         and ui_profile in {"wheelchair", "stroller", "older_adult_rest"}
@@ -136,7 +150,8 @@ def effective_profile(question, ui_profile, supplied=None):
         raise RouteSelectionError(
             "More than one travel mode is named. Ask which mode this route should use."
         )
-    allowed = explicit or {ui_profile}
+    # "I don't use a wheelchair" overrides the wheelchair selected in the app: walking.
+    allowed = explicit or ({"default"} if ui_profile in negated else {ui_profile})
     chosen = supplied or (next(iter(allowed)) if len(allowed) == 1 else ui_profile)
     if chosen not in allowed:
         raise RouteSelectionError(
@@ -172,7 +187,10 @@ def role_phrases(question):
     match = ROLE_PAIR.search(question)
     if not match:
         reverse = re.search(
-            r"\bto\s+(.+?)\s+from\s+(.+)|\bke\s+(.+?)\s+dari\s+(.+)", question, re.I
+            r"\bto\s+(.+?),?\s+(?:from|starting (?:at|from))\s+(.+)"
+            r"|\bke\s+(.+?),?\s+(?:dari|bermula (?:di|dari))\s+(.+)",
+            question,
+            re.I,
         )
         if reverse:
             parts = [v for v in reverse.groups() if v is not None]
@@ -262,7 +280,7 @@ def guard_endpoints(world, question, args, *, context=None, strict=False, centre
                     "This follow-up refers to the previous route. Re-run its exact endpoints "
                     "instead of choosing another journey."
                 )
-        elif strict:
+        elif strict and named != chosen:  # both ends named exactly ("I'm at X. Is Y reachable?")
             raise RouteSelectionError(
                 "Please name the exact start and destination before selecting a route."
             )
