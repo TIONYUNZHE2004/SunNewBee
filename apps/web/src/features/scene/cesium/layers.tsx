@@ -29,14 +29,13 @@ import {
 } from "../geo";
 import { useScene } from "../sceneStore";
 import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
-import { useMapStyle } from "../useMapStyle";
 import { DayLayer } from "./DayLayer";
-import { heightRefFor, type MapStyle } from "./heightRef";
+import { heightRefFor } from "./heightRef";
 import { MyTripLayer } from "./MyTripLayer";
 import { RolloutLayer } from "./RolloutLayer";
 
-/** Stylised draws on the flat ellipsoid: clamp to ground there, to Google tiles only when realistic. */
-const heightRef = (style: MapStyle) => heightRefFor(style, !!ENV.googleKey, Cesium.HeightReference);
+/** Clamp to Google tiles when configured, else to the ground (Ion terrain). */
+const heightRef = () => heightRefFor(!!ENV.googleKey, Cesium.HeightReference);
 const flat = (coords: number[][]) => coords.flatMap((c) => [c[0] as number, c[1] as number]);
 const FLOODED: EdgeStatus[] = ["flooded_likely", "flooded_possible"];
 type EdgeGroup = { id: string; coords: LonLat[] };
@@ -142,7 +141,6 @@ export function AccessLayer() {
   const visible = useScene((s) => s.lensVisible.access);
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const focusPlaceId = useScene((s) => s.focusPlaceId);
-  const mapStyle = useMapStyle().style;
   const q = useLayer("access", profile, scenarioId);
   // The gap bands replace the status lines while the Gaps layer is on (one meaning per line).
   const groups = useMemo(
@@ -168,7 +166,7 @@ export function AccessLayer() {
               color={Cesium.Color.fromCssColorString("#0f5c63")}
               outlineColor={Cesium.Color.WHITE}
               outlineWidth={2}
-              heightReference={heightRef(mapStyle)}
+              heightReference={heightRef()}
               disableDepthTestDistance={Number.POSITIVE_INFINITY}
             />
             {p.id === focusPlaceId && (
@@ -179,7 +177,7 @@ export function AccessLayer() {
                 showBackground
                 backgroundColor={Cesium.Color.fromCssColorString("#0a4349")}
                 pixelOffset={new Cesium.Cartesian2(0, -28)}
-                heightReference={heightRef(mapStyle)}
+                heightReference={heightRef()}
                 disableDepthTestDistance={Number.POSITIVE_INFINITY}
               />
             )}
@@ -284,7 +282,6 @@ export function FloodLayer() {
   const flood = useLayer("flood", profile, scenarioId);
   const evac = useEvacCentres(scenarioId, profile);
   const focusPlaceId = useScene((s) => s.focusPlaceId);
-  const mapStyle = useMapStyle().style;
   const polys = useMemo(
     () =>
       waterPolygons(water.data).map((p) => ({
@@ -309,26 +306,20 @@ export function FloodLayer() {
     () => Cesium.Color.fromCssColorString(WATER_COLOR).withAlpha(0.55),
     [],
   );
-  useRenderOn(polys, groups, evac.data, on, mapStyle);
+  useRenderOn(polys, groups, evac.data, on);
   if (!on) return null;
   return (
     <>
       <StatusLines groups={groups} extraWidth={2} />
       {polys.map((p) => (
         <Entity key={p.key}>
-          {mapStyle === "stylised" ? (
-            // Stylised ground is the flat ellipsoid: drape the scenario water on it (a surface
-            // height above terrain would float as a slab over the flat city).
-            <PolygonGraphics hierarchy={p.hierarchy} material={waterColor} />
-          ) : (
-            <PolygonGraphics
-              hierarchy={p.hierarchy}
-              height={p.height}
-              extrudedHeight={p.height - 40}
-              perPositionHeight={false}
-              material={waterColor}
-            />
-          )}
+          <PolygonGraphics
+            hierarchy={p.hierarchy}
+            height={p.height}
+            extrudedHeight={p.height - 40}
+            perPositionHeight={false}
+            material={waterColor}
+          />
         </Entity>
       ))}
       {(evac.data ?? []).map((r) => (
@@ -346,7 +337,7 @@ export function FloodLayer() {
             color={Cesium.Color.fromCssColorString(centreMapMarker(r).color)}
             outlineColor={Cesium.Color.WHITE}
             outlineWidth={2}
-            heightReference={heightRef(mapStyle)}
+            heightReference={heightRef()}
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
           />
           <LabelGraphics
@@ -357,7 +348,7 @@ export function FloodLayer() {
             backgroundColor={Cesium.Color.WHITE.withAlpha(0.9)}
             fillColor={Cesium.Color.BLACK}
             pixelOffset={new Cesium.Cartesian2(0, -24)}
-            heightReference={heightRef(mapStyle)}
+            heightReference={heightRef()}
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
           />
         </Entity>
@@ -372,7 +363,6 @@ export function WasteLayer() {
   const visible = useScene((s) => s.lensVisible.waste);
   const q = useLayer("waste", profile, scenarioId);
   const focusPlaceId = useScene((s) => s.focusPlaceId);
-  const mapStyle = useMapStyle().style;
   const points = useMemo(() => pointFeatures(q.data), [q.data]);
   useRenderOn(points, visible);
   if (!visible) return null;
@@ -390,7 +380,7 @@ export function WasteLayer() {
             color={Cesium.Color.fromCssColorString("#6B46C1")}
             outlineColor={Cesium.Color.WHITE}
             outlineWidth={2}
-            heightReference={heightRef(mapStyle)}
+            heightReference={heightRef()}
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
           />
           <LabelGraphics
@@ -401,7 +391,7 @@ export function WasteLayer() {
             backgroundColor={Cesium.Color.WHITE.withAlpha(0.9)}
             fillColor={Cesium.Color.BLACK}
             pixelOffset={new Cesium.Cartesian2(0, -22)}
-            heightReference={heightRef(mapStyle)}
+            heightReference={heightRef()}
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
           />
         </Entity>

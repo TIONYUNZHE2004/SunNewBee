@@ -8,8 +8,9 @@ export type Profile = "default" | "stroller" | "wheelchair" | "older_adult_rest"
 export type Lens = "access" | "flood" | "waste";
 export type MapStyle = "realistic" | "stylised";
 
-/** Pure: the map style before the user picks one. Stylised whenever the world has buildings data
- * (it needs no key and makes no billable tile loads); otherwise realistic (the old chain). */
+/** Pure: the map style before the user picks one. Stylised (drawn by Three.js) whenever the world
+ * has buildings data (it needs no key and makes no billable tile loads); otherwise Realistic
+ * (Cesium: Google tiles, else Ion). */
 export function defaultMapStyle(hasBuildings: boolean, _hasGoogle: boolean): MapStyle {
   return hasBuildings ? "stylised" : "realistic";
 }

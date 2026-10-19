@@ -478,9 +478,60 @@ def _status_of(ans: FinalAnswer, rec: TurnRecord) -> str | None:
     return status
 
 
+# T-020: a likely_ok route rests on map-data estimates. Access claims about it must be hedged in
+# their own clause; the answer must say it is estimated.
+ACCESS_CLAIM = re.compile(
+    r"\b(?:step[- ]free|(?:wheelchair|stroller|pram)[- ](?:friendly|accessible)|accessible"
+    r"|barrier[- ]free|no (?:steps|stairs))\b"
+    r"|bebas (?:tangga|halangan)|tanpa anak tangga|mesra (?:oku|kerusi roda)|boleh diakses"
+    r"|无障碍|无台阶|没有台阶|适合轮椅|方便轮椅|轮椅可以通行",
+    re.IGNORECASE,
+)
+ESTIMATE_HEDGE = re.compile(
+    r"\b(?:likely|estimat\w*|may|might|not (?:yet )?(?:checked|verified|confirmed)|unverified"
+    r"|unchecked|recorded|on the map|map data|tagged)\b"
+    r"|\b(?:mungkin|kemungkinan|anggaran|dianggarkan|belum|direkodkan|data peta)\b"
+    r"|可能|估计|估算|未核实|尚未|记录|地图数据",
+    re.IGNORECASE,
+)
+ESTIMATE_WORDS = re.compile(r"\bestimat|\banggar|估计|估算|推估", re.IGNORECASE)
+_CLAUSE = re.compile(r"[.;:!?。；：！？\n,，]")
+
+
+def estimate_claim_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """For a likely_ok route: no unhedged access claim ("step-free", "无障碍") in any clause."""
+    if _status_of(ans, rec) != "likely_ok":
+        return []
+    text = _strip_names(" ".join([ans.summary, *ans.steps, *ans.caveats]), rec.place_names)
+    bad = [
+        m.group(0)
+        for clause in _CLAUSE.split(text)
+        for m in ACCESS_CLAIM.finditer(clause)
+        if not ESTIMATE_HEDGE.search(clause)
+    ]
+    if not bad:
+        return []
+    return [
+        f"The route is only likely OK (estimated from map data, not checked): {sorted(set(bad))} "
+        "stated as fact. Say 'likely step-free (estimated from map data, not checked)' instead."
+    ]
+
+
+def estimate_wording_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """A final answer about a likely_ok route says that it is an estimate."""
+    if ans.answer_status == "cannot_answer" or _status_of(ans, rec) != "likely_ok":
+        return []
+    if ESTIMATE_WORDS.search(" ".join([ans.summary, *ans.steps, *ans.caveats])):
+        return []
+    return [
+        "The route is likely OK only by estimate: say it is 'estimated from map data, not "
+        "checked' ('anggaran daripada data peta' / '根据地图数据估计')."
+    ]
+
+
 def status_wording_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     """How the text names route status and crossings. Shared with `draft_errors`."""
-    errs: list[str] = []
+    errs: list[str] = estimate_claim_errors(ans, rec)
     status = _status_of(ans, rec)
     if status:
         named = _named_statuses(ans.summary, ans.steps) - {status}
@@ -582,6 +633,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     if status is None and len(rec.route_status) == 1:
         status = next(iter(rec.route_status.values()))  # unambiguous even without route_id
     errs += status_wording_errors(ans, rec)
+    errs += estimate_wording_errors(ans, rec)
     partly = status == "partly_unverified" or (
         ans.answer_status == "answered" and "partly_unverified" in rec.route_status.values()
     )
@@ -1567,6 +1619,8 @@ _ISSUES = (
     ("placeholder data", "left out that values are demo values, not yet surveyed"),
     ("confirmed only on placeholder", "called a demo-value route plainly confirmed"),
     ("Route status contradiction", "named a different route status than the route check found"),
+    ("only likely OK", "called an estimated route step-free or accessible"),
+    ("likely OK only by estimate", "did not say the route is an estimate"),
     ("staff-reported closure", "did not name a staff-reported closure"),
     ("Write for residents", "used internal ids instead of readable names"),
     ("No tool was called", "answered without checking the township data"),

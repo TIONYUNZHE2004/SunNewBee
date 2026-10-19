@@ -387,6 +387,18 @@ def estimate_text_errors(text, record):
         return []
     for clause in re.split(r"[.;。；!?！？\n]|\bbut\b|\btetapi\b|但是", text):
         for match in _ESTIMATE_FACT.finditer(clause):
+            physical = re.search(
+                r"step[- ]free|barrier[- ]free|accessible|friendly|no (?:steps|steep sections)"
+                r"|mesra|bebas|无障碍|友好|没有台阶|没有陡坡",
+                match.group(),
+                re.I,
+            )
+            if physical and re.search(
+                r"\blikely\b|\bestimat|\banggar|\bmungkin\b|\bkemungkinan\b|可能|估计|估算",
+                clause,
+                re.I,
+            ):
+                continue  # explicitly estimated access, never a checked physical fact
             if not _ESTIMATE_NEGATIVE.search(clause[: match.start()]):
                 return [
                     "Map estimates are not checked facts: remove positive survey, confirmation "

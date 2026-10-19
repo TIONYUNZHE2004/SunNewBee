@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { setupRealistic } from "./realistic";
-import { applyStylisedLook } from "./stylised/StylisedCity";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -23,9 +22,7 @@ interface FakeTileset {
   tileFailed: ReturnType<typeof event>;
 }
 
-const color = (css: string) => ({ css, clone: () => color(css) });
-
-/** Just enough Viewer + Cesium to run the realistic setup and the stylised look with no WebGL. */
+/** Just enough Viewer + Cesium to run the realistic setup with no WebGL. */
 function fakes() {
   const prims: unknown[] = [];
   const layers: { show: boolean; destroyed: boolean; isDestroyed: () => boolean }[] = [];
@@ -63,20 +60,8 @@ function fakes() {
         p.destroy();
       }),
     },
-    globe: {
-      show: true,
-      baseColor: color("#000"),
-      showGroundAtmosphere: true,
-      enableLighting: true,
-    },
+    globe: { show: true },
     imageryLayers,
-    backgroundColor: color("#111"),
-    fog: { density: 0.0002 },
-    skyAtmosphere: { show: true },
-    skyBox: { show: true },
-    sun: { show: true },
-    moon: { show: true },
-    light: "sun-light",
     setTerrain: vi.fn((t: unknown) => terrains.push(t)),
     requestRender: vi.fn(),
   };
@@ -171,22 +156,15 @@ describe("setupRealistic", () => {
     expect(f.prims).toHaveLength(0);
   });
 
-  it("Realistic -> Stylised -> Realistic leaves no stale primitive, layer or hidden sky", async () => {
+  it("Realistic -> cleanup -> Realistic leaves no stale primitive or layer", async () => {
     const f = fakes();
     const env = { googleKey: "g", cesiumToken: "" };
     let stop = run(f, env);
     f.resolve();
     await flush();
     stop();
-    const restore = applyStylisedLook(f.viewer as never);
     expect(f.prims).toHaveLength(0);
     expect(f.layers).toHaveLength(0);
-    expect(f.scene.sun.show).toBe(false);
-    expect(f.scene.light).toBe("sun-light");
-    restore();
-    expect(f.scene.sun.show).toBe(true);
-    expect(f.scene.skyAtmosphere.show).toBe(true);
-    expect(f.scene.globe.showGroundAtmosphere).toBe(true);
     stop = run(f, env);
     f.resolve();
     await flush();

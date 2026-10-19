@@ -3,6 +3,7 @@ import re
 from .answer import Claim, FinalAnswer
 from .events import SceneIntent
 from .labels import (
+    LIKELY_OK_CAVEAT,
     attribute_label,
     closure_caveats,
     closure_summary_tail,
@@ -10,6 +11,7 @@ from .labels import (
     profile_label,
     rest_caveats,
     route_status_text,
+    status_label,
     unchecked_caveats,
 )
 from .record import TurnRecord
@@ -171,8 +173,8 @@ def tipping_answer(tp: dict, evidence_ids: list[str]) -> dict:
     caveats = [ROLLOUT_GUIDANCE]
 
     def status_words(r: dict) -> str:
-        w = _STATUS_WORDS.get(r["status"], r["status"])
-        if r.get("demo_evidence"):
+        w = _STATUS_WORDS.get(r["status"], status_label(r["status"]))
+        if r.get("demo_evidence") and r["status"] == "confirmed":  # never for an estimate
             w = "confirmed (on demo values, not yet surveyed)"
         if "likely_flooded" in (r.get("start_flood"), r.get("end_flood")):
             w += (
@@ -650,11 +652,13 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     unknowns = unchecked_caveats(route_unknowns, rec.vrs)
     rest = rest_caveats(route)
     caveats: list[str] = list(flood_caveats)
-    if route.get("access_metres", {}).get("likely_ok", 0) or status == "likely_ok":
+    if route.get("access_metres", {}).get("likely_ok", 0) and status != "likely_ok":
         caveats.append("Likely OK sections are estimated from map data, not checked on site.")
     caveats += unknowns
     if status == "no_data":
         caveats.append("No mapped connection between these places (data gap).")
+    elif status == "likely_ok":
+        caveats.append(f"{LIKELY_OK_CAVEAT}.")
     elif (
         status != "confirmed"
         and (route_unknowns or not rest)
@@ -672,7 +676,7 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
         caveats.append(f"Some segment facts are {PLACEHOLDER_CAVEAT}.")
     dist = route.get("distance_m")
     summary = f"Route of {dist} m." if dist is not None else "Route found."
-    if status == "confirmed" and route.get("demo_evidence"):
+    if status == "likely_ok" or (status == "confirmed" and route.get("demo_evidence")):
         summary = f"Route {route_status_text(status, route)}" + (
             f", {dist} m." if dist is not None else "."
         )

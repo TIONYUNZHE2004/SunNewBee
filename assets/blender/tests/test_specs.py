@@ -57,6 +57,37 @@ def test_variants_have_decreasing_lods():
             assert None not in v.max_m[:-1], (spec.id, v.id)
 
 
+# P3 triangle caps of the buildings (specs.py at dfc0e92). The P4 detail pass may raise a cap by
+# at most 25 % and never lowers the LOD2 cap (LOD2 geometry is unchanged).
+P3_BUILDING_CAPS = {
+    "link_intermediate": (6000, 700, 40),
+    "link_long": (6500, 750, 40),
+    "superlink": (7000, 800, 40),
+    "semi_d": (7000, 800, 40),
+    "bungalow": (6000, 700, 40),
+    "townhouse": (4000, 500, 30),
+    "shop_office": (8000, 900, 40),
+    "highrise": (25000, 3000, 120),
+    "school": (12000, 1500, 60),
+    "mosque": (20000, 2500, 150),
+    "factory": (4000, 600, 40),
+    "mall": (15000, 2000, 80),
+    "generic": (3000, 400, 24),
+    "lakeside_mall": (80000, 10000, 1500),
+    "kanopi": (50000, 8000, 600),
+    "masjid_denai_alam": (40000, 5000, 400),
+}
+
+
+def test_building_caps_rise_at_most_a_quarter():
+    for aid, p3 in P3_BUILDING_CAPS.items():
+        for v in specs.ASSETS[aid].variants:
+            assert len(v.tris) == len(p3), (aid, v.id)
+            for lod, (cap, old) in enumerate(zip(v.tris, p3, strict=True)):
+                assert old <= cap <= old * 1.25, (aid, v.id, lod, cap, old)
+            assert v.tris[2] == p3[2], (aid, v.id, "LOD2 is unchanged")
+
+
 def test_every_kit_has_six_to_ten_variants():
     kits = [s for s in specs.ASSETS.values() if s.group == "kit"]
     assert {s.id for s in kits} == {"people", "vehicles", "trees", "furniture", "construction"}

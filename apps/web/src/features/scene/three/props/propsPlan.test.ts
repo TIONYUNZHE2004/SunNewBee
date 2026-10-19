@@ -2,8 +2,13 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseManifest } from "../assets/manifest";
 import { createFrame } from "../frame";
-import { capFor } from "./caps";
-import { planProps } from "./propsPlan";
+import { type Box, boxAround, seedFor } from "../stream/area";
+import { TILE_CAPS } from "../stream/caps";
+import { tileAt } from "../stream/tiles";
+import { planProps, TREE_SCALE } from "./propsPlan";
+
+/** Cap-agnostic tests: generous caps (the old whole-scene High numbers) so a per-tile cap never bites. */
+const UNCAPPED = { trees: 6000, lamps: 1500, furniture: 600, construction: 300 };
 
 const manifest = parseManifest(
   JSON.parse(
@@ -42,9 +47,10 @@ const base = {
   trees: fc(),
   places: fc(),
   frame,
-  centre: O,
-  radiusM: 1200,
+  // The P3 hero circle fixture (r = 1200 m) becomes a single 2,400 m box.
+  area: { box: boxAround(0, 0, 1200), seed: "t" },
   tier: "high" as const,
+  caps: UNCAPPED,
   m: manifest,
 };
 type In = Parameters<typeof planProps>[0];
@@ -103,19 +109,20 @@ describe("planProps", () => {
         poly({ class: "oil_palm" }, 0, 0, 900, 900),
       ),
     };
-    const med = plan({ ...dense, tier: "medium" });
-    expect(ofAsset(med, "trees")).toHaveLength(capFor("medium", "trees"));
+    const med = plan({ ...dense, tier: "medium", caps: TILE_CAPS.medium[0] });
+    expect(ofAsset(med, "trees")).toHaveLength(TILE_CAPS.medium[0].trees);
     const lamps = count(med, "furniture/lamp_single") + count(med, "furniture/lamp_double");
-    expect(lamps).toBeLessThanOrEqual(capFor("medium", "lamps"));
+    expect(lamps).toBeLessThanOrEqual(TILE_CAPS.medium[0].lamps);
     expect(all(plan({ ...dense, tier: "low" }))).toEqual([]);
+    expect(all(plan({ ...dense, caps: TILE_CAPS.low[0] }))).toEqual([]);
   });
 
   it("keeps the nearest props when a cap bites", () => {
     const dense: Partial<In> = {
       landcover: fc(poly({ class: "forest" }, -500, -500, 1000, 1000)),
     };
-    const kept = ofAsset(plan({ ...dense, tier: "medium" }), "trees");
-    const full = ofAsset(plan({ ...dense, tier: "high" }), "trees");
+    const kept = ofAsset(plan({ ...dense, caps: TILE_CAPS.medium[0] }), "trees");
+    const full = ofAsset(plan({ ...dense, caps: UNCAPPED }), "trees");
     expect(kept.length).toBeLessThan(full.length);
     const far = Math.max(...kept.map((t) => Math.hypot(t.x, t.z)));
     const dropped = full.filter((t) => !kept.some((k) => k.id === t.id));
@@ -186,10 +193,12 @@ describe("planProps", () => {
     for (const o of oil) expect(o.x >= 100 && o.x <= 180 && o.z >= 100 && o.z <= 180).toBe(true);
   });
 
-  it("keeps everything inside the radius", () => {
-    const p = plan({ ...scene, radiusM: 150 });
+  it("keeps everything inside the box, half-open", () => {
+    const box: Box = { x0: -150, z0: -150, x1: 150, z1: 150 };
+    const p = plan({ ...scene, area: { box, seed: "t" } });
     expect(all(p).length).toBeGreaterThan(10);
-    for (const q of all(p)) expect(Math.hypot(q.x, q.z)).toBeLessThanOrEqual(150 + 1e-6);
+    for (const q of all(p))
+      expect(q.x >= box.x0 && q.x < box.x1 && q.z >= box.z0 && q.z < box.z1).toBe(true);
   });
 
   it("only uses kit keys that exist in the manifest", () => {
@@ -216,7 +225,7 @@ describe("planProps", () => {
 
   it("a dense forest at the centre does not starve street, OSM or park trees", () => {
     const p = plan({
-      tier: "medium",
+      caps: TILE_CAPS.medium[0],
       landcover: fc(
         poly({ class: "forest" }, -400, -400, 800, 800),
         poly({ class: "oil_palm" }, 400, -400, 400, 800),
@@ -231,7 +240,7 @@ describe("planProps", () => {
       parks: fc(poly({ id: "pk" }, 500, 600, 200, 200)),
     });
     const trees = ofAsset(p, "trees");
-    expect(trees).toHaveLength(capFor("medium", "trees"));
+    expect(trees).toHaveLength(TILE_CAPS.medium[0].trees);
     const near = (t: { id: string }, pre: string) => t.id.startsWith(pre);
     expect(trees.filter((t) => near(t, "st:")).length).toBeGreaterThan(5);
     expect(trees.filter((t) => near(t, "ot:"))).toHaveLength(2);
@@ -243,7 +252,6 @@ describe("planProps", () => {
     // A 5 km footway at z=1150 from x=-1500 to 3500: its midpoint (1000, 1150) is 1523 m from
     // the centre, beyond radius + 200, yet the segment crosses the disc (|x| < 343 at z=1150).
     const p = plan({
-      radiusM: 1200,
       walk: fc(
         line("footway", [
           [-1500, 1150],
@@ -274,7 +282,7 @@ describe("planProps", () => {
       [500, 500],
     ];
     const p = plan({
-      capsOverride: { construction: 3 },
+      caps: { ...UNCAPPED, construction: 3 },
       landcover: fc(...sites.map(([x, z]) => poly({ class: "construction" }, x, z, 95, 95))),
     });
     const built = ofAsset(p, "construction");
@@ -293,5 +301,302 @@ describe("planProps", () => {
       ),
     });
     expect(count(p, "furniture/bollard")).toBe(15);
+  });
+
+  it("keeps trees at least 2.5 m apart", () => {
+    const trees = ofAsset(plan(edgeScene), "trees");
+    expect(trees.length).toBeGreaterThan(200);
+    for (let i = 0; i < trees.length; i++)
+      for (let j = i + 1; j < trees.length; j++)
+        expect(
+          Math.hypot(trees[i]!.x - trees[j]!.x, trees[i]!.z - trees[j]!.z),
+        ).toBeGreaterThanOrEqual(2.5 - 1e-9);
+  });
+});
+
+/** Everything crosses the shared edges x = 0 and z = 0 of the four quadrant tiles. */
+const edgeScene: Partial<In> = {
+  walk: fc(
+    line(
+      "street",
+      [
+        [-240, 1],
+        [240, -1],
+      ],
+      "s1",
+    ),
+    line(
+      "major_road",
+      [
+        [0, -240],
+        [0, 240],
+      ],
+      "m1",
+    ),
+    line(
+      "street",
+      [
+        [-120, -240],
+        [-118, 240],
+      ],
+      "s2",
+    ),
+  ),
+  landcover: fc(
+    poly({ class: "grass" }, 20, 20, 120, 120),
+    poly({ class: "forest" }, -90, -90, 120, 70),
+    poly({ class: "oil_palm" }, -200, 60, 230, 100),
+    poly({ class: "construction" }, 30, -150, 95, 95),
+    poly({ class: "construction" }, -60, -230, 120, 60),
+  ),
+  buildings: fc(poly({ id: "b1" }, -40, 10, 30, 30), poly({ id: "b2" }, 5, -40, 30, 20)),
+  parks: fc(poly({ id: "p1" }, -60, 100, 120, 80)),
+  trees: fc(point({ id: "t1" }, 0, -60), point({ id: "t2" }, -0.5, -80), point({ id: "t3" }, 1, 1)),
+  places: fc(
+    point({ id: "pl1", type: "shelter", name: "x" }, 1, 20),
+    point({ id: "pl2", type: "playground", name: "y" }, -2, 120),
+    point({ id: "pl3", type: "school", name: "z", entrance_ids: ["e1", "e2"] }, 3, -3),
+  ),
+};
+const BIG = { trees: 1e6, lamps: 1e6, furniture: 1e6, construction: 1e6 };
+const Q: Box[] = [
+  { x0: -250, z0: -250, x1: 0, z1: 0 },
+  { x0: 0, z0: -250, x1: 250, z1: 0 },
+  { x0: -250, z0: 0, x1: 0, z1: 250 },
+  { x0: 0, z0: 0, x1: 250, z1: 250 },
+];
+const U: Box = { x0: -250, z0: -250, x1: 250, z1: 250 };
+const byId = <T extends { id: string }>(l: T[]) => [...l].sort((a, b) => (a.id < b.id ? -1 : 1));
+const placements = (p: Out) => byId(all(p));
+
+describe("planProps per tile box", () => {
+  const at = (box: Box, seed = "t") => plan({ ...edgeScene, caps: BIG, area: { box, seed } });
+
+  it("four tiles planned separately give exactly the placements of their union", () => {
+    const parts = Q.map((b, i) => placements(at(b, `q${i}`)));
+    const union = placements(at(U, "u"));
+    expect(union.length).toBeGreaterThan(300);
+    // No duplicates: every id is placed by one tile only.
+    const ids = parts.flat().map((q) => q.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    // No gaps: the same set, placement for placement.
+    expect(byId(parts.flat())).toEqual(union);
+    // Not vacuous: props sit on both sides of the shared edges.
+    for (const s of [1, -1]) {
+      expect(union.some((q) => s * q.x >= 0 && Math.abs(q.x) < 3)).toBe(true);
+      expect(union.some((q) => s * q.z >= 0 && Math.abs(q.z) < 3)).toBe(true);
+    }
+  });
+
+  it("each kit bucket splits the same way (the kits, not just the ids)", () => {
+    const union = at(U);
+    for (const [key, list] of union.kits) {
+      const split = Q.flatMap((b) => at(b).kits.get(key) ?? []);
+      expect(byId(split), key).toEqual(byId(list));
+    }
+  });
+
+  it("is deterministic per tile key, whatever was planned before", () => {
+    const tile = tileAt(10, 10);
+    const area = { box: tile.box, seed: seedFor(tile.key, "props") };
+    const first = plan({ ...edgeScene, area, caps: TILE_CAPS.medium[0] });
+    plan({ ...edgeScene, area: { box: Q[0]!, seed: "x" }, caps: TILE_CAPS.medium[0] });
+    expect(plan({ ...edgeScene, area, caps: TILE_CAPS.medium[0] })).toEqual(first);
+    expect(all(first).length).toBeGreaterThan(20);
+  });
+
+  it("streets just outside a shared edge still put their kerb trees and lamps across it", () => {
+    // Streets parallel to the shared edges, 3–6 m outside them: their far-kerb trees (4.5 m off
+    // the centre line) and lamps (3.8 m) land in the neighbouring tile.
+    const seam: Partial<In> = {
+      walk: fc(
+        ...[3, -4.5, 6].map((x, i) =>
+          line(
+            "street",
+            [
+              [x, -240],
+              [x, 240],
+            ],
+            `sx${i}`,
+          ),
+        ),
+        ...[-3, 5].map((z, i) =>
+          line(
+            "street",
+            [
+              [-240, z],
+              [240, z],
+            ],
+            `sz${i}`,
+          ),
+        ),
+      ),
+    };
+    const kerb = (box: Box) =>
+      byId(
+        all(plan({ ...seam, caps: BIG, area: { box, seed: "t" } })).filter(
+          (q) => q.asset === "trees" || q.variant.startsWith("lamp"),
+        ),
+      );
+    const parts = Q.flatMap((b) => kerb(b));
+    const union = kerb(U);
+    expect(new Set(parts.map((q) => q.id)).size).toBe(parts.length);
+    expect(byId(parts)).toEqual(union);
+    // Not vacuous: the x = 3 street's west-kerb trees and lamps sit in the west tiles.
+    const west = union.filter((q) => q.id.includes(":sx0:") && q.x < 0);
+    expect(west.some((q) => q.asset === "trees")).toBe(true);
+    expect(west.some((q) => q.variant.startsWith("lamp"))).toBe(true);
+  });
+
+  it("each tile keeps only points inside its own half-open box, edge points included", () => {
+    // The major road's median palms and lamps run along x = 0, the shared edge.
+    let onEdge = 0;
+    for (const box of Q)
+      for (const q of all(at(box))) {
+        expect(q.x >= box.x0 && q.x < box.x1 && q.z >= box.z0 && q.z < box.z1).toBe(true);
+        if (Math.abs(q.x) < 1e-6) onEdge++;
+      }
+    expect(onEdge).toBeGreaterThan(5);
+  });
+});
+
+describe("tree scale and footway clearance", () => {
+  const footScene: Partial<In> = {
+    walk: fc(
+      line(
+        "street",
+        [
+          [-240, 0],
+          [240, 0],
+        ],
+        "s1",
+      ),
+      line(
+        "footway",
+        [
+          [-240, 6],
+          [240, 6],
+        ],
+        "f1",
+      ),
+      line(
+        "crossing",
+        [
+          [40, -30],
+          [40, 30],
+        ],
+        "c1",
+      ),
+      line(
+        "path",
+        [
+          [-100, -200],
+          [100, 200],
+        ],
+        "p1",
+      ),
+      line(
+        "major_road",
+        [
+          [-200, -120],
+          [200, -120],
+        ],
+        "m1",
+      ),
+      line(
+        "footway",
+        [
+          [120, 40],
+          [120, 200],
+        ],
+        "f2",
+      ),
+    ),
+    landcover: fc(
+      poly({ class: "grass" }, 60, 60, 120, 120),
+      poly({ class: "forest" }, 100, -230, 100, 80),
+      poly({ class: "oil_palm" }, -230, 100, 100, 100),
+    ),
+    parks: fc(poly({ id: "p1" }, 60, 60, 120, 120)),
+    trees: fc(point({ id: "t1" }, 10, 8), point({ id: "t2" }, 150, -150)),
+  };
+  const run = () => plan({ ...footScene, caps: BIG, area: { box: U, seed: "t" } });
+  const sizeOf = (variant: string) => manifest.assets.trees!.variants[variant]!.size[0];
+
+  it("TREE_SCALE bands follow the owner override", () => {
+    expect(TREE_SCALE.street.rain_tree).toEqual([0.55, 0.7]);
+    expect(TREE_SCALE.verge.rain_tree).toEqual([0.55, 0.7]);
+    expect(TREE_SCALE.street.flame_tree).toEqual([0.8, 1]);
+    expect(TREE_SCALE.verge.royal_palm).toEqual([0.8, 1]);
+    expect(TREE_SCALE.park.rain_tree).toEqual([0.8, 1.1]);
+    expect(TREE_SCALE.forest.coconut_palm).toEqual([0.8, 1.1]);
+  });
+
+  it("street rain trees are scaled 0.55-0.7", () => {
+    const rain = run()
+      .kits.get("trees/rain_tree")!
+      .filter((t) => t.id.startsWith("st:"));
+    expect(rain.length).toBeGreaterThan(5);
+    for (const t of rain) {
+      expect(t.sx).toBeGreaterThanOrEqual(0.55 - 1e-9);
+      expect(t.sx).toBeLessThanOrEqual(0.7 + 1e-9);
+    }
+  });
+
+  it("park trees are scaled 0.8-1.1", () => {
+    const nonRoad = ofAsset(run(), "trees").filter((t) => !/^(st|ot|mt):/.test(t.id));
+    expect(nonRoad.length).toBeGreaterThan(5);
+    for (const t of nonRoad) {
+      expect(t.sx).toBeGreaterThanOrEqual(0.8 - 1e-9);
+      expect(t.sx).toBeLessThanOrEqual(1.1 + 1e-9);
+    }
+  });
+
+  it("no tree canopy reaches more than 1 m over a footway centreline", () => {
+    const trees = ofAsset(run(), "trees");
+    expect(trees.length).toBeGreaterThan(5);
+    const prefixes = new Set(trees.map((t) => t.id.split(":")[0]));
+    for (const pre of ["st", "ot", "mt"]) expect(prefixes.has(pre)).toBe(true);
+    expect(prefixes.size).toBeGreaterThan(3);
+    const centrelines = [
+      [
+        [-240, 6],
+        [240, 6],
+      ],
+      [
+        [40, -30],
+        [40, 30],
+      ],
+      [
+        [-100, -200],
+        [100, 200],
+      ],
+      [
+        [120, 40],
+        [120, 200],
+      ],
+    ] as const;
+    const dist = (px: number, pz: number, a: readonly number[], b: readonly number[]) => {
+      const dx = b[0]! - a[0]!;
+      const dz = b[1]! - a[1]!;
+      const t = Math.max(
+        0,
+        Math.min(1, ((px - a[0]!) * dx + (pz - a[1]!) * dz) / (dx * dx + dz * dz)),
+      );
+      return Math.hypot(px - a[0]! - t * dx, pz - a[1]! - t * dz);
+    };
+    for (const t of trees) {
+      const r = (sizeOf(t.variant) * t.sx) / 2;
+      for (const [a, b] of centrelines)
+        expect(r - dist(t.x, t.z, a, b)).toBeLessThanOrEqual(1 + 1e-9);
+    }
+  });
+
+  it("clearance does not depend on the planned box", () => {
+    const whole = placements(run());
+    const quads = Q.flatMap((box) =>
+      placements(plan({ ...footScene, caps: BIG, area: { box, seed: "t" } })),
+    );
+    expect(byId(quads)).toEqual(whole);
   });
 });

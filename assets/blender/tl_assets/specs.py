@@ -10,6 +10,10 @@ import re
 from dataclasses import dataclass, field
 
 ROLES = ("primary", "secondary", "accent", "glass", "dark", "metal", "foliage", "light")
+# The role contract has no "water" role: decorative water inside a building asset (the Kanopi
+# podium pool) is role glass with this aux. The role material lights glass only below
+# uLitShare (< 1), so it never glows; the tests look it up by this value.
+WATER_AUX = 0.995
 
 # Same names and order as data/scripts/build_archetypes.py (tested).
 ARCHETYPES: tuple[str, ...] = (
@@ -129,11 +133,11 @@ _RESIDENTIAL: dict[str, Palette] = {
         ("#f0ece2", "#5b5f66", "#a89878"),
     ),
 }
-_COMMERCIAL: dict[str, Palette] = {  # [?] starting values
-    "default": (
-        ("#e8e6e1", "#4a4e55", "#9aa3ab"),
-        ("#dcdad4", "#3a3e44", "#b49a6e"),
-        ("#f0eee9", "#5a5f66", "#7f8a94"),
+_COMMERCIAL: dict[str, Palette] = {  # owner gate P4 round 1: warm primaries and accents
+    "default": (  # (primary walls and membrane roofs, secondary, accent terracotta or timber)
+        ("#ece6da", "#4a4e55", "#b8704f"),
+        ("#e2dacb", "#3a3e44", "#b49a6e"),
+        ("#f1ebe1", "#5a5f66", "#c4855e"),
     ),
 }
 _KIT_DEFAULT: dict[str, Palette] = {  # [?] starting values
@@ -274,7 +278,8 @@ _LANDMARK_SPECS = (
     # Placed on its traced tower outline (landmarks.geojson match "traced_outline", from
     # data/seed/elmina/sources/landmark_outlines.geojson).
     # A residential slab on a podium; its footprint is the OBB of the traced outline
-    # (KANOPI_OBB, 88.88 x 27.79 m), so the web fit lands at sx, sz ~ 1. The 36 storeys are the
+    # (KANOPI_OBB, 88.88 x 27.79 m), so the web fit lands at sx, sz ~ 1. The slab keeps the
+    # traced depth (ruling P4-AB): it stands 1 m in from every podium edge. The 36 storeys are the
     # developer's design height, not a survey: 36 x 3.2 m = 115.2 m of tower on an 8.7 m podium
     # (OSM way 1545153991, 8.71 m), plus a thin crown, 130 m in all.
     _landmark(

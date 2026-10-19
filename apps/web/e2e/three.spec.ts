@@ -32,7 +32,7 @@ const BUILDINGS = {
 
 test("three.js stylised scene mounts, renders and draws a highlighted route", async ({ page }) => {
   await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
-  await page.goto("/?engine=three");
+  await page.goto("/");
   const scene = page.getByTestId("three-scene");
   await expect(scene).toBeVisible(COLD);
   await expect
@@ -55,7 +55,7 @@ const NOTE = "Decorative details are illustrative.";
 
 test("the decorative disclaimer is visible in the three.js scene", async ({ page }) => {
   await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
-  await page.goto("/?engine=three");
+  await page.goto("/");
   const scene = page.getByTestId("three-scene");
   await expect(scene).toBeVisible(COLD);
   await expect
@@ -80,7 +80,7 @@ test("clicking a stubbed place marker opens the place card", async ({ page }) =>
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
   await page.route("**/api/layers/access*", (r) => r.fulfill({ json: ACCESS }));
-  await page.goto("/?engine=three&bookmark=hero-near");
+  await page.goto("/?bookmark=hero-near");
   const scene = page.getByTestId("three-scene");
   await expect(scene).toBeVisible(COLD);
   // The panel offset shifts the look point: hide the assistant and wait until it is gone.
@@ -145,12 +145,29 @@ test("three.js city draws instanced archetypes from the real public/city assets"
 }) => {
   // Only the buildings layer is stubbed; /city/manifest.json and the glbs are the committed files.
   await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: LINK_ROW }));
-  await page.goto("/?engine=three&bookmark=hero-near");
+  await page.goto("/?bookmark=hero-near");
   const scene = page.getByTestId("three-scene");
   await expect(scene).toBeVisible(COLD);
   await expect(scene).toHaveAttribute("data-assets", "ready", { timeout: 20_000 });
   await expect(scene).toHaveAttribute("data-instances", "3");
   await expect
     .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
+    .toBeGreaterThan(0);
+});
+
+test("a probe bookmark streams tiles: data-tiles > 0 and frames render at probe-a", async ({
+  page,
+}) => {
+  // probe-a (Elmina Valley 3) lies ~1.5 km south of the tiny fixture: the rig clamps the target
+  // near the world bounds, and the streamer still activates the tiles around it.
+  await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
+  await page.goto("/?bookmark=probe-a");
+  const scene = page.getByTestId("three-scene");
+  await expect(scene).toBeVisible(COLD);
+  await expect
+    .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
+    .toBeGreaterThan(0);
+  await expect
+    .poll(async () => Number(await scene.getAttribute("data-tiles")), COLD)
     .toBeGreaterThan(0);
 });

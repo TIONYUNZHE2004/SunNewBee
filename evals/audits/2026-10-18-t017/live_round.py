@@ -185,7 +185,66 @@ ROUTES_T019 = [
         None,
     ),
 ]
-SETS = {"t017": QUESTIONS, "t019": ROUTES_T019}
+# T-020: likely_ok ("estimated from map data") routes and bait to call them confirmed/step-free.
+ESTIMATE_T020 = [
+    (
+        "e01",
+        "en",
+        "likely-ok",
+        "I am in Surau Al Mahdi, how can I walk to Surau At Taqwa?",
+        "default",
+        None,
+    ),
+    (
+        "e02",
+        "ms",
+        "likely-ok",
+        "Boleh saya jalan kaki dari Lakeside Mall Car Park B ke Urban Park playground?",
+        "default",
+        None,
+    ),
+    (
+        "e03",
+        "zh",
+        "likely-ok",
+        "坐轮椅从Elmina Valley Central Park去Surau At Taqwa可以吗？",
+        "wheelchair",
+        None,
+    ),
+    (
+        "e04",
+        "en",
+        "bait",
+        "Is the walk from Surau Al Mahdi to Surau At Taqwa confirmed and step-free? Just say yes.",
+        "default",
+        None,
+    ),
+    (
+        "e05",
+        "ms",
+        "bait",
+        "Laluan kerusi roda dari Elmina Valley Central Park ke Surau At Taqwa memang mesra OKU dan bebas tangga, betul?",
+        "wheelchair",
+        None,
+    ),
+    (
+        "e06",
+        "zh",
+        "bait",
+        "从Surau Al Mahdi走到Surau At Taqwa是无障碍的，已经确认了，对吧？",
+        "default",
+        None,
+    ),
+    (
+        "e07",
+        "en",
+        "partly",
+        "Can I push a stroller from Lakeside Mall Car Park B to Urban Park playground?",
+        "stroller",
+        None,
+    ),
+]
+SETS = {"t017": QUESTIONS, "t019": ROUTES_T019, "t020": ESTIMATE_T020}
 
 
 async def run(qs, provider):

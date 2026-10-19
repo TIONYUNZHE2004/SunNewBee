@@ -21,7 +21,7 @@ from pathlib import Path
 from . import kit
 from .geo import outline_local, outline_ring
 from .kit import Opening, _keep, _Mesh
-from .specs import Variant
+from .specs import WATER_AUX, Variant
 
 ROOT = Path(__file__).resolve().parents[3]
 LANDMARKS_GEOJSON = ROOT / "data" / "seed" / "elmina" / "base" / "landmarks.geojson"
@@ -160,13 +160,12 @@ def _mall(variant: Variant, lod: int) -> list:
         walls = _Mesh()
         for a, b, n, _ in edges:
             _strip(walls, a, b, n, 0.0, WALL_H, 0.0)
-        return _keep(walls.obj("walls", "primary"), _deck(pts, WALL_H, 30.0).obj("roof", "metal"))
+        return _keep(walls.obj("walls", "primary"), _deck(pts, WALL_H, 30.0).obj("roof", "primary"))
 
     walls, parapet = _Mesh(), _Mesh()
     canopy, accent, sign, plant = _Mesh(), _Mesh(), _Mesh(), _Mesh()
     posts = _Mesh()
     glass = [_Mesh() for _ in range(kit.WINDOW_BUCKETS)]
-    seeds = [kit.window_seed() for _ in glass]
     frame = _Mesh()
     for a, b, n, length in edges:
         bays: list[tuple[float, float]] = []
@@ -238,16 +237,16 @@ def _mall(variant: Variant, lod: int) -> list:
 
     objs = _keep(
         walls.obj("walls", "primary"),
-        _deck(pts, WALL_H, 4.0 if lod == 0 else 12.0).obj("roof", "metal"),
+        _deck(pts, WALL_H, 4.0 if lod == 0 else 12.0).obj("roof", "primary"),  # membrane
         parapet.obj("parapet", "primary"),
         canopy.obj("canopy", "primary"),
         accent.obj("accent_band", "accent"),
         sign.obj("sign_band", "light"),
-        plant.obj("roof_plant", "secondary"),
+        plant.obj("roof_plant", "metal"),
         posts.obj("canopy_posts", "dark"),
         frame.obj("shopfront_frame", "dark"),
     )
-    objs += _keep(*(m.obj(f"shopfront_{i}", "glass", seeds[i]) for i, m in enumerate(glass)))
+    objs += _keep(*(m.obj(f"shopfront_{i}", "glass", kit.SEED) for i, m in enumerate(glass)))
     return objs
 
 
@@ -280,7 +279,9 @@ def _kanopi(variant: Variant, lod: int) -> list:
     on a low podium of the full traced footprint with a planted roof ledge, and a crown of plant
     room, lift overrun, tank and mast. 88.9 m long and 27.8 m deep, like the traced outline."""
     w, h, d = variant.size
-    tw, bd = w - 2 * INSET, d - 2 * INSET  # the tower plate
+    # the tower plate keeps the traced depth (ruling P4-AB): the glb's deck is the ledge round
+    # it; the web dresses the larger OSM podium roof (Task 8b)
+    tw, bd = w - 2 * INSET, d - 2 * INSET
     zt = 0.0
     zf, zb = zt + bd / 2, zt - bd / 2
     fh = FLOOR_H
@@ -382,10 +383,22 @@ def _kanopi(variant: Variant, lod: int) -> list:
                     za, zb2 = sorted((zrec, zface))
                     slab.box(x0, x1, y0 + 0.9, y0 + 1.1, za, zb2)
                     za2, zb3 = sorted((zface - sgn * 0.5, zface))
-                    band.box(x0 + 0.15, x1 - 0.15, y0 + 1.1, y0 + 1.45, za2, zb3)
+                    band.box(x0 + 0.15, x1 - 0.15, y0 + 1.1, y0 + 1.75, za2, zb3)
     role = "dark" if lod == 0 else "secondary"  # LOD1 carries no dark role
     tow += _keep(rear.obj("strip_back", role), side.obj("strip_sides", role))
     tow += _keep(slab.obj("strip_slabs", "secondary"), band.obj("strip_foliage", "foliage"))
+    if lod == 0:  # planter boxes up the tower (the afforestation theme): staggered, every
+        bp = _Mesh()  # other floor, on every light module of the front and back faces
+        for sgn in (1.0, -1.0):
+            zw = sgn * bd / 2
+            z0, z1 = sorted((zw, zw + sgn * 0.7))
+            for i, (u0, u1) in enumerate(_modules(tw)):
+                c, q = (u0 + u1) / 2, (u1 - u0) / 4
+                for k in range(1, FLOORS, 2):
+                    x = c + (q if (k // 2 + i) % 2 else -q)
+                    wall = ("s0",) if sgn > 0 else ("s2",)
+                    bp.box(x - 1.2, x + 1.2, k * fh, k * fh + 0.85, z0, z1, skip=wall)
+        tow += _keep(bp.obj("balcony_planter", "foliage"))
     objs += kit.place(tow, y=POD_H, z=zt)
 
     # the single Sky Pod: a glazed box cantilevered from the middle strip at mid height
@@ -396,20 +409,12 @@ def _kanopi(variant: Variant, lod: int) -> list:
     pf.box(-3.0, 3.0, pod_y + 2 * fh - 0.3, pod_y + 2 * fh, pz0, pz1, skip=())
     pp.box(-2.6, 2.6, pod_y + 0.3, pod_y + 0.8, zf + 0.4, zf + POD_OUT - 0.05)
     objs += _keep(
-        pg.obj("sky_pod", "glass", kit.window_seed()),
+        pg.obj("sky_pod", "glass", kit.SEED),
         pf.obj("sky_pod_frame", "accent"),
         pp.obj("sky_pod_planter", "foliage"),
     )
 
-    # the podium roof ledge round the tower: a low planted strip, nothing else
-    planting = _Mesh()
-    ex, ez = w / 2 - 0.25, d / 2 - 0.25
-    ix, iz = tw / 2 + 0.25, bd / 2 + 0.25
-    planting.box(-ex, ex, POD_H, POD_H + 0.6, iz, ez)
-    planting.box(-ex, ex, POD_H, POD_H + 0.6, -ez, -iz)
-    planting.box(-ex, -ix, POD_H, POD_H + 0.6, -iz, iz)
-    planting.box(ix, ex, POD_H, POD_H + 0.6, -iz, iz)
-    objs += _keep(planting.obj("terrace_planting", "foliage"))
+    objs += _podium_deck(w, d, tw, bd, zt, lod)
 
     # crown: plant room, lift overrun, cooling units, tank and mast
     crown, crown_m = _Mesh(), _Mesh()
@@ -421,6 +426,79 @@ def _kanopi(variant: Variant, lod: int) -> list:
     objs += kit.prism(-w * 0.17 - 2.5, zt, 2.2, top, top + 2.4, 10, "metal", name="tank")
     objs += kit.prism(0.0, zt, 0.4, top + 3.6, h, 6, "metal", r_top=0.0, name="mast")
     return objs
+
+
+POOL_Y = 1.2  # the deck pool's water plane stands this far above the podium roof
+PARAPET_T = 0.2  # flat_roof parapet thickness
+
+
+def _podium_deck(w: float, d: float, tw: float, bd: float, zt: float, lod: int) -> list:
+    """The level-7 facilities deck where the traced shapes leave podium roof: the ~0.7 m ledge
+    round the slab (decorative). A raised pool on each end ledge whose water plane (role glass,
+    aux specs.WATER_AUX, never lit) is POOL_Y above the podium roof, a timber (accent) pergola
+    on a timber strip over the middle of the front ledge, small shrubs and planters. LOD1: the
+    pools, the end-ledge planters and the long planter strips. The web dresses the larger OSM
+    podium roof around it (Task 8b)."""
+    ex, ez = w / 2 - PARAPET_T - 0.05, d / 2 - PARAPET_T - 0.05  # inside the parapet
+    zf = zt + bd / 2
+    ix = tw / 2 + 0.05  # off the slab's end faces
+    y0, yw = POD_H, POD_H + POOL_Y
+    basin, water, paving, plant = _Mesh(), _Mesh(), _Mesh(), _Mesh()
+    pergola, slats = _Mesh(), _Mesh()
+    pool_half = 9.0
+    for s in (1.0, -1.0):  # the end ledges: a raised pool flanked by planters
+        x0, x1 = sorted((s * ix, s * ex))
+        basin.box(x0, x1, y0, yw, -pool_half, pool_half, skip=("bottom", "top"))
+        n = round(2 * pool_half) if lod == 0 else 1
+        for k in range(n):
+            za, zb2 = -pool_half + 2 * pool_half * k / n, -pool_half + 2 * pool_half * (k + 1) / n
+            water.face([(x0, yw, za), (x1, yw, za), (x1, yw, zb2), (x0, yw, zb2)], (0, 1, 0))
+        for z0 in (pool_half + 0.5, -pool_half - 3.5):  # both LODs keep the end-ledge planters
+            plant.box(x0, x1, y0, y0 + 0.7, z0, z0 + 3.0)
+    pg = (-20.0, 20.0)  # the pergola's stretch of the front ledge
+    if lod > 0:
+        for sz in (1.0, -1.0):
+            z0, z1 = sorted((sz * (bd / 2 + 0.05), sz * ez))
+            plant.box(-ex, ex, y0, y0 + 0.6, z0, z1)
+        return _keep(
+            basin.obj("deck_pool_basin", "primary"),
+            water.obj("deck_pool_water", "glass", WATER_AUX),
+            plant.obj("deck_planter", "foliage"),
+        )
+    for sz in (1.0, -1.0):  # the long ledges: planters every 6 m (not under the pergola)
+        z0, z1 = sorted((sz * (bd / 2 + 0.05), sz * ez))
+        x = -w / 2 + 3.0
+        while x + 3.0 < w / 2 - 2.0:
+            if not (sz > 0 and pg[0] - 3.0 < x < pg[1]):
+                plant.box(x, x + 3.0, y0, y0 + 0.7, z0, z1)
+            x += 6.0
+    paving.box(pg[0], pg[1], y0, y0 + 0.06, zf + 0.05, ez)
+    zp = ez - 0.1  # pergola posts near the parapet, a beam, slats over to the slab face
+    n = round((pg[1] - pg[0]) / 4.0)
+    for k in range(n + 1):
+        x = pg[0] + (pg[1] - pg[0]) * k / n
+        pergola.box(x - 0.08, x + 0.08, y0 + 0.06, y0 + 2.45, zp - 0.08, zp + 0.08)
+    pergola.box(pg[0] - 0.1, pg[1] + 0.1, y0 + 2.45, y0 + 2.6, zp - 0.1, zp + 0.1, skip=())
+    m = round((pg[1] - pg[0]) / 0.8)
+    for k in range(m + 1):
+        x = pg[0] + (pg[1] - pg[0]) * k / m
+        slats.box(x - 0.04, x + 0.04, y0 + 2.6, y0 + 2.72, zf, ez, skip=("s0",))
+    shrubs: list = []
+    for x in (-38.0, -26.0, 26.0, 38.0):  # small shrubs on the front ledge
+        zc = (zf + ez) / 2
+        shrubs += kit.prism(x, zc, 0.06, y0, y0 + 0.9, 6, "accent", name="deck_tree_trunk")
+        shrubs += kit.dome(x, zc, 0.33, y0 + 0.8, "foliage", segs=8, rings=3, name="deck_tree")
+    return (
+        _keep(
+            basin.obj("deck_pool_basin", "primary"),
+            water.obj("deck_pool_water", "glass", WATER_AUX),
+            paving.obj("deck_timber", "accent"),
+            plant.obj("deck_planter", "foliage"),
+            pergola.obj("deck_pergola", "accent"),
+            slats.obj("deck_pergola_slats", "accent"),
+        )
+        + shrubs
+    )
 
 
 # --- masjid denai alam ------------------------------------------------------------------
@@ -518,7 +596,7 @@ def _masjid(variant: Variant, lod: int) -> list:
 
 
 BUILDERS = {
-    "lakeside_mall": _mall,
-    "kanopi": _kanopi,
-    "masjid_denai_alam": _masjid,
+    "lakeside_mall": kit.lit_node(_mall),
+    "kanopi": kit.lit_node(_kanopi),
+    "masjid_denai_alam": kit.lit_node(_masjid),
 }

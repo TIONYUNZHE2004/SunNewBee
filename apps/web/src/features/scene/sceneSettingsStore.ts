@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Tier } from "./cesium/stylised/quality";
+import type { Tier } from "./shared/quality";
 
 export type QualityChoice = "auto" | Tier;
 const MOTION = "tl.motion";

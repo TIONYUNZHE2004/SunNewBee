@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { hashUnit } from "../../cesium/stylised/model";
-import { TIERS, type Tier } from "../../cesium/stylised/quality";
+import { hashUnit } from "../../shared/model";
+import { TIERS, type Tier } from "../../shared/quality";
 import type { LocalFrame } from "../frame";
 
 export const CLOUD_SHADOW_Y = 0.11;
@@ -14,6 +14,49 @@ const BIRD_ALT_M: [number, number] = [40, 90];
 const BIRD_ORBIT_M: [number, number] = [150, 450];
 const BIRD_SPEED_MPS: [number, number] = [6, 10];
 const BIRD_SPAN_M = 3;
+/** Wing beats per second, and the wing-tip lift either way (m), in the bird vertex shader. */
+export const BIRD_FLAP_HZ = 3;
+const BIRD_FLAP_M = 0.45;
+/** Bank never exceeds this (rad, 30 deg). */
+export const BIRD_MAX_BANK = Math.PI / 6;
+/** Bank is the coordinated-turn angle atan(v w / g), exaggerated this much so it reads from afar. */
+const BANK_GAIN = 3;
+const G = 9.81;
+
+/**
+ * Bank (roll about the body axis) for a bird flying at v m/s while turning at w rad/s: signed like
+ * w, so the inner wing dips, and bounded by BIRD_MAX_BANK. Decorative.
+ */
+export function birdBank(v: number, w: number): number {
+  const b = Math.atan((BANK_GAIN * Math.abs(v * w)) / G);
+  return Math.sign(v * w) === 0 ? 0 : Math.sign(w) * Math.min(BIRD_MAX_BANK, b);
+}
+
+const glf = (v: number) => (Number.isInteger(v) ? v.toFixed(1) : String(v));
+
+/**
+ * The wing-flap vertex term: tips (|z| = half span) rise and fall by BIRD_FLAP_M at BIRD_FLAP_HZ,
+ * the body stays put; each bird's phase comes from its instance position. uTime is real seconds.
+ */
+function addFlap(mat: THREE.Material, uTime: { value: number }) {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = uTime;
+    shader.vertexShader = shader.vertexShader
+      .replace("void main() {", "uniform float uTime;\nvoid main() {")
+      .replace(
+        "#include <begin_vertex>",
+        [
+          "#include <begin_vertex>",
+          "float flapPhase = 0.0;",
+          "#ifdef USE_INSTANCING",
+          "flapPhase = instanceMatrix[3].x * 0.37 + instanceMatrix[3].z * 0.23;",
+          "#endif",
+          `transformed.y += sin( uTime * ${glf(2 * Math.PI * BIRD_FLAP_HZ)} + flapPhase ) * ${glf(BIRD_FLAP_M)} * abs( position.z ) / ${glf(BIRD_SPAN_M / 2)};`,
+        ].join("\n"),
+      );
+  };
+  mat.customProgramCacheKey = () => "bird-flap";
+}
 
 const noRaycast = () => {};
 const lerp = (r: [number, number], u: number) => r[0] + (r[1] - r[0]) * u;
@@ -50,7 +93,9 @@ function chevron(): THREE.BufferGeometry {
  * Decorative ambient life. Birds (by day, hidden once night > 0.5): `TIERS[tier].birds` small
  * chevrons on slow loops at 40 to 90 m. Cloud shadows (by day, hidden once day < 0.5):
  * `TIERS[tier].clouds` large soft dark decals at y = 0.11 drifting 3 m/s. Seeded; positions are a
- * pure function of `nowMs`, so a frame is reproducible. Display only: no shadow, no picking.
+ * pure function of `nowMs`, so a frame is reproducible (and smooth at any tick rate). Birds bank
+ * into their turn and flap in the vertex shader (uTime = nowMs / 1000, so a stopped clock freezes
+ * them). Display only: no shadow, no picking.
  */
 export function createAmbient(
   tier: Tier,
@@ -60,6 +105,8 @@ export function createAmbient(
 ): {
   group: THREE.Group;
   tick(nowMs: number, weights: { day: number; dusk: number; night: number }): void;
+  /** Each bird's orbit centre (local xz), for tests. */
+  readonly birdOrbits: readonly [number, number][];
   dispose(): void;
 } {
   const spec = TIERS[tier];
@@ -86,9 +133,20 @@ export function createAmbient(
   const bp = new THREE.Vector3();
   const bs = new THREE.Vector3(1, 1, 1);
   const up = new THREE.Vector3(0, 1, 0);
+  const fwd = new THREE.Vector3(1, 0, 0);
+  const roll = new THREE.Quaternion();
+  const flapTime = { value: 0 };
 
   let birds: THREE.InstancedMesh | null = null;
-  const bird: { r: number; w: number; a0: number; alt: number; ox: number; oz: number }[] = [];
+  const bird: {
+    r: number;
+    w: number;
+    a0: number;
+    alt: number;
+    ox: number;
+    oz: number;
+    bank: number;
+  }[] = [];
   if (spec.birds > 0) {
     const geo = chevron();
     const mat = new THREE.MeshBasicMaterial({
@@ -96,6 +154,7 @@ export function createAmbient(
       side: THREE.DoubleSide,
       fog: false,
     });
+    addFlap(mat, flapTime);
     geometries.push(geo);
     materials.push(mat);
     birds = new THREE.InstancedMesh(geo, mat, spec.birds);
@@ -107,6 +166,7 @@ export function createAmbient(
       bird.push({
         r,
         w: (dir * v) / r,
+        bank: birdBank(v, (dir * v) / r),
         a0: hashUnit(id, "a0") * Math.PI * 2,
         alt: lerp(BIRD_ALT_M, hashUnit(id, "alt")),
         ox: cx + (hashUnit(id, "ox") - 0.5) * 600,
@@ -156,8 +216,10 @@ export function createAmbient(
 
   return {
     group,
+    birdOrbits: bird.map((b) => [b.ox, b.oz] as [number, number]),
     tick(nowMs, w) {
       const t = nowMs / 1000;
+      flapTime.value = t;
       if (birds) {
         birds.visible = w.night <= 0.5;
         if (birds.visible) {
@@ -167,7 +229,10 @@ export function createAmbient(
             // Heading along the tangent of the loop (the chevron points along +x).
             const tx = -Math.sin(a) * Math.sign(b.w);
             const tz = Math.cos(a) * Math.sign(b.w);
-            bq.setFromAxisAngle(up, Math.atan2(-tz, tx));
+            // Heading, then the bank about the body axis (+x), inner wing down.
+            bq.setFromAxisAngle(up, Math.atan2(-tz, tx)).multiply(
+              roll.setFromAxisAngle(fwd, b.bank),
+            );
             birds.setMatrixAt(i, bm.compose(bp, bq, bs));
           });
           birds.instanceMatrix.needsUpdate = true;

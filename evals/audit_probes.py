@@ -3,7 +3,8 @@
 uv run python evals/audit_probes.py        # prints ACCEPTED / REJECTED per probe; exit 1 if any
                                            # dishonest probe is accepted
 Mock-free and key-free: it plans one real route on the Elmina seed (Car Park B -> playground,
-stroller), then calls validate_answer directly with answers a model might write. It also checks
+walking; likely_ok since T-020), then calls validate_answer directly with answers a model
+might write. It also checks
 that the honest control answer is accepted, so a rule that rejects everything is caught too.
 See docs/04-architecture/ai-audit-and-plan-2026-10-17.md (findings F2, F3).
 """
@@ -23,7 +24,7 @@ from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
 ROOT = Path(__file__).resolve().parents[1]
-PREFIX = "Route status: confirmed (on demo values, not yet surveyed). "
+PREFIX = "Route status: likely OK (estimated from map data, not checked). "
 CAVEATS = ["demo values, not yet surveyed"]
 
 # (finding, label, text appended to an otherwise honest summary)
@@ -47,9 +48,9 @@ def plan_hero_route() -> tuple[TurnRecord, str, list[str]]:
         vrs=VerificationStore(tempfile.mktemp(suffix=".db")),
     )
     rec = TurnRecord()
-    deps = A.Deps(ctx=ctx, rec=rec, request=ChatRequest(message="x", profile="stroller"))
+    deps = A.Deps(ctx=ctx, rec=rec, request=ChatRequest(message="x", profile="default"))
     asyncio.run(
-        A.call_tool(deps, "plan_route", from_id="park-b", to_id="playground", profile="stroller")
+        A.call_tool(deps, "plan_route", from_id="park-b", to_id="playground", profile="default")
     )
     rid = next(iter(rec.routes))
     # The route's fixed notes (crossing_note, road_note) belong in every honest answer about it,

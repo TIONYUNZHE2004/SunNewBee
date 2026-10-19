@@ -1,6 +1,7 @@
-import { toBuildings } from "../../cesium/stylised/model";
+import { toBuildings } from "../../shared/model";
 import { displayHeight, localRing } from "../cityMesh";
 import type { LocalFrame } from "../frame";
+import { boxCentre, inBox, type PlanArea, perLayer } from "../stream/area";
 
 /** One text-only shop sign on a building facade. Its source is carried along; no sign is made without one. */
 export interface SignPlacement {
@@ -27,6 +28,8 @@ const MIN_FACADE_M = 1.5;
 const STREET_RANGE_M = 120;
 
 type P = [number, number];
+const capOf = (cap: number | undefined) =>
+  cap === undefined ? Number.POSITIVE_INFINITY : Math.max(0, Math.floor(cap));
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 const features = (fc: unknown): unknown[] =>
   isRec(fc) && Array.isArray(fc.features) ? fc.features : [];
@@ -69,8 +72,36 @@ function inside(p: P, ring: P[]): boolean {
   return c;
 }
 
-/** Street polylines (walk LineStrings) in local metres. */
-function streets(walk: unknown, frame: LocalFrame): P[][] {
+interface Street {
+  pts: P[];
+  /** Bounds: x0, z0, x1, z1. */
+  bb: [number, number, number, number];
+}
+const streetsCache = new WeakMap<object, WeakMap<object, Street[]>>();
+const buildingsCache = new WeakMap<
+  object,
+  WeakMap<object, Map<string, ReturnType<typeof toBuildings>["buildings"][number]>>
+>();
+
+/** Street polylines (walk LineStrings) in local metres, built once per walk layer and frame. */
+const streets = (walk: unknown, frame: LocalFrame): Street[] =>
+  perLayer(streetsCache, walk, frame, () =>
+    streetLines(walk, frame).map((pts) => {
+      let x0 = Infinity;
+      let x1 = -Infinity;
+      let z0 = Infinity;
+      let z1 = -Infinity;
+      for (const [x, z] of pts) {
+        x0 = Math.min(x0, x);
+        x1 = Math.max(x1, x);
+        z0 = Math.min(z0, z);
+        z1 = Math.max(z1, z);
+      }
+      return { pts, bb: [x0, z0, x1, z1] as [number, number, number, number] };
+    }),
+  );
+
+function streetLines(walk: unknown, frame: LocalFrame): P[][] {
   const out: P[][] = [];
   for (const f of features(walk)) {
     const g = isRec(f) ? f.geometry : null;
@@ -90,14 +121,23 @@ function streets(walk: unknown, frame: LocalFrame): P[][] {
  * building: on the facade facing the nearest walk street (the longest facade with no street near),
  * 0.15 m outside the wall, at y = min(4.2, 0.45 h), width = clamp(0.45 per character, 2 m, 80% of the
  * facade). A sign with no source, or whose building is unknown, is dropped and counted: never drawn.
+ * With an area, a sign belongs to the box holding its point (half-open), so adjacent tiles never
+ * plan the same sign.
  */
 export function planSigns(
   signs: unknown,
   buildings: unknown,
   walk: unknown,
   frame: LocalFrame,
-  /** Only signs whose point lies within `radiusM` of `centre` (lon/lat) are planned; the rest are counted in `outside`. */
-  within?: { centre: [number, number]; radiusM: number },
+  opts: {
+    /**
+     * Only signs whose point lies in the box (half-open) are planned; the rest are counted in
+     * `outside`. A sign without a usable point is judged by its placed position.
+     */
+    area?: PlanArea;
+    /** At most this many signs, nearest to the box centre first: `tileCap(…, "signs", …)`. */
+    cap?: number;
+  } = {},
 ): {
   signs: SignPlacement[];
   dropped: Record<"no_source" | "no_building", number>;
@@ -105,10 +145,19 @@ export function planSigns(
 } {
   const dropped = { no_source: 0, no_building: 0 };
   let outside = 0;
-  const hero = within ? frame.toLocal(within.centre[0], within.centre[1]) : null;
-  const byId = new Map(toBuildings(buildings, displayHeight).buildings.map((b) => [b.id, b]));
-  const lines = streets(walk, frame);
+  const box = opts.area?.box ?? null;
+  // Built once per layer and frame, and only when a sign gets this far (a tile without signs pays
+  // nothing).
+  const byIdOf = () =>
+    perLayer(
+      buildingsCache,
+      buildings,
+      frame,
+      () => new Map(toBuildings(buildings, displayHeight).buildings.map((b) => [b.id, b])),
+    );
   const out: SignPlacement[] = [];
+  /** Each planned sign's membership point (its feature point, else its placed position). */
+  const anchors: P[] = [];
 
   for (const f of features(signs)) {
     const p = isRec(f) && isRec(f.properties) ? f.properties : {};
@@ -120,18 +169,19 @@ export function planSigns(
       dropped.no_source++;
       continue;
     }
-    if (hero && within) {
+    let at: P | null = null;
+    if (box) {
       const c = isRec(f) && isRec(f.geometry) ? f.geometry.coordinates : null;
       if (Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1])) {
-        const [x, z] = frame.toLocal(c[0] as number, c[1] as number);
-        if (Math.hypot(x - hero[0], z - hero[1]) > within.radiusM) {
+        at = frame.toLocal(c[0] as number, c[1] as number);
+        if (!inBox(box, at[0], at[1])) {
           outside++;
           continue;
         }
       }
     }
     const id = str(p.id);
-    const b = str(p.building_id) ? byId.get(str(p.building_id)!) : undefined;
+    const b = str(p.building_id) ? byIdOf().get(str(p.building_id)!) : undefined;
     const ring = b ? localRing(b.ring, frame) : null;
     if (!id || !b || !ring || ring.length < 3) {
       dropped.no_building++;
@@ -149,15 +199,24 @@ export function planSigns(
       z0 = Math.min(z0, z);
       z1 = Math.max(z1, z);
     }
-    const near = lines.filter((l) =>
-      l.some(
-        ([x, z]) =>
-          x > x0 - STREET_RANGE_M &&
-          x < x1 + STREET_RANGE_M &&
-          z > z0 - STREET_RANGE_M &&
-          z < z1 + STREET_RANGE_M,
-      ),
-    );
+    const near = streets(walk, frame)
+      .filter(
+        ({ bb }) =>
+          bb[2] > x0 - STREET_RANGE_M &&
+          bb[0] < x1 + STREET_RANGE_M &&
+          bb[3] > z0 - STREET_RANGE_M &&
+          bb[1] < z1 + STREET_RANGE_M,
+      )
+      .map((l) => l.pts)
+      .filter((l) =>
+        l.some(
+          ([x, z]) =>
+            x > x0 - STREET_RANGE_M &&
+            x < x1 + STREET_RANGE_M &&
+            z > z0 - STREET_RANGE_M &&
+            z < z1 + STREET_RANGE_M,
+        ),
+      );
     const streetDist = (q: P) => {
       let d = Infinity;
       for (const l of near)
@@ -188,16 +247,32 @@ export function planSigns(
       best.len * SIGN_FACADE_SHARE,
       Math.max(SIGN_MIN_WIDTH_M, text.length * SIGN_CHAR_M),
     );
+    const x = best.mid[0] + best.n[0] * SIGN_OFFSET_M;
+    const z = best.mid[1] + best.n[1] * SIGN_OFFSET_M;
+    if (box && !at) {
+      if (!inBox(box, x, z)) {
+        outside++;
+        continue;
+      }
+      at = [x, z];
+    }
     out.push({
       id,
       text,
-      x: best.mid[0] + best.n[0] * SIGN_OFFSET_M,
+      x,
       y: Math.min(SIGN_MAX_Y_M, SIGN_Y_FRACTION * b.height),
-      z: best.mid[1] + best.n[1] * SIGN_OFFSET_M,
+      z,
       yaw: Math.atan2(best.n[0], best.n[1]),
       widthM: width,
       source: { url, label: str(p.source_label) ?? hostOf(url), asOf },
     });
+    anchors.push(at ?? [x, z]);
   }
-  return { signs: out, dropped, outside };
+  if (!box) return { signs: out.slice(0, capOf(opts.cap)), dropped, outside };
+  // Nearest to the box centre first (then id), so a cap keeps the same signs whatever the order of
+  // the features.
+  const [cx, cz] = boxCentre(box);
+  const order = out.map((s, i) => ({ s, d: Math.hypot(anchors[i]![0] - cx, anchors[i]![1] - cz) }));
+  order.sort((a, b) => a.d - b.d || (a.s.id < b.s.id ? -1 : a.s.id > b.s.id ? 1 : 0));
+  return { signs: order.slice(0, capOf(opts.cap)).map((o) => o.s), dropped, outside };
 }

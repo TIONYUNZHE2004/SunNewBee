@@ -1,9 +1,13 @@
 import * as THREE from "three";
+import type { Tier } from "../../shared/quality";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { MoodMix } from "./agents";
 import type { MotionLayer } from "./motionLayer";
 
-/** The single motion clock runs at most 30 fps, on real time (never by frame count). */
+/**
+ * The 30 fps cadence: the P3 rate, and since P4 the fallback when display-rate motion is too slow
+ * (see MotionClock). Always real time, never frame count.
+ */
 export const MOTION_FRAME_MS = 1000 / 30;
 /**
  * A motion frame is due this much early: rAF lands on vsync, so a frame meant for 33.3 ms often
@@ -15,6 +19,124 @@ export const MOTION_SLACK_MS = 4;
 export const DECOR_FADE_MS = 1000;
 /** Lit windows flicker only once the night weight is above this, and only while motion runs. */
 const FLICKER_NIGHT = 0.5;
+
+/**
+ * The motion clock's rate. "display": one motion tick per rAF while running (P4, High and Medium).
+ * "30fps": one tick per MOTION_FRAME_MS (the P3 cadence), the fallback on a slow device.
+ */
+export type MotionMode = "display" | "30fps";
+/** A median frame rate below this during motion switches the clock to 30 fps for the session. */
+export const MOTION_FALLBACK_FPS = 45;
+/** The fallback looks at the median of live frames over this much live time. */
+const FALLBACK_WINDOW_MS = 3000;
+
+/** Motion runs at display rate at High and Medium; Low has no motion at all (null). */
+export function motionModeFor(tier: Tier): MotionMode | null {
+  return tier === "low" ? null : "display";
+}
+
+/** Per page session: once the clock has fallen back, every later clock starts at 30 fps. */
+const session = { fellBack: false };
+/** Tests only: forget the session fallback. */
+export function resetMotionSession(): void {
+  session.fellBack = false;
+}
+
+/**
+ * The engine's motion scheduler, pure (no timers, no rAF): the engine asks it per rendered frame
+ * whether motion advances, and after the frame how to wake the next motion frame.
+ */
+export interface MotionClock {
+  readonly mode: MotionMode;
+  /** performance.now() of the last motion tick: the layers' (frozen while stopped) clock. */
+  readonly at: number;
+  /**
+   * Once per rendered frame with `live = layer present && running()`. True when this frame is a
+   * motion tick (then `at` = nowMs). display: every live frame; 30fps: a (re)start at once, then
+   * one per MOTION_FRAME_MS - MOTION_SLACK_MS. Live frame gaps feed the 45 fps fallback monitor.
+   */
+  frame(nowMs: number, live: boolean): boolean;
+  /**
+   * After the frame: null = schedule nothing (motion stopped or paused, Review Focus 3);
+   * 0 = request the next rAF; > 0 = arm a timer for that many ms, then request a rAF.
+   */
+  nextWakeMs(nowMs: number, live: boolean): number | null;
+  /** A new motion layer: its clock starts now (the frozen `at` while stopped). */
+  restart(nowMs: number): void;
+  /**
+   * External frame-monitor hook: a median fps measured during motion. Below 45 fps (and only while
+   * the last frame was live) the clock falls back to 30 fps; true only the one time it switches.
+   */
+  reportFrameMedian(fps: number): boolean;
+  /** Called once when the mode changes (the fallback). Returns an unsubscribe. */
+  onModeChange(cb: (m: MotionMode) => void): () => void;
+}
+
+export function createMotionClock(opts: { mode?: MotionMode } = {}): MotionClock {
+  let mode: MotionMode = session.fellBack ? "30fps" : (opts.mode ?? "display");
+  let at = 0;
+  let wasLive = false;
+  let lastLive: number | null = null;
+  let samples: number[] = [];
+  let elapsed = 0;
+  const listeners = new Set<(m: MotionMode) => void>();
+
+  const fallBack = () => {
+    if (mode === "30fps") return false;
+    mode = "30fps";
+    session.fellBack = true;
+    samples = [];
+    for (const cb of listeners) cb(mode);
+    return true;
+  };
+  const sample = (dtMs: number) => {
+    if (mode !== "display" || !(dtMs > 0)) return;
+    const dt = Math.min(dtMs, 1000); // a very slow frame still counts as slow
+    samples.push(dt);
+    elapsed += dt;
+    if (elapsed < FALLBACK_WINDOW_MS) return;
+    const sorted = [...samples].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)] as number;
+    samples = [];
+    elapsed = 0;
+    if (1000 / median < MOTION_FALLBACK_FPS) fallBack();
+  };
+
+  return {
+    get mode() {
+      return mode;
+    },
+    get at() {
+      return at;
+    },
+    frame(nowMs, live) {
+      // Only gaps between consecutive live frames count: an idle spell is not one slow frame.
+      if (live && wasLive && lastLive !== null) sample(nowMs - lastLive);
+      lastLive = live ? nowMs : null;
+      const due =
+        live && (mode === "display" || !wasLive || nowMs - at >= MOTION_FRAME_MS - MOTION_SLACK_MS);
+      if (due) at = nowMs;
+      wasLive = live;
+      return due;
+    },
+    nextWakeMs(nowMs, live) {
+      if (!live) return null;
+      if (mode === "display") return 0;
+      return Math.max(0, at + MOTION_FRAME_MS - MOTION_SLACK_MS - nowMs);
+    },
+    restart(nowMs) {
+      at = nowMs;
+    },
+    reportFrameMedian(fps) {
+      if (!wasLive || !(fps < MOTION_FALLBACK_FPS)) return false;
+      return fallBack();
+    },
+    onModeChange(cb) {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+  };
+}
 
 /**
  * Stop when Motion is off or reduced motion is set; pause when the tab is hidden or the map is off

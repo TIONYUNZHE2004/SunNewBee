@@ -47,6 +47,10 @@ def status_label(status: str) -> str:
     return STATUS_LABELS.get(status, status.replace("_", " "))
 
 
+# A likely_ok route (T-020) rests on map-data estimates: one fixed caveat says how they were made.
+LIKELY_OK_CAVEAT = (
+    "Estimated from map data (OpenStreetMap path types and tags), not checked on site"
+)
 # A confirmed route whose facts include placeholder evidence is named with this qualifier.
 DEMO_CONFIRMED = "confirmed (on demo values, not yet surveyed)"
 
@@ -362,7 +366,7 @@ FRAME = {
 STATUS_WORDS = {
     "ms": {
         "confirmed": "disahkan",
-        "likely_ok": "berkemungkinan boleh dilalui (anggaran daripada peta, belum diperiksa)",
+        "likely_ok": "kemungkinan OK (anggaran daripada data peta, belum disemak)",
         "partly_unverified": "sebahagian belum disahkan",
         "blocked": "tersekat",
         "no_data": "tiada sambungan dipetakan (jurang data)",
@@ -370,7 +374,7 @@ STATUS_WORDS = {
     },
     "zh": {
         "confirmed": "已确认",
-        "likely_ok": "估计可通行（基于地图数据，尚未核实）",
+        "likely_ok": "可能可行（根据地图数据估计，未核实）",
         "partly_unverified": "部分未核实",
         "blocked": "受阻",
         "no_data": "无已绘制的连接（数据缺口）",
