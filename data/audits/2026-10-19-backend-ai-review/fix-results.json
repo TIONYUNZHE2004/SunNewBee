@@ -1,0 +1,78 @@
+{
+  "scope": "Backend and AI route correctness fixes; published AI 2aaa214 integrated after live probes.",
+  "recommendation": "Review the combined route guards and require green CI before control opens/merges the PR. Next priority: preserve original OSM node identity and audit false junctions; driving still lacks one-way and turn restrictions.",
+  "fixed": {
+    "AUD-001": "Exact place IDs bind route selection, measurements, follow-ups and map highlight.",
+    "AUD-002": "Replay rejects stale world, claim, profile, code and expiry-day fingerprints.",
+    "AUD-003": "Nearby searches inherit request mode and scenario; origin and radius cannot silently change. Empty search cannot recommend unrelated candidates. Final answer and flood-map level must match the checked route scenario.",
+    "AUD-004": "Estimated routes carry map-estimate caveats and reject unqualified accessibility/survey assertions; AI estimate tests integrated.",
+    "AUD-005": "Explicit impassable smoothness blocks wheeled modes; adverse smoothness prevents positive strict estimates. OSM definition does not prohibit pedestrian travel.",
+    "AUD-006": "Layer cache and ETag expire across the day boundary.",
+    "AUD-007": "Unpreviewed evacuation-centre rows respect older-adult rest gaps.",
+    "AUD-010": "Undated staff edge claims cannot establish a checked pass."
+  },
+  "remaining_ranked": [
+    {
+      "rank": 1,
+      "issue": "AUD-011",
+      "status": "open; crafted reproduction, not demonstrated on real seed",
+      "critical_point": "Importer uses coordinate-derived junction IDs when original OSM nodes are absent. Equal coordinates do not prove a legal junction, especially across levels. A new import must retain real node IDs and regenerate dependent seed layers."
+    },
+    {
+      "rank": 2,
+      "issue": "Driving restrictions",
+      "status": "known limitation, still disclosed in every drive result",
+      "critical_point": "No one-way or turn-restriction model. Driving output is indicative, never confirmed navigation."
+    },
+    {
+      "rank": 3,
+      "issue": "AUD-008",
+      "status": "open",
+      "critical_point": "Keyword scope gate can refuse real route requests containing removed-topic words."
+    },
+    {
+      "rank": 4,
+      "issue": "AUD-009",
+      "status": "open",
+      "critical_point": "PDPA redaction still misses some parenthesized phone and spaced identity formats."
+    },
+    {
+      "rank": 5,
+      "issue": "AUD-012",
+      "status": "policy decision required",
+      "critical_point": "Closed ordinary destinations warn, while closed evacuation centres are excluded. Yunzhe must choose consistent destination closure policy."
+    }
+  ],
+  "live": {
+    "questions": 9,
+    "initial": 6,
+    "focused_retests": 3,
+    "no_more_paid_calls": true,
+    "model": "anthropic/claude-haiku-5.5",
+    "reported_shared_key_delta_upper_bound_usd": 0.029173935,
+    "key_usage_at_2026_10_19_0125_utc": 0.213742665,
+    "spend_note": "AI round 5 accounting overlapped. The shared-key delta is an upper bound, not exclusive per-generation allocation. See board SPEND.md.",
+    "results": "No incorrect route highlight. BM and Chinese reached the local playground on retest; Chinese used the checked English template. Its overly broad amenity guard was narrowed and tested offline. Wrong-distance bait and unknown clinic abstained. Final combined AI merge is checked offline; live logs predate that merge."
+  },
+  "evidence": [
+    "fix-api-smoke.json",
+    "fix-live-six.json",
+    "fix-live-retest-three.json",
+    "fix_live_round.py"
+  ],
+  "full_ci": "Not run locally. Control opens the PR; CI must run the full checks. Assigned API/web stopped.",
+  "checks": {
+    "agent_api": "PASS 1,116 tests after AI merge",
+    "final_changed_files": "PASS 259 tests; final scenario and radius guards",
+    "additional_scene_rehearsal": "PASS 332 tests",
+    "estimate_audit_controls": "PASS 118 tests",
+    "spatial": "PASS 230 targeted engine tests; 66 final access/evaluation checks; 35 tools/search checks",
+    "lint": "PASS (existing warnings remain)",
+    "typecheck": "PASS",
+    "api_client": "PASS regeneration and zero drift",
+    "golden": "PASS 23/23 mock, zero fallbacks and rejected attempts",
+    "web_starters": "PASS 2/2",
+    "real_api": "PASS curl /places, /routes, /layers/access, /chat on real seed",
+    "e2e": "NOT RUN locally per branch workflow; control CI required"
+  }
+}

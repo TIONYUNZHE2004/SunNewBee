@@ -1,0 +1,312 @@
+{
+  "health": {
+    "status": "ok",
+    "world_model": {
+      "state": "off",
+      "done": []
+    }
+  },
+  "find:Surau Al Mahdi": [
+    {
+      "id": "osm-way-910405528",
+      "name": "Surau Al Mahdi"
+    },
+    {
+      "id": "osm-node-2478641046",
+      "name": "Surau"
+    },
+    {
+      "id": "osm-way-907988141",
+      "name": "Surau"
+    },
+    {
+      "id": "osm-way-910468192",
+      "name": "Surau Al Falah"
+    },
+    {
+      "id": "osm-way-910761000",
+      "name": "Surau Al Islah"
+    }
+  ],
+  "find:Surau At Taqwa": [
+    {
+      "id": "osm-way-910378231",
+      "name": "Surau At Taqwa"
+    },
+    {
+      "id": "osm-node-2478641046",
+      "name": "Surau"
+    },
+    {
+      "id": "osm-way-907988141",
+      "name": "Surau"
+    },
+    {
+      "id": "osm-way-910468192",
+      "name": "Surau Al Falah"
+    },
+    {
+      "id": "osm-way-910713299",
+      "name": "Surau Al Abrar"
+    }
+  ],
+  "find:Surau Rentak Perdana": [
+    {
+      "id": "osm-node-9180790727",
+      "name": "Surau Rentak Perdana"
+    },
+    {
+      "id": "osm-way-1184185923",
+      "name": "Surau Rentak Perdana"
+    },
+    {
+      "id": "osm-node-2478641046",
+      "name": "Surau"
+    },
+    {
+      "id": "osm-way-907988141",
+      "name": "Surau"
+    },
+    {
+      "id": "osm-node-9180790726",
+      "name": "Dewan Serbaguna Rentak Perdana"
+    }
+  ],
+  "find:B停车场": [
+    {
+      "id": "park-b",
+      "name": "Lakeside Mall Car Park B"
+    },
+    {
+      "id": "osm-way-1016200486",
+      "name": "Forest Park"
+    },
+    {
+      "id": "osm-way-691513797",
+      "name": "BSC Central Park"
+    },
+    {
+      "id": "osm-way-1309457596",
+      "name": "Elmina Urban Park"
+    },
+    {
+      "id": "toilet-urban-park",
+      "name": "Urban Park toilet"
+    }
+  ],
+  "find:taman permainan": [
+    {
+      "id": "playground",
+      "name": "Urban Park playground"
+    },
+    {
+      "id": "osm-node-10929425458",
+      "name": "Playground (unnamed, OSM)"
+    },
+    {
+      "id": "osm-node-12880146165",
+      "name": "Playground (unnamed, OSM)"
+    },
+    {
+      "id": "osm-node-4953152218",
+      "name": "Playground (unnamed, OSM)"
+    },
+    {
+      "id": "osm-node-4953152424",
+      "name": "Playground (unnamed, OSM)"
+    }
+  ],
+  "exact-route": {
+    "status": "likely_ok",
+    "warnings": [
+      "Likely OK sections are estimated from map data, not checked on site",
+      "About 352 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified",
+      "Route starts at the nearest mapped path to Surau Al Mahdi; its entrance is not mapped.",
+      "Route ends at the nearest mapped path to Surau At Taqwa; its entrance is not mapped."
+    ],
+    "routes": [
+      {
+        "id": "rt-b3d5b88b",
+        "from_place": "osm-way-910405528",
+        "to_place": "osm-way-910378231",
+        "status": "likely_ok",
+        "profile": "default",
+        "distance_m": 363.8,
+        "access_metres": {
+          "verified": 0.0,
+          "likely_ok": 363.8,
+          "unknown": 0.0,
+          "barrier": 0.0,
+          "not_a_road": 0.0
+        }
+      }
+    ]
+  },
+  "disconnected-origin": {
+    "status": "no_data",
+    "warnings": [
+      "mapped paths do not connect osm-node-9180790727 and osm-way-910378231; the path data may be incomplete here"
+    ],
+    "routes": []
+  },
+  "flood-destination": {
+    "status": "partly_unverified",
+    "warnings": [
+      "About 281 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified",
+      "Urban Park playground: possibly flooded in this scenario",
+      "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+      "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+    ],
+    "routes": [
+      {
+        "id": "rt-6c67f790",
+        "from_place": "park-b",
+        "to_place": "playground",
+        "status": "partly_unverified",
+        "profile": "stroller",
+        "distance_m": 485.7,
+        "access_metres": {
+          "verified": 0.0,
+          "likely_ok": 0.0,
+          "unknown": 485.7,
+          "barrier": 0.0,
+          "not_a_road": 0.0
+        }
+      }
+    ]
+  },
+  "layers:wheelchair": {
+    "unknown": 13159,
+    "barrier": 32,
+    "likely_ok": 2929,
+    "missing": 232
+  },
+  "layers:drive": {
+    "likely_ok": 10583,
+    "unknown": 1867,
+    "not_a_road": 3647,
+    "barrier": 23,
+    "missing": 232
+  },
+  "chat:explicit": {
+    "text": "Route status: partly unverified\nLakeside Mall Car Park B to Urban Park playground: route partly unverified, 416.4 m.\nWorth knowing:\n• Not checked yet: Incline (%) on an unnamed ramp.\n• Asked the township team to check this item.\n• About 124 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified.\n• Segment facts are demo values, not yet surveyed.",
+    "calls": [
+      {
+        "type": "tool.call",
+        "id": "find_place-0",
+        "name": "find_place",
+        "args": {
+          "query": "car park b",
+          "types": null,
+          "limit": 5
+        }
+      },
+      {
+        "type": "tool.call",
+        "id": "find_place-1",
+        "name": "find_place",
+        "args": {
+          "query": "playground",
+          "types": null,
+          "limit": 5
+        }
+      },
+      {
+        "type": "tool.call",
+        "id": "plan_route-2",
+        "name": "plan_route",
+        "args": {
+          "from_id": "park-b",
+          "to_id": "playground",
+          "profile": "stroller",
+          "scenario_id": null
+        }
+      }
+    ],
+    "done": {
+      "type": "done",
+      "message_id": "cbc26c5f85d5",
+      "answer_status": "partial",
+      "model": "mock-scripted"
+    }
+  },
+  "chat:missing-origin": {
+    "text": "Please name the exact start and destination before I select a route.",
+    "calls": [],
+    "done": {
+      "type": "done",
+      "message_id": "e9e9e0e512bb",
+      "answer_status": "cannot_answer",
+      "model": "mock-scripted"
+    }
+  },
+  "likely-flooded-destination": {
+    "status": "blocked",
+    "warnings": [
+      "Urban Park playground: likely flooded in this scenario",
+      "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+      "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+    ],
+    "routes": []
+  },
+  "likely-flooded-origin": {
+    "status": "partly_unverified",
+    "warnings": [
+      "About 281 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified",
+      "Urban Park playground: likely flooded in this scenario",
+      "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+      "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+    ],
+    "routes": [
+      {
+        "from_place": "playground",
+        "to_place": "park-b",
+        "distance_m": 485.7
+      }
+    ]
+  },
+  "final-contextual-chat": {
+    "calls": [
+      {
+        "type": "tool.call",
+        "id": "find_place-0",
+        "name": "find_place",
+        "args": {
+          "query": "car park b",
+          "types": null,
+          "limit": 5,
+          "near_place": null
+        }
+      },
+      {
+        "type": "tool.call",
+        "id": "find_place-1",
+        "name": "find_place",
+        "args": {
+          "query": "playground",
+          "types": ["playground"],
+          "limit": 5,
+          "near_place": "park-b"
+        }
+      },
+      {
+        "type": "tool.call",
+        "id": "plan_route-2",
+        "name": "plan_route",
+        "args": {
+          "from_id": "park-b",
+          "to_id": "playground",
+          "profile": "stroller",
+          "scenario_id": null
+        }
+      }
+    ],
+    "text": "Route status: partly unverified\nLakeside Mall Car Park B to Urban Park playground: route partly unverified, 416.4 m.\nWorth knowing:\n• Not checked yet: Incline (%) on an unnamed ramp.\n• Asked the township team to check this item.\n• About 124 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified.\n• Segment facts are demo values, not yet surveyed.",
+    "done": {
+      "type": "done",
+      "message_id": "1212e3d6fdcf",
+      "answer_status": "partial",
+      "model": "mock-scripted"
+    }
+  }
+}
