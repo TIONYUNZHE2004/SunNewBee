@@ -9,6 +9,10 @@
  * (u = role, v = look row in `looks` order). Coordinates are true metres, glTF frame.
  * Decorative only: "Decorative details are illustrative." The crowd never causes journey events.
  *
+ * For C-T7 (ruling: bone-matrix animation texture): props are rigid children of the `prop`
+ * (and `wheels`) bones, so bake them as one-bone skinned meshes; clip channels are sparsely
+ * keyed, so sample them through a mixer.
+ *
  * As for the hero: do not call `skeleton.pose()` (meshopt folds a scale into the inverse bind
  * matrices); a fresh load is in the bind pose.
  */
@@ -36,7 +40,13 @@ export type OutfitCategory = (typeof OUTFIT_CATEGORIES)[number];
 
 export interface CrowdClip {
   duration: number;
+  /** Timeline frames at 30 fps (duration x 30 + 1). */
   frames: number;
+  /** Keyed frames: walks every frame (keyFps 30), idles every 3rd (keyFps 10, linear between).
+   * Channels are sparse (only moving bones; hips also translate): sample through an
+   * AnimationMixer at the bake rate, never read raw tracks per frame. */
+  keys: number;
+  keyFps: number;
   loop: boolean;
   /** Ground travelled per cycle (true metres); 0 for idles. */
   stride: number;

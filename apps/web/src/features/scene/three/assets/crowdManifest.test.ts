@@ -55,8 +55,19 @@ describe("crowd manifest", () => {
     expect(new Set(m.looks.map((l) => l.id)).size).toBe(m.looks.length);
     const keys = m.looks.map((l) => JSON.stringify([l.body, l.outfit, l.prop, l.palette]));
     expect(new Set(keys).size).toBe(m.looks.length);
+    const triples = new Set(m.looks.map((l) => JSON.stringify([l.body, l.outfit, l.prop])));
+    expect(triples.size).toBeGreaterThanOrEqual(24); // distinct without counting palettes
     const props = new Set(m.looks.map((l) => l.prop).filter(Boolean));
     expect([...props].sort()).toEqual([...CROWD_PROPS].sort());
+  });
+
+  it("clips document their key rate for the baker", () => {
+    for (const b of CROWD_BODIES)
+      for (const [name, c] of Object.entries(m.bodies[b].clips)) {
+        expect(c.keyFps, name).toBe(name.startsWith("idle") ? 10 : 30);
+        expect(c.keys, name).toBe(Math.round(c.duration * c.keyFps) + 1);
+        expect(c.frames, name).toBe(Math.round(c.duration * 30) + 1);
+      }
   });
 
   it("looks use their prop's clips and meshes", () => {
