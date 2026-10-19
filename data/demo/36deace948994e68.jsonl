@@ -1,4 +1,4 @@
-{"meta": {"message": "Which facts should staff verify first so wheelchair users can reach a centre?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "597cbd6542d24c3dfdc6b1b97807fd9f7d4b63f9adfb8518d468c31c15548540", "model": "mock-scripted", "recorded_at": "2026-10-19T17:33:30+00:00"}}
+{"meta": {"message": "Which facts should staff verify first so wheelchair users can reach a centre?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "8fcf9fafd9d032eaefcd102c9b099762d6f95c77ee5597e42b0270161ac18851", "model": "mock-scripted", "recorded_at": "2026-10-19T17:52:27+00:00"}}
 {"type": "tool.call", "id": "plan_verifications-0", "name": "plan_verifications", "args": {"profile": "wheelchair", "scope": "evacuation", "budget": 15}}
 {"type": "tool.result", "id": "plan_verifications-0", "name": "plan_verifications", "summary": "plan: 15 checks -> 0 confirmed"}
 {"type": "answer.draft", "attempt": 1, "delta": "If these 15 checks at 5 places pass, 0 of 50 sampled wheelchair journeys would have a confirmed route to an evacuation centre (today: 0)."}
@@ -18,4 +18,4 @@
 {"type": "text.delta", "delta": " until staff check on site."}
 {"type": "citation", "ref": 1, "evidence_id": "ev-plan-57c76f065f", "element_id": "plan", "attribute": "verify_next", "status": "indicative", "verified_at": null, "source_type": "whatif", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "A planning estimate from the township model: nothing is confirmed until staff check on site"}]}
-{"type": "done", "message_id": "fa926148ad9c", "answer_status": "partial", "model": "mock-scripted"}
+{"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}
