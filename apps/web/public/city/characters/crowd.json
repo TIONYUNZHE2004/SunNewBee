@@ -19,7 +19,8 @@
     "prop_grip",
     "prop_wheel",
     "prop_fabric",
-    "prop_canopy"
+    "prop_canopy",
+    "glasses"
   ],
   "roleUv": "TEXCOORD_0.x = (role index + 0.5) / roles.length",
   "bones": [
@@ -125,7 +126,7 @@
   "bodies": {
     "child": {
       "file": "characters/crowd_child.glb",
-      "bytes": 69480,
+      "bytes": 70032,
       "label": "Child (about 7)",
       "height": 1.1,
       "headRatio": 2.05,
@@ -141,12 +142,16 @@
         "walk": {
           "duration": 0.8,
           "frames": 25,
+          "keys": 25,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.318
         },
         "idle": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         }
@@ -154,7 +159,7 @@
     },
     "school_age": {
       "file": "characters/crowd_school_age.glb",
-      "bytes": 69028,
+      "bytes": 69064,
       "label": "School-age (about 12)",
       "height": 1.35,
       "headRatio": 2.3,
@@ -170,12 +175,16 @@
         "walk": {
           "duration": 0.9,
           "frames": 28,
+          "keys": 28,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.441
         },
         "idle": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         }
@@ -183,7 +192,7 @@
     },
     "adult_man": {
       "file": "characters/crowd_adult_man.glb",
-      "bytes": 115672,
+      "bytes": 116232,
       "label": "Adult man",
       "height": 1.72,
       "headRatio": 2.7,
@@ -202,36 +211,48 @@
         "walk": {
           "duration": 1.0,
           "frames": 31,
+          "keys": 31,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.6066
         },
         "idle": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         },
         "walk_stroller": {
           "duration": 1.1,
           "frames": 34,
+          "keys": 34,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.5366
         },
         "idle_stroller": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         },
         "walk_wheelchair": {
           "duration": 1.0,
           "frames": 31,
+          "keys": 31,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.416
         },
         "idle_wheelchair": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         }
@@ -239,7 +260,7 @@
     },
     "adult_woman": {
       "file": "characters/crowd_adult_woman.glb",
-      "bytes": 121260,
+      "bytes": 121312,
       "label": "Adult woman",
       "height": 1.6,
       "headRatio": 2.6,
@@ -259,36 +280,48 @@
         "walk": {
           "duration": 1.0,
           "frames": 31,
+          "keys": 31,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.5226
         },
         "idle": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         },
         "walk_stroller": {
           "duration": 1.1,
           "frames": 34,
+          "keys": 34,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.4808
         },
         "idle_stroller": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         },
         "walk_wheelchair": {
           "duration": 1.0,
           "frames": 31,
+          "keys": 31,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.3774
         },
         "idle_wheelchair": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         }
@@ -296,7 +329,7 @@
     },
     "older_man": {
       "file": "characters/crowd_older_man.glb",
-      "bytes": 117420,
+      "bytes": 118032,
       "label": "Older man",
       "height": 1.62,
       "headRatio": 2.6,
@@ -315,36 +348,48 @@
         "walk": {
           "duration": 1.1,
           "frames": 34,
+          "keys": 34,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.4021
         },
         "idle": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         },
         "walk_walker": {
           "duration": 1.2,
           "frames": 37,
+          "keys": 37,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.3598
         },
         "idle_walker": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         },
         "walk_wheelchair": {
           "duration": 1.0,
           "frames": 31,
+          "keys": 31,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.3821
         },
         "idle_wheelchair": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         }
@@ -352,7 +397,7 @@
     },
     "older_woman": {
       "file": "characters/crowd_older_woman.glb",
-      "bytes": 95832,
+      "bytes": 97324,
       "label": "Older woman",
       "height": 1.5,
       "headRatio": 2.5,
@@ -370,24 +415,32 @@
         "walk": {
           "duration": 1.1,
           "frames": 34,
+          "keys": 34,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.3581
         },
         "idle": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         },
         "walk_walker": {
           "duration": 1.2,
           "frames": 37,
+          "keys": 37,
+          "keyFps": 30,
           "loop": true,
           "stride": 0.3204
         },
         "idle_walker": {
           "duration": 3.0,
           "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
           "loop": true,
           "stride": 0.0
         }
@@ -423,6 +476,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#f2a65a",
         "top_trim": "#f7ca9c",
@@ -458,6 +512,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#ebc6a3",
         "top": "#7fc8a9",
         "top_trim": "#b2decb",
@@ -477,8 +532,8 @@
         "idle": "idle"
       },
       "tris": [
-        946,
-        262
+        966,
+        274
       ],
       "palette": {
         "eye": "#2b2330",
@@ -493,6 +548,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#5fb3c9",
         "top_trim": "#9fd1df",
@@ -528,6 +584,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#f29bb8",
         "top_trim": "#f7c3d4",
@@ -563,6 +620,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#f6f5f1",
         "top_trim": "#faf9f7",
@@ -598,6 +656,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#c08c64",
         "top": "#f6f5f1",
         "top_trim": "#faf9f7",
@@ -633,6 +692,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#f6f5f1",
         "top_trim": "#faf9f7",
@@ -668,6 +728,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#c08c64",
         "top": "#f6f5f1",
         "top_trim": "#faf9f7",
@@ -703,6 +764,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#ebc6a3",
         "top": "#f5d76e",
         "top_trim": "#f9e7a8",
@@ -722,8 +784,8 @@
         "idle": "idle"
       },
       "tris": [
-        946,
-        262
+        966,
+        274
       ],
       "palette": {
         "eye": "#2b2330",
@@ -738,6 +800,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#4fa3a5",
         "top_trim": "#95c8c9",
@@ -757,8 +820,8 @@
         "idle": "idle"
       },
       "tris": [
-        946,
-        262
+        966,
+        274
       ],
       "palette": {
         "eye": "#2b2330",
@@ -773,6 +836,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#c08c64",
         "top": "#a94f5f",
         "top_trim": "#cb959f",
@@ -808,6 +872,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#ebc6a3",
         "top": "#cfe0f2",
         "top_trim": "#e2ecf7",
@@ -843,6 +908,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#94654a",
         "top": "#f4f2ec",
         "top_trim": "#f8f7f4",
@@ -878,6 +944,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#8fb8de",
         "top_trim": "#bcd4eb",
@@ -915,6 +982,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#a9c6e8",
         "prop_canopy": "#7ea6d6",
+        "glasses": "#8a6a52",
         "skin": "#ebc6a3",
         "top": "#e8a87c",
         "top_trim": "#f1cbb0",
@@ -953,6 +1021,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#94654a",
         "top": "#9fd3b5",
         "top_trim": "#c5e5d3",
@@ -988,6 +1057,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#9b7fd4",
         "top_trim": "#c3b2e5",
@@ -1023,6 +1093,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#c08c64",
         "top": "#7cc49a",
         "top_trim": "#b0dcc2",
@@ -1060,6 +1131,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#f4c2d0",
         "prop_canopy": "#e89ab2",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#f0a07a",
         "top_trim": "#f6c6af",
@@ -1095,6 +1167,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#f3efe6",
         "top_trim": "#f8f5f0",
@@ -1133,6 +1206,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#c08c64",
         "top": "#f3efe6",
         "top_trim": "#f8f5f0",
@@ -1168,6 +1242,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#ebc6a3",
         "top": "#f6c26b",
         "top_trim": "#fadaa6",
@@ -1203,6 +1278,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#e88fa0",
         "top_trim": "#f1bcc6",
@@ -1222,8 +1298,8 @@
         "idle": "idle"
       },
       "tris": [
-        946,
-        262
+        966,
+        274
       ],
       "palette": {
         "eye": "#2b2330",
@@ -1238,6 +1314,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#e9dcb5",
         "top_trim": "#f2ead3",
@@ -1259,8 +1336,8 @@
         "idle": "idle_walker"
       },
       "tris": [
-        1154,
-        374
+        1174,
+        386
       ],
       "palette": {
         "eye": "#2b2330",
@@ -1275,6 +1352,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#c08c64",
         "top": "#7aa6c9",
         "top_trim": "#afcadf",
@@ -1310,6 +1388,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#ebc6a3",
         "top": "#c98a4b",
         "top_trim": "#dfb993",
@@ -1345,6 +1424,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
         "top": "#a8c8a0",
         "top_trim": "#cbdec6",
@@ -1383,6 +1463,7 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#94654a",
         "top": "#d3b4d9",
         "top_trim": "#e5d2e8",
@@ -1402,7 +1483,7 @@
         "idle": "idle"
       },
       "tris": [
-        988,
+        1048,
         250
       ],
       "palette": {
@@ -1410,7 +1491,7 @@
         "blush": "#f2a0a0",
         "shoe": "#5a4a44",
         "hair": "#2f2a2e",
-        "headwear": "#cfe0f5",
+        "headwear": "#c4cfde",
         "headwear_trim": "#b0bed0",
         "accent": "#e2b85c",
         "prop_metal": "#c9d2dc",
@@ -1418,11 +1499,12 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
-        "top": "#6f9fd8",
-        "top_trim": "#a9c5e8",
-        "bottom": "#4f7fbf",
-        "outer": "#57769e"
+        "top": "#7c9ec8",
+        "top_trim": "#a7bbd4",
+        "bottom": "#6486b5",
+        "outer": "#6a809c"
       }
     },
     {
@@ -1439,7 +1521,7 @@
         "idle": "idle_walker"
       },
       "tris": [
-        1196,
+        1256,
         362
       ],
       "palette": {
@@ -1447,7 +1529,7 @@
         "blush": "#f2a0a0",
         "shoe": "#5a4a44",
         "hair": "#2f2a2e",
-        "headwear": "#f5dfc4",
+        "headwear": "#e0ceb9",
         "headwear_trim": "#d0bea7",
         "accent": "#e2b85c",
         "prop_metal": "#c9d2dc",
@@ -1455,11 +1537,12 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#c08c64",
-        "top": "#e3a86b",
-        "top_trim": "#eecba6",
-        "bottom": "#c98a52",
-        "outer": "#a27c57"
+        "top": "#d3a576",
+        "top_trim": "#dbc0a2",
+        "bottom": "#bf8f63",
+        "outer": "#a28467"
       }
     },
     {
@@ -1474,7 +1557,7 @@
         "idle": "idle"
       },
       "tris": [
-        988,
+        1048,
         250
       ],
       "palette": {
@@ -1482,7 +1565,7 @@
         "blush": "#f2a0a0",
         "shoe": "#5a4a44",
         "hair": "#2f2a2e",
-        "headwear": "#e8c7d4",
+        "headwear": "#d6bcc5",
         "headwear_trim": "#c5a9b4",
         "accent": "#e2b85c",
         "prop_metal": "#c9d2dc",
@@ -1490,11 +1573,12 @@
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#dcae88",
-        "top": "#9c8bb8",
-        "top_trim": "#c4b9d4",
-        "bottom": "#4b4558",
-        "outer": "#746989"
+        "top": "#9e90b0",
+        "top_trim": "#bcb2c5",
+        "bottom": "#615b68",
+        "outer": "#80768c"
       }
     },
     {
@@ -1509,7 +1593,7 @@
         "idle": "idle"
       },
       "tris": [
-        878,
+        938,
         222
       ],
       "palette": {
@@ -1517,19 +1601,20 @@
         "blush": "#f2a0a0",
         "shoe": "#ece8e0",
         "hair": "#bdb8bc",
-        "headwear": "#1f1d22",
-        "headwear_trim": "#3a363c",
+        "headwear": "#403d3f",
+        "headwear_trim": "#545053",
         "accent": "#e2b85c",
         "prop_metal": "#c9d2dc",
         "prop_grip": "#566476",
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#ebc6a3",
-        "top": "#e6b7c3",
-        "top_trim": "#f0d4db",
-        "bottom": "#4c5160",
-        "outer": "#a48691"
+        "top": "#d5b0b8",
+        "top_trim": "#dcc6ca",
+        "bottom": "#62646e",
+        "outer": "#a48c92"
       }
     },
     {
@@ -1546,7 +1631,7 @@
         "idle": "idle_walker"
       },
       "tris": [
-        1086,
+        1146,
         334
       ],
       "palette": {
@@ -1554,19 +1639,20 @@
         "blush": "#f2a0a0",
         "shoe": "#5a4a44",
         "hair": "#dcd8d6",
-        "headwear": "#1f1d22",
-        "headwear_trim": "#3a363c",
+        "headwear": "#403d3f",
+        "headwear_trim": "#545053",
         "accent": "#e2b85c",
         "prop_metal": "#c9d2dc",
         "prop_grip": "#566476",
         "prop_wheel": "#3d434d",
         "prop_fabric": "#9cc7b4",
         "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
         "skin": "#ebc6a3",
-        "top": "#a7cbbf",
-        "top_trim": "#cae0d9",
-        "bottom": "#5b5a66",
-        "outer": "#7b938e"
+        "top": "#a6c0b5",
+        "top_trim": "#c0cfc8",
+        "bottom": "#6d6b72",
+        "outer": "#859690"
       }
     }
   ]
