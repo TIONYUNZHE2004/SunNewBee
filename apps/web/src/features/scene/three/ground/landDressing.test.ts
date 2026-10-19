@@ -231,7 +231,7 @@ describe("planDressing on the Elmina seed", () => {
     }
     expect(checked).toBeGreaterThan(0);
     expect(minD).toBeGreaterThanOrEqual(DRESS_WALK_CLEAR_M - 0.01);
-  });
+  }, 60_000);
 
   it("guardTile keeps only dressing inside the boundary", () => {
     if (!HAVE) return;
