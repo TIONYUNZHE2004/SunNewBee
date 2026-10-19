@@ -94,6 +94,31 @@ describe("hero screen box", () => {
     expect(b.max.x - b.min.x).toBeLessThan(1.8);
   });
 
+  it("GLB hero: the posed skinned bounds, hidden LODs left out", () => {
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    const n = g.getAttribute("position").count;
+    g.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(new Array(n * 4).fill(0), 4));
+    g.setAttribute(
+      "skinWeight",
+      new THREE.Float32BufferAttribute(
+        Array.from({ length: n * 4 }, (_, i) => (i % 4 ? 0 : 1)),
+        4,
+      ),
+    );
+    const bone = new THREE.Bone();
+    const body = new THREE.SkinnedMesh(g, new THREE.MeshBasicMaterial());
+    body.add(bone);
+    body.bind(new THREE.Skeleton([bone]));
+    bone.scale.setScalar(2); // the pose doubles her: the bind-pose box would say 1 m
+    const lod1 = new THREE.Group();
+    lod1.visible = false;
+    lod1.add(new THREE.Mesh(new THREE.BoxGeometry(50, 50, 50)));
+    const root = new THREE.Group();
+    root.add(body, lod1);
+    const b = heroBodyBox(root) as THREE.Box3;
+    expect(b.max.x - b.min.x).toBeCloseTo(2, 6);
+  });
+
   it("projects to a screen rectangle, null when she is behind the camera", () => {
     const cam = new THREE.PerspectiveCamera(30, 1.2, 0.5, 1000);
     cam.position.set(-8, 4, 5);

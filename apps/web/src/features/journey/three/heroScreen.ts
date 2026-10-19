@@ -15,13 +15,22 @@ const _v = new THREE.Vector3();
 export function heroBodyBox(root: THREE.Object3D, out = new THREE.Box3()): THREE.Box3 | null {
   root.updateMatrixWorld(true);
   _box.makeEmpty();
-  root.traverse((o) => {
+  // only what is drawn: hidden LODs (and their subtrees) are skipped
+  root.traverseVisible((o) => {
     const m = o as THREE.Mesh;
-    if (!m.isMesh || !m.visible || GROUND_PARTS.has(o.userData.heroPart as string)) return;
-    const g = m.geometry;
-    if (!g.boundingBox) g.computeBoundingBox();
-    if (!g.boundingBox) return;
-    _mb.copy(g.boundingBox).applyMatrix4(m.matrixWorld);
+    if (!m.isMesh || GROUND_PARTS.has(o.userData.heroPart as string)) return;
+    const sk = m as THREE.SkinnedMesh;
+    if (sk.isSkinnedMesh) {
+      // the posed (bone-transformed) bounds, not the bind-pose geometry's
+      sk.computeBoundingBox();
+      if (!sk.boundingBox) return;
+      _mb.copy(sk.boundingBox).applyMatrix4(m.matrixWorld);
+    } else {
+      const g = m.geometry;
+      if (!g.boundingBox) g.computeBoundingBox();
+      if (!g.boundingBox) return;
+      _mb.copy(g.boundingBox).applyMatrix4(m.matrixWorld);
+    }
     _box.union(_mb);
   });
   return _box.isEmpty() ? null : out.copy(_box);
