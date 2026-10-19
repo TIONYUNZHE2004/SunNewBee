@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import re
 
-from townshiplens_spatial.journey import JourneyEvidenceError, build_journey
+from townshiplens_spatial.journey import MAX_RAMP_EVENTS, JourneyEvidenceError, build_journey
 from townshiplens_spatial.models import JourneyPlan, Route
 
 log = logging.getLogger(__name__)
@@ -120,6 +120,13 @@ def journey_steps(facts: dict) -> list[str]:
     return out
 
 
+# Upper bound on the requests one walk can add: its unknown events are the first main-road crossing,
+# the longest named street run and at most MAX_RAMP_EVENTS ramps (journey.py), so 2 + 2.
+MAX_JOURNEY_VRS = MAX_RAMP_EVENTS + 2
+# plan_route never files these (flood is a scenario fact, not something staff survey).
+_NO_VR_ATTRS = ("flood", "flood_coverage")
+
+
 def journey_vr_targets(
     plan: JourneyPlan, route: dict, filed: set[tuple[str, str]]
 ) -> list[tuple[str, str, str]]:
@@ -128,10 +135,16 @@ def journey_vr_targets(
     was filed for its element and attribute). plan_route files at most MAX_ROUTE_VRS in route
     order, which can leave out a place the walk shows; this asks for one attribute of each such
     event and nothing for events that already have a request. Unknown events only: no other card
-    claims a request."""
+    claims a request.
+
+    Only real route unknowns are asked about: a pair must be in the route's `unknowns` (with its
+    reason), never a flood attribute. An event whose attributes are not route unknowns (e.g. a ramp
+    UNKNOWN only for flood under a scenario, where journey.py falls back to "incline_pct") gets no
+    request, so request_sentence's count and the tickets agree. At most MAX_JOURNEY_VRS."""
     reasons = {
         (u.get("element_id"), u.get("attribute")): u.get("reason") or "unknown"
         for u in route.get("unknowns") or []
+        if u.get("attribute") not in _NO_VR_ATTRS
     }
     out: list[tuple[str, str, str]] = []
     asked = set(filed)
@@ -140,7 +153,9 @@ def journey_vr_targets(
             continue
         if any((e.element_id, a) in asked for a in e.attributes):
             continue
-        attr = e.attributes[0]
+        attr = next((a for a in e.attributes if (e.element_id, a) in reasons), None)
+        if attr is None:
+            continue
         asked.add((e.element_id, attr))
-        out.append((e.element_id, attr, reasons.get((e.element_id, attr), "unknown")))
-    return out
+        out.append((e.element_id, attr, reasons[(e.element_id, attr)]))
+    return out[:MAX_JOURNEY_VRS]

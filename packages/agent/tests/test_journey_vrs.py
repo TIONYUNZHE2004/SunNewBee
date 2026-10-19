@@ -12,7 +12,7 @@ import json
 import pytest
 from townshiplens_agent import demo
 from townshiplens_agent.events import ChatRequest
-from townshiplens_agent.journeys import journey_vr_targets
+from townshiplens_agent.journeys import MAX_JOURNEY_VRS, journey_vr_targets
 from townshiplens_agent.record import TurnRecord
 from townshiplens_agent.run import run_turn
 from townshiplens_agent.settings import ROOT, AgentSettings
@@ -84,6 +84,37 @@ def test_targets_skip_events_that_already_have_a_request():
     assert journey_vr_targets(plan, route, {("seg-a", "step_count")}) == [
         ("seg-b", "incline_pct", "unknown")
     ]
+
+
+def test_targets_only_ask_about_real_route_unknowns():
+    # A ramp UNKNOWN only for flood under a scenario: journey.py shows it with the
+    # "incline_pct" fallback, but incline is not a route unknown, so nothing is filed.
+    plan = JourneyPlan.model_construct(events=[_event("unknown", "seg-r", ["incline_pct"])])
+    route = {"unknowns": [{"element_id": "seg-r", "attribute": "flood", "reason": "unknown"}]}
+    assert journey_vr_targets(plan, route, set()) == []
+    # The first attribute that is a route unknown is chosen, with its own reason.
+    plan = JourneyPlan.model_construct(
+        events=[_event("unknown", "seg-s", ["sidewalk", "step_count", "incline_pct"])]
+    )
+    route = {
+        "unknowns": [
+            {"element_id": "seg-s", "attribute": "flood", "reason": "unknown"},
+            {"element_id": "seg-s", "attribute": "step_count", "reason": "stale"},
+        ]
+    }
+    assert journey_vr_targets(plan, route, set()) == [("seg-s", "step_count", "stale")]
+
+
+def test_targets_are_capped():
+    events = [_event("unknown", f"seg-{i}", ["incline_pct"]) for i in range(10)]
+    route = {
+        "unknowns": [
+            {"element_id": f"seg-{i}", "attribute": "incline_pct", "reason": "unknown"}
+            for i in range(10)
+        ]
+    }
+    out = journey_vr_targets(JourneyPlan.model_construct(events=events), route, set())
+    assert len(out) == MAX_JOURNEY_VRS == 4
 
 
 @needs_seed

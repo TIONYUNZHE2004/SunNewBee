@@ -244,7 +244,10 @@ def route_summary(world, profile: str | None, from_id: str | None, to_id: str | 
 async def _file_journey_vrs(deps: Deps, data: dict, summary: str) -> None:
     """D-T10: every unchecked place the played walk stops at gets a verification request, so its
     card can honestly say "verification request filed". Only the first route (the one
-    journey.play plays, mock and template alike) and only when it is playable; sanitised like any
+    journey.play plays, mock and template alike) and only when it is playable and has no reported
+    closure. That includes evacuation routes (list_evacuation_centres -> plan_route), where no walk
+    is played: call_tool cannot know whether the answer will play one, and these are real route
+    unknowns (journey_vr_targets, at most MAX_JOURNEY_VRS). Sanitised like any
     chat VR (safe_vr_args) with plan_route's own name-only summary (PDPA). Appended to the tool's
     verification_requests, so the answer's request count and the SSE events include them."""
     routes = data.get("routes") or []
