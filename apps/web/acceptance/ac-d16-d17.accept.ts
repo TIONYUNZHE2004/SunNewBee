@@ -73,17 +73,17 @@ const frames = (page: Page, n = 3) =>
  * route.highlight, which runs on the wall clock) must finish before the pose is compared, or
  * the check measures how far a tween got, not the beat.
  */
-async function cameraStill(page: Page): Promise<void> {
-  await page.evaluate(
+async function cameraStill(page: Page, beat: string): Promise<void> {
+  const still = await page.evaluate(
     (h) =>
-      new Promise<void>((done) => {
+      new Promise<boolean>((done) => {
         const api = (
           window as unknown as Record<
             string,
             { cameraLocal(): [number, number, number] } | undefined
           >
         )[h];
-        if (!api) return done();
+        if (!api) return done(true);
         const t0 = performance.now();
         let last = api.cameraLocal();
         let since = t0;
@@ -92,13 +92,15 @@ async function cameraStill(page: Page): Promise<void> {
           const c = api.cameraLocal();
           if (Math.hypot(c[0] - last[0], c[1] - last[1], c[2] - last[2]) > 0.001) since = now;
           last = c;
-          if (now - since >= 500 || now - t0 > 8000) return done();
+          if (now - since >= 500) return done(true);
+          if (now - t0 > 8000) return done(false);
           requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
       }),
     HOOK,
   );
+  if (!still) console.log(`AC-D17 ${beat}: camera still moving after 8 s (compared anyway)`);
 }
 
 /** One run of the demo preset: load, ask, auto-play, then the beats. */
@@ -150,7 +152,7 @@ async function demoRun(page: Page): Promise<{ plan: JourneyPlan; beats: Beat[] }
   for (const b of beats) {
     await journey.seek(page, b.t);
     await frames(page);
-    await cameraStill(page);
+    await cameraStill(page, b.name);
     const pose = await page.evaluate((h) => {
       const api = (
         window as unknown as Record<
