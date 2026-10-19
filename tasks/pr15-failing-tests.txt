@@ -1,0 +1,69 @@
+FAILED packages/spatial/tests/test_journey.py::test_demo_route_yields_the_spec_table
+FAILED packages/spatial/tests/test_journey.py::test_seed_journey_properties
+FAILED packages/agent/tests/test_closures_wording.py::test_inferred_entrance_is_in_the_answer_text_and_validated
+FAILED packages/agent/tests/test_demo.py::test_replay_matches_recording - Ass...
+FAILED packages/agent/tests/test_demo.py::test_cli_record_uses_a_fresh_vr_store
+FAILED packages/agent/tests/test_demo_cache_current.py::test_cache_entry_matches_the_current_mock[3df4afb61bdc7aea]
+FAILED packages/agent/tests/test_demo_cache_current.py::test_cache_entry_matches_the_current_mock[ef8046225e137506]
+FAILED packages/agent/tests/test_draft.py::test_mock_streams_a_draft_before_the_checked_answer
+FAILED packages/agent/tests/test_inapp_prompts.py::test_inapp_prompt_is_answered_by_the_mock[Can I get from Car Park B to the lakeside mall with a stroller?-stroller-None]
+FAILED packages/agent/tests/test_inapp_prompts.py::test_inapp_prompt_is_answered_by_the_mock[Can I get from Car Park B to the lakeside mall in a wheelchair?-wheelchair-None]
+FAILED packages/agent/tests/test_inapp_prompts.py::test_inapp_prompt_is_answered_by_the_mock[Can I get from Car Park B to the lakeside mall if I am an older adult who needs to rest?-older_adult_rest-None]
+FAILED packages/agent/tests/test_inapp_prompts.py::test_inapp_prompt_is_answered_by_the_mock[Stroller route from Car Park B to the playground-stroller-None]
+FAILED packages/agent/tests/test_inapp_prompts.py::test_inapp_prompt_is_answered_by_the_mock[Wheelchair route from Car Park B to the lakeside mall-wheelchair-None]
+FAILED packages/agent/tests/test_journey_answer.py::test_mock_resolves_the_demo_places_by_name_and_plays_the_journey
+FAILED packages/agent/tests/test_journey_answer.py::test_demo_answer_has_the_prototype_content
+FAILED packages/agent/tests/test_journey_answer.py::test_template_answer_states_the_same_facts
+FAILED packages/agent/tests/test_journey_answer.py::test_route_facts_shown_to_the_model_match_the_plan
+FAILED packages/agent/tests/test_journey_answer.py::test_route_questions_emit_journey_play_after_route_highlight
+FAILED packages/agent/tests/test_journey_answer.py::test_journey_play_must_name_a_route_returned_this_turn
+FAILED packages/agent/tests/test_journey_answer.py::test_journey_play_needs_a_start_time
+FAILED packages/agent/tests/test_journey_answer.py::test_journey_play_without_a_plan_is_rejected
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[No known barrier on the step-free path, with 3 rest stops on the way.-True]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[There are 2 rest stops on the way.-False]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[She passes four benches.-False]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[Rest stops mapped on this route: 5.-False]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[Not checked yet: 3 places on the way, including a ramp.-True]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[Not checked yet: 2 places on the way.-False]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[There are 5 unchecked places on this route.-False]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[Not checked yet: Incline (%) on Ramp; and 25 more unchecked items.-True]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[The route runs past 2 places to eat.-True]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[Of the 10 places on the way, 3 are not checked yet.-True]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[3 places on the way are not checked yet, about 2 places near the park.-True]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[3 rest stops, but the first 2 benches are close together.-True]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[Of the 10 places on the way, 4 are not checked yet.-False]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[3 rest stops, but she passes 2 benches in all.-False]
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_must_match_the_plan[Rest stops mapped on this route: 3.-True]
+FAILED packages/agent/tests/test_journey_answer.py::test_bench_counts_on_a_profile_without_a_rest_rule_are_not_walk_counts
+FAILED packages/agent/tests/test_journey_answer.py::test_a_wrong_rest_count_about_the_played_older_adult_walk_fails
+FAILED packages/agent/tests/test_journey_answer.py::test_journey_play_is_rejected_where_the_mock_and_template_hold_it_back
+FAILED packages/agent/tests/test_journey_answer.py::test_counts_are_checked_against_the_answer_route_even_without_journey_play
+FAILED packages/agent/tests/test_journey_answer.py::test_demo_plan_needs_the_demo_phrase_and_no_verified_word
+FAILED packages/agent/tests/test_journey_answer.py::test_route_rest_points_count_only_in_the_mapped_form
+FAILED packages/agent/tests/test_journey_answer.py::test_wording_scan_over_the_demo_plan_and_answers
+FAILED packages/agent/tests/test_journey_answer.py::test_wording_scan_over_tiny_plans_and_template[park-b-kiosk-stroller]
+FAILED packages/agent/tests/test_journey_answer.py::test_wording_scan_over_tiny_plans_and_template[park-b-kiosk-older_adult_rest]
+FAILED packages/agent/tests/test_journey_answer.py::test_wording_scan_over_tiny_plans_and_template[park-b-playground-wheelchair]
+FAILED packages/agent/tests/test_journey_answer.py::test_wording_scan_over_tiny_plans_and_template[park-b-lakeside-mall-default]
+FAILED packages/agent/tests/test_journey_answer.py::test_wording_scan_over_tiny_plans_and_template[kiosk-toilet-1-older_adult_rest]
+FAILED packages/agent/tests/test_journey_answer.py::test_a_weak_name_match_is_not_taken_as_the_origin[lakesid-lakesid]
+FAILED packages/agent/tests/test_journey_answer.py::test_a_weak_name_match_is_not_taken_as_the_origin[my house-house]
+FAILED packages/agent/tests/test_journey_intent.py::test_journey_play_gets_the_server_built_plan
+FAILED packages/agent/tests/test_journey_intent.py::test_journey_play_needs_a_route_returned_this_turn_and_a_start_time
+FAILED packages/agent/tests/test_journey_intent.py::test_the_model_cannot_supply_a_journey
+FAILED packages/agent/tests/test_journey_intent.py::test_a_journey_evidence_bug_drops_the_intent_not_the_turn
+FAILED packages/agent/tests/test_journey_intent.py::test_recorded_route_dict_rebuilds_the_same_route
+FAILED packages/agent/tests/test_journey_vrs.py::test_demo_turn_files_a_request_for_every_unchecked_place
+FAILED packages/agent/tests/test_journey_vrs.py::test_journey_requests_reduce_the_truncated_count
+FAILED packages/agent/tests/test_journey_vrs.py::test_demo_mode_replays_the_recorded_turn
+FAILED packages/agent/tests/test_memory.py::test_mock_answers_only_the_current_question_with_history
+FAILED packages/agent/tests/test_run.py::test_access_hero_events - AssertionE...
+FAILED packages/agent/tests/test_run.py::test_ui_scenario_applied_to_routing
+FAILED packages/agent/tests/test_run.py::test_elmina_stroller_to_lakeside_mall_routes_to_the_mall
+FAILED packages/agent/tests/test_run.py::test_older_adult_rest_gap_only_route_names_the_gap_not_segments
+FAILED packages/agent/tests/test_run.py::test_older_adult_unverified_rest_point_is_named
+FAILED packages/agent/tests/test_run.py::test_confirmed_route_over_demo_values_says_so
+FAILED packages/agent/tests/test_scope.py::test_in_scope_mock_still_executes_real_tools
+FAILED apps/api/tests/test_chat.py::test_chat_data_matches_event_names - Asse...
+FAILED apps/api/tests/test_journeys_api.py::test_agent_journey_equals_post_journeys_on_the_seed_demo_route
+FAILED apps/api/tests/test_route_parity.py::test_s2_route_json_is_unchanged_by_display_work
