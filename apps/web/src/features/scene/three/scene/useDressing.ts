@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { type BuildingsLayer, useStreetFurniture } from "../../../../lib/api";
 import type { Tier } from "../../shared/quality";
-import { createBubbleFader, type DetailBubble } from "../detailBubble";
+import type { DetailBubble } from "../detailBubble";
+import { createDressingDriver } from "../dressing/dressingDriver";
 import { createDressingLayer } from "../dressing/dressingLayer";
 import {
   type DressItem,
@@ -81,7 +82,7 @@ export function useDressing({
     if (!engine || !frame || !lines || showroom) return;
     const layer = createDressingLayer({ tier });
     engine.setDecor("dressing", layer);
-    const fader = createBubbleFader();
+    const driver = createDressingDriver(layer);
     let focus: [number, number] | null = null;
     let planAt: [number, number] | null = null;
     let decor: DressItem[] = [];
@@ -91,11 +92,7 @@ export function useDressing({
       );
     // One fade pass: every candidate's weight steps toward in / out of the bubble.
     const pass = () => {
-      fader.begin();
-      const now = performance.now();
-      const r = bubble.radiusM;
-      const st = layer.update(focus, r, (it, d) => fader.weight(it.key, d <= r, now));
-      fader.prune();
+      const st = driver.pass(focus, bubble.radiusM, performance.now());
       engine.requestRender();
       publish({ facts: st.facts, decor: st.decor, triangles: st.triangles });
     };
@@ -115,12 +112,12 @@ export function useDressing({
           });
         }
       }
-      layer.setItems(rich ? [...facts, ...decor] : facts);
+      driver.setPlan(facts, rich ? decor : []);
       pass();
     });
     // While a fade runs, every rendered frame steps it and asks for the next frame.
     const offFrame = engine.onFrame(() => {
-      if (fader.fading()) pass();
+      if (driver.fading() || driver.retiring() > 0) pass();
     });
     return () => {
       offBubble();
