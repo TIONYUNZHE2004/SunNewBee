@@ -596,6 +596,21 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     if len(rec.routes) > 1 and not ans.route_id and ans.answer_status != "cannot_answer":
         errs.append("Select the exact route_id being answered before showing a route.")
     selected = ans.route_id or (next(iter(rec.routes)) if len(rec.routes) == 1 else None)
+    selected_route = rec.routes.get(selected, {})
+    if "scenario_id" in selected_route and (
+        (selected_route["scenario_id"] or "baseline") != (ans.scenario_id or "baseline")
+    ):
+        errs.append("The answer scenario must match the selected route's river scenario.")
+    allowed_scenarios = rec.scenarios_used | {
+        e.element_id for e in rec.evidence.values() if e.attribute == "scenario"
+    }
+    if ans.scenario_id and rec.scenarios_used and ans.scenario_id not in allowed_scenarios:
+        errs.append("The answer scenario was not checked by tools in this turn.")
+    for intent in ans.scene_intents:
+        if intent.kind == "flood.set_level" and (
+            intent.scenario_id != ans.scenario_id or intent.scenario_id not in allowed_scenarios
+        ):
+            errs.append("The map flood scenario must match the answer and checked tool scenario.")
     if (
         has_estimates(rec)
         and ans.answer_status != "cannot_answer"

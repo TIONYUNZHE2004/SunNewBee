@@ -322,6 +322,22 @@ def _answer_events(
     for it in intents:
         intent = it.model_copy()
         intent.route_status = intent.distance_m = intent.est_minutes = None
+        if intent.kind == "flood.set_level":
+            selected_route = rec.routes.get(ans.route_id or "") or (
+                next(iter(rec.routes.values())) if len(rec.routes) == 1 else {}
+            )
+            allowed = rec.scenarios_used | {
+                e.element_id for e in rec.evidence.values() if e.attribute == "scenario"
+            }
+            if (
+                intent.scenario_id != ans.scenario_id
+                or intent.scenario_id not in allowed
+                or (
+                    "scenario_id" in selected_route
+                    and (selected_route["scenario_id"] or "baseline") != intent.scenario_id
+                )
+            ):
+                continue
         if intent.kind == "route.highlight":
             selected = ans.route_id or (next(iter(rec.routes)) if len(rec.routes) == 1 else None)
             if (

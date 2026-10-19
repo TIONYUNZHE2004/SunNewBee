@@ -309,3 +309,22 @@ def test_search_radius_uses_the_shared_measurement_units(text):
     from townshiplens_agent.route_binding import requested_radius
 
     assert requested_radius(text) == 150
+
+
+def test_map_flood_level_must_match_the_checked_route():
+    rec = TurnRecord(
+        routes={"r": {"id": "r", "status": "partly_unverified", "scenario_id": "stage_p3m"}},
+        route_status={"r": "partly_unverified"},
+        scenarios_used={"stage_p3m"},
+    )
+    ans = FinalAnswer(
+        answer_status="partial",
+        summary="A mapped route.",
+        route_id="r",
+        scenario_id="stage_p3m",
+        scene_intents=[SceneIntent(kind="flood.set_level", scenario_id="baseline")],
+    )
+    assert any("map flood scenario" in e for e in validate_answer(ans, rec))
+    assert not [e for e in _answer_events(ans, rec, context()) if e.type == "scene.intent"]
+    ans.scenario_id = "stage_p5m"
+    assert any("answer scenario" in e for e in validate_answer(ans, rec))
