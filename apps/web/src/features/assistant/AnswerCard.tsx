@@ -6,6 +6,8 @@ import { type AssistantMessage, isRefusal, isTemplateFallback } from "../chat/ch
 import { describeUncertainty } from "../chat/uncertainty";
 import { useElementNames } from "../chat/useElementNames";
 import { TripStrip } from "../day/TripStrip";
+import { OwnJourneyControls } from "../journey/OwnJourneyControls";
+import { WatchTripButton } from "../journey/WatchTripButton";
 import { RouteSummary } from "./RouteSummary";
 import { toolStep } from "./toolSteps";
 
@@ -99,6 +101,12 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
         </p>
       )}
       {m.text && <RouteSummary m={m} />}
+      {m.text && m.journey && (
+        <div className="space-y-2">
+          <WatchTripButton plan={m.journey.plan} />
+          <OwnJourneyControls plan={m.journey.plan} />
+        </div>
+      )}
       {m.text && m.trip && <TripStrip meta={m.trip} />}
       {m.tools.length > 0 &&
         (checksRunning ? (

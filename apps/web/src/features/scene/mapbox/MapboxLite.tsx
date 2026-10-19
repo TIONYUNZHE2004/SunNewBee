@@ -14,10 +14,12 @@ import {
 } from "../../day/tripModel";
 import { useTripPick } from "../../day/tripPickStore";
 import { GAP_BAND_ORDER, GAP_BANDS, gapLines, gapsActive } from "../../gaps/gapModel";
+import { useJourney } from "../../journey/journeyStore";
 import { WHATIF_STYLE } from "../../whatif/whatifModel";
 import { homeView, shouldReframe } from "../cesium/home";
 import { mapboxLightPreset } from "../cesium/timeOfDay";
 import { accessLineData, clickedPlaceId, normalizeLayer, pointFeatures } from "../geo";
+import { JourneyStepList } from "../list/JourneyStepList";
 import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
 import { ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
@@ -186,6 +188,7 @@ export default function MapboxLite() {
   const scenarioId = useScene((s) => s.scenarioId);
   const lensVisible = useScene((s) => s.lensVisible);
   const route = useScene((s) => s.route);
+  const journey = useJourney((s) => s.plan); // the trip being shown (see JourneyMount)
   const whatIf = useScene((s) => s.whatIf);
   const dayOn = useScene((s) => s.day.on);
   const dayScenario = useScene((s) => s.day.scenario);
@@ -312,7 +315,7 @@ export default function MapboxLite() {
   ];
 
   return (
-    <section className="h-full w-full" aria-label="Lite map of Elmina">
+    <section className="relative h-full w-full" aria-label="Lite map of Elmina">
       <MapGL
         ref={mapRef}
         mapboxAccessToken={ENV.mapboxToken}
@@ -505,6 +508,14 @@ export default function MapboxLite() {
           </Source>
         )}
       </MapGL>
+      {journey && (
+        <div className="absolute bottom-2 left-2 max-h-[45%] w-80 max-w-[calc(100%-1rem)] overflow-y-auto">
+          <JourneyStepList
+            plan={journey}
+            className="rounded-lg border border-line bg-card p-3 shadow"
+          />
+        </div>
+      )}
     </section>
   );
 }

@@ -1,4 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { journeyCardContent } from "../src/features/journey/cardContent";
+import type { JourneyEvent } from "../src/features/journey/timeline";
 
 const KIOSK = "Can I push a stroller from Car Park B to the kiosk without stairs?";
 
@@ -411,4 +413,76 @@ test("Rehearse my trip: a resident's own trip through a rehearsed day, departure
   // the list view (no map keys in e2e) spells out the same trip
   await expect(page.getByRole("heading", { name: "Your trip · rehearsal" })).toBeVisible();
   await expect(card).not.toContainText(/\b(?:safe|you should|leave by)\b/i);
+});
+
+test("route answer lists every journey event as numbered steps in the list view (AC-D14)", async ({
+  page,
+}) => {
+  await open(page);
+  const chat = page.waitForResponse(
+    (r) => r.url().includes("/api/chat") && r.request().method() === "POST",
+  );
+  await ask(page, "Can I push a stroller from Car Park B to the playground without stairs?");
+  const body = await (await chat).text();
+  // The plan the page received: the scene.intent whose kind is journey.play.
+  let events: JourneyEvent[] = [];
+  for (const line of body.split(/\r?\n/)) {
+    if (!line.startsWith("data:") || !line.includes("journey.play")) continue;
+    const j = JSON.parse(line.slice(5).trim());
+    const intent = j.intent ?? j.data?.intent ?? j;
+    const plan = intent.journey ?? intent.plan;
+    if (plan?.events) events = plan.events;
+  }
+  expect(events.length).toBeGreaterThan(0);
+  await lastAnswer(page);
+  const steps = page.getByTestId("journey-steps");
+  await expect(steps).toBeVisible();
+  await expect(steps).toContainText("Simulation · indicative times, not a prediction");
+  const items = steps.getByRole("listitem");
+  await expect(items).toHaveCount(events.length);
+  for (const [i, e] of events.entries()) {
+    const item = items.nth(i);
+    await expect(item).toContainText(`${i + 1}.`);
+    // the same title, status and source line as the 3D event card (one shared function)
+    const c = journeyCardContent(e);
+    await expect(item).toContainText(c.title);
+    await expect(item).toContainText(c.statusLabel);
+    await expect(item.getByTestId("card-source")).toContainText(c.source);
+    if (e.element_id) await expect(item.getByTestId("card-element")).toHaveText(e.element_id);
+    if (e.demo) await expect(item).toContainText("Demo value · not surveyed");
+    else await expect(item).not.toContainText("Demo value · not surveyed");
+  }
+  await expect(steps).not.toContainText(/(?<![a-z])safe(?![a-z])/i);
+});
+
+test("route answer offers Watch the trip and working player controls (AC-D13)", async ({
+  page,
+}) => {
+  await open(page);
+  await ask(page, "Can I push a stroller from Car Park B to the playground without stairs?");
+  await lastAnswer(page);
+  type Hook = {
+    total: number;
+    phases: unknown[];
+    state: () => { t: number; playing: boolean; camMode: string } | null;
+  };
+  const state = () =>
+    page.evaluate(() => (window as unknown as { __journey: Hook }).__journey.state());
+  const watch = page.getByRole("button", { name: "Watch the trip" });
+  await expect(watch).toBeVisible();
+  expect(
+    await page.evaluate(() => (window as unknown as { __journey: Hook }).__journey.total),
+  ).toBeGreaterThan(0);
+  expect(await state()).toMatchObject({ t: 0, playing: false });
+  await watch.click();
+  expect((await state())?.playing).toBe(true);
+  const controls = page.getByTestId("journey-controls");
+  await controls.getByRole("button", { name: "Pause" }).click();
+  expect((await state())?.playing).toBe(false);
+  await controls.getByRole("button", { name: "Overview" }).click();
+  expect((await state())?.camMode).toBe("overview");
+  await controls.getByRole("slider", { name: "Trip position" }).fill("10");
+  expect((await state())?.t).toBe(10);
+  await controls.getByRole("button", { name: "Restart" }).click();
+  expect((await state())?.playing).toBe(true);
 });
