@@ -27,6 +27,11 @@ export interface HeroPose {
   walkRate: number;
   /** False while a rest's ground is not sampled yet (its streamed ground band was not in yet). */
   groundKnown: boolean;
+  /**
+   * Her path over the next 10 m ([x, z] local metres, every 0.25 m from her route metre): position
+   * data for the crowd keep-out (C-T8, P8). Never an event.
+   */
+  ahead?: [number, number][];
   /** Test probe (AC-D10): contacts with the drawn ground under each, and the rest benches' seat corners. */
   probe?: () => HeroProbe;
 }

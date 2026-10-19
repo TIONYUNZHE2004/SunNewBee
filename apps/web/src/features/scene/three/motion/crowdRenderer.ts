@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Tier } from "../../shared/quality";
 import { clayMaterial } from "../shared/clayTokens";
+import { PEOPLE_VISIBLE_M } from "./agents";
 import type { CrowdKit } from "./crowdBake";
 
 /**
@@ -104,6 +105,17 @@ export function patchCrowdShader(
       "#include <color_fragment>",
       "#include <color_fragment>\ndiffuseColor.rgb *= texture2D(tlCrowdPal, vTlPal).rgb;",
     );
+}
+
+/**
+ * The crowd's LOD bands (R-J7, superseding P4's "hidden beyond 300 m"): the manifest's bands with the
+ * last (LOD1) stretched to PEOPLE_VISIBLE_M (800 m), so far crowds stay visible at up to 2.5x; hidden
+ * beyond. LOD0 keeps the manifest's 60 m.
+ */
+export function crowdLodBands(lods: readonly { maxM: number }[]): { maxM: number }[] {
+  return lods.map((l, i) =>
+    i === lods.length - 1 ? { maxM: PEOPLE_VISIBLE_M } : { maxM: l.maxM },
+  );
 }
 
 export function createCrowdRenderer(

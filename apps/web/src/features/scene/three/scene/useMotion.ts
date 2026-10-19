@@ -1,4 +1,5 @@
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { journeyHero } from "../../../journey/journeyStore";
 import { prefersReducedMotion, useSceneSettings } from "../../sceneSettingsStore";
 import { useScene } from "../../sceneStore";
 import type { Tier } from "../../shared/quality";
@@ -6,12 +7,23 @@ import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
 import type { CrowdKit } from "../motion/crowdBake";
 import { CROWD_LOAD_TIMEOUT_MS, loadCrowdKit } from "../motion/crowdKit";
+import type { HeroXZ, LookMemory } from "../motion/crowdRules";
 import { createMotionDriver, type MotionDriver, motionRunning } from "../motion/motionClock";
 import { createMotionLayer, type YawMemory } from "../motion/motionLayer";
 import type { ActiveTile } from "../stream/streamer";
 import type { SceneBus } from "./sceneBus";
 import { unionById } from "./union";
 import type { LoadedAssets } from "./useCityAssets";
+
+/**
+ * The rendered hero's position, heading and next 10 m of path (`ahead`) for the crowd keep-out (C-T8,
+ * P8): only these positions from the journey store's `journeyHero` holder, never the plan or its
+ * events (P9). null without a journey.
+ */
+export function heroXZ(): HeroXZ | null {
+  const h = journeyHero.current;
+  return h ? { x: h.x, z: h.z, yaw: h.yaw, ...(h.ahead ? { ahead: h.ahead } : {}) } : null;
+}
 
 /**
  * The motion clock (decorative traffic, pedestrians, birds, sway, shimmer, flicker): its gates
@@ -126,6 +138,8 @@ export function useMotion({
   // One smoothed-yaw memory for the scene's lifetime, shared by every rebuilt layer: streamed agents
   // arriving or leaving never reset the others' yaw (each rebuild prunes it to the new agent set).
   const [yaw] = useState<YawMemory>(() => new Map());
+  // Crowd looks by agent id, kept the same way (C-T8, P3): streamed tiles never re-dress people.
+  const [looks] = useState<LookMemory>(() => new Map());
   // The crowd kit (C-T7): loaded and baked once, body by body in idle slices, the first time there
   // are agents. null while loading (no people drawn yet); undefined if it failed or timed out (the
   // legacy people kit then draws them). A kit that resolves after unmount is disposed.
@@ -167,11 +181,13 @@ export function useMotion({
       createMotionLayer(agents, loaded.lib, loaded.manifest, roleUniforms, engine.motion, {
         yaw,
         crowd,
+        looks,
+        hero: heroXZ,
       }),
     );
     engine.requestRender();
     return () => driver.setAgents(null);
-  }, [engine, driver, loaded, agents, roleUniforms, yaw, crowd]);
+  }, [engine, driver, loaded, agents, roleUniforms, yaw, crowd, looks]);
 
   return { running, onScreen, agents };
 }

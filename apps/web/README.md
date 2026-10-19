@@ -516,9 +516,15 @@ at render on demand and holds a still pose. Motion time excludes stopped spans, 
 where they stopped instead of jumping. Every rebuilt agent layer shares one smoothed-yaw memory.
 
 - **Agents:** `planAgents` puts seeded vehicles on `street`/`major_road` edges and people on
-  `footway`/`path`/`pedestrian` edges of each streamed tile, weighted ×3 near schools, malls and
-  parks. The count is the tile's cap × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
-  edges with no routing or collision, so cars can pass through each other.
+  `footway`/`path`/`pedestrian`/`sidewalk`/`crossing` edges and on pavement paths beside every
+  `street`/`major_road` (`WIDTH_BY_TYPE / 2 + 0.6–1.2 m` from the centre line, C-T8) of each streamed
+  tile, weighted ×3 near schools, malls and parks. A person's path that enters a building footprint or
+  base water moves to the other side of its line, else is not planned (P7). The count is the tile's
+  cap × mood density (day 1.0, dusk 1.15, night 0.45); in the detail bubble (rings 0–1) people are
+  raised to a floor of one per 40 m of street at day density (`PAVEMENT_FLOOR_MAX_RING`, the
+  perf-gate knob). No cyclists (they would render as people
+  walking at 4.5 m/s). Agents loop along the edges with no routing or collision, so cars can pass
+  through each other.
 - **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD for vehicles. Matrices are rewritten
   each tick, but only for agents in view (with a 50 m margin). Agents beyond their last LOD's `maxM`
   are hidden. Agents cast no shadows and are left out of the AO pass.
@@ -526,14 +532,26 @@ where they stopped instead of jumping. Every rebuilt agent layer shares one smoo
   `characters/crowd_<body>.glb`, one body per idle slice) and bakes every clip at runtime into a
   bone-matrix texture (`motion/crowdBake.ts`: per frame and bone the 3×4 `boneWorld(t) × boneWorld(rest)⁻¹`
   as RGBA half floats, 821 rows × 57 texels = 0.37 MB, 0 bytes on disk; props are one-bone skinned).
-  `motion/crowdRenderer.ts` draws all people as two BatchedMeshes (LOD0 ≤ 60 m, LOD1 ≤ 300 m, hidden
-  beyond: 2 draw calls), skinning in the vertex shader from (row0, row1, blend, look) per instance
+  `motion/crowdRenderer.ts` draws all people as two BatchedMeshes (LOD0 ≤ 60 m, LOD1 ≤ 800 m per R-J7,
+  hidden beyond: 2 draw calls), skinning in the vertex shader from (row0, row1, blend, look) per instance
   and recolouring from a palette texture (role × look). The gait phase integrates the distance walked
   over `stride × display scale` (`motion/crowdGait.ts`, P5: no skating) from a seeded start phase.
-  An agent's optional `look` id picks its look (C-T8 assigns them); else a seeded pick. While the
-  kit loads no people are drawn; if it fails the legacy `people` kit (shader limb swing) is the fallback.
-- **Scale-up:** agents are drawn 1× within 150 m of the camera, rising to 3× at 800 m, for
-  legibility. This is display only; the models are unchanged.
+  An agent's optional `look` id picks its look; else `motion/crowdRules.ts` `assignLooks` (C-T8, P3):
+  graph colouring over path proximity, so no two people whose paths come within 10 m share a look,
+  seeded and kept across tile streaming (`LookMemory`); joggers take young or adult looks without a
+  prop. Each look walks at its own pace (`lookSpeed`: walker 0.6, older 0.75, wheelchair 0.8,
+  stroller 0.9, child 0.85 of the planned speed, capped at 1.5 walk cycles/s at 1.55×). The keep-out
+  (`keepOut`, P8) moves people sideways out of a zone 2 m around the hero and her path over the next
+  10 m (`HeroPose.ahead`, published by `heroLayer` every 0.25 m; her heading when absent), reading
+  only these positions (`useMotion` `heroXZ` from `journeyHero`); a person crossing her line inside
+  the zone is hidden until clear. Pavement paths are cut back where they meet another street or major
+  road (half width + 1.2 m from its centre line), so pavement walkers turn at the kerb. The crowd never imports journey code
+  (`crowdBoundary.test.ts`, P9). While the kit loads no people are drawn; if it fails the legacy
+  `people` kit (shader limb swing) is the fallback.
+- **Scale-up:** people (R-J3, R-J7: `peopleScale`) are drawn 1.55× within 300 m of the camera (the
+  hero's scale), easing up to 2.5× at 800 m and hidden beyond 800 m. Vehicles keep ruling P2
+  (`displayScale`: 1× within 150 m, rising to 3× at 800 m, visible to 900 m). Display only; the
+  models are unchanged.
 - **Day/Rollout fade:** people and vehicles fade out over 1 s while Elmina Day or Rollout playback
   is on, and fade back in when both are off.
 - **Honesty:** decorative only (`userData.decorative`, no-op raycast), never picked or described.

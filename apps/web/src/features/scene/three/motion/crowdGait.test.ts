@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { type CrowdManifest, parseCrowdManifest } from "../assets/crowdManifest";
-import { type Agent, displayScale, easedDistance } from "./agents";
+import { type Agent, easedDistance, peopleScale } from "./agents";
 import {
   advanceGait,
   framePair,
@@ -50,11 +50,11 @@ describe("P5 gait timing maths", () => {
       const a = person(`p:${look.id}`, 1.2 + 0.3 * ((look.id.length % 7) / 7));
       const st: GaitState = { phase: seedPhase(a.id), dist: easedDistance(a, 0), idle: false };
       const dt = 1 / 60;
-      // Camera moves so the display scale changes during the run (P6 curve later; today displayScale).
+      // Camera moves so the display scale changes during the run (the R-J7 people curve, P6).
       let cycles = 0;
       for (let i = 1; i <= 600; i++) {
         const t = i * dt;
-        const k = displayScale(100 + i); // 101..700 m
+        const k = peopleScale(100 + i); // 101..700 m
         const before = st.phase;
         const dist = easedDistance(a, t);
         const speed = (dist - st.dist) / dt;
