@@ -33,6 +33,15 @@ The resident assistant covers **access** (routes, places, amenities, closures, t
 | [T-021](tasks/T-021-turn-by-turn-navigation.md) | Turn-by-turn route steps, like Waze (after the six P1 audit fixes) | assigned | P1 | Both local engineers |
 
 
+## Audit P1 split (control, 19 Oct)
+
+Source: `data/audits/2026-10-19-backend-ai-review/report.json` on `local/backend-engineer`. One editor per file, so the two engineers never edit the same file at once.
+
+| Engineer | Fixes | Files |
+|---|---|---|
+| Backend (Codex) | AUD-005, AUD-006, AUD-003 tool side (default to the request profile), a world/claims version key for AUD-002 | `packages/spatial`, `apps/api` |
+| AI (Claude) | AUD-001 (bind each route distance to exact endpoint IDs), AUD-003 agent side, AUD-004 (T-020 wording), AUD-002 replay check on the version key | `packages/agent` |
+
 ## Who does what
 
 | Agent | Where | Tasks |
