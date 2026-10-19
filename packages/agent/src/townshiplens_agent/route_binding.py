@@ -73,6 +73,10 @@ def entities(world):
         shortened = re.sub(r"^(?:Surau|Masjid|Sekolah|SK|SRA)\s+", "", p["name"], flags=re.I)
         if shortened != p["name"] and len(shortened.split()) >= 2:
             p["aliases"].append(shortened)
+        # "Harmoni 1 @ City of Elmina Show Units" is asked for as "Harmoni 1".
+        head = p["name"].split(" @ ", 1)[0].strip()
+        if head != p["name"] and len(head.split()) >= 2:
+            p["aliases"].append(head)
     for cid, c in world.centres.items():
         pid = canonical_id(world, "__centre__" + cid)
         if pid in registry:
