@@ -1,4 +1,4 @@
-{"meta": {"message": "Can I get to the lakeside mall in a wheelchair?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "8d105fe000a290299cd98b0ff37a147574843201251edc2f08536622564ab00c", "model": "mock-scripted", "recorded_at": "2026-10-19T21:19:50+00:00"}}
+{"meta": {"message": "Can I get to the lakeside mall in a wheelchair?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "237fc15bf39a5698143fc6a22fbe20663805804df32bf752751b9c6401c4fdee", "model": "mock-scripted", "recorded_at": "2026-10-19T21:47:49+00:00"}}
 {"type": "answer.draft", "attempt": 1, "delta": "Please name the exact start and destination before I select a route."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Please name the exact start and destinat"}
