@@ -9,7 +9,8 @@ import { THREE_TIERS } from "./quality";
  * set by the journey follow rig), else the camera target (the map centre), which in a tilted
  * overview gives a horizontal band in focus. Aperture by camera distance, from the prototype
  * (`docs/03-product/prototypes/resident-journey`: <= 120 m aperture 0.00016 / maxblur 0.007,
- * farther 0.000022 / 0.006), blended over NEAR_M..FAR_M instead of the prototype's step.
+ * farther 0.000022 / 0.006), blended over NEAR_M..FAR_M instead of the prototype's step, and
+ * capped so the blur saturates no closer than `bandK` x the focus depth (a band at any range).
  *
  * Display only. On High only (`THREE_TIERS.dof`), and off with the FX toggle off or under
  * prefers-reduced-motion (AC-B5). Markers and journey pins render after the composer, so they are
@@ -21,6 +22,17 @@ export const TILT_SHIFT = {
   /** Camera distances (m) of the blend: near values at or under NEAR_M, far at or over FAR_M. */
   nearM: 60,
   farM: 240,
+  /**
+   * The blur saturates (maxblur) no closer than bandK x the focus depth: the prototype's far
+   * aperture does that at ~300 m (0.006 / 0.000022 = 272 m), and the cap keeps the ratio at every
+   * range. Without it the 7 km overview was blurred everywhere (first GPU run), not a band.
+   */
+  bandK: 0.9,
+  /** Max blur at overview range (about 4 px at 1440 px), faded in over overviewFromM..overviewToM:
+   * the far slab edge's 3 px soil bands stay readable (AC-A5 / AC-B10). */
+  overviewMaxblur: 0.003,
+  overviewFromM: 1000,
+  overviewToM: 4000,
 } as const;
 
 /** Whether depth of field runs: the tier has it, the FX toggle is on and motion is not reduced. */
@@ -38,7 +50,17 @@ export function tiltShiftParams(distM: number): { aperture: number; maxblur: num
   const aperture = Math.exp(
     Math.log(near.aperture) + (Math.log(far.aperture) - Math.log(near.aperture)) * s,
   );
-  return { aperture, maxblur: near.maxblur + (far.maxblur - near.maxblur) * s };
+  const k2 = Math.min(
+    1,
+    Math.max(
+      0,
+      (d - TILT_SHIFT.overviewFromM) / (TILT_SHIFT.overviewToM - TILT_SHIFT.overviewFromM),
+    ),
+  );
+  const s2 = k2 * k2 * (3 - 2 * k2);
+  const blend = near.maxblur + (far.maxblur - near.maxblur) * s;
+  const maxblur = blend + (TILT_SHIFT.overviewMaxblur - blend) * s2;
+  return { aperture: Math.min(aperture, maxblur / (TILT_SHIFT.bandK * d)), maxblur };
 }
 
 const tmp = new THREE.Vector3();

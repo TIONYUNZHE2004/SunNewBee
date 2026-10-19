@@ -21,9 +21,9 @@ describe("tilt-shift presets (B-T5, AC-B5)", () => {
 });
 
 describe("tiltShiftParams (aperture by camera distance, prototype values)", () => {
-  it("uses the prototype's near values close in and its far values far out", () => {
+  it("uses the prototype's near values close in and its far values at ~300 m", () => {
     const near = tiltShiftParams(30);
-    const far = tiltShiftParams(800);
+    const far = tiltShiftParams(300); // the prototype tuned its far values at ~300 m
     expect(near.aperture).toBeCloseTo(TILT_SHIFT.near.aperture, 9);
     expect(near.maxblur).toBeCloseTo(TILT_SHIFT.near.maxblur, 9);
     expect(far.aperture).toBeCloseTo(TILT_SHIFT.far.aperture, 9);
@@ -41,6 +41,35 @@ describe("tiltShiftParams (aperture by camera distance, prototype values)", () =
     const a119 = tiltShiftParams(119).aperture;
     const a121 = tiltShiftParams(121).aperture;
     expect(Math.abs(a119 - a121) / a119).toBeLessThan(0.05);
+  });
+});
+
+describe("tiltShiftParams at range (overview: a focus band, not a blurred map)", () => {
+  // BokehPass blur = clamp((focus - depth) * aperture, maxblur). The prototype's far aperture
+  // (0.000022) saturates the blur at a depth difference of ~0.9 x a ~300 m focus; at the 7 km
+  // overview it saturated everywhere (the first GPU run: the whole map soft, the far slab edge's
+  // soil lost: AC-A5/AC-B10 N side). The band keeps the prototype's ratio at every range.
+  const blurAt = (focus: number, depth: number) => {
+    const p = tiltShiftParams(focus);
+    return Math.min(p.maxblur, Math.abs(focus - depth) * p.aperture);
+  };
+  it("saturates the blur no closer than BAND_K x the focus depth, at any range", () => {
+    for (const f of [300, 800, 2000, 7000, 9000]) {
+      const p = tiltShiftParams(f);
+      expect(p.maxblur / p.aperture, `${f}`).toBeGreaterThanOrEqual(TILT_SHIFT.bandK * f * 0.999);
+    }
+  });
+  it("at the overview keeps a sharp band (+-10% depth) and a soft but readable far edge", () => {
+    const f = 7000;
+    expect(blurAt(f, f * 1.1) / tiltShiftParams(f).maxblur).toBeLessThan(0.15);
+    // The far slab edge (~9.7 km): blurred, at most the overview cap (about 4 px at 1440 px).
+    expect(blurAt(f, 9700)).toBeGreaterThan(0);
+    expect(blurAt(f, 9700)).toBeLessThanOrEqual(TILT_SHIFT.overviewMaxblur);
+    expect(TILT_SHIFT.overviewMaxblur * 1440).toBeLessThanOrEqual(4.5);
+  });
+  it("keeps the prototype values near the subject (follow camera)", () => {
+    expect(tiltShiftParams(30).aperture).toBeCloseTo(TILT_SHIFT.near.aperture, 9);
+    expect(tiltShiftParams(240).maxblur).toBeCloseTo(TILT_SHIFT.far.maxblur, 9);
   });
 });
 
