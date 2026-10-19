@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Tier } from "../../shared/quality";
+import { readsAsWater } from "../colourHue";
 
 /**
  * The clay token table (B-T1, AC-B1): the ONE place the stylised (Three.js) city defines surface
@@ -17,7 +18,22 @@ import type { Tier } from "../../shared/quality";
  *  - no wall or roof colour reads as water (`readsAsWater`, A-T9 guard extended to this table);
  *  - base water is the decorative water blue, never the flood scenario blue; flood, status, legend
  *    and route colours are DATA colours and are NOT defined here (overlays/, lib/, routeLine.ts);
- *  - every fixed archetype role colour is >= 0.08 luminance (AC-A9).
+ *  - every fixed archetype role colour is >= 0.08 luminance (AC-A9);
+ *  - manifest palettes pass through `clayPalette` at load (luminance floor, pastel lightness, water
+ *    guard, clay trunk).
+ *
+ * Extending the table (parallel lanes):
+ *  - Colours: add NAMED keys to `CLAY_PALETTE` (a new group object or a new key in an existing
+ *    group); never reuse another lane's list by position. Hex literals live only here.
+ *  - Roles: add a `ClayRole` member and its `CLAY` entry in the "Lane additions" region at the end
+ *    of the `CLAY` table (one block per lane, so merges do not collide). Roughness 0.6-0.8,
+ *    sheen > 0, metalness 0 unless `prop: true`. The token tests cover new roles automatically.
+ *  - Unlit glow / effect colours go in `EFFECT_COLOURS`. DATA colours (status, flood, route, legend,
+ *    journey ribbon) never go here: they live in `features/scene/styles.ts`.
+ *  - Build materials with `clayMaterial(role, { tier })`; instance- or vertex-coloured meshes pass
+ *    `tinted: true` / `vertexColors: true` so the base colour is white.
+ *  - Sheen is per MATERIAL (the role's token); the archetype role shader scales it per role
+ *    (`roleMaterial.ts` roleResponseGlsl).
  */
 
 /** Pastel clay palette, sRGB hex. Grouped by what draws it. */
@@ -53,27 +69,30 @@ export const CLAY_PALETTE = {
     light: "#fff1c9",
   },
   /** The base plane under the city (engine). */
-  ground: "#ebe4d4",
+  ground: "#ded3ba",
   /** City-level parks (cityMesh). */
-  park: "#a3d273",
+  park: "#9bcf81",
   /** Decorative base water (rivers, ponds, the podium-deck pool). NEVER a flood colour. */
   baseWater: "#7fb6c9",
-  /** Decorative land-cover tints (landcover.ts). `water` is the base water. */
+  /**
+   * Decorative land-cover tints (landcover.ts): saturated pastels, HSL lightness 0.6-0.82 and
+   * saturation 0.25-0.5 (the reference image, not beige). `water` is the base water.
+   */
   landcover: {
-    forest: "#7fb86a",
-    grass: "#a8d47c",
-    scrub: "#9cc47a",
-    farmland: "#dedb9e",
-    oil_palm: "#8fb563",
-    residential: "#efe8da",
-    commercial: "#ece6ee",
-    industrial: "#e5e1d7",
-    parking: "#d9d5cc",
-    construction: "#e0c9a0",
-    bare: "#e8dcc0",
+    forest: "#86c072",
+    grass: "#a7d590",
+    scrub: "#adc78a",
+    farmland: "#d7d5a2",
+    oil_palm: "#98c07c",
+    residential: "#e3d3ba",
+    commercial: "#d3bfd9",
+    industrial: "#d5c6b8",
+    parking: "#d1c7b2",
+    construction: "#d6bc9a",
+    bare: "#ddd0b0",
     water: "#7fb6c9",
   },
-  landcoverUnknown: "#e6e0d2",
+  landcoverUnknown: "#dbd1bd",
   /** Road ribbons per kind (groundLayer). Illustrative: a road's colour says nothing about access. The
    * prototype road (#717786) a touch darker, so lit asphalt stays under the street check's 0.35 luminance. */
   road: { major: "#686d7a", residential: "#757a88", footway: "#f2dbb2", other: "#8e919b" },
@@ -85,9 +104,9 @@ export const CLAY_PALETTE = {
   /** Kanopi podium deck boxes (podiumDeck). The pool is `baseWater`. */
   deck: { coping: "#efe9dc", timber: "#c98b55", planter: "#ddd3c3", green: "#88cf63" },
   /** Construction ground dressing (props/construction). */
-  construction: { track: "#b0946a", gravel: "#dccfb4" },
-  /** The `trees` kit default palette (mirrors manifest `trees.palettes.default`; verges.ts). */
-  treesKit: ["#d8d6d0", "#3d4147", "#8a8f96"],
+  construction: { track: "#b68f68", gravel: "#d1c2a9" },
+  /** The `trees` kit palette for verge shrubs (verges.ts): clay lightness, the clay trunk. */
+  treesKit: ["#e0d9cc", "#9c6c45", "#a3a7ad"],
   /** Tree parts for the street-dressing and tree lanes (prototype greens and trunk). */
   greens: ["#72c25b", "#88cf63", "#5fae5c", "#9bd46d", "#7bbd6c"],
   trunk: "#9c6c45",
@@ -170,6 +189,11 @@ export interface ClayToken {
   metalness: number;
   /** A street prop or prop part (railings, poles, gates, benches): the only roles allowed metalness. */
   prop: boolean;
+  /**
+   * Draw this role with the cheaper standard material on EVERY tier (no sheen). A gate switch:
+   * `setClayStandardOnly("ground", true)` if large-area sheen costs too much.
+   */
+  standardOnly: boolean;
 }
 
 const P = CLAY_PALETTE;
@@ -179,7 +203,9 @@ const t = (
   colours: readonly string[],
   roughness: number,
   sheen: number,
-  extra: Partial<Pick<ClayToken, "sheenRoughness" | "sheenColor" | "metalness" | "prop">> = {},
+  extra: Partial<
+    Pick<ClayToken, "sheenRoughness" | "sheenColor" | "metalness" | "prop" | "standardOnly">
+  > = {},
 ): ClayToken => ({
   colours,
   roughness,
@@ -188,6 +214,7 @@ const t = (
   sheenColor: extra.sheenColor ?? SHEEN_WHITE,
   metalness: extra.metalness ?? 0,
   prop: extra.prop ?? false,
+  standardOnly: extra.standardOnly ?? false,
 });
 
 /**
@@ -195,6 +222,7 @@ const t = (
  * gates, fences, the metal parts of kit props) and `propMetal` (street-dressing poles and frames).
  */
 export const CLAY: Readonly<Record<ClayRole, ClayToken>> = {
+  // ---- B-T1 core roles ----
   wall: t(
     [
       ...Object.values(P.kindWall),
@@ -271,7 +299,13 @@ export const CLAY: Readonly<Record<ClayRole, ClayToken>> = {
   ),
   vehicle: t(P.vehicle, 0.6, 0.3),
   sign: t([EFFECT_COLOURS.signBand], 0.7, 0.1),
+  // ---- Lane additions (one block per lane; see "Extending the table") ----
 };
+
+/** Gate switch: draw `role` with the standard material on every tier (true), or by tier (false). */
+export function setClayStandardOnly(role: ClayRole, on: boolean): void {
+  (CLAY[role] as ClayToken).standardOnly = on;
+}
 
 /**
  * Quality tiering. Sheen needs `MeshPhysicalMaterial` (the physical program: sheen BRDF, IOR and
@@ -280,8 +314,8 @@ export const CLAY: Readonly<Record<ClayRole, ClayToken>> = {
  * The program COUNT does not change (each material is one program either way); High's programs are
  * the physical variants.
  */
-export function claySheenOn(tier: Tier): boolean {
-  return tier === "high";
+export function claySheenOn(tier: Tier, role?: ClayRole): boolean {
+  return tier === "high" && !(role && CLAY[role].standardOnly);
 }
 
 let defaultTier: Tier = "high";
@@ -307,7 +341,9 @@ export type ClayOptions = Omit<
  * `vertexColors`), roughness and metalness from the token. High: `MeshPhysicalMaterial` with the
  * role's sheen; Medium / Low: `MeshStandardMaterial`. `userData.clayRole` names the role.
  */
-export function clayMaterial(role: ClayRole, opts: ClayOptions = {}): THREE.MeshStandardMaterial {
+export type ClayMaterial = THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial;
+
+export function clayMaterial(role: ClayRole, opts: ClayOptions = {}): ClayMaterial {
   const { tier = defaultTier, tinted = false, ...params } = opts;
   const tok = CLAY[role];
   const base: THREE.MeshStandardMaterialParameters = {
@@ -316,7 +352,7 @@ export function clayMaterial(role: ClayRole, opts: ClayOptions = {}): THREE.Mesh
     roughness: tok.roughness,
     metalness: tok.metalness,
   };
-  const mat = claySheenOn(tier)
+  const mat = claySheenOn(tier, role)
     ? new THREE.MeshPhysicalMaterial({
         ...base,
         sheen: tok.sheen,
@@ -334,13 +370,12 @@ export function clayMaterial(role: ClayRole, opts: ClayOptions = {}): THREE.Mesh
  * material made on Medium / Low stays Standard (new layers follow `setClayTier`).
  */
 export function applyClayTier(root: THREE.Object3D, tier: Tier): void {
-  const on = claySheenOn(tier);
   root.traverse((o) => {
     const m = (o as THREE.Mesh).material;
     for (const mat of Array.isArray(m) ? m : m ? [m] : []) {
       const role = mat.userData?.clayRole as ClayRole | undefined;
       if (!role || !(mat as THREE.MeshPhysicalMaterial).isMeshPhysicalMaterial) continue;
-      (mat as THREE.MeshPhysicalMaterial).sheen = on ? CLAY[role].sheen : 0;
+      (mat as THREE.MeshPhysicalMaterial).sheen = claySheenOn(tier, role) ? CLAY[role].sheen : 0;
     }
   });
 }
@@ -348,4 +383,60 @@ export function applyClayTier(root: THREE.Object3D, tier: Tier): void {
 /** Every wall and roof colour the stylised city can draw from the token table (honesty guards). */
 export function wallAndRoofColours(): string[] {
   return [...CLAY.wall.colours, ...CLAY.roof.colours, ...CLAY.deck.colours];
+}
+
+/** Lightness floor (HSL, sRGB) for loaded palette colours: pastel, never murky. */
+export const CLAY_MIN_LIGHTNESS = 0.42;
+/** Relative-luminance floor (linear) for loaded palette colours: above AC-A9's 0.08 with margin. */
+export const CLAY_MIN_LUMINANCE = 0.1;
+/** Saturation range a coloured palette entry is lifted or capped into. */
+export const CLAY_SATURATION: readonly [number, number] = [0.2, 0.6];
+/** At or below this saturation a palette ROOF is grey and stays grey (roofPlan's large-roof tint). */
+const GREY_ROOF_SAT = 0.12;
+/** A water-hued result is desaturated to this (under `readsAsWater`'s 0.15). */
+const OFF_WATER_SAT = 0.12;
+
+const lum = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+
+/**
+ * One palette colour into the clay range: saturation lifted or capped into CLAY_SATURATION (a grey
+ * roof stays grey), lightness raised to CLAY_MIN_LIGHTNESS and luminance to CLAY_MIN_LUMINANCE, and
+ * a result that reads as water desaturated. Pure; returns lower-case #rrggbb.
+ */
+export function clayColour(hex: string, slot: "wall" | "roof" | "accent"): string {
+  const hsl = { h: 0, s: 0, l: 0 };
+  new THREE.Color().setStyle(hex, THREE.SRGBColorSpace).getHSL(hsl, THREE.SRGBColorSpace);
+  const { h } = hsl;
+  let { s, l } = hsl;
+  if (!(slot === "roof" && s <= GREY_ROOF_SAT))
+    s = Math.min(CLAY_SATURATION[1], Math.max(CLAY_SATURATION[0], s));
+  l = Math.max(l, CLAY_MIN_LIGHTNESS);
+  const out = new THREE.Color();
+  const set = () => out.setHSL(h, s, l, THREE.SRGBColorSpace);
+  set();
+  while (lum(out) < CLAY_MIN_LUMINANCE && l < 0.95) {
+    l += 0.01;
+    set();
+  }
+  if (readsAsWater(`#${out.getHexString()}`, CLAY_PALETTE.baseWater)) {
+    s = Math.min(s, OFF_WATER_SAT);
+    set();
+  }
+  return `#${out.getHexString()}`;
+}
+
+/**
+ * A manifest palette trio [primary wall, secondary roof, accent] into clay; `parseManifest` applies
+ * it to every loaded palette. The `trees` kit's secondary slot is the trunk: it snaps to
+ * `CLAY_PALETTE.trunk`.
+ */
+export function clayPalette(
+  trio: readonly [string, string, string],
+  asset?: string,
+): [string, string, string] {
+  return [
+    clayColour(trio[0], "wall"),
+    asset === "trees" ? CLAY_PALETTE.trunk : clayColour(trio[1], "roof"),
+    clayColour(trio[2], "accent"),
+  ];
 }

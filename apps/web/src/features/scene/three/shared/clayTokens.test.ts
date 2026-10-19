@@ -1,15 +1,21 @@
+import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { afterEach, describe, expect, it } from "vitest";
 import { ROUTE_STYLE, statusStyle, WATER_COLOR } from "../../styles";
+import { parseManifest } from "../assets/manifest";
 import { readsAsWater } from "../colourHue";
 import {
   applyClayTier,
   CLAY,
+  CLAY_MIN_LIGHTNESS,
+  CLAY_MIN_LUMINANCE,
   CLAY_PALETTE,
   type ClayRole,
   clayMaterial,
+  clayPalette,
   clayTier,
   EFFECT_COLOURS,
+  setClayStandardOnly,
   setClayTier,
   wallAndRoofColours,
 } from "./clayTokens";
@@ -67,7 +73,6 @@ describe("AC-B1: clay token table ranges", () => {
     expect(CLAY.wall.sheen).toBe(0.35);
     expect(CLAY_PALETTE.slab).toEqual(["#ddd6b6", "#a87a4f", "#8b5f3c", "#c69c6d"]);
     expect(CLAY_PALETTE.road.footway).toBe("#f2dbb2");
-    expect(CLAY_PALETTE.park).toBe("#a3d273");
   });
 });
 
@@ -163,5 +168,101 @@ describe("clayMaterial factory and quality tiering", () => {
     expect(m.sheen).toBe(0);
     applyClayTier(root, "high");
     expect(m.sheen).toBe(CLAY.wall.sheen);
+  });
+});
+
+const hslOf = (hex: string) =>
+  new THREE.Color()
+    .setStyle(hex, THREE.SRGBColorSpace)
+    .getHSL({ h: 0, s: 0, l: 0 }, THREE.SRGBColorSpace);
+
+describe("fix round 1: large-area roles are saturated pastels, not beige", () => {
+  it("ground, land cover (not water) and park: saturation 0.25-0.5, lightness 0.6-0.82", () => {
+    const large = [
+      CLAY_PALETTE.ground,
+      CLAY_PALETTE.park,
+      CLAY_PALETTE.landcoverUnknown,
+      ...Object.entries(CLAY_PALETTE.landcover)
+        .filter(([k]) => k !== "water")
+        .map(([, v]) => v),
+    ];
+    for (const c of large) {
+      const { s, l } = hslOf(c);
+      expect(s, c).toBeGreaterThanOrEqual(0.25);
+      expect(s, c).toBeLessThanOrEqual(0.5);
+      expect(l, c).toBeGreaterThanOrEqual(0.6);
+      expect(l, c).toBeLessThanOrEqual(0.82);
+    }
+  });
+
+  it("roads: a saturation floor (tinted, not dead grey) and a lightness ceiling (asphalt check)", () => {
+    for (const k of ["major", "residential", "other"] as const) {
+      const { s, l } = hslOf(CLAY_PALETTE.road[k]);
+      expect(s, k).toBeGreaterThanOrEqual(0.06);
+      expect(l, k).toBeLessThanOrEqual(0.6);
+    }
+    const foot = hslOf(CLAY_PALETTE.road.footway);
+    expect(foot.s).toBeGreaterThanOrEqual(0.25);
+    expect(foot.l).toBeLessThanOrEqual(0.85);
+  });
+
+  it("verge / grass greens share the foliage hue family (within 15 deg)", () => {
+    const f = hslOf(CLAY_PALETTE.fixedRole.foliage).h * 360;
+    for (const c of [CLAY_PALETTE.landcover.grass, CLAY_PALETTE.park]) {
+      const d = Math.abs(hslOf(c).h * 360 - f);
+      expect(Math.min(d, 360 - d), c).toBeLessThanOrEqual(15);
+    }
+  });
+});
+
+describe("fix round 1: manifest palettes load through the clay table", () => {
+  const raw = JSON.parse(
+    readFileSync(new URL("../../../../../public/city/manifest.json", import.meta.url), "utf8"),
+  );
+  const { manifest } = parseManifest(raw);
+
+  it("every loaded palette colour: luminance >= 0.1, pastel lightness, no water hue", () => {
+    expect(manifest).not.toBeNull();
+    const bad: string[] = [];
+    for (const [id, spec] of Object.entries(manifest!.assets))
+      for (const [g, list] of Object.entries(spec.palettes))
+        for (const trio of list)
+          for (const c of trio) {
+            if (luminance(c) < CLAY_MIN_LUMINANCE) bad.push(`${id}/${g} ${c} luminance`);
+            if (hslOf(c).l < CLAY_MIN_LIGHTNESS - 1e-3) bad.push(`${id}/${g} ${c} lightness`);
+            if (readsAsWater(c, CLAY_PALETTE.baseWater)) bad.push(`${id}/${g} ${c} water`);
+          }
+    expect(bad).toEqual([]);
+  });
+
+  it("the trees kit trunk (secondary) snaps to the clay trunk", () => {
+    for (const list of Object.values(manifest!.assets.trees!.palettes))
+      for (const trio of list) expect(trio[1]).toBe(CLAY_PALETTE.trunk);
+  });
+
+  it("grey palette roofs stay grey (large roofs still take a tint); coloured roofs stay coloured", () => {
+    const grey = clayPalette(["#ece6da", "#6a6e75", "#b8704f"])[1];
+    expect(hslOf(grey).s).toBeLessThanOrEqual(0.12);
+    const terracotta = clayPalette(["#efe6d2", "#7a4332", "#9e8a6c"])[1];
+    expect(hslOf(terracotta).s).toBeGreaterThanOrEqual(0.2);
+    expect(hslOf(terracotta).l).toBeGreaterThanOrEqual(CLAY_MIN_LIGHTNESS - 1e-3);
+  });
+
+  it("a near-black or water-blue input is lifted and moved off the water hue", () => {
+    const [w, r, a] = clayPalette(["#3d4147", "#7fb6c9", "#1a1a1a"]);
+    for (const c of [w, r, a]) {
+      expect(luminance(c), c).toBeGreaterThanOrEqual(CLAY_MIN_LUMINANCE);
+      expect(readsAsWater(c, CLAY_PALETTE.baseWater), c).toBe(false);
+    }
+  });
+});
+
+describe("fix round 1: standard-only gate switch", () => {
+  afterEach(() => setClayStandardOnly("ground", false));
+  it("a standardOnly role is standard even on High; others keep sheen", () => {
+    expect(CLAY.ground.standardOnly).toBe(false);
+    setClayStandardOnly("ground", true);
+    expect(clayMaterial("ground", { tier: "high" })).not.toBeInstanceOf(THREE.MeshPhysicalMaterial);
+    expect(clayMaterial("road", { tier: "high" })).toBeInstanceOf(THREE.MeshPhysicalMaterial);
   });
 });

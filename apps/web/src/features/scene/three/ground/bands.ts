@@ -1,5 +1,6 @@
 import type * as THREE from "three";
-import { type ClayRole, clayMaterial } from "../shared/clayTokens";
+import type { Tier } from "../../shared/quality";
+import { type ClayMaterial, type ClayRole, clayMaterial } from "../shared/clayTokens";
 
 /**
  * The ground stack above the base plane, lowest first. Each band has a polygonOffset and a
@@ -80,11 +81,13 @@ export const BAND_CLAY: Record<GroundBand, ClayRole> = {
 
 /**
  * Vertex-coloured clay material for one band (token `BAND_CLAY[band]`), with its polygon offset.
- * Every band except `water` takes the night grade.
+ * Every band except `water` takes the night grade. B-T1: the former `roughness` argument is gone;
+ * roughness comes from the band's clay token (0.6-0.8). `tier` defaults to `clayTier()`.
  */
-export function groundMaterial(band: GroundBand): THREE.MeshStandardMaterial {
+export function groundMaterial(band: GroundBand, tier?: Tier): ClayMaterial {
   const { offset } = GROUND_BANDS[band];
   const m = clayMaterial(BAND_CLAY[band], {
+    tier,
     vertexColors: true,
     polygonOffset: true,
     polygonOffsetFactor: offset,

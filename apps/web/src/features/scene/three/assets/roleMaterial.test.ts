@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { CLAY } from "../shared/clayTokens";
+import { CLAY, CLAY_PALETTE } from "../shared/clayTokens";
 import {
   AO_FLOOR,
   AO_FLOOR_BY_ROLE,
@@ -8,8 +8,10 @@ import {
   createMotionUniforms,
   createRoleMaterial,
   createRoleUniforms,
+  FIXED_ROLE_COLOURS,
   type MotionUniforms,
   ROLE_CLAY,
+  ROLE_SHEEN_GLSL,
   roleResponseGlsl,
 } from "./roleMaterial";
 
@@ -225,7 +227,11 @@ describe("clay role material (B-T1)", () => {
     // biome-ignore lint/suspicious/noExplicitAny: shader stub
     (mat.onBeforeCompile as any)(shader, null);
     expect(shader.fragmentShader).not.toContain("#include <color_fragment>");
-    expect(shader.fragmentShader).toContain(roleResponseGlsl());
+    expect(shader.fragmentShader).toContain(roleResponseGlsl("wall"));
+    // Per-role sheen lands after the physical lighting setup (USE_SHEEN guards Medium / Low).
+    const at = shader.fragmentShader.indexOf("#include <lights_physical_fragment>");
+    expect(at).toBeGreaterThan(-1);
+    expect(shader.fragmentShader.indexOf(ROLE_SHEEN_GLSL)).toBeGreaterThan(at);
     expect(shader.fragmentShader).toContain("varying vec3 vPal0");
     expect(shader.vertexShader).toContain("attribute vec3 iPal0");
   });
@@ -256,5 +262,47 @@ describe("clay role material (B-T1)", () => {
     expect(
       createRoleMaterial({ instanced: true, uniforms: u, kind: "parked" }).userData.clayRole,
     ).toBe("vehicle");
+  });
+});
+
+describe("per-role sheen (B-T1 fix round 1)", () => {
+  it("each role's sheen is scaled relative to the material's base token, with its sheen roughness", () => {
+    for (const base of ["wall", "person", "vehicle"] as const) {
+      const glsl = roleResponseGlsl(base);
+      ROLE_CLAY.forEach((role) => {
+        expect(glsl).toContain(`tlSheenK = ${(CLAY[role].sheen / CLAY[base].sheen).toFixed(4)}`);
+        expect(glsl).toContain(`tlSheenR = ${CLAY[role].sheenRoughness.toFixed(2)}`);
+      });
+    }
+    // Roles really differ (foliage 0.5 vs glass 0.15), so the multiplier is not a constant.
+    expect(CLAY.foliage.sheen).not.toBe(CLAY.glass.sheen);
+  });
+
+  it("person materials compile the person-based multipliers", () => {
+    const mat = createRoleMaterial({
+      instanced: true,
+      uniforms: createRoleUniforms(),
+      kind: "person",
+      tier: "high",
+    });
+    const shader = {
+      vertexShader: THREE.ShaderLib.physical.vertexShader,
+      fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+      uniforms: {} as Record<string, { value: unknown }>,
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: shader stub
+    (mat.onBeforeCompile as any)(shader, null);
+    expect(shader.fragmentShader).toContain(roleResponseGlsl("person"));
+  });
+});
+
+describe("tree trunks are clay (B-T1 fix round 1)", () => {
+  it("kind tree: the dark role (trunks) draws CLAY_PALETTE.trunk; other kinds keep the fixed dark", () => {
+    const c = (h: string) => {
+      const k = new THREE.Color(h);
+      return `tlRole == 4) tlBase = vec3(${k.r.toFixed(5)}, ${k.g.toFixed(5)}, ${k.b.toFixed(5)})`;
+    };
+    expect(compile(true, { kind: "tree" }).shader.fragmentShader).toContain(c(CLAY_PALETTE.trunk));
+    expect(compile(true).shader.fragmentShader).toContain(c(FIXED_ROLE_COLOURS.dark));
   });
 });

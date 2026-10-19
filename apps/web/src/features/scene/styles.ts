@@ -32,6 +32,8 @@ const S: Record<EdgeStatus, StatusStyle> = {
 export const statusStyle = (s: EdgeStatus): StatusStyle => S[s];
 export const ROUTE_STYLE = { color: "#2B6CB0", width: 8, label: "Suggested route" };
 export const WATER_COLOR = "#1e6fb8";
+/** Journey trip ribbon (route data): the white casing under the ribbon and the event pin face. */
+export const JOURNEY_RIBBON_STYLE = { casing: "#ffffff", pinFace: "#ffffff" } as const;
 
 /** Cesium PolylineDash params per patterned status (16-bit on/off mask over dashLength px). */
 export const CESIUM_DASH: Partial<Record<EdgeStatus, { dashLength: number; dashPattern: number }>> =

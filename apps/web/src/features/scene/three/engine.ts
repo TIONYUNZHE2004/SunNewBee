@@ -344,12 +344,13 @@ function build(
   let lastPreset: LightPreset | null = null;
   let fogRange = 0;
 
-  const buildingMat = clayMaterial("wall", { vertexColors: true });
-  const parksMat = groundMaterial("parks");
-  const waterMat = groundMaterial("water");
+  const buildingMat = clayMaterial("wall", { vertexColors: true, tier });
+  const parksMat = groundMaterial("parks", tier);
+  const waterMat = groundMaterial("water", tier);
   const motion = createMotionUniforms();
   shimmerMaterial(waterMat, motion.uTime, "all");
   const groundMat = clayMaterial("ground", {
+    tier,
     color: CLAY_PALETTE.ground,
     polygonOffset: true,
     polygonOffsetFactor: 1,

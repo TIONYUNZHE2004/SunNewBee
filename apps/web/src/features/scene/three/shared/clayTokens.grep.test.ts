@@ -17,15 +17,14 @@ const journeyThreeDir = join(here, "..", "..", "..", "journey", "three");
  * Files allowed to hold colour literals, and why. None of them is a clay surface:
  *  - lighting.ts: sun, hemisphere, sky and fog colours per mood (lights, not materials);
  *  - overlays/markers.ts: place / waste marker colours, DATA legend colours (honesty module);
- *  - overlays/residents.ts: the resident overlay's outline and ring (overlay, not the city);
- *  - journey/three/journeyLayer.ts: journey route casing and event marker colours (route / DATA).
- * Flood, status and route colours live in `features/scene/styles.ts` (outside this scan).
+ *  - overlays/residents.ts: the resident overlay's outline and ring (overlay, not the city).
+ * Flood, status, route and journey-ribbon colours live in `features/scene/styles.ts` (a data module
+ * outside this scan); journey event colours in `features/journey/kindStyle.ts`.
  */
 const COLOUR_LITERAL_ALLOW = [
   "lighting.ts",
   "overlays/markers.ts",
   "overlays/residents.ts",
-  "journey/three/journeyLayer.ts",
 ] as const;
 
 /**

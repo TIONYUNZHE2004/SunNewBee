@@ -37,18 +37,29 @@ export const ROLE_CLAY: readonly ClayRole[] = [
   "light",
 ];
 
-/** GLSL that overrides `roughnessFactor` / `metalnessFactor` per role from the clay tokens. */
-export function roleResponseGlsl(): string {
-  const lines: string[] = [];
+/**
+ * GLSL (after `metalnessmap_fragment`) that sets `roughnessFactor` / `metalnessFactor` per role from
+ * the clay tokens, and `tlSheenK` / `tlSheenR`: the role's sheen relative to the material's (`base`
+ * token, which sets the sheenColor uniform) and its sheen roughness. `roleSheenGlsl` applies them.
+ */
+export function roleResponseGlsl(base: ClayRole = "wall"): string {
+  const ref = CLAY[base].sheen;
+  const lines: string[] = ["float tlSheenK = 1.0;", "float tlSheenR = 0.8;"];
   ROLE_CLAY.forEach((role, i) => {
     const tok = CLAY[role];
     const cond = i === 7 ? "tlRole >= 7" : `tlRole == ${i}`;
     lines.push(
-      `${i === 0 ? "" : "else "}if (${cond}) { roughnessFactor = ${tok.roughness.toFixed(2)}; metalnessFactor = ${tok.metalness.toFixed(2)}; }`,
+      `${i === 0 ? "" : "else "}if (${cond}) { roughnessFactor = ${tok.roughness.toFixed(2)}; metalnessFactor = ${tok.metalness.toFixed(2)}; tlSheenK = ${(tok.sheen / ref).toFixed(4)}; tlSheenR = ${tok.sheenRoughness.toFixed(2)}; }`,
     );
   });
   return lines.join(String.fromCharCode(10));
 }
+
+/** GLSL (after `lights_physical_fragment`): per-role sheen; a no-op without USE_SHEEN (Medium / Low). */
+export const ROLE_SHEEN_GLSL = `#ifdef USE_SHEEN
+material.sheenColor *= tlSheenK;
+material.sheenRoughness = clamp(tlSheenR, 0.0001, 1.0);
+#endif`;
 
 /**
  * Floor for the baked AO (COLOR_0.r), A-T8. The per-vertex bake leaves exact zeros at corners whose
@@ -208,7 +219,7 @@ vec3 tlBase = ${p(0)};
 if (tlRole == 1) tlBase = ${p(1)};
 else if (tlRole == 2) tlBase = ${p(2)};
 else if (tlRole == 3) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.glass)};
-else if (tlRole == 4) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.dark)};
+else if (tlRole == 4) tlBase = ${vec3Of(kind === "tree" ? CLAY_PALETTE.trunk : FIXED_ROLE_COLOURS.dark)};
 else if (tlRole == 5) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.metal)};
 else if (tlRole == 6) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.foliage)};
 else if (tlRole >= 7) tlBase = ${parked ? p(0) : vec3Of(FIXED_ROLE_COLOURS.light)};
@@ -217,7 +228,12 @@ diffuseColor.rgb = tlBase * tlAo;`,
     fs = fs.replace(
       "#include <metalnessmap_fragment>",
       `#include <metalnessmap_fragment>
-${roleResponseGlsl()}`,
+${roleResponseGlsl(clayRole)}`,
+    );
+    fs = fs.replace(
+      "#include <lights_physical_fragment>",
+      `#include <lights_physical_fragment>
+${ROLE_SHEEN_GLSL}`,
     );
     fs = fs.replace(
       "#include <emissivemap_fragment>",
