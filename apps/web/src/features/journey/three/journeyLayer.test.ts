@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { describe, expect, it } from "vitest";
-import { statusStyle } from "../../scene/styles";
+import { JOURNEY_RIBBON_STYLE, statusStyle } from "../../scene/styles";
 import { createFrame } from "../../scene/three/frame";
 import demoPlan from "../fixtures/demoPlan.json";
 import type { JourneyPlan } from "../timeline";
@@ -44,7 +44,7 @@ describe("journey ribbon", () => {
     const s0 = solid(layer.ribbon)[0] as THREE.Object3D;
     for (const o of cs) {
       const m = mat(o);
-      expect(`#${m.color.getHexString()}`).toBe("#ffffff");
+      expect(`#${m.color.getHexString()}`).toBe(JOURNEY_RIBBON_STYLE.casing);
       expect(m.dashed).toBe(false);
       expect(m.worldUnits).toBe(true);
       expect(m.depthTest).toBe(true);
@@ -52,6 +52,17 @@ describe("journey ribbon", () => {
       expect(o.renderOrder).toBeLessThan(s0.renderOrder);
     }
     expect(RIBBON_CASING_SCALE).toBeGreaterThan(1.3);
+  });
+  it("casing and pin face read white but are never clipped white (AC-B6: every channel < 254)", () => {
+    for (const hex of [JOURNEY_RIBBON_STYLE.casing, JOURNEY_RIBBON_STYLE.pinFace]) {
+      const srgb =
+        hex
+          .slice(1)
+          .match(/../g)
+          ?.map((h) => Number.parseInt(h, 16)) ?? [];
+      expect(Math.max(...srgb), hex).toBeLessThan(254);
+      expect(Math.min(...srgb), hex).toBeGreaterThan(225);
+    }
   });
 
   it("PASS is solid green, UNKNOWN amber dashes (styles.ts colours)", () => {
