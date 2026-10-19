@@ -186,8 +186,15 @@ export function useMotion({
   useEffect(() => () => crowdRef.current.kit?.dispose(), []);
   // The crowd look search for each agent set, in slices of <= 4 ms per frame (GATE AC-D18), in
   // order, so the looks are the same as one search per set at once.
-  const [looksQueue] = useState<LooksQueue>(() => createLooksQueue(looks));
-  useEffect(() => () => looksQueue.dispose(), [looksQueue]);
+  // Made on first use and dropped on unmount (StrictMode's dev re-mount makes a fresh one).
+  const looksQueue = useRef<LooksQueue | null>(null);
+  useEffect(
+    () => () => {
+      looksQueue.current?.dispose();
+      looksQueue.current = null;
+    },
+    [],
+  );
   // A new agent set builds its layer off the critical path: looks searched in slices, then the
   // layer built and its programs compiled in parallel (engine.prepare), then swapped in. The
   // previous layer stays drawn meanwhile, so streaming never blanks or hitches the crowd.
@@ -222,13 +229,14 @@ export function useMotion({
       if (engine.prepare) engine.prepare(layer.group).then(show);
       else show();
     };
-    if (crowd)
-      looksQueue.request(crowdPeopleOf(agents), crowd.manifest.looks).then(build, () => {});
-    else build();
+    if (crowd) {
+      looksQueue.current ??= createLooksQueue(looks);
+      looksQueue.current.request(crowdPeopleOf(agents), crowd.manifest.looks).then(build, () => {});
+    } else build();
     return () => {
       live = false;
     };
-  }, [engine, driver, loaded, agents, roleUniforms, yaw, crowd, looks, looksQueue]);
+  }, [engine, driver, loaded, agents, roleUniforms, yaw, crowd, looks]);
   // The layer goes with its driver (engine change, Low tier, unmount).
   useEffect(() => {
     if (!driver) return;

@@ -79,6 +79,8 @@ function segSeg2(a: Seg, b: Seg): number {
 interface PathCells {
   segs: Seg[];
   cells: Map<number, number[]>;
+  /** nearGap2 results by the other path (many people share a path: copies, pavements). */
+  gaps: WeakMap<PathCells, number>;
 }
 const cellKey = (i: number, j: number) => (i + 0x8000) * 0x10000 + (j + 0x8000);
 const pathCellsCache = new WeakMap<Float32Array, PathCells>();
@@ -102,23 +104,38 @@ function pathCellsOf(a: Agent): PathCells {
         else cells.set(key, [k]);
       }
   });
-  const out = { segs, cells };
+  const out: PathCells = { segs, cells, gaps: new WeakMap() };
   pathCellsCache.set(a.path, out);
   return out;
 }
 
-/** Whether two paths come within LOOK_TWIN_M (only the segments sharing a grid cell are tested). */
-function pathsNear(a: PathCells, b: PathCells): boolean {
-  const r2 = LOOK_TWIN_M * LOOK_TWIN_M;
+/**
+ * The smallest squared distance between segments of two paths that share a grid cell (infinity when
+ * none do), cached per pair of paths. When it is under LOOK_TWIN_M^2 it is the paths' true closest
+ * approach squared (the closest pair shares a cell), so it serves both the neighbour test and the
+ * fallback's gap.
+ */
+function nearGap2(a: PathCells, b: PathCells): number {
+  if (a === b) return 0;
+  const hit = a.gaps.get(b);
+  if (hit !== undefined) return hit;
   const small = a.cells.size <= b.cells.size ? a : b;
   const big = small === a ? b : a;
+  let best = Number.POSITIVE_INFINITY;
   for (const [c, ks] of small.cells) {
     const os = big.cells.get(c);
     if (!os) continue;
     for (const k of ks)
-      for (const o of os) if (segSeg2(small.segs[k] as Seg, big.segs[o] as Seg) < r2) return true;
+      for (const o of os) best = Math.min(best, segSeg2(small.segs[k] as Seg, big.segs[o] as Seg));
   }
-  return false;
+  a.gaps.set(b, best);
+  b.gaps.set(a, best);
+  return best;
+}
+
+/** Whether two paths come within LOOK_TWIN_M (only the segments sharing a grid cell are tested). */
+function pathsNear(a: PathCells, b: PathCells): boolean {
+  return nearGap2(a, b) < LOOK_TWIN_M * LOOK_TWIN_M;
 }
 
 /** Closest approach (m) of two agents' paths: an upper bound on how close they can ever be. */
@@ -130,37 +147,59 @@ export function pathGap(a: Agent, b: Agent): number {
   return Math.sqrt(best);
 }
 
-/** People by proximity-grid cell (indices into `agents`), from the cached path cells. */
-function gridOf(agents: readonly Agent[]): Map<number, number[]> {
-  const grid = new Map<number, number[]>();
+/**
+ * The proximity index of one agent set: its distinct paths by grid cell, and the people on each path
+ * (copies and pavement walkers often share one), so neighbours are found path to path.
+ */
+interface ProxIndex {
+  grid: Map<number, PathCells[]>;
+  people: Map<PathCells, number[]>;
+  near: Map<PathCells, PathCells[]>;
+}
+function proxIndexOf(agents: readonly Agent[]): ProxIndex {
+  const grid = new Map<number, PathCells[]>();
+  const people = new Map<PathCells, number[]>();
   agents.forEach((a, k) => {
-    for (const c of pathCellsOf(a).cells.keys()) {
+    const pc = pathCellsOf(a);
+    const on = people.get(pc);
+    if (on) {
+      on.push(k);
+      return;
+    }
+    people.set(pc, [k]);
+    for (const c of pc.cells.keys()) {
       const l = grid.get(c);
-      if (l) l.push(k);
-      else grid.set(c, [k]);
+      if (l) l.push(pc);
+      else grid.set(c, [pc]);
     }
   });
-  return grid;
+  return { grid, people, near: new Map() };
 }
 
 /** Indices of the agents (other than `k`) whose paths come within LOOK_TWIN_M of agent k's path. */
-function neighboursOf(agents: readonly Agent[], grid: Map<number, number[]>, k: number): number[] {
+function neighboursOf(agents: readonly Agent[], ix: ProxIndex, k: number): number[] {
   const mine = pathCellsOf(agents[k] as Agent);
-  const seen = new Set<number>();
+  let near = ix.near.get(mine);
+  if (!near) {
+    const seen = new Set<PathCells>();
+    near = [];
+    for (const c of mine.cells.keys())
+      for (const o of ix.grid.get(c) ?? []) {
+        if (seen.has(o)) continue;
+        seen.add(o);
+        if (pathsNear(mine, o)) near.push(o);
+      }
+    ix.near.set(mine, near);
+  }
   const out: number[] = [];
-  for (const c of mine.cells.keys())
-    for (const o of grid.get(c) ?? []) {
-      if (o === k || seen.has(o)) continue;
-      seen.add(o);
-      if (pathsNear(mine, pathCellsOf(agents[o] as Agent))) out.push(o);
-    }
+  for (const pc of near) for (const o of ix.people.get(pc) ?? []) if (o !== k) out.push(o);
   return out;
 }
 
 /** For each agent index, the indices of agents whose paths come within LOOK_TWIN_M of its path. */
 export function pathNeighbours(agents: readonly Agent[]): number[][] {
-  const grid = gridOf(agents);
-  return agents.map((_a, k) => neighboursOf(agents, grid, k));
+  const ix = proxIndexOf(agents);
+  return agents.map((_a, k) => neighboursOf(agents, ix, k));
 }
 
 /** Look index by agent id, kept across motion layer rebuilds (pruned to each rebuild's agents). */
@@ -197,12 +236,13 @@ export function lookJob(
   let phase = 0;
   let order: number[] = [];
   let cursor = 0;
-  let grid = new Map<number, number[]>();
+  let grid: ProxIndex = { grid: new Map(), people: new Map(), near: new Map() };
   let searched = 0;
 
   const assignOne = (i: number) => {
     const a = people[i] as Agent;
     const nb = neighboursOf(people, grid, i);
+    const mine = pathCellsOf(a);
     searched++;
     const taken = new Set<number>();
     for (const o of nb) if (L(o) >= 0) taken.add(L(o));
@@ -218,7 +258,10 @@ export function lookJob(
         break;
       }
       let gap = Number.POSITIVE_INFINITY;
-      for (const o of nb) if (L(o) === l) gap = Math.min(gap, pathGap(a, people[o] as Agent));
+      // Neighbours are within LOOK_TWIN_M, so the cached shared-cell gap is their exact pathGap.
+      for (const o of nb)
+        if (L(o) === l)
+          gap = Math.min(gap, Math.sqrt(nearGap2(mine, pathCellsOf(people[o] as Agent))));
       if (gap > fallbackGap) {
         fallbackGap = gap;
         fallback = l;
@@ -267,7 +310,7 @@ export function lookJob(
         cursor++;
         return true;
       }
-      grid = gridOf(people);
+      grid = proxIndexOf(people);
       phase = 3;
       cursor = 0;
       return true;
