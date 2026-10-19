@@ -141,7 +141,9 @@ test("AC-B6: every beat of the demo journey has < 0.5% near-black and < 0.5% cli
     await journey.seek(page, (p.t0 + p.t1) / 2);
     await settle(page, 1500, 20_000);
     // Coarser map-area probe (8 px): the first B-T4 run timed out inside mapArea during the journey.
-    shots.push(await measure(page, `beat-${i}-${p.kind}`, "day", false, 8));
+    // ACCEPTANCE_BEAT_PNG=1 keeps each beat's capture (diagnosis).
+    const png = process.env.ACCEPTANCE_BEAT_PNG === "1";
+    shots.push(await measure(page, `beat-${i}-${p.kind}`, "day", png, 8));
   }
   write("ac-b6-beats.json", shots, { beats: beats.length });
   console.log(`AC-B6 beats: ${shots.length} captured, failing: ${failures(shots).length}`);
