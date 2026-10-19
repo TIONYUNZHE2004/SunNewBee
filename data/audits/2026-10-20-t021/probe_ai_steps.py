@@ -57,8 +57,14 @@ def probe():
         id="ev-1", element_id="seg-1", attribute="access_point", value="n", status="reported"
     )
     cases = [
-        ("correct_left", "Turn left onto Persiaran Elmina.", False),
-        ("correct_right", "Turn right onto Jalan Maple.", False),
+        ("model_correct_left_rejected_by_policy", "Turn left onto Persiaran Elmina.", True),
+        ("model_correct_right_rejected_by_policy", "Turn right onto Jalan Maple.", True),
+        (
+            "descriptive_left_street_control",
+            "It runs along Persiaran Elmina for 120.4 metres.",
+            False,
+        ),
+        ("descriptive_right_street_control", "It runs along Jalan Maple for 11.8 metres.", False),
         ("wrong_street_turn_binding", "Turn right onto Persiaran Elmina.", True),
         ("invented_name_suffix", "Turn left onto Persiaran Elmina Secretshortcut.", True),
         ("unhandled_slight_turn", "Bear right onto Persiaran Elmina.", True),

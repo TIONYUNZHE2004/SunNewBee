@@ -48,8 +48,25 @@ def probe():
         ],
     }
     cases = [
-        ("correct_left", "Turn left onto Persiaran Elmina. Continue 120.4 metres.", False, False),
-        ("correct_right", "Turn right onto Jalan Maple. Continue 11.8 metres.", False, False),
+        (
+            "model_correct_left_rejected",
+            "Turn left onto Persiaran Elmina. Continue 120.4 metres.",
+            True,
+            False,
+        ),
+        (
+            "model_correct_right_rejected",
+            "Turn right onto Jalan Maple. Continue 11.8 metres.",
+            True,
+            False,
+        ),
+        (
+            "descriptive_left_control",
+            "It runs along Persiaran Elmina for 120.4 metres.",
+            False,
+            False,
+        ),
+        ("descriptive_right_control", "It runs along Jalan Maple for 11.8 metres.", False, False),
         ("wrong_capitalized_control", "Turn right onto Persiaran Elmina.", True, False),
         ("wrong_lowercase", "Turn right onto persiaran elmina.", True, False),
         ("wrong_unnamed_stretch", "Turn right onto the footway.", True, False),
@@ -60,11 +77,15 @@ def probe():
             True,
         ),
         (
-            "correct_same_street_distance",
+            "model_correct_same_street_rejected",
             "Turn left onto Persiaran Elmina. Continue 120.4 metres.",
-            False,
+            True,
             True,
         ),
+        ("take_a_right_paraphrase", "Take a right onto Persiaran Elmina.", True, False),
+        ("make_a_right_turn_paraphrase", "Make a right turn onto Persiaran Elmina.", True, False),
+        ("malay_simpang_paraphrase", "Ambil simpang kanan ke Persiaran Elmina.", True, False),
+        ("chinese_right_turn_paraphrase", "右拐进入Persiaran Elmina。", True, False),
     ]
     rows = []
     for name, text, reject, same_street in cases:

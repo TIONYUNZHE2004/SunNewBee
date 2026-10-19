@@ -1,8 +1,34 @@
 {
   "cases": [
     {
-      "case": "correct_left",
+      "case": "model_correct_left_rejected_by_policy",
       "text": "Turn left onto Persiaran Elmina.",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "maneuver_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ]
+    },
+    {
+      "case": "model_correct_right_rejected_by_policy",
+      "text": "Turn right onto Jalan Maple.",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "maneuver_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ]
+    },
+    {
+      "case": "descriptive_left_street_control",
+      "text": "It runs along Persiaran Elmina for 120.4 metres.",
       "expected_rejected": false,
       "rejected": false,
       "pass": true,
@@ -10,8 +36,8 @@
       "maneuver_errors": []
     },
     {
-      "case": "correct_right",
-      "text": "Turn right onto Jalan Maple.",
+      "case": "descriptive_right_street_control",
+      "text": "It runs along Jalan Maple for 11.8 metres.",
       "expected_rejected": false,
       "rejected": false,
       "pass": true,
@@ -25,10 +51,10 @@
       "rejected": true,
       "pass": true,
       "validator_errors": [
-        "No maneuver onto Persiaran Elmina turns right: give turns only as the route's maneuvers list them (the app writes the steps)."
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
       ],
       "maneuver_errors": [
-        "No maneuver onto Persiaran Elmina turns right: give turns only as the route's maneuvers list them (the app writes the steps)."
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
       ]
     },
     {
@@ -38,9 +64,11 @@
       "rejected": true,
       "pass": true,
       "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead.",
         "Street names ['Persiaran Elmina Secretshortcut'] are not on this route's maneuvers: name a street exactly as plan_route gives it (an unnamed stretch is 'the footway')."
       ],
       "maneuver_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead.",
         "Street names ['Persiaran Elmina Secretshortcut'] are not on this route's maneuvers: name a street exactly as plan_route gives it (an unnamed stretch is 'the footway')."
       ]
     },
@@ -51,10 +79,10 @@
       "rejected": true,
       "pass": true,
       "validator_errors": [
-        "No maneuver onto Persiaran Elmina turns right: give turns only as the route's maneuvers list them (the app writes the steps)."
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
       ],
       "maneuver_errors": [
-        "No maneuver onto Persiaran Elmina turns right: give turns only as the route's maneuvers list them (the app writes the steps)."
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
       ]
     },
     {
@@ -64,9 +92,11 @@
       "rejected": true,
       "pass": true,
       "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead.",
         "The distance '11.8 metres' is not the persiaran elmina stretch in this route's maneuvers: give each stretch its own distance (the app writes the steps)."
       ],
       "maneuver_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead.",
         "The distance '11.8 metres' is not the persiaran elmina stretch in this route's maneuvers: give each stretch its own distance (the app writes the steps)."
       ]
     },
@@ -77,10 +107,12 @@
       "rejected": true,
       "pass": true,
       "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead.",
         "The distance '999 metres' is not the persiaran elmina stretch in this route's maneuvers: give each stretch its own distance (the app writes the steps).",
         "Facts ['999 metres'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
       ],
       "maneuver_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead.",
         "The distance '999 metres' is not the persiaran elmina stretch in this route's maneuvers: give each stretch its own distance (the app writes the steps)."
       ]
     }
