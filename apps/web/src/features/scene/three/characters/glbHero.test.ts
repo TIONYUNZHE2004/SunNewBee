@@ -275,6 +275,40 @@ describe("GLB hero model (walker)", () => {
     expect(feet.every((c) => c.airborne)).toBe(true);
     h.play("idle", 0, 0);
     expect(h.contacts().some((c) => c.airborne)).toBe(false);
+    // seated is the authored bench window (sit_down from 1.0 s, stand_up until 0.5 s), not foot
+    // height: while she steps back in sit_down her feet are judged against the ground
+    h.play("sit_down", 0.5, 0);
+    expect(h.contacts().some((c) => c.airborne)).toBe(false);
+    h.play("stand_up", 1.4, 0);
+    expect(h.contacts().some((c) => c.airborne)).toBe(false);
+  });
+
+  it("sit clips: every foot outside the authored bench window stays within 3 cm of the ground", async () => {
+    const h = await model("walker");
+    h.setGround(() => 0.08);
+    let worst = 0;
+    let where = "";
+    let seatedFrames = 0;
+    for (const clip of ["sit_down", "sit_idle", "stand_up"] as const) {
+      const d = spec("walker").clips[clip].duration;
+      for (let i = 0; i <= 90; i++) {
+        h.setPose({ x: 0, y: 0.08, z: 0 }, 0.3);
+        h.play(clip, (d * i) / 90, 0);
+        for (const c of h.contacts()) {
+          if (c.airborne) {
+            seatedFrames++;
+            continue;
+          }
+          const e = Math.abs(c.y - 0.08);
+          if (e > worst) {
+            worst = e;
+            where = `${clip}@${((d * i) / 90).toFixed(2)} ${c.name}`;
+          }
+        }
+      }
+    }
+    expect(worst, where).toBeLessThanOrEqual(0.03);
+    expect(seatedFrames).toBeGreaterThan(0);
   });
 
   it("LOD: LOD0 shown near, LOD1 beyond 40 m (body and prop)", async () => {
@@ -303,6 +337,8 @@ describe("GLB hero model (walker)", () => {
       if ((o as THREE.Mesh).isMesh && o.visible && o.userData.heroPart !== "ring") meshes++;
     });
     expect(meshes).toBe(1);
+    // the glb's double-sided shells (open tudung back, hem, lap) stay double-sided
+    expect((h.body(0).material as THREE.Material).side).toBe(THREE.DoubleSide);
     const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
     const { MeshoptDecoder } = await import("three/addons/libs/meshopt_decoder.module.js");
     const loader = new GLTFLoader();
@@ -354,6 +390,13 @@ describe("other variants load", () => {
       else if (v === "wheelchair")
         expect(names).toEqual(["prop_fl", "prop_fr", "prop_bl", "prop_br"]);
       else expect(names.length).toBe(6);
+      // one skinned mesh per LOD (props and wheelchair wheels folded in), the other LOD hidden
+      const visible: string[] = [];
+      h.object3d.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh && o.visible && o.userData.heroPart !== "ring")
+          visible.push(o.name);
+      });
+      expect(visible).toEqual(["hero__LOD0"]);
     });
 });
 

@@ -28,9 +28,9 @@ export interface HeroContact {
   y: number;
   z: number;
   /**
-   * Authored off the ground in this pose (the rigged hero's dangling feet on the bench in the sit
-   * clips): not a ground contact right now, so ground checks skip it. Never set while standing or
-   * walking.
+   * On or climbing onto the bench (the rigged hero's authored window: `sit_idle`, `sit_down` from
+   * 1.0 s, `stand_up` until 0.5 s; a clip-time rule, never foot height): her feet leave the ground
+   * by design, so they are not ground contacts then. Never set while standing or walking.
    */
   airborne?: boolean;
 }

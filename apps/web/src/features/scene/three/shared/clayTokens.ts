@@ -36,6 +36,10 @@ import { readsAsWater } from "../colourHue";
  *    (`roleMaterial.ts` roleResponseGlsl).
  */
 
+/** The demo hero's baju kurung and tudung (one source for `person` and the lane/fe `hero` block). */
+const HERO_CLOTH = "#7c5cbf";
+const HERO_HIJAB = "#c9a8e8";
+
 /** Pastel clay palette, sRGB hex. Grouped by what draws it. */
 export const CLAY_PALETTE = {
   /** No-manifest building walls per OSM kind (cityMesh KIND_COLOUR). */
@@ -133,8 +137,8 @@ export const CLAY_PALETTE = {
     pants: ["#3d4a63", "#5b4636", "#2e3a4f", "#7a6a58"],
     hair: ["#3b2a20", "#20201f", "#6b4a2f"],
     /** The demo hero: purple baju kurung, lilac tudung. */
-    heroCloth: "#7c5cbf",
-    heroHijab: "#c9a8e8",
+    heroCloth: HERO_CLOTH,
+    heroHijab: HERO_HIJAB,
   },
   // ---- Lane additions (one block per lane) ----
   /**
@@ -143,8 +147,8 @@ export const CLAY_PALETTE = {
    * vertex colours and draws with the `hero` role.
    */
   hero: {
-    cloth: "#7c5cbf",
-    tudung: "#c9a8e8",
+    cloth: HERO_CLOTH,
+    tudung: HERO_HIJAB,
     skin: "#d9a77c",
     eye: "#2b2622",
     blush: "#f29b9b",
@@ -324,7 +328,9 @@ export const CLAY: Readonly<Record<ClayRole, ClayToken>> = {
   sign: t([EFFECT_COLOURS.signBand], 0.7, 0.1),
   // ---- Lane additions (one block per lane; see "Extending the table") ----
   // lane/fe (D-T6 / C-T4): the journey hero (placeholder chibi, its bench, the rigged GLB body).
-  hero: t(Object.values(CLAY_PALETTE.hero), 0.7, 0.4),
+  // Standard material on every tier: the rigged hero is double-sided (open tudung back, hem and
+  // lap shells), and the sheen program on both faces put her over the H11 1 ms budget.
+  hero: t(Object.values(CLAY_PALETTE.hero), 0.7, 0.4, { standardOnly: true }),
 };
 
 /** Gate switch: draw `role` with the standard material on every tier (true), or by tier (false). */

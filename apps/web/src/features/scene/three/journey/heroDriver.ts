@@ -32,6 +32,11 @@ export interface HeroSeat {
   /** Where her root stands when seated (local metres, xz). */
   x: number;
   z: number;
+  /**
+   * Her seated facing (yaw, atan2(dx, dz)) when a fact bench fixes it (the bench's orientation);
+   * absent: she faces the route from the seat.
+   */
+  yaw?: number;
 }
 
 export interface HeroPathHelpers {
@@ -235,7 +240,7 @@ function restGeom(p: Phase, helpers: HeroPathHelpers): RestGeom {
     sch,
     route,
     seat,
-    face: yawOf(fdx, fdz),
+    face: seat.yaw ?? yawOf(fdx, fdz),
     toBench: yawOf(-fdx, -fdz),
     rateIn: rate(sch.approach),
     rateOut: rate(sch.back),

@@ -83,6 +83,7 @@ interface Sample {
     triangles: number;
   };
   groundKnown?: boolean;
+  clipTime?: number;
   /** Which hero model is drawn ("glb" after C-T4). */
   model?: string;
 }
@@ -121,6 +122,7 @@ async function sample(
         phaseIndex: s.phaseIndex,
         u: s.u,
         clip: h.clip,
+        clipTime: h.clipTime,
         m: h.distance_m,
         lon: h.lon,
         lat: h.lat,
@@ -264,7 +266,13 @@ test.describe("journey hero (D-T6)", () => {
     // `airborne` and are not judged against the ground. Airborne is only allowed in sit clips.
     const playErr = (c: Contact) => (c.airborne ? 0 : Math.abs(c.y - c.groundY));
     const playContacts = samples.flatMap((s) =>
-      (s.contacts ?? []).map((c) => ({ t: s.t, phase: s.phase, clip: s.clip, c })),
+      (s.contacts ?? []).map((c) => ({
+        t: s.t,
+        phase: s.phase,
+        clip: s.clip,
+        clipTime: s.clipTime,
+        c,
+      })),
     );
     const playWorstRow = playContacts.reduce<(typeof playContacts)[number] | null>(
       (w, r) => (!w || playErr(r.c) > playErr(w.c) ? r : w),
@@ -331,6 +339,7 @@ test.describe("journey hero (D-T6)", () => {
       t: number;
       phase: string;
       clip: string;
+      clipTime?: number;
       groundKnown: boolean;
       contacts: Contact[];
     }[] = [];
@@ -351,6 +360,7 @@ test.describe("journey hero (D-T6)", () => {
           t,
           phase: s.phase,
           clip: s.clip,
+          clipTime: s.clipTime,
           groundKnown: s.groundKnown !== false,
           contacts: s.contacts,
         });
@@ -454,7 +464,24 @@ test.describe("journey hero (D-T6)", () => {
       },
       heroCost,
       heroModels: models,
-      airborne: { contacts: airborneRows.length, outsideSitClips: airborneOutsideSit },
+      airborne: {
+        rule: "glbHero seatedAt: sit_idle, sit_down clip time >= 1.0 s, stand_up clip time <= 0.5 s (authored bench climb, C-T3); never foot height. All other sit-clip feet are judged against 3 cm.",
+        contacts: airborneRows.length,
+        outsideSitClips: airborneOutsideSit,
+        byClip: Object.fromEntries(
+          SIT.map((k) => [k, airborneRows.filter((r) => r.clip === k).length]),
+        ),
+        sitClipFeetJudged: [...all, ...playContacts].filter(
+          (r) => SIT.includes(r.clip) && r.c.name.startsWith("foot") && !r.c.airborne,
+        ).length,
+        rows: airborneRows.map((r) => ({
+          t: r.t,
+          clip: r.clip,
+          clipTime: (r as { clipTime?: number }).clipTime,
+          name: r.c.name,
+          aboveGroundM: r.c.y - r.c.groundY,
+        })),
+      },
       shots,
     };
     writeFileSync(join(OUT, "ac-d10.json"), `${JSON.stringify(result, null, 2)}\n`);

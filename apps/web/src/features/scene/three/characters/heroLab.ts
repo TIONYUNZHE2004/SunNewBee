@@ -91,7 +91,11 @@ export interface HeroLab {
     cam: { side: number; up: number; back: number };
     lookY?: number;
     out?: [number, number];
-  }): string;
+    /** Native-resolution crop centred on her instead of scaling the whole frame to `out`. */
+    crop?: boolean;
+    /** Camera vertical FOV (deg); default the follow view's (the rig's VFOV_DEG). */
+    fovDeg?: number;
+  }): { url: string; heroPx: number; fovDeg: number; canvas: [number, number] };
   close(): void;
 }
 
@@ -305,19 +309,44 @@ export function createHeroLab(engine: Engine): HeroLab {
       if (!render || !engine.setCameraOverride)
         throw new Error("engine lacks renderNow / setCameraOverride");
       const pose = engine.rig.get();
-      engine.setCameraOverride({ position: p.toArray(), target: t.toArray() });
+      engine.setCameraOverride({ position: p.toArray(), target: t.toArray(), fovDeg: o.fovDeg });
       render.call(engine);
       const src = engine.gl().canvas as HTMLCanvasElement;
+      // her on-screen height in canvas pixels (skinned LOD0 body, or the root to 2.4 m up)
+      const { camera } = engine.pickView();
+      const m = need().model();
+      const pts = m
+        ? m.bodyPoints()
+        : [root.getWorldPosition(new THREE.Vector3()), t.clone().setY(t.y + 1.2)];
+      let y0 = Number.POSITIVE_INFINITY;
+      let y1 = Number.NEGATIVE_INFINITY;
+      let cx = 0;
+      for (const q of pts) {
+        q.project(camera);
+        y0 = Math.min(y0, q.y);
+        y1 = Math.max(y1, q.y);
+        cx += q.x;
+      }
+      cx /= pts.length;
+      const heroPx = ((y1 - y0) / 2) * src.height;
       const [w, h] = o.out ?? [720, 450];
       const c = document.createElement("canvas");
       c.width = w;
       c.height = h;
-      (c.getContext("2d") as CanvasRenderingContext2D).drawImage(src, 0, 0, w, h);
+      const ctx = c.getContext("2d") as CanvasRenderingContext2D;
+      if (o.crop) {
+        // native pixels, centred on her (distance shots keep their true on-screen size)
+        const sx = Math.max(0, Math.min(src.width - w, ((cx + 1) / 2) * src.width - w / 2));
+        const midY = ((1 - (y0 + y1) / 2) / 2) * src.height;
+        const sy = Math.max(0, Math.min(src.height - h, midY - h / 2));
+        ctx.drawImage(src, sx, sy, w, h, 0, 0, w, h);
+      } else ctx.drawImage(src, 0, 0, w, h);
       const url = c.toDataURL("image/png");
+      const fovDeg = (camera as THREE.PerspectiveCamera).fov;
       engine.setCameraOverride(null);
       engine.rig.set(pose);
       engine.requestRender();
-      return url;
+      return { url, heroPx, fovDeg, canvas: [src.width, src.height] as [number, number] };
     },
     show(clip, time, view, at = clip === "walk" ? "walk" : "bench") {
       if (at === "walk") walkAt(1.16, time);

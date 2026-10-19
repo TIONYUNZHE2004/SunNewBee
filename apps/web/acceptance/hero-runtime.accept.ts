@@ -246,18 +246,37 @@ test.describe("C-T4 hero runtime (H5, H6, H7, H11)", () => {
       ["frame-11-sit_idle-side", "sit_idle", 2, "bench", { side: 3.8, up: 1.3, back: 0 }],
       ["frame-12-stand_up-mid", "stand_up", 0.75, "bench", near],
     ];
+    const px: Record<string, { heroPx: number; fovDeg: number; canvas: [number, number] }> = {};
     const save = async (name: string, o: Record<string, unknown>) => {
-      const url = await lab<string>(page, "snap", o);
-      writeFileSync(join(dir, `${name}.png`), Buffer.from(url.split(",")[1] as string, "base64"));
+      const r = await lab<{
+        url: string;
+        heroPx: number;
+        fovDeg: number;
+        canvas: [number, number];
+      }>(page, "snap", o);
+      writeFileSync(join(dir, `${name}.png`), Buffer.from(r.url.split(",")[1] as string, "base64"));
+      px[name] = { heroPx: r.heroPx, fovDeg: r.fovDeg, canvas: r.canvas };
     };
-    for (const [name, cam] of poses) await save(name, { clip: "walk", time: 0.3, at: "walk", cam });
+    // the distance shots are native-resolution crops (her true on-screen size at 1440x900); the
+    // close shots scale the whole 1440x900 frame to 720x450. Every shot uses the follow view's FOV.
+    for (const [name, cam] of poses)
+      await save(name, {
+        clip: "walk",
+        time: 0.3,
+        at: "walk",
+        cam,
+        crop: name === "pose-30m" || name === "pose-80m",
+      });
     for (const [name, clip, time, at, cam] of frames)
       await save(name, { clip, time, at, cam, lookY: clip.startsWith("sit") ? 1.0 : 1.3 });
     results.C_T5 = {
       dir,
+      heroPixels: px,
       poses: poses.map(([n, c]) => ({ n, c })),
       frames: frames.map(([n, clip, time, at, cam]) => ({ n, clip, time, at, cam })),
     };
+    // she must read at 80 m: about 40-60 px tall at 1440x900 with the follow FOV (H8)
+    expect(px["pose-80m"]?.heroPx ?? 0).toBeGreaterThan(30);
   });
 
   test("H11 frame cost of the hero (skinning, FX on) <= 1.0 ms per frame", async () => {

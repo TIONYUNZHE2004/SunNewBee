@@ -179,7 +179,12 @@ export interface Engine {
    * following frames, below the rig's 30 m minimum range; null hands the camera back to the rig.
    */
   setCameraOverride?(
-    pose: { position: [number, number, number]; target: [number, number, number] } | null,
+    pose: {
+      position: [number, number, number];
+      target: [number, number, number];
+      /** Vertical field of view (deg); default: the rig's close-range VFOV_DEG (the follow view). */
+      fovDeg?: number;
+    } | null,
   ): void;
   onFrame(cb: (dtMs: number, info: FrameInfo) => void): () => void;
   /**
@@ -984,6 +989,7 @@ function build(
   let cameraOverride: {
     position: [number, number, number];
     target: [number, number, number];
+    fovDeg?: number;
   } | null = null;
   function tick() {
     raf = 0;
@@ -1003,6 +1009,11 @@ function build(
     if (cameraOverride) {
       camera.position.set(...cameraOverride.position);
       camera.lookAt(...cameraOverride.target);
+      const fov = cameraOverride.fovDeg ?? VFOV_DEG;
+      if (Math.abs(camera.fov - fov) > 1e-4) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
       camera.updateMatrixWorld();
     }
     clearTimeout(motionTimer);

@@ -59,8 +59,23 @@ export const softLift = (rel: number): number =>
 const LIFT_ZONE_M = 0.1;
 /** Ground following fades out as a sole rises to this height (feet dangling on the bench). */
 const GROUND_FOLLOW_M = 0.15;
-/** In a sit clip, a sole this far above the ground is authored off it (`airborne`). */
-const AIRBORNE_M = 0.03;
+/**
+ * The authored bench window of the sit clips (C-T3 contract: from 1.0 s of `sit_down` she lifts her
+ * hips and climbs back onto the seat, her legs leave the ground; `stand_up` is its exact reverse),
+ * in seconds from the clip end for `stand_up`. Seated = `sit_idle`, or the dominant clip inside
+ * this window: a clip-time rule, never a foot-height one, so a foot that floats outside it is
+ * judged against the ground.
+ */
+export const HERO_BENCH_CLIMB_S = 1.0;
+
+/** True when the pose (dominant clip at its clip time) is on or climbing onto the bench. */
+export function seatedAt(spec: HeroVariantSpec, clip: HeroClip, clipTime: number): boolean {
+  if (spec.seated) return false;
+  if (clip === "sit_idle") return true;
+  if (clip === "sit_down") return clipTime >= HERO_BENCH_CLIMB_S;
+  if (clip === "stand_up") return clipTime <= spec.clips.stand_up.duration - HERO_BENCH_CLIMB_S;
+  return false;
+}
 /** A palm this close to its grip before planting is holding it (displayed m). */
 const HOLD_M = 0.02;
 const CCD_ITERATIONS = 4;
@@ -274,12 +289,22 @@ export function buildHeroModel(
   }
   // Sole markers from the bind pose, before anything moves.
   const soles = feet.map((f) => soleMarker(body0, f)) as [THREE.Object3D, THREE.Object3D];
-  if (hasProp) {
-    for (const p of props) (p.material as THREE.Material).dispose();
-    foldPropIntoBody(body0, props[0] as THREE.Mesh, prop);
-    foldPropIntoBody(body1, props[1] as THREE.Mesh, prop);
-    props.length = 0;
+  // H11: every rigid prop mesh of a LOD (the walker / stroller / chair frame, the wheelchair's
+  // rear wheels on the `wheels` bone) is folded into that LOD's skinned body, skinned to its bone.
+  const rigid: THREE.Mesh[] = [];
+  scene.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.isMesh && !(m as THREE.SkinnedMesh).isSkinnedMesh && /__LOD[01]$/.test(m.name))
+      rigid.push(m);
+  });
+  const doubleSided = [body0, body1, ...rigid].some(
+    (m) => (m.material as THREE.Material).side === THREE.DoubleSide,
+  );
+  for (const m of rigid) {
+    (m.material as THREE.Material).dispose();
+    foldPropIntoBody(m.name.endsWith("__LOD0") ? body0 : body1, m, m.parent as THREE.Object3D);
   }
+  props.length = 0;
 
   // Clay materials (B-T1 token table): vertex colours carry the colour, as the glb authored it.
   const owned: THREE.Material[] = [];
@@ -293,8 +318,14 @@ export function buildHeroModel(
     let mat = replaced.get(old);
     if (!mat) {
       // one material for the body and its folded prop (one draw); vertex colours carry both
-      mat = clayMaterial("hero", { vertexColors: true });
+      // the glb is double-sided (open tudung back, hem and lap shells): keep it
+      mat = clayMaterial("hero", {
+        vertexColors: true,
+        side: doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+      });
       mat.name = old.name;
+      // shadows from the front faces only: the open shells still cast, at half the shadow fill
+      mat.shadowSide = THREE.FrontSide;
       owned.push(mat);
       replaced.set(old, mat);
       old.dispose();
@@ -354,6 +385,7 @@ export function buildHeroModel(
     saved.clear();
   };
   let weights = new Map<HeroClip, number>();
+  let dominant: { clip: HeroClip; time: number } = { clip: "idle", time: 0 };
 
   const pose = (clip: HeroClip, time: number, fade?: HeroFade) => {
     const want = new Map<HeroClip, { time: number; weight: number }>();
@@ -374,6 +406,12 @@ export function buildHeroModel(
       a.setEffectiveWeight(s.weight);
     }
     weights = new Map([...want].map(([c, s]) => [c, s.weight]));
+    let best = -1;
+    for (const [c, s] of want)
+      if (s.weight > best) {
+        best = s.weight;
+        dominant = { clip: c, time: s.time };
+      }
     restore();
     mixer.update(0);
     root.updateWorldMatrix(true, true);
@@ -392,10 +430,8 @@ export function buildHeroModel(
     root.getWorldPosition(_c);
     const rootY = _c.y;
     const walkW = weights.get("walk") ?? 0;
-    const sitW =
-      (weights.get("sit_down") ?? 0) +
-      (weights.get("sit_idle") ?? 0) +
-      (weights.get("stand_up") ?? 0);
+    // Seated (feet off the ground by design) from the authored clip window, never foot height.
+    const seated = seatedAt(spec, dominant.clip, dominant.time);
     const groundAt = (x: number, z: number) => (ground ? (ground(x, z) ?? rootY) : rootY);
     // feet: lift scaling and ground following, a small vertical move of the foot bone
     for (let i = 0; i < 2; i++) {
@@ -415,7 +451,7 @@ export function buildHeroModel(
         foot.position.copy((foot.parent as THREE.Object3D).worldToLocal(_b));
         foot.updateMatrixWorld(true);
       }
-      airborne[i] = sitW > 0 && sole.y + dy - gy > AIRBORNE_M;
+      airborne[i] = seated;
     }
     if (!hasProp) return;
     // prop: best-fit plane under its four contacts (the wheelchair carries her with it)
