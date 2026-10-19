@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { fitFor, overviewPose } from "../cameraFit";
+import { fitFor, fogReachM, overviewPose } from "../cameraFit";
 import { poseToCamera } from "../cameraRig";
 import { createFrame } from "../frame";
 import { LIGHT_PRESETS } from "../lighting";
@@ -147,7 +147,8 @@ describe("slab materials and meshes", () => {
 describe("slab edge vs the A-T11 fog at the overview bookmark", () => {
   it("the farthest soil (outer foot of the section) is hazed <= 70% in every mood", () => {
     // The overview (A-T5): the whole slab at max range, derived from the outline.
-    const pose = overviewPose(fitFor(B));
+    const fit = fitFor(B);
+    const pose = overviewPose(fit);
     const rangeM = pose.rangeM;
     const cam = poseToCamera(pose).position;
     const g = slabGeometry(B);
@@ -157,7 +158,7 @@ describe("slab edge vs the A-T11 fog at the overview bookmark", () => {
         farthest = Math.max(farthest, Math.hypot(x - cam[0], y - cam[1], z - cam[2]));
     expect(farthest).toBeGreaterThan(9000);
     for (const theme of ["day", "dusk", "night"] as const) {
-      const f = fogFor(LIGHT_PRESETS[theme], rangeM);
+      const f = fogFor(LIGHT_PRESETS[theme], rangeM, fogReachM(fit, rangeM));
       const t = Math.min(1, Math.max(0, (farthest - f.near) / (f.far - f.near)));
       // three's linear Fog is smoothstep(near, far, depth) in the shader.
       const shader = t * t * (3 - 2 * t);

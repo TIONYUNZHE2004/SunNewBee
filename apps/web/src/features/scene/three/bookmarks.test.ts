@@ -8,7 +8,7 @@ import {
   HERO_RADIUS_M,
 } from "./bookmarks";
 import { createFrame } from "./frame";
-import { boundaryOf, clearance } from "./ground/boundary";
+import { ANCHOR_CLEARANCE_M, anchorInside, boundaryOf, clearance } from "./ground/boundary";
 
 describe("bookmarks", () => {
   it("parses the bookmark query param", () => {
@@ -29,7 +29,7 @@ describe("bookmarks", () => {
   it("pins the P4-F probe precincts and centres", () => {
     // A-T5 fix round 1: re-posed inside the Elmina outline (the Elmina Valley 3 centroid is outside).
     expect(BOOKMARKS["probe-a"].centre).toEqual([101.50413, 3.17067]);
-    expect(BOOKMARKS["probe-b"].centre).toEqual([101.49473, 3.20748]); // Elmina Green
+    expect(BOOKMARKS["probe-b"].centre).toEqual([101.49563, 3.20748]); // Elmina Green, 100 m east (A-T3b)
     // A-T5: re-posed inside the Elmina outline (Subang Galaksi / Seksyen U16 lie outside it).
     expect(BOOKMARKS["probe-c"].centre).toEqual([101.5171, 3.19034]);
     expect(BOOKMARKS["probe-d"].centre).toEqual([101.5234, 3.16683]);
@@ -64,5 +64,21 @@ describe("bookmarks vs the seed outline (A-T5 fix round 1)", () => {
     }
     const [hx, hz] = frame.toLocal(HERO_CENTRE[0], HERO_CENTRE[1]);
     expect(clearance(B, hx, hz)).toBeGreaterThanOrEqual(300);
+  });
+  it("anchorInside keeps a centre that is inside, and moves one near or past the edge to the nearest point >= 300 m in", () => {
+    for (const b of Object.values(BOOKMARKS)) {
+      const [x, z] = frame.toLocal(b.centre[0], b.centre[1]);
+      expect(anchorInside(B, x, z)).toEqual([x, z]);
+    }
+    // Points just inside, on and well outside the outline (A-T3b-style edits).
+    const edge = B.polys[0]![0]!;
+    for (let i = 0; i < edge.length; i += 3) {
+      const [ex, ez] = edge[i]!;
+      for (const k of [0.98, 1, 1.2]) {
+        const a = anchorInside(B, ex * k, ez * k);
+        expect(a, `vertex ${i} x${k}`).not.toBeNull();
+        expect(clearance(B, a![0], a![1])).toBeGreaterThanOrEqual(ANCHOR_CLEARANCE_M);
+      }
+    }
   });
 });
