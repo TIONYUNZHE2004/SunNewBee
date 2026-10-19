@@ -182,6 +182,9 @@ export function createMotionUniforms(): MotionUniforms {
  */
 export type RoleKind = "tree" | "person" | "vehicle" | "parked" | "static";
 
+/** Decorative kinds the journey's camera-to-hero cut may hide (treeCut.ts): trees and cars. */
+export const DECOR_CUT_KINDS: ReadonlySet<RoleKind> = new Set(["tree", "parked", "vehicle"]);
+
 const HEADLIGHT = EFFECT_COLOURS.headlight;
 const TAILLIGHT = EFFECT_COLOURS.taillight;
 
@@ -370,6 +373,9 @@ ${BEVEL_FRAGMENT}`,
     shader.vertexShader = vs;
     shader.fragmentShader = fs;
     if (motion && moving) applyKind(shader, kind as RoleKind, motion, instanced);
+    // The journey's decorative occluder cut (whole trees, parked and moving cars; off unless the
+    // follow camera turns it on, treeCut.ts). Never buildings (cutaway) or fact props.
+    if (DECOR_CUT_KINDS.has(kind as RoleKind)) injectTreeCut(shader);
   };
   return mat;
 }
@@ -405,8 +411,6 @@ transformed.x += tlSw;
 transformed.z += tlSw;
 }`,
     );
-    // The journey's decorative tree cut (off unless the follow camera turns it on; treeCut.ts).
-    injectTreeCut(shader);
   } else if (kind === "person") {
     shader.uniforms.uTime = motion.uTime;
     shader.uniforms.uLimb = motion.uLimb;

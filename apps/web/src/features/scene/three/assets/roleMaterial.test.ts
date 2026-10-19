@@ -20,6 +20,7 @@ import {
   ROLE_SHEEN_GLSL,
   roleResponseGlsl,
 } from "./roleMaterial";
+import { TREE_CUT_VERT_BODY, TREE_CUT_VERT_DECL } from "./treeCut";
 
 function compile(
   instanced: boolean,
@@ -141,7 +142,14 @@ describe("createRoleMaterial motion and kit kinds", () => {
   it("parked: the static program with the light role unlit (no headlight, tail light or lamp glow)", () => {
     const base = compile(true);
     const { shader, mat } = compile(true, { kind: "parked" });
-    expect(shader.vertexShader).toBe(base.shader.vertexShader);
+    // the static vertex program plus only the journey's decorative cut (treeCut.ts)
+    expect(
+      shader.vertexShader.replace(TREE_CUT_VERT_DECL, "").replace(
+        `
+${TREE_CUT_VERT_BODY}`,
+        "",
+      ),
+    ).toBe(base.shader.vertexShader);
     expect(shader.fragmentShader).not.toContain("tlRole >= 7) totalEmissiveRadiance");
     expect(shader.fragmentShader).not.toContain("max(uLightGlow, 0.15)");
     expect(base.shader.fragmentShader).toContain("tlRole >= 7) totalEmissiveRadiance");

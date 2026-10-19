@@ -55,11 +55,16 @@ describe("decorative tree cut (gate AC-D17: no canopy over the hero)", () => {
     expect(injectTreeCut({ vertexShader: "", fragmentShader: "", uniforms: {} })).toBe(false);
   });
 
-  it("is built into the tree program only (no program change mid-trip), not buildings or people", () => {
+  it("is built into decorative tree and car programs (no program change mid-trip), not buildings or people", () => {
     const uniforms = createRoleUniforms();
+    for (const kind of ["tree", "parked", "vehicle"] as const) {
+      const m = compileShader(createRoleMaterial({ instanced: true, uniforms, kind }));
+      expect(m.fragmentShader, kind).toContain("uTlTreeCutOn");
+      expect(m.uniforms.uTlTreeCutOn).toBe(treeCutUniforms.uTlTreeCutOn);
+    }
+    // a whole tree is cut (trunk included): the discard does not depend on the vertex role
     const tree = compileShader(createRoleMaterial({ instanced: true, uniforms, kind: "tree" }));
-    expect(tree.fragmentShader).toContain("uTlTreeCutOn");
-    expect(tree.uniforms.uTlTreeCutOn).toBe(treeCutUniforms.uTlTreeCutOn);
+    expect(tree.fragmentShader).toContain("if ( uTlTreeCutOn > 0.5 ) {");
     for (const kind of ["person", "static"] as const) {
       const other = compileShader(createRoleMaterial({ instanced: true, uniforms, kind }));
       expect(other.fragmentShader).not.toContain("uTlTreeCutOn");

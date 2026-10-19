@@ -1,12 +1,14 @@
 import * as THREE from "three";
 
 /**
- * Decorative tree cut (final gate AC-D17 side finding: at the dive end a foreground canopy covered
- * the journey hero). Display only, decorative trees only: while the journey camera follows her,
- * tree fragments inside a capsule from the camera to her chest are not drawn, so no canopy hides
- * her. Trees are decoration ("Decorative details are illustrative."), never facts; nothing else
- * (buildings, picking, the clearance grid, route data) changes. Built into the tree program from the
- * start (`roleMaterial` kind "tree"), switched by a uniform, so it never compiles a program mid-trip.
+ * Decorative occluder cut (final gate: at the dive end a foreground canopy covered the journey hero;
+ * at other beats a decorative parked car and a tree trunk stood between camera and hero). Display
+ * only, decorative items only (whole trees, parked and moving cars: `DECOR_CUT_KINDS`): while the
+ * journey camera follows her, their fragments inside a capsule from the camera to her chest are not
+ * drawn. They are decoration ("Decorative details are illustrative."), never facts; fact props,
+ * buildings (their own cutaway), picking, the clearance grid and route data are unchanged. Built
+ * into those programs from the start (`roleMaterial`), switched by a uniform, so it never compiles a
+ * program mid-trip.
  */
 
 /** Capsule radius (m): her whole body (2.5 m tall, walker included) at her end. */
@@ -45,8 +47,9 @@ export function inTreeCut(p: V3): boolean {
   return Math.hypot(ap[0] - ab[0] * t, ap[1] - ab[1] * t, ap[2] - ab[2] * t) < c.r;
 }
 
-const VERT_DECL = "varying vec3 vTlTreeCut;\n";
-const VERT_BODY = `
+/** The vertex shader additions (exported for tests that compare programs without the cut). */
+export const TREE_CUT_VERT_DECL = "varying vec3 vTlTreeCut;\n";
+export const TREE_CUT_VERT_BODY = `
   vec4 tlTreeWp = vec4( transformed, 1.0 );
   #ifdef USE_INSTANCING
     tlTreeWp = instanceMatrix * tlTreeWp;
@@ -80,8 +83,8 @@ export function injectTreeCut(shader: {
   )
     return false;
   shader.vertexShader = shader.vertexShader
-    .replace("void main() {", `${VERT_DECL}void main() {`)
-    .replace("#include <project_vertex>", `#include <project_vertex>\n${VERT_BODY}`);
+    .replace("void main() {", `${TREE_CUT_VERT_DECL}void main() {`)
+    .replace("#include <project_vertex>", `#include <project_vertex>\n${TREE_CUT_VERT_BODY}`);
   shader.fragmentShader = shader.fragmentShader.replace(
     "void main() {",
     `${FRAG_DECL}void main() {\n${FRAG_BODY}`,

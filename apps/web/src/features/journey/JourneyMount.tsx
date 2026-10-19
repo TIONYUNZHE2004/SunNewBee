@@ -10,7 +10,13 @@ import { heroPositionAt } from "../scene/three/journey/heroDriver";
 import type { ViewFit } from "../scene/three/journey/safeFrame";
 import { createFollowController, overviewFor } from "./followCamera";
 import { JourneyOverlay } from "./JourneyOverlay";
-import { journeyCamera, journeyHero, journeyStateOf, useJourney } from "./journeyStore";
+import {
+  journeyCamera,
+  journeyHero,
+  journeyShow,
+  journeyStateOf,
+  useJourney,
+} from "./journeyStore";
 import { probeCamera } from "./three/cameraProbe";
 import { applyCutaway, cutFor, NO_CUT, setCut } from "./three/cutaway";
 import { createHeroLayer, type FactBench, type HeroLayer } from "./three/heroLayer";
@@ -62,7 +68,19 @@ export function JourneyMount({
     const l = createJourneyLayer(plan, frame);
     engine.setJourney(l);
     setLayer(l);
+    journeyShow.current = (part, visible) => {
+      if (part === "ribbon") l.ribbon.visible = visible;
+      else
+        heroRef.current?.hero.object3d.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh || o.userData.heroPart === "ring") return;
+          for (const mat of Array.isArray(m.material) ? m.material : [m.material])
+            if (mat) mat.colorWrite = visible;
+        });
+      engine.requestRender();
+    };
     return () => {
+      journeyShow.current = null;
       engine.setJourney(null); // disposes the layer
       setLayer(null);
     };
@@ -89,6 +107,7 @@ export function JourneyMount({
       factBenches,
       roots: () => engine.pickView().roots,
       groundGeneration: () => engine.groundGeneration ?? 0,
+      prepare: (o) => engine.prewarm?.(o) ?? Promise.resolve(),
       onPose: (p) => {
         journeyHero.current = p;
         engine.requestRender();
