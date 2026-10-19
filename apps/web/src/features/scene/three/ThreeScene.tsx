@@ -291,6 +291,7 @@ export default function ThreeScene({
         hostRef={hostRef}
         places={places}
         footprints={buildings?.buildings}
+        factBenches={dressing.benches}
       />
       {showroom && (assetsState === "loading" || assetsState === "ready") && <ShowroomChip />}
     </section>

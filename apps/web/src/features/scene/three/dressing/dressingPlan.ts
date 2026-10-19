@@ -406,6 +406,15 @@ export function planFactProps(input: {
   return { props, stats };
 }
 
+/**
+ * The drawn fact benches (kind `bench`, not picnic tables) as seats for the journey hero: footprint
+ * centre, the facing of someone sitting on it (the model's +z, toward the path) and the source id.
+ */
+export const factBenches = (plan: FactPlan): { id: string; x: number; z: number; yaw: number }[] =>
+  plan.props
+    .filter((p) => p.kind === "bench")
+    .flatMap((p) => p.items.map((it) => ({ id: p.sourceId, x: it.x, z: it.z, yaw: it.yaw })));
+
 /** Every drawn instance of a fact plan (each carries its source id). */
 export const factItems = (plan: FactPlan): DressItem[] => plan.props.flatMap((p) => p.items);
 

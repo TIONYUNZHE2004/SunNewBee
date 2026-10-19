@@ -11,7 +11,7 @@ import { JourneyOverlay } from "./JourneyOverlay";
 import { journeyCamera, journeyHero, journeyStateOf, useJourney } from "./journeyStore";
 import { probeCamera } from "./three/cameraProbe";
 import { applyCutaway, cutFor, NO_CUT, setCut } from "./three/cutaway";
-import { createHeroLayer, type HeroLayer } from "./three/heroLayer";
+import { createHeroLayer, type FactBench, type HeroLayer } from "./three/heroLayer";
 import { heroScreenRect } from "./three/heroScreen";
 import { createJourneyLayer, type JourneyLayer } from "./three/journeyLayer";
 import { projectToScreen } from "./three/project";
@@ -35,6 +35,7 @@ export function JourneyMount({
   hostRef,
   places,
   footprints,
+  factBenches,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
@@ -44,6 +45,8 @@ export function JourneyMount({
   places?: ReadonlyMap<string, LonLat>;
   /** OSM building footprints (`/layers/buildings` `buildings`): bench seats keep clear of them. */
   footprints?: unknown;
+  /** The street dressing's fact benches (B-T7): a rest with one within ~3 m sits on it. */
+  factBenches?: readonly FactBench[];
 }) {
   // The one "plan being shown": the player's loaded plan (an intent, Watch the trip, or nothing
   // after Clear route / a profile or scenario change), never sceneStore.journey.
@@ -80,6 +83,7 @@ export function JourneyMount({
       places,
       footprints,
       grid,
+      factBenches,
       roots: () => engine.pickView().roots,
       groundGeneration: () => engine.groundGeneration ?? 0,
       onPose: (p) => {
@@ -110,7 +114,7 @@ export function JourneyMount({
       journeyHero.current = null;
       if (heroRef.current === h) heroRef.current = null;
     };
-  }, [engine, frame, plan, layer, places, footprints, grid]);
+  }, [engine, frame, plan, layer, places, footprints, grid, factBenches]);
 
   const { viewport, miniMapRef } = useMapInsets(hostRef, !!plan && !!engine, () =>
     engine ? engine.pickView().size : [1, 1],
