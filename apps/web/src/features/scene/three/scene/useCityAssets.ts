@@ -5,23 +5,24 @@ import { usePerfStats } from "../../cesium/PerfOverlay";
 import { useScene } from "../../sceneStore";
 import type { Tier } from "../../shared/quality";
 import { type CityInstances, createCityInstances } from "../assets/cityInstances";
+import { modelBoxesOf, modelCellsOf } from "../assets/drawnBounds";
 import type { Placement } from "../assets/fit";
 import { type AssetLibrary, loadAssetLibrary } from "../assets/library";
 import { MANIFEST_URL, type Manifest, parseManifest } from "../assets/manifest";
-import { type CityPlan, facadeInputs, planCity, type RoofInput, roofInputs } from "../assets/plan";
+import {
+  type CityPlan,
+  coverOf,
+  facadeInputs,
+  planCity,
+  type RoofInput,
+  roofInputs,
+} from "../assets/plan";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import { showroomBounds, showroomManifest, showroomPlan } from "../assets/showroom";
 import { HERO_CENTRE } from "../bookmarks";
 import { useCityInfo } from "../cityInfo";
 import { bevelForTier, buildCityGeometry, type CityGeometry } from "../cityMesh";
-import {
-  createClearance,
-  type ModelBox,
-  type ModelCell,
-  type ModelCellsOf,
-  obstaclesFromCity,
-  rasterTops,
-} from "../clearance";
+import { createClearance, obstaclesFromCity } from "../clearance";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import { largeRoofTint } from "../facade/roofPlan";
@@ -75,63 +76,16 @@ function describeFailures(
   return parts.join("; ");
 }
 
-/**
- * Drawn model bounds per asset/variant, over every LOD the manifest lists (memoised): the clearance
- * boxes follow the geometry actually drawn, not the manifest size.
- */
-function modelBoxes(
-  lib: AssetLibrary,
-  m: Manifest,
-): (asset: string, variant: string) => ModelBox | null {
-  const memo = new Map<string, ModelBox | null>();
-  return (asset, variant) => {
-    const key = `${asset}/${variant}`;
-    const hit = memo.get(key);
-    if (hit !== undefined) return hit;
-    const lods = m.assets[asset]?.variants[variant]?.lods.length ?? 1;
-    const box = new THREE.Box3();
-    for (let i = 0; i < Math.max(1, lods); i++) {
-      const pos = lib.geometry(asset, variant, i)?.getAttribute("position");
-      if (pos) box.union(new THREE.Box3().setFromBufferAttribute(pos as THREE.BufferAttribute));
-    }
-    const out = box.isEmpty()
-      ? null
-      : { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, maxY: box.max.y };
-    memo.set(key, out);
-    return out;
-  };
-}
-
-/** Landmarks' drawn mass from their LOD0 geometry (`rasterTops`), memoised per model. */
-function modelCells(lib: AssetLibrary): ModelCellsOf {
-  const memo = new Map<string, ModelCell[] | null>();
-  return (asset, variant) => {
-    const key = `${asset}/${variant}`;
-    const hit = memo.get(key);
-    if (hit !== undefined) return hit;
-    const g = lib.geometry(asset, variant, 0);
-    const pos = g?.getAttribute("position");
-    const out = pos
-      ? rasterTops(
-          pos.array as ArrayLike<number>,
-          g?.index ? (g.index.array as ArrayLike<number>) : null,
-        )
-      : null;
-    const cells = out && out.length > 0 ? out : null;
-    memo.set(key, cells);
-    return cells;
-  };
-}
-
 export type FallbackCounts = [number, number, number, number];
 const NO_FALLBACK: FallbackCounts = [0, 0, 0, 0];
 /**
  * no_fit, generic_fill, no_archetype, no_asset (the order of `data-fallback` and `fb` on the perf
  * line). A `generic_stretch` (a generic box that would be stretched, extruded with a facade) counts
- * as no_fit: the asset cannot fit without stretching.
+ * as no_fit: the asset cannot fit without stretching; so does a `walk_cover` (a stand-in that would
+ * cover a walk edge its outline does not, 9.1 F1).
  */
 const fallbackCounts = (f: Record<string, number>): FallbackCounts => [
-  (f.no_fit ?? 0) + (f.generic_stretch ?? 0),
+  (f.no_fit ?? 0) + (f.generic_stretch ?? 0) + (f.walk_cover ?? 0),
   f.generic_fill ?? 0,
   f.no_archetype ?? 0,
   f.no_asset ?? 0,
@@ -171,6 +125,7 @@ export function useCityAssets({
   showroom,
   roleUniforms,
   boundary = null,
+  walk = null,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
@@ -184,6 +139,11 @@ export function useCityAssets({
   roleUniforms: RoleUniforms;
   /** The Elmina outline (A-T4): anchor-placed landmarks outside it are skipped. */
   boundary?: Boundary | null;
+  /**
+   * The access layer (walk LineStrings), latched by the caller: no archetype or landmark stand-in
+   * is drawn over a walk edge its OSM outline does not cover (9.1 F1). Display only.
+   */
+  walk?: unknown;
 }) {
   const [assetsState, setAssetsState] = useState<AssetsState>(assetsOn ? "loading" : "off");
   const [loaded, setLoaded] = useState<LoadedAssets | null>(null);
@@ -298,12 +258,21 @@ export function useCityAssets({
       return;
     }
     const { manifest, lib } = loaded;
+    const boxOf = modelBoxesOf(lib, manifest);
+    const cellsOf = modelCellsOf(lib);
     let built: { g: CityGeometry; m: Manifest } | null = null;
     try {
       const m = showroom ? showroomManifest(manifest) : manifest;
       const plan = showroom
         ? showroomPlan(m, frame.toLocal(HERO_CENTRE[0], HERO_CENTRE[1]))
-        : planCity(buildings, frame, manifest, lib.has, boundary);
+        : planCity(
+            buildings,
+            frame,
+            manifest,
+            lib.has,
+            boundary,
+            coverOf(walk, frame, boxOf, cellsOf),
+          );
       const kits = kitsRef.current;
       const scale = kitLodScale();
       const inst = createCityInstances(lib, plan, m, roleUniforms, {
@@ -325,14 +294,7 @@ export function useCityAssets({
       // showroom draws no OSM buildings, only its laid-out assets).
       engine.setClearance?.(
         createClearance(
-          obstaclesFromCity(
-            showroom ? null : buildings,
-            frame,
-            plan,
-            m,
-            modelBoxes(lib, m),
-            modelCells(lib),
-          ),
+          obstaclesFromCity(showroom ? null : buildings, frame, plan, m, boxOf, cellsOf),
         ),
       );
       handedOff.current = true;
@@ -391,7 +353,7 @@ export function useCityAssets({
     const { g, m } = built;
     setFacadeSrc(decor("facades", () => facadeInputs(g.footprints, buildings, m)));
     setRoofSrc(decor("roofs", () => roofInputs(g.footprints, buildings, m, frame)));
-  }, [engine, frame, buildings, loaded, showroom, roleUniforms, boundary]);
+  }, [engine, frame, buildings, loaded, showroom, roleUniforms, boundary, walk]);
 
   /** Hands the latest kits to the instances in the engine, unless they already hold them. */
   // biome-ignore lint/correctness/useExhaustiveDependencies: kitLodScale reads the live tier and `showroom`, a dependency

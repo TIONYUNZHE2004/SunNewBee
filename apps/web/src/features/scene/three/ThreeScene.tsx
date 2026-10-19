@@ -140,6 +140,10 @@ export default function ThreeScene({
     frame,
     bbox,
   });
+  // The walk the stand-ins are checked against (9.1 F1), latched once like the ground's copy, so a
+  // profile or scenario switch never re-plans the city.
+  const walkLatch = useRef<unknown>(null);
+  if (!walkLatch.current && access.data) walkLatch.current = access.data;
   const city = useCityAssets({
     engine,
     frame,
@@ -149,6 +153,7 @@ export default function ThreeScene({
     showroom,
     roleUniforms,
     boundary,
+    walk: walkLatch.current,
   });
   const { assetsState, loaded } = city;
   useSlab({ engine, boundary: showroom ? null : boundary });

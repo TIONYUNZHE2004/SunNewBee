@@ -174,11 +174,12 @@ export function probeCamera(opts: {
     const cx = (box.min.x + box.max.x) / 2;
     const cz = (box.min.z + box.max.z) / 2;
     const at = (k: number): Vec3 => [cx, box.min.y + (box.max.y - box.min.y) * k, cz];
-    const root = opts.hero?.getWorldPosition(new THREE.Vector3());
-    heroInFootprint = !!root && (opts.clearance?.maxRoofNear(root.x, root.z, 0.5) ?? 0) > 0;
-    if (root && opts.clearance)
-      heroFootprintIds = opts.clearance.footprintsAt(root.x, root.z).map((f) => f.id);
-    if (root && heroFootprintIds.length > 0) heroDrawnRoofM = roofHit(opts.roots, root.x, root.z);
+    // Where she stands: her body's centre, not the hero object's origin. The journey hero is a
+    // slot group that stays at the scene origin while `setPose` moves the model inside it, so its
+    // world position read the footprint under (0, 0) (final F1: the mall outline) at every beat.
+    heroInFootprint = (opts.clearance?.maxRoofNear(cx, cz, 0.5) ?? 0) > 0;
+    if (opts.clearance) heroFootprintIds = opts.clearance.footprintsAt(cx, cz).map((f) => f.id);
+    if (heroFootprintIds.length > 0) heroDrawnRoofM = roofHit(opts.roots, cx, cz);
     blocked = {
       chest: sightBlocked(opts.clearance, opts.roots, p, at(0.6)),
       head: sightBlocked(opts.clearance, opts.roots, p, at(0.95)),
