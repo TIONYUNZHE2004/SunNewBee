@@ -1,5 +1,5 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
-import type * as THREE from "three";
+import * as THREE from "three";
 import type { LonLat } from "../scene/geo";
 import type { Engine } from "../scene/three/engine";
 import type { LocalFrame } from "../scene/three/frame";
@@ -144,6 +144,7 @@ export function JourneyMount({
       engine,
       scene,
       hero: () => (journeyHero.current ? [journeyHero.current.x, journeyHero.current.z] : null),
+      focus: (p) => engine.setFocusPoint?.(p ? new THREE.Vector3(...p) : null),
     });
     engine.setCameraDriver(ctl.driver);
     const unsub = useJourney.subscribe((s, prev) => {
@@ -177,6 +178,7 @@ export function JourneyMount({
     return () => {
       unsub();
       engine.setCameraDriver?.(null);
+      engine.setFocusPoint?.(null);
       journeyCamera.current = null;
     };
   }, [engine, frame, plan, layer, places]);

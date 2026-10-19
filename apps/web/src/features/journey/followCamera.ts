@@ -16,6 +16,9 @@ export const MODE_BLEND_MS = 1000;
 /** Wall-clock ms of the flight that hands the camera to the orbit rig in Free mode. */
 export const FREE_HANDOFF_MS = 600;
 
+/** Height of the depth-of-field focus on her (chest), metres. */
+export const FOCUS_Y_M = 1.2;
+
 const RAD = Math.PI / 180;
 const ease = (u: number) => {
   const k = Math.max(0, Math.min(1, u));
@@ -104,6 +107,11 @@ export function createFollowController(deps: {
   /** Her ground position now [x, z] (Free mode orbits around her). */
   hero: () => [number, number] | null;
   reduced?: () => boolean;
+  /**
+   * The depth-of-field subject (`Engine.setFocusPoint`, B-T5): her chest while the camera follows
+   * her, null (the camera target) in overview, free or when not driving. Called on change only.
+   */
+  focus?: (p: [number, number, number] | null) => void;
 }): FollowController {
   const reduced = deps.reduced ?? reducedMotion;
   let engaged = false;
@@ -111,6 +119,12 @@ export function createFollowController(deps: {
   let lastMode: string | null = null;
   let blend: { from: CamPose; t0: number } | null = null;
   let drivenT: number | null = null;
+  let focused: [number, number, number] | null = null;
+  const setFocus = (p: [number, number, number] | null) => {
+    if (p === focused || (p && focused && p.every((v, i) => v === focused?.[i]))) return;
+    focused = p;
+    deps.focus?.(p);
+  };
 
   const release = (current: { position: [number, number, number] }, free: boolean) => {
     if (driven && free) {
@@ -131,11 +145,13 @@ export function createFollowController(deps: {
     const s = useJourney.getState();
     if (!engaged || !s.timeline) {
       driven = false;
+      setFocus(null);
       return null;
     }
     const ended = s.t >= s.timeline.total && !s.playing;
     if (s.camMode === "free" || ended) {
       release(current, s.camMode === "free");
+      setFocus(null);
       return null;
     }
     const sc = deps.scene();
@@ -148,6 +164,8 @@ export function createFollowController(deps: {
     }
     driven = true;
     drivenT = s.t;
+    const h = s.camMode === "follow" ? deps.hero() : null;
+    setFocus(h ? [h[0], FOCUS_Y_M, h[1]] : null);
     if (blend) {
       const u = (now - blend.t0) / MODE_BLEND_MS;
       if (u < 1) {
@@ -166,6 +184,7 @@ export function createFollowController(deps: {
       engaged = true;
     },
     reset() {
+      setFocus(null);
       engaged = false;
       driven = false;
       blend = null;

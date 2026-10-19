@@ -19,7 +19,7 @@ const plan = demoPlan as unknown as JourneyPlan;
 const frame = createFrame([101.5135, 3.18]);
 const path = createRoutePath(plan, (lon, lat) => frame.toLocal(lon, lat));
 
-function setup(reduced = false) {
+function setup(reduced = false, focus = vi.fn((_p: [number, number, number] | null) => {})) {
   const rig = { set: vi.fn((_p: Pose) => {}), flyTo: vi.fn((_p: Pose, _ms: number) => {}) };
   const engine = { rig, cameraFit: () => null } as unknown as Pick<Engine, "rig" | "cameraFit">;
   const overview = routeOverview(path.pointAt, path.planLength);
@@ -32,12 +32,13 @@ function setup(reduced = false) {
     scene,
     hero: () => path.pointAt(useJourney.getState().t > 0 ? 100 : 0),
     reduced: () => reduced,
+    focus,
   });
   const here = {
     position: [500, 300, 500] as [number, number, number],
     look: [0, 0, 0] as [number, number, number],
   };
-  return { ctl, rig, scene, here };
+  return { ctl, rig, scene, here, focus };
 }
 
 beforeEach(() => {
@@ -131,5 +132,28 @@ describe("follow controller (engine camera driver)", () => {
     const r = overviewFor({ cameraFit: () => null }, path.pointAt, path.planLength);
     expect(r).toEqual(routeOverview(path.pointAt, path.planLength));
     expect(r.pos[1]).toBeGreaterThan(200);
+  });
+
+  it("the depth-of-field focus follows her in follow mode, null in overview, free and when idle", () => {
+    const { ctl, focus, here } = setup();
+    ctl.driver(0, here);
+    expect(focus).not.toHaveBeenCalled(); // not engaged: nothing to say (never set)
+    useJourney.getState().seek(20);
+    ctl.engage();
+    ctl.driver(10, here);
+    const h = path.pointAt(100);
+    expect(focus).toHaveBeenLastCalledWith([h[0], 1.2, h[1]]);
+    const n = focus.mock.calls.length;
+    ctl.driver(20, here); // unchanged: no repeat call (each call asks the engine for a frame)
+    expect(focus.mock.calls.length).toBe(n);
+    useJourney.getState().setCam("overview");
+    ctl.driver(30, here);
+    expect(focus).toHaveBeenLastCalledWith(null);
+    useJourney.getState().setCam("follow");
+    ctl.driver(40, here);
+    expect(focus).toHaveBeenLastCalledWith([h[0], 1.2, h[1]]);
+    useJourney.getState().setCam("free");
+    ctl.driver(50, here);
+    expect(focus).toHaveBeenLastCalledWith(null);
   });
 });
