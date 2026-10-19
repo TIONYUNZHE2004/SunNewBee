@@ -1,4 +1,4 @@
-{"meta": {"message": "What happens to residents as the river rises?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "a06aa37027b87a7473163650b50c9df0ad8e406341632a952dbc6bc2564c8978", "model": "mock-scripted", "recorded_at": "2026-10-19T01:40:51+00:00"}}
+{"meta": {"message": "What happens to residents as the river rises?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "597cbd6542d24c3dfdc6b1b97807fd9f7d4b63f9adfb8518d468c31c15548540", "model": "mock-scripted", "recorded_at": "2026-10-19T17:33:30+00:00"}}
 {"type": "tool.call", "id": "rising_river_rollout-0", "name": "rising_river_rollout", "args": {"profiles": null, "n": 30}}
 {"type": "tool.result", "id": "rising_river_rollout-0", "name": "rising_river_rollout", "summary": "ok"}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
@@ -25,4 +25,4 @@
 {"type": "citation", "ref": 1, "evidence_id": "ev-rollout-ef7a704efa", "element_id": "rollout", "attribute": "river_rollout", "status": "indicative", "verified_at": null, "source_type": "whatif", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Indicative simulation with synthetic residents, not a forecast; follow official MBSA / JPS / NADMA guidance"}, {"element_id": "answer", "attribute": "caveat", "note": "No departure times, warnings or crowding are modelled; animation speed is illustrative"}]}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
-{"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}
+{"type": "done", "message_id": "f4bf0216b785", "answer_status": "partial", "model": "mock-scripted"}

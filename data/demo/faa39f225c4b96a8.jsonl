@@ -1,7 +1,7 @@
-{"meta": {"message": "Can I get to the lakeside mall in a wheelchair?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "a06aa37027b87a7473163650b50c9df0ad8e406341632a952dbc6bc2564c8978", "model": "mock-scripted", "recorded_at": "2026-10-19T01:41:18+00:00"}}
+{"meta": {"message": "Can I get to the lakeside mall in a wheelchair?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "597cbd6542d24c3dfdc6b1b97807fd9f7d4b63f9adfb8518d468c31c15548540", "model": "mock-scripted", "recorded_at": "2026-10-19T17:33:30+00:00"}}
 {"type": "answer.draft", "attempt": 1, "delta": "Please name the exact start and destination before I select a route."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Please name the exact start and destinat"}
 {"type": "text.delta", "delta": "ion before I select a route."}
 {"type": "uncertainty", "level": "high", "items": []}
-{"type": "done", "message_id": "demo", "answer_status": "cannot_answer", "model": "mock-scripted"}
+{"type": "done", "message_id": "8bc9047970e4", "answer_status": "cannot_answer", "model": "mock-scripted"}
