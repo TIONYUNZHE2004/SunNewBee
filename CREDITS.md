@@ -24,7 +24,14 @@ Direct dependencies (pinned in `pyproject.toml` and `package.json` files) carry 
 
 | Asset | Source URL | Author | Licence | Files | Lives in |
 |---|---|---|---|---|---|
-| *(none yet)* | | | | | |
+| Kenney Mini Characters 1.0, `character-female-a` (rigged chibi body with walk, idle, sit clips; base for the resident-journey hero and crowd) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/character-female-a.glb` | `assets/blender/vendor/people/mini-female-a/source.glb` |
+| Kenney Mini Characters 1.0, `character-female-b` (rigged chibi body with walk, idle, sit clips; base for the resident-journey hero and crowd) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/character-female-b.glb` | `assets/blender/vendor/people/mini-female-b/source.glb` |
+| Kenney Mini Characters 1.0, `character-female-c` (rigged chibi body with walk, idle, sit clips; base for the resident-journey hero and crowd) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/character-female-c.glb` | `assets/blender/vendor/people/mini-female-c/source.glb` |
+| Kenney Mini Characters 1.0, `character-male-a` (rigged chibi body with walk, idle, sit clips; base for the resident-journey hero and crowd) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/character-male-a.glb` | `assets/blender/vendor/people/mini-male-a/source.glb` |
+| Kenney Mini Characters 1.0, `character-male-b` (rigged chibi body with walk, idle, sit clips; base for the resident-journey hero and crowd) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/character-male-b.glb` | `assets/blender/vendor/people/mini-male-b/source.glb` |
+| Kenney Mini Characters 1.0, `character-male-c` (rigged chibi body with walk, idle, sit clips; base for the resident-journey hero and crowd) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/character-male-c.glb` | `assets/blender/vendor/people/mini-male-c/source.glb` |
+| Kenney Mini Characters 1.0, `wheelchair` (prop for the wheelchair variant) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/wheelchair.glb` | `assets/blender/vendor/people/mini-wheelchair/source.glb` |
+| Walker (rollator) and stroller | none: modelled by Blender script from scratch, no third-party source | | | | `assets/blender/tl_assets/characters/` (later tasks) |
 
 ## Designs that inspired our code (no code copied)
 
