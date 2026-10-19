@@ -427,6 +427,12 @@ export interface HeroXZ {
   z: number;
   yaw: number;
   ahead?: readonly (readonly [number, number])[];
+  /**
+   * True while she is not walking (a rest, a look, sitting down or standing up: her drawn clip is
+   * not the walk). Position-like data from her pose, never an event (P9): the crowd keeps
+   * HOLD_KEEP_OUT_M from her then (ITER2).
+   */
+  hold?: boolean;
 }
 /** No crowd person within this distance (m) of the hero or of her next KEEP_OUT_AHEAD_M (P8). */
 export const KEEP_OUT_M = 2;
@@ -653,4 +659,86 @@ export function polylineDistance(x: number, z: number, pts: readonly XZ[]): numb
 /** Distance (m) from a point to the keep-out spine (her and her next 10 m). */
 export function keepOutDistance(x: number, z: number, hero: HeroXZ): number {
   return polylineDistance(x, z, keepOutSpine(hero));
+}
+
+// ---------------------------------------------------------------------------------------------
+// ITER2 (owner video): journey decor clearance. DECORATIVE only; pure functions of the agent's
+// pose, her drawn pose and the camera at that frame, so a seek and a play to t agree (AC-D17).
+
+/** While she holds (not walking), no crowd person within this distance (m) of her. */
+export const HOLD_KEEP_OUT_M = 6;
+/** While a journey is shown, no crowd person this close (m, ground distance) to the camera. */
+export const NEAR_CAMERA_PEOPLE_M = 6.5;
+/**
+ * While a journey is shown, no decorative vehicle (moving traffic) with its centre within this
+ * distance (m) of her, of her next 10 m (the keep-out spine), or of the ground line from the camera
+ * to her: a car is ~4.5 m long, so ~4 m clear of its body near her route.
+ */
+export const VEHICLE_CLEAR_M = 6.5;
+
+function segDist2(x: number, z: number, ax: number, az: number, bx: number, bz: number): number {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const l2 = dx * dx + dz * dz;
+  const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+  const ex = x - ax - dx * t;
+  const ez = z - az - dz * t;
+  return ex * ex + ez * ez;
+}
+
+/**
+ * Whether a decorative vehicle at (x, z) may be drawn: false near her route (her and her next 10 m)
+ * or between the camera and her (ITER2: a pickup parked beside her, a car across her path at the
+ * crossing, a car at the camera's feet at the rest). Always true without a journey hero.
+ */
+export function vehicleClear(
+  x: number,
+  z: number,
+  hero: HeroXZ | null | undefined,
+  camera: { x: number; z: number },
+): boolean {
+  if (!hero) return true;
+  const r2 = VEHICLE_CLEAR_M * VEHICLE_CLEAR_M;
+  if (segDist2(x, z, camera.x, camera.z, hero.x, hero.z) < r2) return false;
+  if (Math.hypot(x - hero.x, z - hero.z) > KEEP_OUT_AHEAD_M + VEHICLE_CLEAR_M + 1) return true;
+  fillSpine(hero);
+  for (let i = 0; i < spineN - 1; i++) {
+    const d2 = segDist2(
+      x,
+      z,
+      spineX[i] as number,
+      spineZ[i] as number,
+      spineX[i + 1] as number,
+      spineZ[i + 1] as number,
+    );
+    if (d2 < r2) return false;
+  }
+  return true;
+}
+
+/**
+ * Whether a decorative person at (x, z) may be drawn while a journey is shown: never within
+ * NEAR_CAMERA_PEOPLE_M of the camera (giant heads at the frame's edge) nor, while she holds, within
+ * HOLD_KEEP_OUT_M of her. Always true without a journey hero.
+ */
+export function personClear(
+  x: number,
+  z: number,
+  hero: HeroXZ | null | undefined,
+  camera: { x: number; z: number },
+): boolean {
+  if (!hero) return true;
+  if (Math.hypot(x - camera.x, z - camera.z) < NEAR_CAMERA_PEOPLE_M) return false;
+  if (hero.hold && Math.hypot(x - hero.x, z - hero.z) < HOLD_KEEP_OUT_M) return false;
+  return true;
+}
+
+/**
+ * Whether an agent is in the mood's thinned share (`share` in [0, 1]): a hash of its own id, so
+ * the decision never depends on which other agents (streamed tiles) are in the set (ITER2 AC-D17:
+ * a rank in the union of streamed tiles drew one more crowd figure after a different seek history).
+ */
+export function densityShown(id: string, share: number): boolean {
+  if (share >= 1) return true;
+  return hash01(id, "density") < share;
 }
