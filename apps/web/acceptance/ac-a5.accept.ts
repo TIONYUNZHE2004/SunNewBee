@@ -33,6 +33,9 @@ import { decodePng, mapArea } from "./support/scene";
  *    vertices are on screen (fix round 1). The overview is derived from the outline at runtime
  *    (A-T5, `cameraFit.ts` overviewPose: the whole slab at max range, clear of the map chrome).
  *    The run continues past a failing side so every number is written before the assertions.
+ * 3. AC-B10 (B-T9, `-g AC-B10` selects this test): >= 3 distinct soil bands (luminance steps,
+ *    `bandsOf`) along one vertex's section at the overview; the rounded rim and layers are vitest
+ *    (`ground/slab.test.ts`). The criterion is a screenshot review: `overview.png` is written here.
  * Routing parity and the golden questions are pytest / `pnpm golden` (not here).
  */
 const OUT =
@@ -154,7 +157,7 @@ test("AC-A5: planners in node keep every display vertex within 5 m (vitest, Elmi
   expect(ok, "vitest clip / slab / tile-sweep suites pass").toBe(true);
 });
 
-test("AC-A5: the overview shows the slab soil edge on every side; live display audit", async ({
+test("AC-A5 / AC-B10: the overview shows the slab soil edge on every side (>= 3 soil bands); live display audit", async ({
   page,
 }) => {
   mkdirSync(OUT, { recursive: true });
@@ -312,6 +315,9 @@ test("AC-A5: the overview shows the slab soil edge on every side; live display a
       .soft(onShare(s), `side ${s}: >= 80% of its vertices on screen`)
       .toBeGreaterThanOrEqual(MIN_ON_SCREEN);
   }
+  // AC-B10 (B-T9): the section shows >= 3 distinct soil bands somewhere at the overview (the near
+  // side, where a band is several pixels tall); the slab edge follows the boundary is AC-A5 above.
+  expect.soft(maxBands, "AC-B10: >= 3 soil bands seen on one vertex").toBeGreaterThanOrEqual(3);
 });
 
 /** The compass side an outline vertex's section faces, from the outline's local positions. */

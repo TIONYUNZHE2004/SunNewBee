@@ -9,6 +9,7 @@ import { fogFor } from "../mood";
 import { boundaryOf, edgeDistance, insideBoundary, type P } from "./boundary";
 import {
   createSlab,
+  rimProfile,
   SLAB_FOG_SCALE,
   SLAB_LAYERS,
   SOIL_COLOURS,
@@ -94,6 +95,36 @@ describe("slabGeometry (Elmina seed)", () => {
     // The top ring of the edge sits on the outline at y = 0.
     for (let i = 0; i < pos.count; i++)
       if (pos.getY(i) === 0) expect(edgeDistance(B, pos.getX(i), pos.getZ(i))).toBeLessThan(1);
+  });
+
+  it("B-T9: the crust is a rounded rim (quarter ellipse, smooth normals) of the same depth and run", () => {
+    const rim = SLAB_LAYERS[0]!;
+    expect(rim.round ?? 0).toBeGreaterThanOrEqual(4);
+    // Same overall section as before (crust 4 m deep, 3 m run): the foot and the camera fit keep.
+    expect(rim.depthM).toBe(4);
+    expect(rim.runM).toBe(3);
+    // Profile: horizontal at the top edge (continues the ground), steep at the bottom.
+    const prof = rimProfile(rim);
+    expect(prof[0]).toEqual([0, 0]);
+    expect(prof.at(-1)![0]).toBeCloseTo(rim.runM, 9);
+    expect(prof.at(-1)![1]).toBeCloseTo(-rim.depthM, 9);
+    const slope = (i: number) => (prof[i]![1] - prof[i + 1]![1]) / (prof[i + 1]![0] - prof[i]![0]);
+    expect(slope(0)).toBeLessThan(0.5);
+    expect(slope(prof.length - 2)).toBeGreaterThan(3);
+    for (let i = 0; i + 2 < prof.length; i++) expect(slope(i + 1)).toBeGreaterThan(slope(i));
+    // Smooth: the rim's inner rows are shared by two bands (indexed), so a rim vertex normal
+    // blends both faces: at the top row it leans up (rounded into the ground), not out.
+    const pos = g.edge.getAttribute("position");
+    const nrm = g.edge.getAttribute("normal");
+    let topRowUp = 0;
+    let topRow = 0;
+    for (let i = 0; i < pos.count; i++)
+      if (pos.getY(i) === 0) {
+        topRow++;
+        if (nrm.getY(i) > 0.8) topRowUp++;
+      }
+    expect(topRow).toBeGreaterThan(0);
+    expect(topRowUp / topRow).toBeGreaterThan(0.9);
   });
 
   it("every edge face looks up and away from the land (seen from above on every side)", () => {

@@ -51,6 +51,7 @@ import { THREE_TIERS } from "./quality";
 import { applyClayTier, CLAY_PALETTE, clayMaterial, setClayTier } from "./shared/clayTokens";
 import { createSky } from "./sky";
 import { measure, UPLOAD_MEASURE } from "./stream/streamer";
+import { CityBokehPass, focusDepth } from "./tiltShift";
 import { attachWheelZoom, dispatchOwnWheel } from "./zoom";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
@@ -172,6 +173,20 @@ export interface Engine {
   /** Camera range in metres: fog distances scale with it so the township view is never fogged out. */
   setFogRange(rangeM: number): void;
   setTier(t: Tier): void;
+  /**
+   * Tilt-shift depth of field wanted (B-T5): the FX toggle on and motion not reduced. It runs only
+   * where the tier has it too (`THREE_TIERS.dof`, High).
+   */
+  setDof(on: boolean): void;
+  /**
+   * The depth-of-field subject (B-T5), e.g. the journey hero from the follow rig; null falls back
+   * to the camera target (the map centre: a horizontal focus band in a tilted overview).
+   */
+  setFocusPoint(p: THREE.Vector3 | null): void;
+  /** Which effects run now (acceptance AC-B5): depth of field and AO. */
+  effects(): { dof: boolean; ao: boolean };
+  /** The focus point projected to canvas CSS pixels (acceptance AC-B4), null when behind the camera. */
+  focusScreen(): { x: number; y: number } | null;
   setViewOffset(panelPx: number): void;
   resize(w: number, h: number): void;
   rig: CameraRig;
@@ -856,6 +871,21 @@ function build(
   /** The live GTAO pass (null on Low or before the first tier), for the per-mood blend. */
   let aoPass: CityGTAOPass | null = null;
   let bloomPass: UnrealBloomPass | null = null;
+  /** Tilt-shift (B-T5): wanted by the settings, the live pass, its subject, the current tier. */
+  let dofWanted = false;
+  let bokehPass: CityBokehPass | null = null;
+  const focusPoint = new THREE.Vector3();
+  let focusSet = false;
+  let tierNow: Tier = tier;
+  const bokehSkip: THREE.Object3D[] = [];
+  const focusNow = (out: THREE.Vector3) =>
+    focusSet ? out.copy(focusPoint) : out.copy(controls.target);
+  const focusTmp = new THREE.Vector3();
+  const aimBokeh = () => {
+    if (!bokehPass) return;
+    focusNow(focusTmp);
+    bokehPass.aim(focusDepth(camera, focusTmp), camera.position.distanceTo(focusTmp));
+  };
   /** Strength from the mood preset; the pass is skipped while it is 0 (day). */
   const syncBloom = () => {
     if (!bloomPass) return;
@@ -868,6 +898,7 @@ function build(
   });
   const applyTier = (t: Tier) => {
     const spec = THREE_TIERS[t];
+    tierNow = t;
     // Clay (B-T1): new materials follow the tier; live physical clay drops / regains its sheen.
     setClayTier(t);
     applyClayTier(scene, t);
@@ -924,6 +955,19 @@ function build(
       );
       aoPass = ao;
       passes.push(ao);
+    }
+    // Tilt-shift (B-T5) after AO, before the markers: markers, residents and journey pins are
+    // drawn after it (overlay pass, renderJourneyMarkers) and are never blurred.
+    bokehPass = null;
+    if (spec.dof && dofWanted) {
+      bokehPass = new CityBokehPass(scene, camera, () => {
+        bokehSkip.length = 0;
+        if (overlays) bokehSkip.push(overlays.lineGroup);
+        if (journey) bokehSkip.push(journey.ribbon);
+        return bokehSkip;
+      });
+      aimBokeh();
+      passes.push(bokehPass);
     }
     // Markers and residents after the AO pass and before bloom/tone mapping: no occlusion on them,
     // drawn on top. Overlay lines are not here: they draw in the main pass (lineGroup) to depth-test.
@@ -1083,6 +1127,7 @@ function build(
         (2 * dist * Math.tan((camera.fov * RAD) / 2)) / Math.max(1, size[1]),
       );
     }
+    aimBokeh();
     const tRender = performance.now();
     composer.render();
     renderJourneyMarkers();
@@ -1392,6 +1437,28 @@ function build(
     },
     setTier(t) {
       if (!disposed) applyTier(t);
+    },
+    setDof(on) {
+      if (disposed || on === dofWanted) return;
+      dofWanted = on;
+      // Rebuild the chain only when the tier has depth of field (otherwise nothing changes).
+      if (THREE_TIERS[tierNow].dof) applyTier(tierNow);
+    },
+    setFocusPoint(p) {
+      if (disposed) return;
+      focusSet = !!p;
+      if (p) focusPoint.copy(p);
+      requestRender();
+    },
+    effects() {
+      return { dof: bokehPass !== null, ao: aoPass !== null };
+    },
+    focusScreen() {
+      focusNow(focusTmp);
+      camera.updateMatrixWorld();
+      const v = focusTmp.project(camera);
+      if (v.z > 1 || v.z < -1) return null;
+      return { x: ((v.x + 1) / 2) * size[0], y: ((1 - v.y) / 2) * size[1] };
     },
     setViewOffset(px) {
       if (disposed) return;

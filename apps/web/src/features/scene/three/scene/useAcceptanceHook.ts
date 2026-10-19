@@ -126,6 +126,10 @@ export interface AcceptanceApi {
   linesOnTop(renderOrder: number, on: boolean): number;
   /** The unmasked WebGL vendor and renderer (WEBGL_debug_renderer_info), else the masked ones. */
   gpu(): { vendor: string; renderer: string };
+  /** Which post effects run now (B-T5 AC-B5): tilt-shift depth of field and AO. */
+  effects(): { dof: boolean; ao: boolean };
+  /** The depth-of-field focus point on the canvas (CSS px), null behind the camera (AC-B4). */
+  focusScreen(): { x: number; y: number } | null;
   /** The building-clearance grid in use (A-T7), or null before the city arrives. Read-only. */
   clearance(): { count: number; clearanceM: number; maxTopM: number } | null;
   /** Top of the tallest drawn footprint containing local (x, z), 0 when none, null without a grid. */
@@ -953,6 +957,12 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
           return { ...px(), lx, lz, inFront: q.z >= -1 && q.z <= 1, foot: fp };
         }),
       );
+    },
+    effects() {
+      return engine.effects();
+    },
+    focusScreen() {
+      return engine.focusScreen();
     },
     gpu() {
       const gl = engine.gl();

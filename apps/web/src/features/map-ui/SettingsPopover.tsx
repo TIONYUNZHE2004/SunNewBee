@@ -111,7 +111,8 @@ export function SettingsPopover() {
   const effective = useEffectiveView();
   const { choice, setChoice } = useTheme();
   const { alwaysShow, setAlwaysShow } = useCameraUi();
-  const { motion, quality, pathStatus, setMotion, setQuality, setPathStatus } = useSceneSettings();
+  const { motion, quality, pathStatus, fx, setMotion, setQuality, setPathStatus, setFx } =
+    useSceneSettings();
   const available = useMemo(
     () => availableViews(ENV, webglSupported(), hasBuildings),
     [hasBuildings],
@@ -213,6 +214,22 @@ export function SettingsPopover() {
                     On
                   </Radio>
                   <Radio checked={!motion} onClick={() => setMotion(false)}>
+                    Off
+                  </Radio>
+                </div>
+                {/* B-T5 FX toggle: the tilt-shift depth of field (High quality, no reduced motion). */}
+                <p id="fx-label" className="m-0 mt-2 text-xs text-fg-soft">
+                  Tilt-shift blur
+                </p>
+                <div
+                  role="radiogroup"
+                  aria-labelledby="fx-label"
+                  className="mt-1 grid grid-cols-2 gap-2"
+                >
+                  <Radio checked={fx} onClick={() => setFx(true)}>
+                    On
+                  </Radio>
+                  <Radio checked={!fx} onClick={() => setFx(false)}>
                     Off
                   </Radio>
                 </div>
