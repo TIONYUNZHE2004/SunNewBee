@@ -186,3 +186,41 @@ async def test_drive_answer_keeps_engine_warnings_and_mapped_end():
     assert "legal turn restrictions and changing directions not modelled" in text
     assert "Arrive at your destination" not in text
     assert "Reach the end of the mapped route." in text
+
+
+# T-021 review round 3: a whole-class gate on direction words, not a phrase list.
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Take a right onto Persiaran Elmina.",
+        "Make a right turn onto Persiaran Elmina.",
+        "Ambil simpang kanan ke Persiaran Elmina.",
+        "右拐进入Persiaran Elmina。",
+        "Go straight on along the footway.",
+        "The playground is on your left.",
+        "向北走约40米。",
+        "Take the second exit at the roundabout.",  # no side word (own break attempt)
+        "Ambil simpang kedua.",
+        "在第二个路口拐弯。",
+        "Take the next turning onto Persiaran Elmina.",
+        "Keep going past two junctions, then you are there.",
+    ],
+)
+def test_any_direction_word_in_model_text_is_rejected(text):
+    assert "Do not write turns" in " ".join(maneuver_errors(text, ROUTE))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "No staff-reported closure is on record right now.",
+        "All right: the route is about 172 m.",
+        "步行约5分钟左右。",
+        "It runs along Persiaran Elmina for about 120 m.",
+        "This route uses 1 road crossing: 1 unmarked (map data, not checked).",
+        "Laluan ini menggunakan 1 lintasan jalan.",
+        "Belum ditinjau: Steps pada sebuah persimpangan tanpa nama.",  # live T-019 r02 caveat
+    ],
+)
+def test_ordinary_words_are_not_directions(text):
+    assert maneuver_errors(text, ROUTE) == []

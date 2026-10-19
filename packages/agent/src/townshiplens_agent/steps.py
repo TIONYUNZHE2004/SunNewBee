@@ -187,6 +187,33 @@ HEADING = re.compile(
     r"|\bke arah (?:utara|selatan|timur|barat)|向(?:北|南|东|西)(?:走|行|出发)?",
     re.I,
 )
+# Whole-class gate (T-021 review, round 3): any direction word at all in model-written text —
+# a side (left/right, kiri/kanan, 左/右 except 左右 "about"), straight on, a compass heading, a
+# U-turn, or a turn/junction word ("the second exit", "simpang", "路口") — since no direction can
+# be phrased without one; the app writes the real steps.
+DIRECTION = re.compile(
+    r"\b(?:left|(?<!all )right(?!\s+(?:now|away))|lefts|rights|straight|north|south|east|west"
+    r"|north-?east|north-?west"
+    r"|south-?east|south-?west|u-?turn)\b"
+    r"|\b(?:kiri|kanan|lurus|utara|selatan|timur|barat|timur laut|barat daya|tenggara"
+    r"|barat laut|pusing balik)\b"
+    r"|(?<!左)右(?!边?的?人)|左(?!右)|直走|直行|掉头|(?:向|往|朝)(?:北|南|东|西)"
+    # turns and junctions without a side ("the second exit", "simpang kedua", "第二个路口")
+    r"|\b(?:exit|exits|junction|junctions|turning|turnings|roundabout|roundabouts|intersection"
+    r"|intersections)\b|\bturn(?:s|ing)?\s+(?:onto|into|off)\b"
+    r"|\b(?:simpang|belok|membelok|bulatan)\b|路口|出口|环岛|转盘|拐|转弯|转入",
+    re.I,
+)
+
+
+def _without_names(text: str, streets: set[str]) -> str:
+    """Lower-case text without street names (a street may be called "... Timur")."""
+    low = _norm(STREET.sub(" ", text))
+    for name in sorted(streets, key=len, reverse=True):
+        low = low.replace(name, " ")
+    return low
+
+
 _SENTENCES = re.compile(r"(?<!\d)[.;!?。；！？\n]+|[.;](?!\d)")
 _CONTINUE = re.compile(
     r"^\s*(?:then\s+|and\s+)?(?:continue|keep going|go on|walk|follow it|teruskan|terus|"
@@ -232,15 +259,15 @@ def maneuver_errors(text: str, route: dict, closed_names: set[str] | frozenset =
         if r.get("name"):
             sections.setdefault(_norm(r["name"]), []).append(float(r.get("length_m") or 0))
     known = set(by_street) | set(sections)
-    closed = {_norm(n) for n in closed_names}
     errs: list[str] = []
     # Directions are the app's (server-rendered steps); the model never writes a turn or a
     # heading, so no turn can be bound to the wrong street, stretch or occurrence.
-    if any(p.search(text) for _, p in SIDES) or HEADING.search(text):
+    if DIRECTION.search(_without_names(text, known)):
         errs.append(
             "Do not write turns or headings: the app lists the steps from the route's "
             "maneuvers. Describe the route (distance, status, what is not checked) instead."
         )
+    closed = {_norm(n) for n in closed_names}
     context: str | None = None
     for sentence in _SENTENCES.split(text):
         if not sentence.strip():
