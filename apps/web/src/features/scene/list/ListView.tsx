@@ -2,10 +2,12 @@ import { useMemo } from "react";
 import { useClosures, useLayer, useScenarios } from "../../../lib/api";
 import { GapsLensSection } from "../../gaps/GapsSection";
 import { gapsApplicable } from "../../gaps/gapModel";
+import { useJourney } from "../../journey/journeyStore";
 import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
 import { CLOSURE_SOURCE, closureLine } from "./closureModel";
 import { DayListSection } from "./DayListSection";
+import { JourneyStepList } from "./JourneyStepList";
 import { ListLensSections } from "./LensSections";
 import { groupByType, humanType, parseLayer, routeSteps, withIndicative } from "./listModel";
 import { MyTripListSection } from "./MyTripListSection";
@@ -69,6 +71,7 @@ export function ListView() {
     selectPlace,
     selectFloodEdge,
   } = useScene();
+  const journey = useJourney((s) => s.plan); // the trip being shown (see JourneyMount)
   const layer = useLayer("access", profile, scenarioId);
   const scenarios = useScenarios();
   const parsed = useMemo(() => parseLayer(layer.data), [layer.data]);
@@ -147,6 +150,8 @@ export function ListView() {
           </ol>
         )}
       </section>
+
+      {journey && <JourneyStepList plan={journey} />}
 
       <DayListSection />
       <MyTripListSection />

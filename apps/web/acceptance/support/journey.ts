@@ -51,3 +51,33 @@ export const journey = {
     return { total: r.total, phases: Array.isArray(r.phases) ? r.phases : [] };
   },
 };
+
+/** The §2 demo question (packages/agent/tests/test_journey_answer.py DEMO_Q). */
+export const DEMO_QUESTION =
+  "My mum uses a walker. Can she walk from Harmoni 1 to Lakeside Mall Car Park B?";
+
+/**
+ * Asks the demo question with the older_adult_rest profile (mock LLM) and waits until the journey
+ * overlay shows (the "Simulation" label). Call after `openScene`; the profile is stored before the
+ * next reload, so a fresh page picks it up.
+ */
+export async function askDemoJourney(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    try {
+      localStorage.setItem("tl.profile", "older_adult_rest");
+    } catch {
+      /* the profile picker default is checked below */
+    }
+  });
+  await page.reload();
+  const show = page.getByRole("button", { name: "Show assistant" });
+  if (await show.isVisible()) await show.click();
+  await page.getByRole("textbox", { name: "Your question" }).fill(DEMO_QUESTION);
+  await page.getByRole("button", { name: "Ask", exact: true }).click();
+  await page.getByTestId("journey-sim-label").waitFor({ state: "visible", timeout: 60_000 });
+}
+
+/** True once the Phase D player hook is installed (D-T8). */
+export async function hasJourneyHook(page: Page): Promise<boolean> {
+  return page.evaluate((h) => h in window, JOURNEY_HOOK);
+}

@@ -1,5 +1,6 @@
 import { useMemo, useRef } from "react";
 import { useBuildings, useLayer, useSite } from "../../../lib/api";
+import { JourneyMount } from "../../journey/JourneyMount";
 import { InSlot } from "../../map-ui/mapSlots";
 import { CameraControls, handleMapKey } from "../cesium/controls/CameraControls";
 import type { CameraOps } from "../cesium/controls/cameraOps";
@@ -235,6 +236,8 @@ export default function ThreeScene({
       <PerfOverlay />
       <SlowBanner />
       {decorativeShown && <DecorativeChip />}
+      {/* Resident journey: ribbon, markers, label, HUD, mini-map and event cards (D-T7). */}
+      <JourneyMount engine={engine} frame={frame} hostRef={hostRef} />
       {showroom && (assetsState === "loading" || assetsState === "ready") && <ShowroomChip />}
     </section>
   );

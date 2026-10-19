@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useEvacCentres, useGaps, useLayer, useScenarioWater } from "../../../../lib/api";
 import { gapsActive } from "../../../gaps/gapModel";
+import { useJourney } from "../../../journey/journeyStore";
 import { type LonLat, pointFeatures } from "../../geo";
 import { useSceneSettings } from "../../sceneSettingsStore";
 import { useScene } from "../../sceneStore";
@@ -30,6 +31,9 @@ export function useOverlays({
   running: boolean;
 }) {
   const route = useScene((s) => s.route);
+  // While a journey plays, its own ribbon (features/journey) draws the trip's route by status; the
+  // blue overlay line would sit on top of it (overlay pass), so it steps aside.
+  const journeyOn = useJourney((s) => !!s.plan);
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const accessVisible = useScene((s) => s.lensVisible.access);
@@ -75,7 +79,7 @@ export function useOverlays({
       pathStatus,
       gaps: gapsQ.data ?? null,
       gapsOn,
-      route: routeOn ? (route?.geojson ?? null) : null,
+      route: routeOn && !journeyOn ? (route?.geojson ?? null) : null,
       whatIf,
       water: waterQ.data ?? null,
       floodEdges: floodQ.data ?? null,
@@ -96,6 +100,7 @@ export function useOverlays({
     gapsQ.data,
     gapsOn,
     routeOn,
+    journeyOn,
     route,
     whatIf,
     waterQ.data,
