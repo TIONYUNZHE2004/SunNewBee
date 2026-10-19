@@ -12,6 +12,7 @@ import { ribbonsFromWalk } from "../ground/ribbons";
 import { planVerges } from "../ground/verges";
 import { planAgents } from "../motion/agents";
 import { planProps } from "../props/propsPlan";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import { planSigns } from "../signs/signPlan";
 import { type PlanArea, seedFor } from "./area";
 import { tileCap, VERGE_PIECES_PER_CAP, VERGE_SHRUBS_PER_CAP } from "./caps";
@@ -241,7 +242,7 @@ const WARM_ROOF: RoofInput = {
     heightM: 10,
     kind: "industrial",
   },
-  palette: { wall: "#ffffff", roof: "#3d4147", trim: "#cccccc" },
+  palette: { ...CLAY_PALETTE.neutral },
 };
 
 /** Items grouped by the tile holding their footprint's bounding-box centre (half-open). */

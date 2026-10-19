@@ -154,7 +154,7 @@ class BoundaryRef(BaseModel):
     """Display-only Elmina outline (base/boundary.geojson); routing and answers never read it."""
 
     file: str
-    source: str  # osm_relation | fallback_union
+    source: str  # owner_master_plan | osm_relation | fallback_union
     method: str
     area_km2: float
     as_of: str

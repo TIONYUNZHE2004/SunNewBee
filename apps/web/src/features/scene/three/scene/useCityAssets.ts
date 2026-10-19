@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import * as THREE from "three";
 import type { BuildingsLayer } from "../../../../lib/api";
 import { usePerfStats } from "../../cesium/PerfOverlay";
 import { useScene } from "../../sceneStore";
@@ -13,6 +14,7 @@ import { showroomBounds, showroomManifest, showroomPlan } from "../assets/showro
 import { HERO_CENTRE } from "../bookmarks";
 import { useCityInfo } from "../cityInfo";
 import { buildCityGeometry, type CityGeometry } from "../cityMesh";
+import { createClearance, type ModelBox, obstaclesFromCity } from "../clearance";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import { largeRoofTint } from "../facade/roofPlan";
@@ -64,6 +66,33 @@ function describeFailures(
     parts.push(`glbs failed: ${failed.map((f) => `${f.asset} (${f.reason})`).join(", ")}`);
   if (problems.length > 0) parts.push(`manifest entries dropped: ${problems.join("; ")}`);
   return parts.join("; ");
+}
+
+/**
+ * Drawn model bounds per asset/variant, over every LOD the manifest lists (memoised): the clearance
+ * boxes follow the geometry actually drawn, not the manifest size.
+ */
+function modelBoxes(
+  lib: AssetLibrary,
+  m: Manifest,
+): (asset: string, variant: string) => ModelBox | null {
+  const memo = new Map<string, ModelBox | null>();
+  return (asset, variant) => {
+    const key = `${asset}/${variant}`;
+    const hit = memo.get(key);
+    if (hit !== undefined) return hit;
+    const lods = m.assets[asset]?.variants[variant]?.lods.length ?? 1;
+    const box = new THREE.Box3();
+    for (let i = 0; i < Math.max(1, lods); i++) {
+      const pos = lib.geometry(asset, variant, i)?.getAttribute("position");
+      if (pos) box.union(new THREE.Box3().setFromBufferAttribute(pos as THREE.BufferAttribute));
+    }
+    const out = box.isEmpty()
+      ? null
+      : { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, maxY: box.max.y };
+    memo.set(key, out);
+    return out;
+  };
 }
 
 export type FallbackCounts = [number, number, number, number];
@@ -214,6 +243,8 @@ export function useCityAssets({
     const full = () => {
       const g = buildCityGeometry(buildings, frame);
       engine.setCity(g);
+      // Building clearance (A-T7): every drawn footprint at its display height.
+      engine.setClearance?.(createClearance(obstaclesFromCity(buildings, frame)));
       useCityInfo.setState({ manifest: null, extruded: null });
       setPlan(null);
       setInstances(0);
@@ -249,6 +280,13 @@ export function useCityAssets({
       });
       engine.setCity(g);
       engine.setAssets(inst);
+      // Building clearance (A-T7): the footprints plus every placed archetype and landmark box (the
+      // showroom draws no OSM buildings, only its laid-out assets).
+      engine.setClearance?.(
+        createClearance(
+          obstaclesFromCity(showroom ? null : buildings, frame, plan, m, modelBoxes(lib, m)),
+        ),
+      );
       handedOff.current = true;
       instRef.current = inst;
       applied.current = { kits, scale };

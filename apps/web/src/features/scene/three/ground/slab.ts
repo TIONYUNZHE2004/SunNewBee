@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { CLAY_PALETTE, clayMaterial } from "../shared/clayTokens";
 import { applyGroundGrade } from "./bands";
 import { type Boundary, insideBoundary, type P } from "./boundary";
 
@@ -34,10 +35,10 @@ export interface SlabLayer {
  * run is about 3.5 px per band at the far edge (9.7 km, 5.8 m/px).
  */
 export const SLAB_LAYERS: readonly SlabLayer[] = [
-  { colour: "#ddd6b6", depthM: 4, runM: 3 },
-  { colour: "#a87a4f", depthM: 26, runM: 70 },
-  { colour: "#8b5f3c", depthM: 26, runM: 70 },
-  { colour: "#c69c6d", depthM: 26, runM: 70 },
+  { colour: CLAY_PALETTE.slab[0], depthM: 4, runM: 3 },
+  { colour: CLAY_PALETTE.slab[1], depthM: 26, runM: 70 },
+  { colour: CLAY_PALETTE.slab[2], depthM: 26, runM: 70 },
+  { colour: CLAY_PALETTE.slab[3], depthM: 26, runM: 70 },
 ];
 
 /** The soil colours (the crust is not soil): what the acceptance screenshot looks for. */
@@ -216,9 +217,9 @@ function orientOutward(g: THREE.BufferGeometry) {
   ix.needsUpdate = true;
 }
 
-/** The edge material: vertex colours, night grade, reduced fog (SLAB_FOG_SCALE). */
+/** The edge material: slab clay, vertex colours, night grade, reduced fog (SLAB_FOG_SCALE). */
 export function slabEdgeMaterial(): THREE.MeshStandardMaterial {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+  const m = clayMaterial("slab", { vertexColors: true });
   const fog = THREE.ShaderChunk.fog_fragment.replace(
     "fogColor, fogFactor )",
     `fogColor, fogFactor * ${SLAB_FOG_SCALE.toFixed(3)} )`,

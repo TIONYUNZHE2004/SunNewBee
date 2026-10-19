@@ -1,13 +1,14 @@
 import * as THREE from "three";
 import type { Placement } from "../assets/fit";
 import type { RoleUniforms } from "../assets/roleMaterial";
+import { EFFECT_COLOURS } from "../shared/clayTokens";
 
 export const LAMP_POOL_SIZE_M = 14;
 /** Above the markings band (0.10), below nothing else on the ground. */
 export const LAMP_POOL_Y = 0.12;
 /** After the ground bands (1 to 5), before overlays (10 and up). */
 export const LAMP_POOL_RENDER_ORDER = 6;
-const WARM = "#ffcf8a";
+const WARM = EFFECT_COLOURS.lampPool;
 const TEX = 64;
 
 /** A warm radial falloff, white-to-black alpha-free (additive blending, so black adds nothing). */

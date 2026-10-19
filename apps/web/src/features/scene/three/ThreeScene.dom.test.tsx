@@ -21,6 +21,7 @@ import type { Pose } from "./cameraRig";
 import { useCityInfo } from "./cityInfo";
 import type { Engine, LodTick } from "./engine";
 import { createFrame } from "./frame";
+import { STALL_COLOUR } from "./ground/lotLayer";
 import { LIGHT_PRESETS } from "./lighting";
 import type { PickHit } from "./pick";
 import ThreeScene, { DECORATIVE_NOTE } from "./ThreeScene";
@@ -1640,7 +1641,7 @@ describe("ThreeScene", () => {
           | undefined;
         expect(marks).toBeDefined();
         const col = marks!.geometry.getAttribute("color");
-        const stall = new THREE.Color("#f2f1ec");
+        const stall = new THREE.Color(STALL_COLOUR);
         let white = 0;
         for (let i = 0; i < col.count; i++)
           if (new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)).getHex() === stall.getHex())

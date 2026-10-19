@@ -30,8 +30,8 @@ import { decodePng, mapArea } from "./support/scene";
  *    grouped by the compass side their section faces (N/E/S/W). A side passes only when its extreme
  *    vertex (N: most northerly, S: most southerly, E: most easterly, W: most westerly; the
  *    township's outer edge, not a notch) is on screen and shows soil, and >= 80% of the side's
- *    vertices are on screen (fix round 1). Expected to fail at the A-T0 overview pose until A-T5
- *    re-poses it within LIMITS.maxRangeM.
+ *    vertices are on screen (fix round 1). The overview is derived from the outline at runtime
+ *    (A-T5, `cameraFit.ts` overviewPose: the whole slab at max range, clear of the map chrome).
  *    The run continues past a failing side so every number is written before the assertions.
  * Routing parity and the golden questions are pytest / `pnpm golden` (not here).
  */
@@ -158,7 +158,7 @@ test("AC-A5: the overview shows the slab soil edge on every side; live display a
   page,
 }) => {
   mkdirSync(OUT, { recursive: true });
-  await gotoBookmark(page, "overview");
+  const bm = await gotoBookmark(page, "overview");
   await waitStable(page);
   await page.waitForTimeout(1500);
   const png = await page.screenshot({ path: join(OUT, "overview.png") });
@@ -272,7 +272,7 @@ test("AC-A5: the overview shows the slab soil edge on every side; live display a
   const m = {
     task: "A-T4 AC-A5",
     capturedAt: new Date().toISOString(),
-    bookmark: ACCEPTANCE_BOOKMARKS.overview,
+    bookmark: bm,
     sides: Object.fromEntries(
       (Object.keys(sides) as Side[]).map((s) => [
         s,

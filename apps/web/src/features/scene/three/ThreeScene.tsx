@@ -215,6 +215,7 @@ export default function ThreeScene({
     accessData: access.data,
     onScreen,
     running,
+    boundary: showroom ? null : boundary,
   });
   const home = homeView(site);
   const { initialBackground } = useMood({ engine, roleUniforms, sectionRef, home, bus });
@@ -263,7 +264,13 @@ export default function ThreeScene({
       <SlowBanner />
       {decorativeShown && <DecorativeChip />}
       {/* Resident journey: ribbon, markers, label, HUD, mini-map and event cards (D-T7). */}
-      <JourneyMount engine={engine} frame={frame} hostRef={hostRef} />
+      <JourneyMount
+        engine={engine}
+        frame={frame}
+        hostRef={hostRef}
+        places={places}
+        footprints={buildings?.buildings}
+      />
       {showroom && (assetsState === "loading" || assetsState === "ready") && <ShowroomChip />}
     </section>
   );

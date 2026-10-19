@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { RoleUniforms } from "../assets/roleMaterial";
+import { clayMaterial, EFFECT_COLOURS } from "../shared/clayTokens";
 import type { SignPlacement } from "./signPlan";
 
 /** Signs per atlas page (one CanvasTexture, one material, one merged mesh = one draw call). */
@@ -14,8 +15,8 @@ const FONT_PX = 44;
 const MIN_SQUEEZE = 0.45;
 const PAD_PX = 14;
 const MAX_HEIGHT_M = 1.1;
-const BAND = "#1d2230";
-const INK = "#ffffff";
+const BAND = EFFECT_COLOURS.signBand;
+const INK = EFFECT_COLOURS.signInk;
 
 /** The sign id behind a raycast hit on a batched page mesh (two triangles per sign). */
 export function signIdAt(
@@ -127,13 +128,12 @@ export function signLayerSteps(
         canvas.width = 1;
         canvas.height = 1;
       };
-      mat = new THREE.MeshStandardMaterial({
+      mat = clayMaterial("sign", {
+        color: INK,
         map: t,
-        emissive: new THREE.Color("#ffffff"),
+        emissive: new THREE.Color(INK),
         emissiveMap: t,
         emissiveIntensity: 0,
-        roughness: 0.7,
-        metalness: 0,
       });
       mat.name = "tl_sign";
       disposables.push(t, mat);
