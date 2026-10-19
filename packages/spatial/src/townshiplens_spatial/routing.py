@@ -542,6 +542,10 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         dist += e.length_m
         if res == "UNKNOWN":
             unknowns.extend(why)
+    if not keys:
+        # Keep the LineString contract without inventing any off-graph connection.
+        point = world.node_coords[nodes[-1]]
+        coords = [list(point), list(point)]
     # A detour out and back along a spur repeats edges: list each unknown once (review M-1).
     unknowns = list({(u["element_id"], u["attribute"]): u for u in unknowns}.values())
     status = (

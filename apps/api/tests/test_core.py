@@ -27,6 +27,16 @@ def test_routes_confirmed():
     assert steps[-1]["point"] == r["routes"][0]["geometry"]["coordinates"][-1]
 
 
+def test_zero_length_route_geometry_preserves_its_mapped_point():
+    response = c.post(
+        "/routes", json={"from": "park-b", "to": "park-b", "profile": "stroller"}
+    ).json()
+    route = response["routes"][0]
+    point = route["maneuvers"][0]["point"]
+    assert route["geometry"] == {"type": "LineString", "coordinates": [point, point]}
+    assert route["distance_m"] == 0 and route["segments"] == []
+
+
 def test_layers_access_has_status():
     fc = c.get("/layers/access", params={"profile": "stroller"}).json()
     st = {f["properties"]["id"]: f["properties"].get("status_for_profile") for f in fc["features"]}

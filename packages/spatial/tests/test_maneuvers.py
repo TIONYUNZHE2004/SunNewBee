@@ -183,3 +183,8 @@ def test_same_node_route_only_arrives(world):
     route = plan_route(world, "park-b", "park-b", "stroller").routes[0]
     assert [s.action for s in route.maneuvers] == ["arrive"]
     assert route.maneuvers[0].point == world.places["park-b"].coord
+    assert route.geometry == {
+        "type": "LineString",
+        "coordinates": [route.maneuvers[0].point, route.maneuvers[0].point],
+    }
+    assert route.distance_m == 0 and route.segments == []
