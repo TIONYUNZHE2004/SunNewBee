@@ -170,7 +170,7 @@ and the committed glbs; `tests/test_blender_pipeline.py` builds and packs for re
 ## Third-party models (vendor intake)
 
 A scripted variant can be replaced by a downloaded model, only after owner approval at the
-asset's gate. Nothing is vendored yet (`vendor/vendor.json` is `[]`).
+asset's gate. Only the Kenney Mini Characters (CC0) are vendored, as proportion and rig references for the journey people (`vendor/vendor.json`, `CREDITS.md`); no vendor geometry ships.
 
 1. Put the **`.glb` source only** (never `.blend`) in `assets/blender/vendor/<kind>/<slug>/`
    (`<kind>`: trees, furniture, people, vehicles or construction) and record it in

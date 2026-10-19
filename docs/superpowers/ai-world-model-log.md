@@ -1506,3 +1506,24 @@ Owner rulings from `docs/superpowers/specs/2026-10-19-resident-journey-simulatio
   - **What:** people are 1.4-1.55x within 300 m and scale up smoothly with distance, to at most 2.5x at 800 m. This supersedes the old `displayScale` curve that reached 3x. The hero always uses 1.55x.
   - **Why:** far crowds must stay visible without looking oversized.
   - **Cost if wrong:** far people may look large next to buildings; tune the cap with the Phase C screenshots.
+
+## 2026-10-19 Resident journey simulation
+
+Branch `feat/journey-sim`; spec `docs/superpowers/specs/2026-10-19-resident-journey-simulation-design.md`. R-J3 and R-J7 are recorded above. Coordinator and owner rulings, one line each:
+
+- Ruling: Worktrees `../SunNiuBi-wt/j-<lane>` on branches `journey/<lane>`, merged `--no-ff` to `feat/journey-sim`; gates push only that branch — old `lane/*` carry unrelated history; owner asked for a new branch — cost if wrong: cosmetic branch names, a deletable remote branch.
+- Ruling: Lanes run in parallel (j-fe, j-fe2, j-data, j-be, j-assets) — disjoint files per wave — cost if wrong: merge conflicts at merge time.
+- Ruling: The owner's City of Elmina master plan supersedes AC-A4's exclusions: Bukit Subang and Denai Alam are inside, Kampung Melayu Subang and Taman Subang Baru outside; owner approved the outline ("All agree", 19 Oct) — cost if wrong: spec text and outline disagree until amended.
+- Ruling: Display coverage of 97.3% is accepted for the outline; rebuild the buildings chain only if screenshots show empty slab areas — cost if wrong: about 65 Overpass requests later.
+- Ruling: Street furniture reaches the web through display-only `GET /layers/street_furniture` (404 when absent); fact props (zebra only when the claim says marked, signals, bus stops, benches) match data one to one; no traffic-signal props where OSM has none — cost if wrong: one endpoint to move; emptier look.
+- Ruling: Overview framing: max range <= 7,940 m with long-range heading/pitch narrowing (pitch -50..-45, north-up) so the whole slab stays in view — cost if wrong: overview less top-down.
+- Ruling: Acceptance runs and `?demo=1` pin the sun to 10:30 MYT on a fixed date; normal users keep the real clock — cost if wrong: demo light differs from live time of day.
+- Ruling: Hero is a Blender-scripted chibi rebuild (Kenney bodies only as proportion/rig reference), drawn at 1.55x (R-J3); crowd built by the same pipeline; no vendor geometry ships — cost if wrong: more modelling time.
+- Ruling: Crowd uses a runtime bone-matrix bake (about 0.37 MB GPU texture, 0 B on disk) instead of per-vertex VAT; people render out to 800 m with the R-J7 curve; cyclists are not drawn as walkers; characters have their own 2 MB mesh budget outside the 4 MB city-kit test — cost if wrong: about 25 ms main-thread bake per body at load.
+- Ruling: The hero uses the standard no-sheen clay material on every tier to meet H11 (<= 1 ms) — cost if wrong: hero slightly less clay-like; retest at the final gate.
+- Ruling: Timeline: during verified/gap/covered holds she keeps walking; unknown/rest/arrive holds do not advance; minutes outdoors pause only under covered spans with a verified claim; arrive adds 0 s — cost if wrong: small timing drift.
+- Ruling: A journey rest sits on the fact bench; seats avoid drawn buildings; when she is inside a building the route crosses, only that building is cut away (display only; route data unchanged) — cost if wrong: occasional neighbour wall hides her.
+- Ruling: One shared `cardContent.ts` feeds 3D cards and List/Mapbox steps; "verification request filed" shows only when a request was really filed — cost if wrong: List step source text changes.
+- Ruling: Journey VRs: at most 10 per `plan_route` (`MAX_ROUTE_VRS`), one per unknown event of the first route, also filed on evacuation turns, deduplicated by upvote; `POST /journeys` files none — cost if wrong: a few extra staff tickets.
+- Ruling: `evals/run_answer_key.py` stays BLOCKED by its seed-hash guard (the seed gained boundary and street furniture); recapture is left to the owner because it resets human review — cost if wrong: answer-key drift undetected until recapture.
+- Ruling: Fix rounds stop at Important findings; one combined final gate runs the A-T14, B-T10, C-T9 and D-T11 checks once (owner, 19 Oct) — cost if wrong: more minor findings at the end.

@@ -892,3 +892,9 @@ Logged 2026-10-19 00:50 MPST. The run went from 2026-10-18 about 22:05 to 2026-1
 - **Budgets** (headless Chromium on an RTX 2050, Day, Medium, indicative): hero-mid 112 draws / 2.15 M tris, township 59 / 1.07, probe-a 99 / 1.78, probe-b 90 / 1.24, probe-c 94 / 1.57, probe-d 96 / 1.23, all within ≤ 150 / ≤ 2.5 M. Not run: Night and hero-near (the probe script covers six Day views), owner-laptop fps (the owner judged smoothness by eye at the gate).
 - **CI checklist** (branch head before the merge to `main`): lint PASS; pytest 1846 pass with 1 failure, the known Windows-only path-separator test; typecheck PASS; web vitest 1484 PASS; gen PASS (no drift); golden 23/23 and e2e 25/25 (mock-backed); build PASS (worker bundled, Cesium assets OK).
 - **Carried to P6:** the resident trip route in the Stylised (Three.js) view (owner: log for later; it draws in Realistic, Lite and List only, and the card shows only with `ASSISTANT_SCOPE=all`); the residual streaming spikes above; spreading facade builds; Night/hero-near probe coverage.
+
+## 2026-10-19 19:58 +0800 · Resident journey simulation: phases merged, final gate pending
+
+- Run on `feat/journey-sim` (lanes j-fe, j-fe2, j-data, j-be, j-assets; `--no-ff` merges). Merged: Phase A (camera, overview slab, owner-master-plan boundary), Phase B (clay look, tilt-shift, street dressing, detail bubble), Phase C (hero and crowd GLBs, bone-matrix crowd), Phase D (JourneyPlan, `journey.play`, player, follow camera, cards, journey VRs, `?demo=1` auto-play).
+- Owner sign-off so far: boundary outline, hero modelling sheet and crowd contact sheet ("All agree", 19 Oct). Speed-ups: one combined final gate, lighter reviews.
+- Pending at the gate: full CI checklist, GPU acceptance and fps on the reference laptop, the prototype comparison, owner style and demo checkpoints. Not pushed; answer-key recapture left to the owner.
