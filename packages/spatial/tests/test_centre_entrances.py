@@ -75,3 +75,21 @@ def test_flooded_linked_place_still_blocks_centre_destination(world):
     world.flood.place_classes["stage_p3m"]["kiosk"] = "likely_flooded"
     result = plan_route(world, "park-b", "__centre__evc-hall", "default", "stage_p3m")
     assert result.status == "blocked" and result.routes == []
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_unused_road_entrance_cannot_hide_the_selected_off_graph_gap(world, reverse):
+    add_roads(world)
+    _linked(world, ["park-b", "park-c"])
+    source, target = ("kiosk", "park-b") if reverse else ("park-b", "kiosk")
+    result = plan_route(world, source, target, "drive")
+    assert result.routes[0].target_node == "n-x" and result.routes[0].distance_m == 0
+    assert any("kiosk" in w.lower() and "stop at the road" in w for w in result.warnings)
+
+
+def test_selected_road_entrance_does_not_get_an_unused_off_graph_warning(world):
+    add_roads(world)
+    _linked(world, ["park-b", "park-c"])
+    result = plan_route(world, "park-c", "kiosk", "drive")
+    assert result.routes[0].target_node == "n-z" and result.routes[0].distance_m == 0
+    assert not any("kiosk" in w.lower() and "stop at the road" in w for w in result.warnings)

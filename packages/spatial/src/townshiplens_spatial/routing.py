@@ -145,15 +145,17 @@ def _targets(world: World, place_id: str, profile=None) -> list[str]:
     return sorted({n for n in snapped if n})
 
 
-def _snap_warning(world: World, place_id: str, profile) -> str | None:
+def _snap_warning(world: World, place_id: str, profile, routed_point) -> str | None:
     """Vehicle profiles route from the nearest mapped road node, so distance and time leave out
     the stretch between the place and that node (up to SNAP_CAP_M). Say so (Task 26 Minor 1)."""
     roads = _road_nodes(world, profile)
     best: float | None = None
     for node, xy in _target_pts(world, place_id):
-        if node in roads:
-            return None  # a mapped way in is on a road: nothing left out
         snapped = _snap_to_road(world, roads, node, xy)
+        if snapped is None or world.node_coords.get(snapped) != routed_point:
+            continue  # an unused entrance cannot describe this route's off-graph gap
+        if node in roads:
+            return None  # the chosen mapped way in is on a road: nothing left out
         if snapped is not None and snapped in world.node_coords:
             d = haversine_m(xy, world.node_coords[snapped])
             best = d if best is None else min(best, d)
@@ -834,8 +836,9 @@ def plan_route(
         for note in endpoint_flood_warnings(world, pid, profile, scenario_id)
     )
     if profile.allowed_types is not None and result.routes:
-        for pid in (from_id, to_id):
-            if note := _snap_warning(world, pid, profile):
+        coords = result.routes[0].geometry["coordinates"]
+        for pid, point in ((from_id, coords[0]), (to_id, coords[-1])):
+            if note := _snap_warning(world, pid, profile, point):
                 result.warnings.append(note)
     if profile.standing_warning and result.status != "no_data":
         result.warnings.append(profile.standing_warning)
