@@ -223,9 +223,14 @@ export async function settle(page: Page, quietMs = 2500, timeoutMs = 45_000): Pr
     scene.evaluate(
       (el, h) =>
         [
-          ...["data-tiles", "data-assets", "data-instances", "data-fallback", "data-markers"].map(
-            (a) => el.getAttribute(a),
-          ),
+          ...[
+            "data-tiles",
+            "data-assets",
+            "data-instances",
+            "data-fallback",
+            "data-markers",
+            "data-crowd",
+          ].map((a) => el.getAttribute(a)),
           // The road layer streams in after the tiles (idle merge queue).
           (window as unknown as Record<string, { roadVertices(): number }>)[h]?.roadVertices(),
         ].join("|"),
@@ -237,7 +242,9 @@ export async function settle(page: Page, quietMs = 2500, timeoutMs = 45_000): Pr
   while (Date.now() - t0 < timeoutMs) {
     await page.waitForTimeout(250);
     const now = await snap();
-    if (now !== last) {
+    // the crowd of the streamed tiles still building (looks searched in slices): not quiet yet
+    const crowdBuilding = /\|\d+:0\|/.test(`|${now}`);
+    if (now !== last || crowdBuilding) {
       last = now;
       since = Date.now();
     } else if (Date.now() - since >= quietMs) break;

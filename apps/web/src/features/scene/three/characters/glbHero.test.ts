@@ -168,6 +168,35 @@ describe("GLB hero model (walker)", () => {
     });
   });
 
+  it("seated, the parked walker is a function of (clip, time) and the ground only: any earlier clips or seeks", async () => {
+    const h = await model("walker");
+    h.setPose({ x: 2, y: 0.1, z: -1 }, 1.1);
+    // uneven ground under the parked walker (a kerb on one side)
+    h.setGround((x) => (x > 2.3 ? 0.25 : 0.1));
+    const walker = () =>
+      h
+        .contacts()
+        .filter((c) => c.name.startsWith("walker"))
+        .map((c) => [c.x, c.y, c.z]);
+    h.play("sit_idle", 1.5, 0);
+    const fresh = walker();
+    for (const path of [
+      ["walk", "sit_down"],
+      ["sit_idle", "stand_up", "walk"],
+      ["look", "idle"],
+    ] as const) {
+      for (const c of path) h.play(c, 0.7, 1.2);
+      h.play("sit_idle", 1.5, 0);
+      walker().forEach((p, i) => {
+        const q = fresh[i] as number[];
+        expect(
+          Math.hypot(p[0]! - q[0]!, p[1]! - q[1]!, p[2]! - q[2]!),
+          path.join(">"),
+        ).toBeLessThan(1e-4);
+      });
+    }
+  });
+
   it("crossfade: blend 0 shows the outgoing clip, 1 the incoming, 0.5 in between", async () => {
     const h = await model("walker");
     h.setPose({ x: 0, y: 0, z: 0 }, 0);

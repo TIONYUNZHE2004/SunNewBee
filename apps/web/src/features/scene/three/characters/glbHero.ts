@@ -497,6 +497,20 @@ export function buildHeroModel(
       worst = Math.max(worst, Math.abs(d[i] as number));
     }
     if (worst < 1e-4) return;
+    // Seated (the walker parked by the sit clips): only lifted onto the ground (the mean gap), never
+    // tilted or turned, so its parked place is the clip's at that time and her seat's ground height
+    // alone (AC-D17 final: the parked walker differed between a play and a reverse seek).
+    if (!spec.seated && seatedAt(spec, dominant.clip, dominant.time)) {
+      let mean = 0;
+      for (let i = 0; i < pts.length; i++) mean += d[i] as number;
+      mean /= pts.length;
+      save(prop);
+      prop.getWorldPosition(_a);
+      _a.y += mean;
+      prop.position.copy((prop.parent as THREE.Object3D).worldToLocal(_a));
+      prop.updateMatrixWorld(true);
+      return;
+    }
     const holding = holdingNow;
     for (const s of [0, 1])
       holding[s] =
