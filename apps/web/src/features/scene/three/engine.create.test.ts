@@ -797,6 +797,183 @@ describe("engine motion clock", () => {
     }
   });
 
+  it("setJourney: the ribbon and markers compile before they show; a newer layer supersedes", async () => {
+    const { e } = await setup({ on: false });
+    const THREE = await import("three");
+    const proto = THREE.WebGLRenderer.prototype as unknown as {
+      compileAsync?: unknown;
+      getRenderTarget?: unknown;
+      setRenderTarget?: unknown;
+    };
+    const journey = () => ({
+      ribbon: new THREE.Group(),
+      markers: new THREE.Scene(),
+      setResolution: vi.fn(),
+      setMetresPerPixel: vi.fn(),
+      dispose: vi.fn(),
+    });
+    try {
+      settle();
+      const scenes = spy.scenes as import("three").Scene[];
+      const holds = (g: import("three").Object3D) => scenes.some((sc) => sc.children.includes(g));
+      const resolves: (() => void)[] = [];
+      const compiled: unknown[] = [];
+      proto.compileAsync = vi.fn((root: unknown) => {
+        compiled.push(root);
+        return new Promise<void>((r) => resolves.push(r));
+      });
+      proto.getRenderTarget = () => null;
+      proto.setRenderTarget = () => {};
+      const a = journey();
+      e.setJourney(a);
+      expect(holds(a.ribbon)).toBe(false);
+      expect(compiled).toContain(a.ribbon);
+      expect(compiled).toContain(a.markers);
+      const b = journey();
+      e.setJourney(b);
+      expect(a.dispose).toHaveBeenCalledTimes(1);
+      for (const r of resolves) r();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(holds(a.ribbon)).toBe(false);
+      expect(holds(b.ribbon)).toBe(true);
+      expect(b.setResolution).toHaveBeenCalled();
+      e.setJourney(null);
+      expect(holds(b.ribbon)).toBe(false);
+      expect(b.dispose).toHaveBeenCalledTimes(1);
+    } finally {
+      delete proto.compileAsync;
+      delete proto.getRenderTarget;
+      delete proto.setRenderTarget;
+      teardown(e);
+    }
+  });
+
+  it("setOverlays: the layer compiles before it shows, the previous one stays drawn; a newer one supersedes", async () => {
+    const { e } = await setup({ on: false });
+    const THREE = await import("three");
+    const proto = THREE.WebGLRenderer.prototype as unknown as {
+      compileAsync?: unknown;
+      getRenderTarget?: unknown;
+      setRenderTarget?: unknown;
+    };
+    const overlay = () => ({
+      group: new THREE.Group(),
+      lineGroup: new THREE.Group(),
+      groundGroup: new THREE.Group(),
+      update: vi.fn(),
+      setMetresPerPixel: vi.fn(),
+      hasVisible: () => false,
+      drawnPlaces: () => 0,
+      setResolution: vi.fn(),
+      setPixelRatio: vi.fn(),
+      setView: vi.fn(),
+      attach: vi.fn(() => () => {}),
+      dispose: vi.fn(),
+    });
+    try {
+      settle();
+      const scenes = spy.scenes as import("three").Scene[];
+      const holds = (g: import("three").Object3D) => scenes.some((sc) => sc.children.includes(g));
+      const first = overlay();
+      e.setOverlays(first as never); // no compileAsync on this renderer: shown at once
+      expect(holds(first.group)).toBe(true);
+      const resolves: (() => void)[] = [];
+      proto.compileAsync = vi.fn(() => new Promise<void>((r) => resolves.push(r)));
+      proto.getRenderTarget = () => null;
+      proto.setRenderTarget = () => {};
+      const a = overlay();
+      e.setOverlays(a as never);
+      expect(holds(a.group)).toBe(false);
+      expect(holds(first.group)).toBe(true);
+      const b = overlay();
+      e.setOverlays(b as never);
+      expect(a.dispose).toHaveBeenCalledTimes(1);
+      for (const r of resolves) r();
+      for (let i = 0; i < 4; i++) await Promise.resolve();
+      expect(holds(b.group)).toBe(true);
+      expect(holds(b.lineGroup)).toBe(true);
+      expect(holds(first.group)).toBe(false);
+      expect(first.dispose).toHaveBeenCalledTimes(1);
+      expect(holds(a.group)).toBe(false);
+    } finally {
+      delete proto.compileAsync;
+      delete proto.getRenderTarget;
+      delete proto.setRenderTarget;
+      teardown(e);
+    }
+  });
+
+  it("material patches run on a decor layer before it compiles, and on the scene when added", async () => {
+    const { e } = await setup({ on: false });
+    const THREE = await import("three");
+    const proto = THREE.WebGLRenderer.prototype as unknown as {
+      compileAsync?: unknown;
+      getRenderTarget?: unknown;
+      setRenderTarget?: unknown;
+    };
+    try {
+      settle();
+      const order: string[] = [];
+      proto.compileAsync = vi.fn((root: { name: string }) => {
+        order.push(`compile:${root.name}`);
+        return Promise.resolve();
+      });
+      proto.getRenderTarget = () => null;
+      proto.setRenderTarget = () => {};
+      const patch = vi.fn((root: { name: string }) => {
+        order.push(`patch:${root.name}`);
+        return 1;
+      });
+      const off = e.addMaterialPatch?.(patch as never);
+      // at once on what is drawn (the scene), then a background compile of the scene
+      expect(order[0]?.startsWith("patch:")).toBe(true);
+      expect(order[1]?.startsWith("compile:")).toBe(true);
+      order.length = 0;
+      const g = new THREE.Group();
+      g.name = "layer";
+      e.setDecor("roads", { group: g, dispose: vi.fn() });
+      expect(order).toEqual(["patch:layer", "compile:layer"]);
+      off?.();
+      order.length = 0;
+      const h = new THREE.Group();
+      h.name = "later";
+      e.setDecor("roads", { group: h, dispose: vi.fn() });
+      expect(order).toEqual(["compile:later"]);
+    } finally {
+      delete proto.compileAsync;
+      delete proto.getRenderTarget;
+      delete proto.setRenderTarget;
+      teardown(e);
+    }
+  });
+
+  it("the decor clock (a trip's t) drives uTime and the motion layer's time; removed, it no longer does", async () => {
+    const { e, ticks } = await setup({ on: false });
+    try {
+      settle();
+      let t = 12.5;
+      e.setDecorClock?.(() => t);
+      settle();
+      const epoch = e.motion.uTime.value - 12.5;
+      expect(epoch).toBeGreaterThanOrEqual(0);
+      expect(ticks.at(-1)).toBeCloseTo((epoch + 12.5) * 1000, 6);
+      t = 40;
+      e.requestRender();
+      settle();
+      expect(e.motion.uTime.value).toBeCloseTo(epoch + 40, 9);
+      expect(ticks.at(-1)).toBeCloseTo((epoch + 40) * 1000, 6);
+      e.setDecorClock?.(null);
+      t = 77;
+      e.requestRender();
+      settle();
+      expect(e.motion.uTime.value).not.toBeCloseTo(epoch + 77, 3);
+    } finally {
+      teardown(e);
+    }
+  });
+
   it("setDecor('ambient'): the birds go into the main scene, never the overlay scene", async () => {
     const { e } = await setup({ on: false });
     try {

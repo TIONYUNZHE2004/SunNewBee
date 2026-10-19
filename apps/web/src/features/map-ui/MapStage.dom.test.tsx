@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
+
 import { act, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { json, newQueryClient, renderWithClient, stubFetch } from "../../test/helpers";
+import { resetWebglProbe } from "../scene/selectView";
 
 // The 3D renderer crashes on mount; the integration under test is what MapStage shows next.
 vi.mock("../scene/three/ThreeScene", () => ({
@@ -34,12 +36,14 @@ beforeEach(() => {
   HTMLCanvasElement.prototype.getContext = vi.fn((kind: string) =>
     kind === "webgl2" ? ({} as never) : null,
   ) as never;
+  resetWebglProbe();
   globalThis.__threeOk = false;
   history.replaceState(null, "", "/");
   localStorage.clear();
 });
 afterEach(() => {
   HTMLCanvasElement.prototype.getContext = realGetContext;
+  resetWebglProbe();
   vi.restoreAllMocks();
 });
 

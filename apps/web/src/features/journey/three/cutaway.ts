@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import type { Clearance, Vec3 } from "../../scene/three/clearance";
 import { HERO_CHEST_Y } from "../../scene/three/journey/followRig";
-import { buildingMeshes } from "../../scene/three/scene/useAcceptanceHook";
 
 /**
  * Building cutaway around the hero (D-T5 ruling). Display only: when she stands inside a drawn
@@ -191,10 +190,27 @@ export function patchCutaway(m: THREE.Material): boolean {
   return true;
 }
 
-/** Patches every drawn building / landmark material under the roots; the count patched now. */
+const BUILDING_KINDS = new Set(["building", "landmark"]);
+
+/**
+ * Every building / landmark mesh under the roots, shown or not: the city instances' LOD buckets
+ * are hidden until the camera nears them, and patching one as it appears recompiled its program
+ * mid-trip (gate AC-D18). `buildingMeshes` (visible only) stays the probe's set.
+ */
+export function allBuildingMeshes(roots: THREE.Object3D[]): THREE.Mesh[] {
+  const out: THREE.Mesh[] = [];
+  for (const r of roots)
+    r.traverse((o) => {
+      const kind = (o.userData.pick as { kind?: string } | undefined)?.kind;
+      if ((o as THREE.Mesh).isMesh && kind && BUILDING_KINDS.has(kind)) out.push(o as THREE.Mesh);
+    });
+  return out;
+}
+
+/** Patches every building / landmark material under the roots (shown or not); the count patched now. */
 export function applyCutaway(roots: THREE.Object3D[]): number {
   let n = 0;
-  for (const mesh of buildingMeshes(roots)) {
+  for (const mesh of allBuildingMeshes(roots)) {
     const ms = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     for (const m of ms) if (m && patchCutaway(m)) n++;
   }

@@ -29,6 +29,7 @@ describe("window.__journey", () => {
         "play",
         "seek",
         "setCam",
+        "show",
         "state",
         "total",
       ].sort(),

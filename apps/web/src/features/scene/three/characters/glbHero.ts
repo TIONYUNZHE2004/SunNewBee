@@ -11,6 +11,7 @@ import {
 import { clayMaterial } from "../shared/clayTokens";
 import { HERO_MANIFEST } from "./benchGeometry";
 import {
+  drawHeroLast,
   HERO_DISPLAY_SCALE,
   type Hero,
   type HeroClip,
@@ -636,6 +637,11 @@ export function createGlbHero(
     loadGlb?: (url: string) => Promise<ArrayBuffer>;
     fallback?: () => Hero;
     onReady?: () => void;
+    /**
+     * Compiles the loaded model's shader programs before it is swapped in (the engine's `prewarm`),
+     * so the swap never links a program on the main thread (gate AC-D18). Default: none.
+     */
+    prepare?: (o: THREE.Object3D) => Promise<unknown>;
   } = {},
 ): GlbHero {
   const variant = opts.variant ?? heroVariantFor(opts.profile ?? "");
@@ -643,6 +649,7 @@ export function createGlbHero(
   root.name = "journey-hero-slot";
   root.userData.journeyHero = true;
   let current: Hero = (opts.fallback ?? createPlaceholderHero)();
+  drawHeroLast(current.object3d);
   root.add(current.object3d);
   let glb: GlbHeroModel | null = null;
   let disposed = false;
@@ -659,6 +666,13 @@ export function createGlbHero(
       ? Promise.resolve(false)
       : load(`${url}?v=${spec.bytes}`)
           .then((buf) => (disposed ? null : parseHeroGlb(buf, variant)))
+          .then(async (m) => {
+            if (m) {
+              drawHeroLast(m.object3d);
+              if (opts.prepare && !disposed) await opts.prepare(m.object3d).catch(() => {});
+            }
+            return m;
+          })
           .then((m) => {
             if (!m) return false;
             if (disposed) {

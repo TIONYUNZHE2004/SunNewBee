@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { HERO_RENDER_ORDER } from "../../scene/three/characters/hero";
 import type { Clearance, Vec3 } from "../../scene/three/clearance";
 import { buildingMeshes, roofHit } from "../../scene/three/scene/useAcceptanceHook";
 import type { Rect } from "../cardPlacement";
@@ -38,6 +39,43 @@ export interface CameraProbe {
   meshRoofM: number | null;
   /** The current hold's element on screen (CSS px) and whether it is inside the frame. */
   element: { index: number; kind: string; x: number; y: number; inFrame: boolean } | null;
+  /**
+   * Her drawn body is opaque (gate: see-through hero): every visible body mesh draws after the
+   * journey ribbon's ghost at full opacity with depth write, and no cut patch is in its program.
+   * `faults` names each mesh that breaks it.
+   */
+  heroOpaque: { meshes: number; faults: string[] };
+  /** The UI-safe hold fit seen from the drawn camera (diagnostics; set by the mount at holds). */
+  safeFit?: {
+    safe: { l: number; t: number; r: number; b: number };
+    subjects: ([number, number] | null | undefined)[];
+    canvas: [number, number];
+  } | null;
+}
+
+/** The hero body's material state (see `CameraProbe.heroOpaque`). */
+export function heroOpacity(hero: THREE.Object3D | null): CameraProbe["heroOpaque"] {
+  const faults: string[] = [];
+  let meshes = 0;
+  const visit = (o: THREE.Object3D) => {
+    if (!o.visible) return;
+    const m = o as THREE.Mesh;
+    if (m.isMesh && o.userData.heroPart !== "ring") {
+      meshes++;
+      if (m.renderOrder < HERO_RENDER_ORDER) faults.push(`${m.name}: renderOrder ${m.renderOrder}`);
+      for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+        if (!mat) continue;
+        if (mat.opacity < 1) faults.push(`${m.name}: opacity ${mat.opacity}`);
+        if (!mat.depthWrite) faults.push(`${m.name}: no depth write`);
+        if (mat.alphaHash || mat.alphaTest > 0) faults.push(`${m.name}: alpha cut`);
+        const key = mat.customProgramCacheKey();
+        if (/tl-cut/.test(key)) faults.push(`${m.name}: cutaway patched`);
+      }
+    }
+    for (const c of o.children) visit(c);
+  };
+  if (hero) visit(hero);
+  return { meshes, faults };
 }
 
 const _ray = new THREE.Raycaster();
@@ -168,5 +206,6 @@ export function probeCamera(opts: {
     gridRoofM,
     meshRoofM,
     element,
+    heroOpaque: heroOpacity(opts.hero),
   };
 }

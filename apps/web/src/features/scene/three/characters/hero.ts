@@ -21,6 +21,31 @@ export const HERO_CLIPS: readonly HeroClip[] = [
 export const HERO_DISPLAY_SCALE = HERO_MANIFEST.displayScale;
 export const HERO_TRUE_HEIGHT_M = 1.55;
 
+/**
+ * Render order of the hero's body (gate: the journey ribbon's 35 % "ghost", drawn with depthFunc
+ * Greater where something hides the ribbon, painted over her as a see-through band). Her body draws
+ * in the late (transparent) list after the ribbon and its ghost (orders 19-21), fully opaque
+ * (opacity 1, depth write on): the ghost never sees her depth, and she covers it. Above every
+ * journey ribbon order; the ground ring stays in the opaque pass.
+ */
+export const HERO_RENDER_ORDER = 40;
+
+/** Puts a hero model's body meshes (not the ground ring) after the journey ribbon (see above). */
+export function drawHeroLast(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || o.userData.heroPart === "ring") return;
+    m.renderOrder = HERO_RENDER_ORDER;
+    for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+      if (!mat) continue;
+      mat.transparent = true;
+      mat.opacity = 1;
+      mat.depthWrite = true;
+      mat.depthTest = true;
+    }
+  });
+}
+
 /** A world-space point that must touch the ground (a foot sole, a walker leg tip). */
 export interface HeroContact {
   name: string;

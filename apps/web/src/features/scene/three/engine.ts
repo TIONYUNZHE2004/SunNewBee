@@ -47,6 +47,7 @@ import { applyFog } from "./mood";
 import { createMotionClock, type MotionMode, motionModeFor } from "./motion/motionClock";
 import type { MotionLayer } from "./motion/motionLayer";
 import type { OverlayLayer } from "./overlays/accessLayers";
+import { markerProgramStandIn } from "./overlays/markers";
 import { THREE_TIERS } from "./quality";
 import { applyClayTier, CLAY_PALETTE, clayMaterial, setClayTier } from "./shared/clayTokens";
 import { createSky } from "./sky";
@@ -154,6 +155,27 @@ export interface Engine {
    * render when running() flips.
    */
   setMotion(l: MotionLayer | null, running: () => boolean): void;
+  /**
+   * A deterministic clock (seconds) for the decorative motion, e.g. the journey's trip time t, so a
+   * beat renders the same at any wall time (AC-D17). While it returns a number, the shader motion
+   * (`motion.uTime`: sway, shimmer, flicker, limbs) and the motion layer (decorative people, cars,
+   * birds) run on it, offset by a fixed epoch; null (or no clock) keeps the motion clock.
+   */
+  setDecorClock?(c: (() => number | null) | null): void;
+  /**
+   * A material patch run on every layer before it is compiled or first drawn (the city, the asset
+   * instances, decor slots): e.g. the journey building cutaway, injected ahead of need so no
+   * program is compiled twice. Runs at once on what is already drawn, then the scene is
+   * precompiled in the background (`prewarm`). Returns a remover.
+   */
+  addMaterialPatch?(patch: (root: THREE.Object3D) => number): () => void;
+  /**
+   * Compiles the shader programs `root` needs (its own materials, and the AO normal and depth of
+   * field depth variants of its meshes) in parallel (KHR_parallel_shader_compile), so their first
+   * render never links on the main thread. Resolves when they are ready (at once without
+   * `compileAsync`). Default root: the whole scene.
+   */
+  prewarm?(root?: THREE.Object3D): Promise<void>;
   /** Camera bounds before the city arrives (the site extent); setCity replaces them. */
   setBounds(b: Bounds): void;
   /**
@@ -261,8 +283,17 @@ const RAD = Math.PI / 180;
 const MOVING_MS = 300;
 /** LOD re-bucketing while the camera moves: at most this often, plus once after it stops. */
 const LOD_INTERVAL_MS = 250;
-/** A bound on pinned shader programs (the scene uses about 32; see `pinPrograms`). */
-const MAX_PINNED_PROGRAMS = 96;
+/**
+ * A bound on pinned shader programs (see `pinPrograms`). The journey adds cut, hero, override and
+ * crowd variants: with 96 the place markers' program went unpinned, was deleted when a marker layer
+ * was replaced and linked again on the next answer (gate AC-D18). Programs are small.
+ */
+const MAX_PINNED_PROGRAMS = 256;
+/**
+ * Motion time (ms) at trip time 0 while a journey drives the decorative clock (`setDecorClock`):
+ * a fixed epoch, so the seeded crowd and traffic stand where they would after a minute of motion.
+ */
+const DECOR_EPOCH_MS = 60_000;
 
 export interface RigView {
   camera: THREE.PerspectiveCamera;
@@ -587,6 +618,10 @@ function build(
   };
   /** Journey ribbon (main scene) and markers (their own scene, after post-processing). */
   let journey: JourneyOverlay | null = null;
+  /** An overlay layer whose programs are still compiling (shown when ready, see setOverlays). */
+  let pendingOverlays: OverlayLayer | null = null;
+  /** A journey layer whose programs are still compiling (shown when ready, see setJourney). */
+  let pendingJourney: JourneyOverlay | null = null;
   const dropJourney = () => {
     if (!journey) return;
     scene.remove(journey.ribbon);
@@ -605,6 +640,10 @@ function build(
     renderer.autoClear = autoClear;
   };
   undo.push(() => {
+    pendingOverlays?.dispose();
+    pendingOverlays = null;
+    pendingJourney?.dispose();
+    pendingJourney = null;
     dropJourney();
     dropOverlays();
     for (const m of [buildingMat, parksMat, waterMat, groundMat]) m.dispose();
@@ -713,6 +752,84 @@ function build(
     compileWarned = true;
     console.warn("Three.js: compileAsync failed; layers compile on first render.", err);
   };
+  /**
+   * The post passes draw the scene again with an override material (GTAO normals, depth of field
+   * depth): one program per object variant (skinned, instanced, morphed). One stand-in mesh per
+   * variant found under `root`, wearing each override, so `compileAsync` builds those programs too
+   * (the hero's skinned variants were compiled mid-trip, gate AC-D18).
+   */
+  const shadowDepthStandIn = new THREE.MeshDepthMaterial({ depthPacking: THREE.BasicDepthPacking });
+  const overrideStandIns = (root: THREE.Object3D): THREE.Group | null => {
+    const overrides: THREE.Material[] = [];
+    if (aoPass) overrides.push(aoPass.normalMaterial);
+    const depth = (bokehPass as unknown as { _materialDepth?: THREE.Material } | null)
+      ?._materialDepth;
+    if (depth) overrides.push(depth);
+    // the sun's shadow map draws casters with a basic-packed depth material (the hero's skinned
+    // variant was linked on her first shadow draw, gate AC-D18)
+    const shadow = sun.castShadow && renderer.shadowMap.enabled ? shadowDepthStandIn : null;
+    if (overrides.length === 0 && !shadow) return null;
+    const group = new THREE.Group();
+    const seen = new Set<string>();
+    root.traverse((o) => {
+      const m = o as THREE.Mesh & {
+        isSkinnedMesh?: boolean;
+        isInstancedMesh?: boolean;
+        isBatchedMesh?: boolean;
+        instanceColor?: unknown;
+      };
+      if (!m.isMesh || m.isBatchedMesh) return;
+      const morph = Object.keys(m.geometry?.morphAttributes ?? {}).length;
+      const key = `${!!m.isSkinnedMesh}|${!!m.isInstancedMesh}|${!!m.instanceColor}|${morph}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const wear = shadow && m.castShadow ? [...overrides, shadow] : overrides;
+      for (const ov of wear) {
+        // a shallow stand-in: same geometry (and skeleton / instance buffers), the override material
+        const c = m.clone(false) as THREE.Mesh;
+        c.material = ov;
+        c.visible = true;
+        group.add(c);
+      }
+    });
+    return group.children.length > 0 ? group : null;
+  };
+  /**
+   * Compiles `root`'s programs in parallel for `target` (the scene pass's buffer: linear, no tone
+   * mapping; null: the canvas, for the markers), plus the post passes' override variants. Resolves
+   * when ready; a synchronous throw resolves at once (the first render then compiles as before).
+   */
+  const compileRoot = (
+    root: THREE.Object3D,
+    target: THREE.WebGLRenderTarget | null,
+    overrides = true,
+    /** The scene it is drawn in (its fog and lights pick the program variant). */
+    into: THREE.Scene = scene,
+  ): Promise<unknown> => {
+    if (typeof renderer.compileAsync !== "function") return Promise.resolve();
+    const prev = renderer.getRenderTarget();
+    renderer.setRenderTarget(target);
+    const jobs: Promise<unknown>[] = [];
+    try {
+      jobs.push(renderer.compileAsync(root, camera, into));
+      const stand = overrides ? overrideStandIns(root) : null;
+      if (stand) jobs.push(renderer.compileAsync(stand, camera, into));
+    } catch (err) {
+      warnCompileOnce(err);
+    } finally {
+      renderer.setRenderTarget(prev);
+    }
+    return Promise.all(jobs);
+  };
+  /** Material patches run on every layer before its first compile (`addMaterialPatch`). */
+  const materialPatches = new Set<(root: THREE.Object3D) => number>();
+  const runPatches = (root: THREE.Object3D) => {
+    let n = 0;
+    for (const patch of materialPatches) n += patch(root);
+    return n;
+  };
+  /** The decorative shader clock (`setDecorClock`); null: the motion clock drives uTime. */
+  let decorClock: (() => number | null) | null = null;
   const pinned = new Set<object>();
   const pinPrograms = () => {
     const programs = renderer.info.programs as Array<{ usedTimes: number }> | null;
@@ -1214,6 +1331,12 @@ function build(
       // More tiles to plan: one more LOD tick an interval later (the trailing timer wakes it).
       if (more) lod.moved();
     }
+    // A journey's trip time drives the decorative motion while a trip is loaded: shader sway and
+    // shimmer, and the decorative people and cars (their routes are seeded functions of time), so
+    // a paused beat draws the same at any wall time (AC-D17). Otherwise the motion clock.
+    const decorT = decorClock?.() ?? null;
+    const tripMs =
+      decorT !== null && Number.isFinite(decorT) ? DECOR_EPOCH_MS + decorT * 1000 : null;
     if (motionLayer) {
       if (due) {
         motion.uTime.value = clock.at / 1000;
@@ -1224,8 +1347,9 @@ function build(
       frustum.setFromProjectionMatrix(
         viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
       );
-      motionLayer.tick(clock.at, camera.position, frustum);
+      motionLayer.tick(tripMs ?? clock.at, camera.position, frustum);
     }
+    if (tripMs !== null) motion.uTime.value = tripMs / 1000;
     placeLight();
     renderer.info.reset();
     syncDashes();
@@ -1299,6 +1423,9 @@ function build(
   };
 
   applyTier(tier);
+  // The place / waste / centre markers' program (the overlay layers rebuild their markers when an
+  // answer lands): compiled now, in the background, and pinned once it renders.
+  void compileRoot(markerProgramStandIn(), composer.readBuffer, false, overlayScene);
 
   return {
     get groundGeneration() {
@@ -1327,6 +1454,7 @@ function build(
         return;
       }
       if (d && (decor.get(slot) === d || compiling.get(slot) === d)) return;
+      if (d) runPatches(d.group);
       // A newer layer (or a clear) supersedes one still compiling: it is never shown.
       const waiting = compiling.get(slot);
       if (waiting) {
@@ -1361,21 +1489,9 @@ function build(
         show();
       };
       // Compile for the render target the scene pass draws into (linear, no tone mapping), not the
-      // screen: the program variant must be the one the composer's render will use.
-      const prev = renderer.getRenderTarget();
-      renderer.setRenderTarget(composer.readBuffer);
-      let compiled: Promise<unknown>;
-      try {
-        compiled = renderer.compileAsync(d.group, camera, scene);
-      } catch (err) {
-        // A synchronous throw must not leave the slot blank: show the layer, which then compiles
-        // on its first render as before.
-        warnCompileOnce(err);
-        compiled = Promise.resolve();
-      } finally {
-        renderer.setRenderTarget(prev);
-      }
-      compiled.then(ready, ready);
+      // screen: the program variant must be the one the composer's render will use. A synchronous
+      // throw shows the layer anyway (it then compiles on its first render as before).
+      compileRoot(d.group, composer.readBuffer).then(ready, ready);
     },
     markSwap() {
       if (disposed) return;
@@ -1383,21 +1499,11 @@ function build(
       requestRender();
     },
     prepare(obj) {
-      if (disposed || typeof renderer.compileAsync !== "function") return Promise.resolve();
+      if (disposed) return Promise.resolve();
       // compile() gathers materials with traverse(), not traverseVisible(): hidden LOD buckets and
-      // crowd meshes (visible = false until an agent is drawn on them) are compiled too.
-      const prev = renderer.getRenderTarget();
-      renderer.setRenderTarget(composer.readBuffer);
-      let compiled: Promise<unknown>;
-      try {
-        compiled = renderer.compileAsync(obj, camera, scene);
-      } catch (err) {
-        warnCompileOnce(err);
-        compiled = Promise.resolve();
-      } finally {
-        renderer.setRenderTarget(prev);
-      }
-      return compiled.then(
+      // crowd meshes (visible = false until an agent is drawn on them) are compiled too, with the
+      // AO / depth-of-field override variants of their meshes (compileRoot).
+      return compileRoot(obj, composer.readBuffer).then(
         () => {},
         (err) => warnCompileOnce(err),
       );
@@ -1445,6 +1551,7 @@ function build(
       ground.visible = !slab;
       basePlane = ground;
       city.add(ground, parks, water, buildings);
+      runPatches(city);
       if (!g.bounds.isEmpty())
         bounds = { min: [g.bounds.min.x, g.bounds.min.z], max: [g.bounds.max.x, g.bounds.max.z] };
       requestRender();
@@ -1458,7 +1565,10 @@ function build(
       dropAssets();
       if (a) {
         assets = a;
+        runPatches(a.group);
         scene.add(a.group);
+        // Its LOD buckets show as the camera moves: their programs compile now, in the background.
+        void compileRoot(a.group, composer.readBuffer);
         // The next tick buckets the new instances before it renders.
         lod.force();
       }
@@ -1520,9 +1630,18 @@ function build(
     cameraDriven: () => driving,
     setOverlays(o) {
       if (disposed) return;
-      if (o === overlays) return;
-      dropOverlays();
-      if (o) {
+      if (o === overlays || (o && o === pendingOverlays)) return;
+      pendingOverlays?.dispose();
+      pendingOverlays = null;
+      if (!o) {
+        dropOverlays();
+        requestRender();
+        return;
+      }
+      const attach = () => {
+        if (disposed || pendingOverlays !== o) return;
+        pendingOverlays = null;
+        dropOverlays();
         overlays = o;
         o.setResolution(size[0], size[1]);
         o.setPixelRatio(pixelRatio);
@@ -1530,8 +1649,21 @@ function build(
         overlayScene.add(o.group);
         scene.add(o.groundGroup);
         scene.add(o.lineGroup);
+        requestRender();
+      };
+      pendingOverlays = o;
+      if (typeof renderer.compileAsync !== "function") {
+        attach();
+        return;
       }
-      requestRender();
+      // Their programs compile in parallel before they show, the previous layer drawn meanwhile:
+      // the answer's route and place markers linked on first draw (gate AC-D18). A layer replaced
+      // while compiling is never shown, and is disposed like a replaced one.
+      Promise.all([
+        compileRoot(o.group, composer.readBuffer, false, overlayScene),
+        compileRoot(o.groundGroup, composer.readBuffer, false),
+        compileRoot(o.lineGroup, composer.readBuffer, false),
+      ]).then(attach, attach);
     },
     setJourney(j) {
       if (disposed) {
@@ -1540,12 +1672,49 @@ function build(
       }
       if (j === journey) return;
       dropJourney();
-      if (j) {
+      if (pendingJourney && pendingJourney !== j) pendingJourney.dispose();
+      pendingJourney = null;
+      if (!j) {
+        requestRender();
+        return;
+      }
+      const attach = () => {
+        if (disposed || pendingJourney !== j) return;
+        pendingJourney = null;
         journey = j;
         j.setResolution(size[0], size[1]);
         scene.add(j.ribbon);
+        swapped = true;
+        requestRender();
+      };
+      pendingJourney = j;
+      if (typeof renderer.compileAsync !== "function") {
+        attach();
+        return;
       }
+      // The ribbon (scene pass) and the markers (drawn to the canvas) compile in parallel before
+      // they are shown: no program links on the main thread when the answer lands (gate AC-D18).
+      Promise.all([
+        compileRoot(j.ribbon, composer.readBuffer, false),
+        // the markers draw in their own scene (no fog, no lights), straight to the canvas
+        compileRoot(j.markers, null, false, j.markers),
+      ]).then(attach, attach);
+    },
+    setDecorClock(c) {
+      if (disposed) return;
+      decorClock = c;
       requestRender();
+    },
+    addMaterialPatch(patch) {
+      materialPatches.add(patch);
+      if (!disposed && patch(scene) > 0) void compileRoot(scene, composer.readBuffer);
+      return () => {
+        materialPatches.delete(patch);
+      };
+    },
+    prewarm(root) {
+      if (disposed) return Promise.resolve();
+      return compileRoot(root ?? scene, composer.readBuffer).then(() => undefined);
     },
     setLighting(p, dir) {
       if (disposed) return;
