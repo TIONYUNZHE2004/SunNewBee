@@ -111,6 +111,35 @@ export interface AcceptanceApi {
   linesOnTop(renderOrder: number, on: boolean): number;
   /** The unmasked WebGL vendor and renderer (WEBGL_debug_renderer_info), else the masked ones. */
   gpu(): { vendor: string; renderer: string };
+  /** The building-clearance grid in use (A-T7), or null before the city arrives. Read-only. */
+  clearance(): { count: number; clearanceM: number; maxTopM: number } | null;
+  /** Top of the tallest drawn footprint containing local (x, z), 0 when none, null without a grid. */
+  footprintTop(x: number, z: number): number | null;
+  /** The camera position in the local frame (x east, y up, z = -north). */
+  cameraLocal(): [number, number, number];
+  /** Starts logging the camera against the footprint lookup on every rendered frame (AC-A8). */
+  startCameraLog(): void;
+  /** Stops the log and returns its summary (zeros when no log was running). */
+  stopCameraLog(): CameraLog;
+  /** Metres the building clearance lifts the camera above its base pose now (0: none). */
+  liftM(): number;
+  /** Local frame conversions (metres: x east, z = -north). */
+  toLocal(lon: number, lat: number): [number, number];
+  toLonLat(x: number, z: number): [number, number];
+  /** A rig flight to a pose (as the app's fly-to intents do). */
+  flyTo(p: GeoPose, durationMs: number): void;
+  /**
+   * Independent of the clearance grid: the highest drawn building surface (extruded city,
+   * archetype instances, landmarks, decorative ones included) under local (x, z), by a vertical
+   * ray from above against the meshes themselves; 0 when the ray hits none.
+   */
+  roofHitAt(x: number, z: number): number;
+  /**
+   * Independent check of the grid against the drawn instances: for up to `maxSamples` archetype /
+   * landmark instances, the world AABB of the instance's geometry (covers glb centring and scale)
+   * against the grid's roof at the AABB centre. A fail: grid roof < AABB top − 0.01 m.
+   */
+  instanceAudit(maxSamples: number): InstanceAudit;
   /**
    * The diorama slab's top outline (A-T4) projected to canvas CSS pixels, one array per ring, with
    * the local position of each vertex; null when no slab is drawn. `inFront`: in front of the camera.
@@ -233,6 +262,178 @@ export interface CrowdRow {
 export interface CrowdReport {
   planned: { person: number; vehicle: number };
   rows: CrowdRow[];
+}
+
+export interface InstanceAudit {
+  meshes: number;
+  checked: number;
+  fails: number;
+  /** Largest AABB top above the grid roof (m); negative when every instance is under it. */
+  worstM: number;
+  /** Up to 10 fails: [x, z, aabbTop, gridTop, mesh name]. */
+  samples: [number, number, number, number, string][];
+}
+
+/** Every rendered frame's camera checked against the footprint lookup (AC-A8). */
+export interface CameraLog {
+  frames: number;
+  /** Frames whose camera was over a footprint (top > 0). */
+  overRoof: number;
+  /** Frames inside a footprint below roof + clearance. */
+  violations: number;
+  /** Largest shortfall below roof + clearance (m); 0 without violations. */
+  worstDeficitM: number;
+  /** Smallest height above roof + clearance over the frames over a roof (m); null when none. */
+  minMarginM: number | null;
+  minY: number;
+  maxY: number;
+  /** Up to 20 violating frames: [x, y, z, top]. */
+  samples: [number, number, number, number][];
+  /** Largest per-frame change of camera y (m), any cause (user input included). */
+  maxDyM: number;
+  /** Largest per-frame change of the clearance lift (m): the smoothness of the clearance itself. */
+  maxLiftStepM: number;
+  /** Frames the clearance lifted the camera (lift > 0). */
+  liftedFrames: number;
+  /** Mesh raycast checks (every RAY_EVERY frames, independent of the grid). */
+  ray: RayLog;
+  lastY: number | null;
+  lastLiftM: number | null;
+}
+
+export interface RayLog {
+  /** Frames checked by a vertical ray against the drawn building meshes. */
+  checked: number;
+  /** Checked frames whose ray hit a building surface under the camera. */
+  hits: number;
+  /** Hits where the camera was below the hit surface + clearance. */
+  violations: number;
+  /** Hits where the drawn surface was more than 1 cm above the grid's roof there. */
+  gridBelowMesh: number;
+  /** Largest drawn surface above the grid roof (m); negative when never above. */
+  worstGridBelowM: number;
+  /** Up to 10 ray violations: [x, y, z, hitY, gridTop]. */
+  samples: [number, number, number, number, number][];
+}
+
+/** One mesh raycast every this many logged frames. */
+export const RAY_EVERY = 30;
+
+/** Folds one frame into a camera log (pure; `top` is the footprint lookup at the camera). */
+export function logCameraFrame(
+  log: CameraLog,
+  pos: readonly [number, number, number],
+  top: number,
+  clearanceM: number,
+  liftM = 0,
+): void {
+  log.frames++;
+  log.minY = Math.min(log.minY, pos[1]);
+  log.maxY = Math.max(log.maxY, pos[1]);
+  if (log.lastY !== null) log.maxDyM = Math.max(log.maxDyM, Math.abs(pos[1] - log.lastY));
+  if (log.lastLiftM !== null)
+    log.maxLiftStepM = Math.max(log.maxLiftStepM, Math.abs(liftM - log.lastLiftM));
+  log.lastY = pos[1];
+  log.lastLiftM = liftM;
+  if (liftM > 0) log.liftedFrames++;
+  if (top <= 0) return;
+  log.overRoof++;
+  const margin = pos[1] - (top + clearanceM);
+  log.minMarginM = log.minMarginM === null ? margin : Math.min(log.minMarginM, margin);
+  // A float hair under the floor (lookAt round-off) is not a violation.
+  if (margin < -1e-6) {
+    log.violations++;
+    log.worstDeficitM = Math.max(log.worstDeficitM, -margin);
+    if (log.samples.length < 20) log.samples.push([pos[0], pos[1], pos[2], top]);
+  }
+}
+
+/** Folds one mesh raycast into the log: `hitY` the drawn surface under the camera (0: none). */
+export function logRoofRay(
+  log: CameraLog,
+  pos: readonly [number, number, number],
+  hitY: number,
+  gridTop: number,
+  clearanceM: number,
+): void {
+  const r = log.ray;
+  r.checked++;
+  if (hitY <= 0) return;
+  r.hits++;
+  r.worstGridBelowM = Math.max(r.worstGridBelowM, hitY - gridTop);
+  if (hitY > gridTop + 0.01) r.gridBelowMesh++;
+  if (pos[1] < hitY + clearanceM - 1e-3) {
+    r.violations++;
+    if (r.samples.length < 10) r.samples.push([pos[0], pos[1], pos[2], hitY, gridTop]);
+  }
+}
+
+export const emptyCameraLog = (): CameraLog => ({
+  frames: 0,
+  overRoof: 0,
+  violations: 0,
+  worstDeficitM: 0,
+  minMarginM: null,
+  minY: Number.POSITIVE_INFINITY,
+  maxY: Number.NEGATIVE_INFINITY,
+  samples: [],
+  maxDyM: 0,
+  maxLiftStepM: 0,
+  liftedFrames: 0,
+  ray: {
+    checked: 0,
+    hits: 0,
+    violations: 0,
+    gridBelowMesh: 0,
+    worstGridBelowM: Number.NEGATIVE_INFINITY,
+    samples: [],
+  },
+  lastY: null,
+  lastLiftM: null,
+});
+
+const BUILDING_KINDS = new Set(["building", "landmark"]);
+
+/** Visible building and landmark meshes (extruded city, archetype instances, landmarks). */
+function buildingMeshes(roots: THREE.Object3D[]): THREE.Mesh[] {
+  const out: THREE.Mesh[] = [];
+  const visit = (o: THREE.Object3D) => {
+    if (!o.visible) return;
+    const kind = (o.userData.pick as { kind?: string } | undefined)?.kind;
+    if ((o as THREE.Mesh).isMesh && kind && BUILDING_KINDS.has(kind)) out.push(o as THREE.Mesh);
+    for (const c of o.children) visit(c);
+  };
+  for (const r of roots) visit(r);
+  return out;
+}
+
+const _down = new THREE.Raycaster();
+const _probe = new THREE.Mesh();
+const _inst = new THREE.Matrix4();
+
+/** Highest building surface hit by a vertical ray at (x, z); per instance, no scene state touched. */
+export function roofHit(roots: THREE.Object3D[], x: number, z: number): number {
+  _down.set(new THREE.Vector3(x, 10_000, z), new THREE.Vector3(0, -1, 0));
+  _down.far = 20_000;
+  const hits: THREE.Intersection[] = [];
+  for (const m of buildingMeshes(roots)) {
+    const im = m as THREE.InstancedMesh;
+    if (!im.isInstancedMesh) {
+      // Decorative meshes opt out of raycasting (`raycast` is a no-op): call the Mesh raycast.
+      THREE.Mesh.prototype.raycast.call(m, _down, hits);
+      continue;
+    }
+    _probe.geometry = im.geometry;
+    _probe.material = im.material;
+    for (let i = 0; i < im.count; i++) {
+      im.getMatrixAt(i, _inst);
+      _probe.matrixWorld.multiplyMatrices(im.matrixWorld, _inst);
+      THREE.Mesh.prototype.raycast.call(_probe, _down, hits);
+    }
+  }
+  let top = 0;
+  for (const h of hits) if (h.point.y > top) top = h.point.y;
+  return top;
 }
 
 export interface UncappedMeasurement {
@@ -387,7 +588,116 @@ function slabOf(roots: THREE.Object3D[]): THREE.Object3D | null {
 }
 
 export function createAcceptanceApi(engine: Engine, frame: LocalFrame): AcceptanceApi {
+  let camLog: { log: CameraLog; off: () => void } | null = null;
+  const camPos = (): [number, number, number] => {
+    const p = engine.pickView().camera.position;
+    return [p.x, p.y, p.z];
+  };
   return {
+    clearance() {
+      const c = engine.clearance?.() ?? null;
+      return c ? { count: c.count, clearanceM: c.clearanceM, maxTopM: c.maxTopM } : null;
+    },
+    footprintTop(x, z) {
+      const c = engine.clearance?.() ?? null;
+      return c ? c.topAt(x, z) : null;
+    },
+    cameraLocal: camPos,
+    startCameraLog() {
+      camLog?.off();
+      const log = emptyCameraLog();
+      const off = engine.onFrame(() => {
+        const c = engine.clearance?.() ?? null;
+        const pos = camPos();
+        const top = c ? c.topAt(pos[0], pos[2]) : 0;
+        const cm = c?.clearanceM ?? 0;
+        logCameraFrame(log, pos, top, cm, engine.clearanceLiftM?.() ?? 0);
+        // A camera above every roof (+ clearance + 5 m of glb slack) cannot be inside one: no ray.
+        const high = !c || pos[1] > c.maxTopM + cm + 5;
+        if (log.frames % RAY_EVERY === 0 && !high)
+          logRoofRay(log, pos, roofHit(engine.pickView().roots, pos[0], pos[2]), top, cm);
+      });
+      camLog = { log, off };
+    },
+    flyTo(p, durationMs) {
+      engine.rig.flyTo(
+        {
+          target: frame.toLocal(p.lon, p.lat),
+          rangeM: p.rangeM,
+          pitchDeg: p.pitchDeg,
+          headingDeg: p.headingDeg,
+        },
+        durationMs,
+      );
+      engine.requestRender();
+    },
+    liftM: () => engine.clearanceLiftM?.() ?? 0,
+    toLocal: (lon, lat) => frame.toLocal(lon, lat),
+    toLonLat: (x, z) => {
+      const [lon, lat] = frame.toLonLat(x, z);
+      return [lon, lat];
+    },
+    roofHitAt: (x, z) => roofHit(engine.pickView().roots, x, z),
+    instanceAudit(maxSamples) {
+      const c = engine.clearance?.() ?? null;
+      const out: InstanceAudit = {
+        meshes: 0,
+        checked: 0,
+        fails: 0,
+        worstM: -Infinity,
+        samples: [],
+      };
+      if (!c) return out;
+      // The extruded city mesh (`userData.faces`) is checked by vitest against buildCityGeometry.
+      const meshes = buildingMeshes(engine.pickView().roots).filter((m) => !m.userData.faces);
+      out.meshes = meshes.length;
+      let total = 0;
+      for (const m of meshes)
+        total += (m as THREE.InstancedMesh).isInstancedMesh ? (m as THREE.InstancedMesh).count : 1;
+      const stride = Math.max(1, Math.ceil(total / Math.max(1, maxSamples)));
+      const boxes = new Map<THREE.BufferGeometry, THREE.Box3>();
+      const box = new THREE.Box3();
+      const world = new THREE.Matrix4();
+      const centre = new THREE.Vector3();
+      let n = 0;
+      for (const m of meshes) {
+        let local = boxes.get(m.geometry);
+        if (!local) {
+          local = new THREE.Box3().setFromBufferAttribute(
+            m.geometry.getAttribute("position") as THREE.BufferAttribute,
+          );
+          boxes.set(m.geometry, local);
+        }
+        const im = m as THREE.InstancedMesh;
+        const count = im.isInstancedMesh ? im.count : 1;
+        for (let i = 0; i < count; i++, n++) {
+          if (n % stride !== 0) continue;
+          if (im.isInstancedMesh) {
+            im.getMatrixAt(i, _inst);
+            world.multiplyMatrices(m.matrixWorld, _inst);
+          } else world.copy(m.matrixWorld);
+          box.copy(local).applyMatrix4(world);
+          box.getCenter(centre);
+          const top = c.topAt(centre.x, centre.z);
+          out.checked++;
+          const over = box.max.y - top;
+          out.worstM = Math.max(out.worstM, over);
+          if (over > 0.01) {
+            out.fails++;
+            if (out.samples.length < 10)
+              out.samples.push([centre.x, centre.z, box.max.y, top, m.name]);
+          }
+        }
+      }
+      return out;
+    },
+    stopCameraLog() {
+      if (!camLog) return emptyCameraLog();
+      camLog.off();
+      const { log } = camLog;
+      camLog = null;
+      return log;
+    },
     setPose(p) {
       engine.rig.set({
         target: frame.toLocal(p.lon, p.lat),

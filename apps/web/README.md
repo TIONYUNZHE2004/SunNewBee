@@ -266,6 +266,16 @@ the settings popover.
   intent standing in `sceneStore` (route, then what-if, then focused place, then the last
   `camera.fly_to`; Realistic also frames a rehearsed trip), else to its start view (Three.js: the
   `hero-mid` bookmark; Cesium: the site home). Ruling P5-14: no camera-pose hand-off.
+- **Building clearance (Three.js, A-T7):** `three/clearance.ts` keeps the camera at least 2 m above
+  any roof it is over (or within 1 m of), and lifts it, eased, when the camera-to-target line
+  crosses a building; the lift eases back down when no longer needed. The lift is display state: the
+  engine removes it before every `controls.update()` (the tick's and those MapControls runs inside
+  its pointer, wheel, key and touch handlers) and re-applies it after the inputs, before the render.
+  Rig flights and `rig.get()` see the base pose. `engine.clearance.test.ts` (pointer-drag pan and
+  wheel while lifted) and the AC-A8 drift check guard against the base creeping up; a camera moved
+  by any other code path between frames is taken as a new base. The hard floor can raise the camera
+  by up to the tallest roof + 2 m in one frame (about 132 m on the seed). The journey follow camera
+  reuses it.
 
 ### Stylised (Three.js)
 
@@ -693,12 +703,18 @@ CI: it needs a real GPU and the Elmina seed.
   `captureFrameStats(page, seconds)`: display-paced orbit fps plus uncapped frame time
   (`engine.renderNow` + `gl.finish`) for headroom. `support/journey.ts`: `journey.seek/play/pause`
   over `window.__journey` (Phase D; throws "not available" until then).
+- `clearance.accept.ts` (AC-A8): 300 seeded random wheel, drag and rotate operations over the hero
+  district; every rendered frame's camera is checked against `footprintTop`. Writes
+  `acceptance/A-T7/metrics.json` in the ledger.
 - `baseline.accept.ts` writes five PNGs and `metrics.json` to `ACCEPTANCE_OUT` (default: the
   journey-sim ledger folder `.superpowers/sdd/journey-sim/acceptance/baseline`).
 - The app side is `window.__tlAcceptance` (`three/scene/useAcceptanceHook.ts`): `setPose`, `getPose`,
   `size`, `frames`, `pickGrid(step)`, `measure(seconds, orbitDegPerSec)`,
   `measureUncapped(frames, degPerFrame)`, `roadVertices`, `gpu`, `slabOutline`, `displayAudit`
-  (A-T4; with a slab, `pickGrid` codes the plane beyond the outline as sky). It is installed only in
+  (A-T4; with a slab, `pickGrid` codes the plane beyond the outline as sky), and for AC-A8
+  `clearance`, `footprintTop(x, z)`, `cameraLocal`, `startCameraLog` / `stopCameraLog`, `flyTo`,
+  `liftM`, `toLocal` / `toLonLat`, `roofHitAt` and `instanceAudit` (mesh-based checks independent
+  of the grid). It is installed only in
   dev builds (`import.meta.env.DEV`) or when the page is loaded with `?acceptance=1`; it moves the
   camera and reads the scene, never data or settings.
 
