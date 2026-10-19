@@ -31,6 +31,16 @@ export const NEAR_FADE_M = 1.5;
 /** A whole instanced decorative item whose origin is this close to the camera (ground metres) is not drawn. */
 export const NEAR_INSTANCE_M = 6.5;
 
+/**
+ * The near-camera radius (m) for a camera `d` metres from her: NEAR_CUT_M at the follow distance;
+ * half the distance for a farther hold camera (the crossing hold stands ~20 m off, its foreground
+ * canopies beyond 6 m); never more than 0.7 d for a close one, so her own surroundings stay.
+ * Shared with the crowd and traffic clearance (whole agents, `crowdRules.ts`).
+ */
+export function nearRadius(d: number, base = NEAR_CUT_M, share = 0.5): number {
+  return Math.max(Math.min(base, 0.7 * d), share * d);
+}
+
 export const treeCutUniforms = {
   uTlTreeCutOn: { value: 0 },
   uTlTreeCutA: { value: new THREE.Vector3() },
@@ -47,7 +57,9 @@ export const treeCutUniforms = {
 type V3 = readonly [number, number, number];
 
 /** The cut drawn now (null: off). */
-export const currentTreeCut: { value: { a: V3; b: V3; c: V3 | null; r: number } | null } = {
+export const currentTreeCut: {
+  value: { a: V3; b: V3; c: V3 | null; r: number; near: number; inst: number } | null;
+} = {
   value: null,
 };
 
@@ -56,12 +68,18 @@ export const currentTreeCut: { value: { a: V3; b: V3; c: V3 | null; r: number } 
  * event's element too), or off (null).
  */
 export function setTreeCut(cut: { a: V3; b: V3; c?: V3 | null } | null): void {
+  const d = cut ? Math.hypot(cut.a[0] - cut.b[0], cut.a[1] - cut.b[1], cut.a[2] - cut.b[2]) : 0;
+  const near = nearRadius(d);
+  const inst = nearRadius(d, NEAR_INSTANCE_M);
   currentTreeCut.value = cut
-    ? { a: cut.a, b: cut.b, c: cut.c ?? null, r: TREE_CUT_RADIUS_M }
+    ? { a: cut.a, b: cut.b, c: cut.c ?? null, r: TREE_CUT_RADIUS_M, near, inst }
     : null;
   treeCutUniforms.uTlTreeCutOn.value = cut ? 1 : 0;
   treeCutUniforms.uTlTreeCutC2.value = cut?.c ? 1 : 0;
   if (!cut) return;
+  treeCutUniforms.uTlNearR.value = near;
+  treeCutUniforms.uTlNearFade.value = Math.max(NEAR_FADE_M, 0.15 * d);
+  treeCutUniforms.uTlNearInst.value = inst;
   treeCutUniforms.uTlTreeCutA.value.set(cut.a[0], cut.a[1], cut.a[2]);
   treeCutUniforms.uTlTreeCutB.value.set(cut.b[0], cut.b[1], cut.b[2]);
   if (cut.c) treeCutUniforms.uTlTreeCutC.value.set(cut.c[0], cut.c[1], cut.c[2]);
@@ -84,8 +102,8 @@ export function inTreeCut(p: V3, origin?: V3): boolean {
   const c = currentTreeCut.value;
   if (!c) return false;
   if (segDist(p, c.a, c.b) < c.r || (!!c.c && segDist(p, c.a, c.c) < c.r)) return true;
-  if (Math.hypot(p[0] - c.a[0], p[1] - c.a[1], p[2] - c.a[2]) < NEAR_CUT_M) return true;
-  return !!origin && Math.hypot(origin[0] - c.a[0], origin[2] - c.a[2]) < NEAR_INSTANCE_M;
+  if (Math.hypot(p[0] - c.a[0], p[1] - c.a[1], p[2] - c.a[2]) < c.near) return true;
+  return !!origin && Math.hypot(origin[0] - c.a[0], origin[2] - c.a[2]) < c.inst;
 }
 
 /** The vertex shader additions (exported for tests that compare programs without the cut). */

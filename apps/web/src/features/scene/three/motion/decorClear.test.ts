@@ -11,6 +11,7 @@ import {
   type HeroXZ,
   HOLD_KEEP_OUT_M,
   NEAR_CAMERA_PEOPLE_M,
+  PEOPLE_LINE_M,
   personClear,
   VEHICLE_CLEAR_M,
   vehicleClear,
@@ -136,6 +137,14 @@ describe("crowd figures never at the camera's feet, and clear of her while she h
     expect(drawnIds(people, hero, camera)).toEqual(["street"]);
     expect(drawnIds(people, null, camera)).toEqual(["atCamera", "street"]);
     expect(personClear(0, -10 + NEAR_CAMERA_PEOPLE_M + 0.1, null, camera)).toBe(true);
+  });
+
+  it("nobody on the line from the camera to her; a farther hold camera keeps people farther off", () => {
+    expect(personClear(1.5, -1, hero, camera)).toBe(false); // between the camera and her
+    expect(personClear(PEOPLE_LINE_M + 0.5, -1, hero, camera)).toBe(true);
+    const far = new THREE.Vector3(0, 10, -22);
+    expect(personClear(8, -20, hero, far)).toBe(false); // 8.2 m from a camera 22 m off
+    expect(personClear(8, -20, hero, camera)).toBe(true);
   });
 
   it("while she holds, nobody within HOLD_KEEP_OUT_M of her; walking, the 2 m keep-out applies", () => {

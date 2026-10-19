@@ -8,6 +8,7 @@ import {
   NEAR_CUT_M,
   NEAR_FADE_M,
   NEAR_INSTANCE_M,
+  nearRadius,
   patchDecorCut,
   setTreeCut,
   TREE_CUT_RADIUS_M,
@@ -149,6 +150,17 @@ describe("decorative cut, ITER2: near the camera (foreground canopies, giant hea
     expect(inTreeCut([9, 6, -10], [9, 0, -12])).toBe(false);
   });
 
+  it("a farther hold camera cuts half the way to her; a close one never reaches her", () => {
+    // the crossing hold: the camera ~22 m from her, a foreground canopy 9 m from the camera
+    setTreeCut({ a: [0, 10, -20], b: [0, 1.4, 0] });
+    expect(inTreeCut([5, 6, -13])).toBe(true);
+    expect(inTreeCut([5, 2, -3])).toBe(false); // by her
+    expect(treeCutUniforms.uTlNearR.value).toBeCloseTo(nearRadius(Math.hypot(8.6, 20)), 5);
+    // a close camera (4 m): the cut stays well short of her
+    expect(nearRadius(4)).toBeLessThan(3);
+    expect(nearRadius(10.5)).toBe(NEAR_CUT_M);
+  });
+
   it("the shader carries the near-camera cut, the screen-door band and the instance-origin test", () => {
     const shader = {
       vertexShader: THREE.ShaderLib.physical.vertexShader,
@@ -163,6 +175,7 @@ describe("decorative cut, ITER2: near the camera (foreground canopies, giant hea
       "distance( vTlCutOrigin.xz, uTlTreeCutA.xz ) < uTlNearInst",
     );
     expect(shader.uniforms.uTlNearR).toBe(treeCutUniforms.uTlNearR);
+    setTreeCut({ a: [0, 4.2, -10], b: [0, 1.4, 0] });
     expect(treeCutUniforms.uTlNearR.value).toBe(NEAR_CUT_M);
     expect(treeCutUniforms.uTlNearInst.value).toBe(NEAR_INSTANCE_M);
   });

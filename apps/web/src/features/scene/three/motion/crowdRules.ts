@@ -1,5 +1,6 @@
 import type { CrowdLook } from "../assets/crowdManifest";
 import { hash01 } from "../assets/fit";
+import { nearRadius } from "../assets/treeCut";
 import { type Agent, PEOPLE_SCALE_NEAR } from "./agents";
 
 /**
@@ -667,8 +668,16 @@ export function keepOutDistance(x: number, z: number, hero: HeroXZ): number {
 
 /** While she holds (not walking), no crowd person within this distance (m) of her. */
 export const HOLD_KEEP_OUT_M = 6;
-/** While a journey is shown, no crowd person this close (m, ground distance) to the camera. */
+/**
+ * While a journey is shown, no crowd person this close (m, ground distance) to the camera at the
+ * follow distance (`nearRadius`): for a farther hold camera, nobody nearer the camera than
+ * PEOPLE_NEAR_SHARE of her distance (a figure that close is drawn far larger than her, cut by the
+ * frame's edge: the giant heads of f_011 / f_021).
+ */
 export const NEAR_CAMERA_PEOPLE_M = 6.5;
+/** ... nor this close (m, ground) to the line from the camera to her (a whole figure, never half cut). */
+export const PEOPLE_LINE_M = 2.5;
+export const PEOPLE_NEAR_SHARE = 0.75;
 /**
  * While a journey is shown, no decorative vehicle (moving traffic) with its centre within this
  * distance (m) of her, of her next 10 m (the keep-out spine), or of the ground line from the camera
@@ -728,7 +737,13 @@ export function personClear(
   camera: { x: number; z: number },
 ): boolean {
   if (!hero) return true;
-  if (Math.hypot(x - camera.x, z - camera.z) < NEAR_CAMERA_PEOPLE_M) return false;
+  const d = Math.hypot(camera.x - hero.x, camera.z - hero.z);
+  if (
+    Math.hypot(x - camera.x, z - camera.z) < nearRadius(d, NEAR_CAMERA_PEOPLE_M, PEOPLE_NEAR_SHARE)
+  )
+    return false;
+  if (segDist2(x, z, camera.x, camera.z, hero.x, hero.z) < PEOPLE_LINE_M * PEOPLE_LINE_M)
+    return false;
   if (hero.hold && Math.hypot(x - hero.x, z - hero.z) < HOLD_KEEP_OUT_M) return false;
   return true;
 }
