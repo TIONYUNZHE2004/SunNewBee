@@ -60,10 +60,10 @@ export const CLAY_PALETTE = {
   archetypeFallback: ["#ece6da", "#a8a196", "#7d7870"],
   /** Single-mesh role material default palette (roleMaterial). [primary, secondary, accent]. */
   roleDefault: ["#ece4d6", "#b5a898", "#d98a74"],
-  /** Fixed archetype roles (COLOR_0.g roles 3-7). Each >= 0.08 luminance (AC-A9). */
+  /** Fixed archetype roles (COLOR_0.g roles 3-7). Each >= CLAY_MIN_LUMINANCE (AC-A9, B-T4). */
   fixedRole: {
     glass: "#7f9bb0",
-    dark: "#6b6878",
+    dark: "#726f80",
     metal: "#d0d2d6",
     foliage: "#72c25b",
     light: "#fff1c9",
@@ -93,6 +93,11 @@ export const CLAY_PALETTE = {
     water: "#7fb6c9",
   },
   landcoverUnknown: "#dbd1bd",
+  /**
+   * Land dressing tones (A-T10, groundDetail / groundDecor): the second grass tone, the farmland
+   * row stripes and the dirt mound. Decorative; the flower clumps reuse `prop.flowers`.
+   */
+  dress: { grassAlt: "#b4d68f", farmRow: "#c2bd84", farmRowAlt: "#e3dfb4", mound: "#c4a27c" },
   /** Road ribbons per kind (groundLayer). Illustrative: a road's colour says nothing about access. The
    * prototype road (#717786) a touch darker, so lit asphalt stays under the street check's 0.35 luminance. */
   road: { major: "#686d7a", residential: "#757a88", footway: "#f2dbb2", other: "#8e919b" },
@@ -120,6 +125,18 @@ export const CLAY_PALETTE = {
     kerb: "#f3ede2",
     planter: "#d9a37a",
     flowers: ["#f2a7c3", "#f4b942", "#e8644f", "#c9a8e8", "#fff3c2"],
+  },
+  /** Street dressing kit (B-T7) extras: signal head and lamps, bus-stop sign, poles, lamp globe, grass. */
+  dressing: {
+    signalHead: "#56596a",
+    signalRed: "#ee6b5e",
+    signalAmber: "#f5c04a",
+    signalGreen: "#5cc08e",
+    busSign: "#4f8fd0",
+    pole: "#c9ccd2",
+    lampGlobe: "#fff3d0",
+    grass: "#7bc561",
+    soil: "#9a6f4b",
   },
   /** Cars (prototype CAR) and car glass. */
   vehicle: ["#e8644f", "#f4f1ea", "#3f88c5", "#f4b942", "#57b38a", "#8f9bb3"],
@@ -174,7 +191,8 @@ export type ClayRole =
   | "propMetal"
   | "person"
   | "vehicle"
-  | "sign";
+  | "sign"
+  | "dressing";
 
 export interface ClayToken {
   /** The role's palette (first entry is the default colour). */
@@ -259,6 +277,7 @@ export const CLAY: Readonly<Record<ClayRole, ClayToken>> = {
       P.landcoverUnknown,
       P.construction.track,
       P.construction.gravel,
+      ...Object.values(P.dress),
     ],
     0.8,
     0.15,
@@ -300,6 +319,23 @@ export const CLAY: Readonly<Record<ClayRole, ClayToken>> = {
   vehicle: t(P.vehicle, 0.6, 0.3),
   sign: t([EFFECT_COLOURS.signBand], 0.7, 0.1),
   // ---- Lane additions (one block per lane; see "Extending the table") ----
+  // journey/be (B-T7 street dressing kit): vertex-coloured props; colours from CLAY_PALETTE.prop,
+  // CLAY_PALETTE.dressing and the zebra marking white.
+  dressing: t(
+    [
+      P.marking,
+      P.prop.wood,
+      P.prop.iron,
+      P.prop.shelter,
+      P.prop.kerb,
+      P.prop.planter,
+      ...P.prop.flowers,
+      ...Object.values(P.dressing),
+    ],
+    0.7,
+    0.35,
+    { prop: true },
+  ),
 };
 
 /** Gate switch: draw `role` with the standard material on every tier (true), or by tier (false). */
@@ -387,8 +423,13 @@ export function wallAndRoofColours(): string[] {
 
 /** Lightness floor (HSL, sRGB) for loaded palette colours: pastel, never murky. */
 export const CLAY_MIN_LIGHTNESS = 0.42;
-/** Relative-luminance floor (linear) for loaded palette colours: above AC-A9's 0.08 with margin. */
-export const CLAY_MIN_LUMINANCE = 0.1;
+/**
+ * Relative-luminance floor (linear) for loaded palette colours and the fixed `dark` role. B-T4 raised
+ * it from 0.1: at 0.1 a roof slope or trim in shade, after baked AO and GTAO, rendered under 0.03
+ * (AC-A9 / AC-B6); `LIGHT_LIMITS.darkAlbedo` in lighting.ts is this value and is tested against
+ * every mood's shade-side light. Clay pastels, never charcoal.
+ */
+export const CLAY_MIN_LUMINANCE = 0.15;
 /** Saturation range a coloured palette entry is lifted or capped into. */
 export const CLAY_SATURATION: readonly [number, number] = [0.2, 0.6];
 /** At or below this saturation a palette ROOF is grey and stays grey (roofPlan's large-roof tint). */

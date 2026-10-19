@@ -96,6 +96,29 @@ def test_union_dedup_by_id_and_proximity():
     assert [f["properties"]["id"] for f in out] == ["osm-node-1", "p-far", "p-shelter"]
 
 
+def test_union_dedup_filters_seed_places_by_the_boundary():
+    """B-T7 carry-over: a seed place outside the outline is never added (>= 5 seed shelters lie
+    outside the Elmina boundary)."""
+    box = shape(
+        {
+            "type": "Polygon",
+            "coordinates": [[[101.0, 3.0], [101.6, 3.0], [101.6, 3.3], [101.0, 3.3], [101.0, 3.0]]],
+        }
+    )
+    places = [
+        {
+            "type": "Feature",
+            "properties": {"id": pid, "type": "shelter"},
+            "geometry": {"type": "Point", "coordinates": [lon, 3.18]},
+        }
+        for pid, lon in (("in", 101.5), ("out", 101.7))
+    ]
+    assert [f["properties"]["id"] for f in union_dedup([], places)] == ["in", "out"]
+    out = union_dedup([], places, boundary=box)
+    assert [f["properties"]["id"] for f in out] == ["in"]
+    assert out[0]["properties"]["source"] == "seed_place"
+
+
 @seed_only
 def test_seed_inside_boundary_unique_valid_sorted():
     boundary = shape(_fc(SEED / "base" / "boundary.geojson")[0]["geometry"])
@@ -111,6 +134,18 @@ def test_seed_inside_boundary_unique_valid_sorted():
         x, y = f["geometry"]["coordinates"]
         assert math.isfinite(x) and math.isfinite(y)
         assert boundary.covers(Point(x, y)), p["id"]
+
+
+@seed_only
+def test_seed_is_the_union_with_seed_places_inside_the_boundary():
+    """Ruling (B-T6/B-T7): bench and shelter fact props = OSM features U seed seating / shelter
+    places inside the outline, deduplicated. The committed file already holds that union."""
+    boundary = shape(_fc(SEED / "base" / "boundary.geojson")[0]["geometry"])
+    feats = _fc(FILE)
+    osm = [f for f in feats if f["properties"].get("source") != "seed_place"]
+    places = _fc(SEED / "base" / "places.geojson")
+    want = [f["properties"]["id"] for f in union_dedup(osm, places, boundary=boundary)]
+    assert [f["properties"]["id"] for f in feats] == want
 
 
 @seed_only

@@ -126,6 +126,10 @@ export interface AcceptanceApi {
   linesOnTop(renderOrder: number, on: boolean): number;
   /** The unmasked WebGL vendor and renderer (WEBGL_debug_renderer_info), else the masked ones. */
   gpu(): { vendor: string; renderer: string };
+  /** Which post effects run now (B-T5 AC-B5): tilt-shift depth of field and AO. */
+  effects(): { dof: boolean; ao: boolean };
+  /** The depth-of-field focus point on the canvas (CSS px), null behind the camera (AC-B4). */
+  focusScreen(): { x: number; y: number } | null;
   /** The building-clearance grid in use (A-T7), or null before the city arrives. Read-only. */
   clearance(): { count: number; clearanceM: number; maxTopM: number } | null;
   /** Top of the tallest drawn footprint containing local (x, z), 0 when none, null without a grid. */
@@ -529,6 +533,41 @@ function crowdReport(engine: Engine): CrowdReport {
     return { x: ((q.x + 1) / 2) * w, y: ((1 - q.y) / 2) * h };
   };
   const walk = (o: THREE.Object3D) => {
+    const bm = o as THREE.BatchedMesh;
+    if (bm.isBatchedMesh && o.userData.crowd) {
+      // The crowd renderer (C-T7): slot i is instance i on both LOD meshes.
+      const lod = Number(o.userData.lod);
+      const ids = o.userData.lookIds as string[];
+      const heights = o.userData.heights as number[];
+      if (lod === 0) planned.person += ids.length;
+      for (let i = 0; i < ids.length; i++) {
+        if (!o.visible || !bm.getVisibleAt(i)) continue;
+        bm.getMatrixAt(i, _cm);
+        _cm.decompose(_cp, _cq, _cs);
+        const hM = heights[i] ?? 0;
+        const feet = proj(_cp);
+        const headW = _cp.clone().setY(_cp.y + hM * _cs.y);
+        const head = proj(headW);
+        const dist = v.camera.position.distanceTo(headW);
+        _ray.set(v.camera.position, headW.clone().sub(v.camera.position).normalize());
+        _ray.far = dist - 0.3;
+        _ray.camera = v.camera;
+        rows.push({
+          kind: "person",
+          variant: ids[i] ?? "",
+          lod,
+          distM: dist,
+          scale: _cs.y,
+          heightM: hM * _cs.y,
+          head,
+          feet,
+          heightPx: head && feet ? Math.abs(feet.y - head.y) : null,
+          inCanvas: !!head && head.x >= 0 && head.x <= w && head.y >= 0 && head.y <= h,
+          occluded: _ray.intersectObjects(blockers, false).length > 0,
+        });
+      }
+      return;
+    }
     const im = o as THREE.InstancedMesh;
     if (im.isInstancedMesh && o.name.startsWith("motion__")) {
       const [, asset, variant, lodTag] = o.name.split("__") as [string, string, string, string];
@@ -918,6 +957,12 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
           return { ...px(), lx, lz, inFront: q.z >= -1 && q.z <= 1, foot: fp };
         }),
       );
+    },
+    effects() {
+      return engine.effects();
+    },
+    focusScreen() {
+      return engine.focusScreen();
     },
     gpu() {
       const gl = engine.gl();

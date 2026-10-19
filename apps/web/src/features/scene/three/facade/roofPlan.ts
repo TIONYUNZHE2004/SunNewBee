@@ -1,4 +1,5 @@
 import { hash01 } from "../assets/fit";
+import { BUILDING_BEVEL } from "../cityMesh";
 import type { FallbackColours } from "../fallbackStyle";
 import { CLAY_PALETTE } from "../shared/clayTokens";
 
@@ -22,6 +23,8 @@ export const SKYLIGHT_W_M = 1.5;
 const SKYLIGHT_H_M = 0.15;
 /** The roof-edge band: width and height (m). */
 export const BAND_W_M = 0.4;
+/** The band's inset from the wall: the extrusion's bevel radius (B-T2). */
+export const BEVEL_IN_M = BUILDING_BEVEL.radiusM;
 const BAND_H_M = 0.3;
 /** Units keep this centre-to-centre distance. */
 const UNIT_SPACING_M = 3.5;
@@ -255,15 +258,18 @@ export function roofDressing(b: RoofBuilding, palette: FallbackColours): RoofDre
     }
   }
 
-  // Roof-edge band: a 0.4 m strip just inside each edge (a decorative coping line).
+  // Roof-edge band: a 0.4 m strip on the flat roof cap, just inside the bevelled edge (B-T2: the
+  // extrusion's top edge is a quarter-round of BUILDING_BEVEL.radiusM, so the band starts there and
+  // stops short of the corners instead of floating over the curve). A decorative coping line.
   const band: number[] = [];
   for (let i = 0; i < pts.length; i++) {
     const [ax, az] = pts[i]!;
     const [bx, bz] = pts[(i + 1) % pts.length]!;
-    const len = Math.hypot(bx - ax, bz - az);
+    const edgeLen = Math.hypot(bx - ax, bz - az);
+    const len = edgeLen - 2 * (BEVEL_IN_M + BAND_W_M);
     if (len < 1) continue;
-    const ex = (bx - ax) / len;
-    const ez = (bz - az) / len;
+    const ex = (bx - ax) / edgeLen;
+    const ez = (bz - az) / edgeLen;
     const mx = (ax + bx) / 2;
     const mz = (az + bz) / 2;
     // Pick the normal that points into the roof, whatever the winding.
@@ -273,7 +279,7 @@ export function roofDressing(b: RoofBuilding, palette: FallbackColours): RoofDre
       nx = -nx;
       nz = -nz;
     }
-    const off = BAND_W_M / 2;
+    const off = BEVEL_IN_M + BAND_W_M / 2;
     writeBox(band, mx + nx * off, y, mz + nz * off, ex, ez, len, BAND_H_M, BAND_W_M);
   }
 

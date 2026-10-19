@@ -329,6 +329,21 @@ after it stops.
   dropped manifest entry (the library collects failures in `failed`; it never warns). Footprints an
   archetype cannot fit, and archetypes with no asset, stay extruded.
 - **`?assets=0`:** skip the assets (no manifest fetch); the extruded city only.
+- **Rounded buildings (B-T2):** extrusions are bevelled by default (`cityMesh.ts` `bevelBody`,
+  `BUILDING_BEVEL`: a 0.5 m quarter-round top edge cut into the body, 0.14 m cuts with smooth normals
+  on convex corners). Walls stay on the OSM outline and the top at `display_height_m`;
+  `cityMesh.fidelity.test.ts` checks every seed building in the boundary (area ±2 %, vertices
+  ≤ 0.15 m, top ±0.1 m). Archetype and landmark glbs round in the role shader only
+  (`BUILDING_SHADER_BEVEL`, a per-model box uniform, so one material per asset, variant and LOD):
+  no extra triangles, nothing moves.
+  The bevel follows the quality tier (`BEVEL_BY_TIER`): Low draws plain boxes, Medium one segment,
+  High two; a tier change re-extrudes only the merged extrusion mesh.
+- **Fact fidelity ruling (B-T2 fix round 1):** archetype models are display stand-ins fitted to the
+  footprint OBB (ADR 0012), so their footprint is not a fact. Footprint fidelity (area, outline) is
+  guaranteed on the extrusion path, which can draw every building. Heights match on every path: an
+  extrusion tops out at `display_height_m`, and an archetype or landmark is scaled by its glb's drawn
+  LOD0 top (manifest `top`), so its top lands there too (`assets/planHeights.test.ts`; a traced
+  landmark tower such as Kanopi is drawn at its documented design height, `heightBasis`).
 - **`?showroom=1`:** replace the plan with `assets/showroom.ts`: every asset variant once at LOD0,
   one row per asset (landmarks on the outer rows). Each row spaces its variants max(30 m, widest
   + 5 m) apart and rows sit max(30 m, half their depths + 5 m) apart, so nothing overlaps and one big
@@ -343,6 +358,44 @@ after it stops.
   triangles, 150 MB.
 - The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
   `dist/city/`.
+
+#### Street dressing kit (Three.js, B-T7)
+
+`dressing/` draws the street dressing in one instanced layer (`scene/useDressing.ts`, decor slot
+`dressing`). Models are built in code (`dressingModels.ts`: bevelled boxes, low cylinders and
+spheres, clay role `dressing`, colours from `CLAY_PALETTE.prop` / `.dressing`).
+
+- **Fact props** (`planFactProps`, every tier): one zebra crossing per walk `crossing` edge whose
+  crossing claim is `marked` / `zebra` (reported or verified; the access layer's `crossing` /
+  `crossing_status`), never on an unmarked or unknown crossing or an edge without its own id, and one
+  traffic signal / bus stop / shelter / bench per `GET /layers/street_furniture` point inside the
+  outline, each instance carrying its `sourceId` (`userData.sourceIds` on the mesh). A prop whose
+  point lies on a drawn ribbon is set just past the ribbon edge. Nothing else draws these models:
+  the decorative props planner no longer places benches or bus shelters. AC-B7 is
+  `dressingPlan.test.ts` on the seed.
+- **Decorative props** (`planDecorProps`, High and Medium): kerb edging, planters and verge tufts
+  along roads, lamp posts beside park paths, flowers and tufts in parks. Seeded, never within 1 m
+  (from the footprint) of any walk line, never in a footprint or outside the outline. They keep
+  "Decorative details are illustrative." on screen (`data-dressing-decor`). Journey modules never
+  import `dressing/` (`importBoundary.test.ts`, AC-B8).
+- Drawn only inside the detail bubble (below); decorative props are re-planned when its focus
+  moves 25 m.
+
+#### Detail bubble (Three.js, B-T8)
+
+`detailBubble.ts` + `scene/useDetailBubble.ts`: street-level detail within 150 m of the focus
+point, which is the rendered hero in follow mode while a journey is loaded (`journeyHero`, the
+D-T6 seam), else the camera's orbit target; no bubble beyond a 1.5 km camera range. One bubble per
+view, on the scene bus (`bus.getState().bubble`); layers `register` with it and hear each move of
+1 m or more.
+
+- Dressing (`useDressing`): each instance fades in / out over 0.5 s at the edge (instance scale by
+  `createBubbleFader` weight; a frame advances a fade by at most 0.1 s, so a long frame gap never
+  pops; frames are requested while a fade runs).
+- Trees: the `trees` kit inside the bubble is drawn at LOD0 whatever the camera distance
+  (`CityInstances.setDetailBubble`, via `useCityAssets().setDetailBubble`). This is a plain LOD
+  swap, with no crossfade.
+- Crowd (C-T7): register with `bus.getState().bubble` to mount LOD0 inside it.
 
 #### Elmina outline and diorama slab (Three.js, A-T4)
 
@@ -466,9 +519,19 @@ where they stopped instead of jumping. Every rebuilt agent layer shares one smoo
   `footway`/`path`/`pedestrian` edges of each streamed tile, weighted ×3 near schools, malls and
   parks. The count is the tile's cap × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
   edges with no routing or collision, so cars can pass through each other.
-- **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD. Matrices are rewritten
+- **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD for vehicles. Matrices are rewritten
   each tick, but only for agents in view (with a 50 m margin). Agents beyond their last LOD's `maxM`
   are hidden. Agents cast no shadows and are left out of the AO pass.
+- **Crowd people (C-T7):** `useMotion` loads the crowd kit once (`motion/crowdKit.ts`: the six
+  `characters/crowd_<body>.glb`, one body per idle slice) and bakes every clip at runtime into a
+  bone-matrix texture (`motion/crowdBake.ts`: per frame and bone the 3×4 `boneWorld(t) × boneWorld(rest)⁻¹`
+  as RGBA half floats, 821 rows × 57 texels = 0.37 MB, 0 bytes on disk; props are one-bone skinned).
+  `motion/crowdRenderer.ts` draws all people as two BatchedMeshes (LOD0 ≤ 60 m, LOD1 ≤ 300 m, hidden
+  beyond: 2 draw calls), skinning in the vertex shader from (row0, row1, blend, look) per instance
+  and recolouring from a palette texture (role × look). The gait phase integrates the distance walked
+  over `stride × display scale` (`motion/crowdGait.ts`, P5: no skating) from a seeded start phase.
+  An agent's optional `look` id picks its look (C-T8 assigns them); else a seeded pick. While the
+  kit loads no people are drawn; if it fails the legacy `people` kit (shader limb swing) is the fallback.
 - **Scale-up:** agents are drawn 1× within 150 m of the camera, rising to 3× at 800 m, for
   legibility. This is display only; the models are unchanged.
 - **Day/Rollout fade:** people and vehicles fade out over 1 s while Elmina Day or Rollout playback

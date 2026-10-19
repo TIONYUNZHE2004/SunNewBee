@@ -39,7 +39,11 @@ def build_manifest(infos: dict[str, GlbInfo], as_of: str, landmarks_fc: dict) ->
                 if node not in info.nodes:
                     raise ValueError(f"{spec.file}: missing node {node}")
                 lods.append({"node": node, "tris": info.nodes[node].tris, "maxM": max_m})
-            variants[v.id] = {"size": list(v.size), "lods": lods}
+            # The drawn top of LOD0 (glb world bounds): the web fit scales height by it, so a
+            # placed model's top lands on the building's display height even when the model rises
+            # above its nominal `size` (domes, minarets, parapets; B-T2 fix round 1).
+            top = round(info.nodes[f"{asset_id}__{v.id}__LOD0"].bounds[1][1], 3)
+            variants[v.id] = {"size": list(v.size), "top": top, "lods": lods}
         assets[asset_id] = {
             "group": spec.group,
             "file": spec.file,

@@ -407,7 +407,7 @@ All Overpass traffic goes through `overpass.py` (cache, backoff, request cap). E
 
 - **Kinds:** `traffic_signals` (`highway=traffic_signals`), `bus_stop` (`highway=bus_stop` or `public_transport=platform`), `shelter` (`amenity=shelter`), `bench` (`amenity=bench`), `picnic_table` (`leisure=picnic_table`).
 - **Features:** one Point each, only inside the boundary, sorted by id. Properties: `id` (`osm-node-<id>`, or `osm-way-<id>` for a way, reduced to its centre point), `kind`, optional `name`, and `osm_tags` (a fixed subset of tags). Crossings are not here; they come from `walk.geojson` `crossing` edges.
-- **Display only.** Routing, evaluation, flood and answers never read it, and the spatial World does not load it. The stylised view draws one prop per feature (AC-B7). `union_dedup()` in the script gives the list to draw: OSM features plus the seed places of type `shelter` / `seating` that coincide with none of them (same id, or within 10 m of an OSM feature of a compatible kind).
+- **Display only.** Routing, evaluation, flood and answers never read it, and the spatial World does not load it. The stylised view draws one prop per feature (AC-B7). `union_dedup()` gives the list to draw, and the script writes it: OSM features plus the seed places of type `shelter` / `seating` inside the outline that coincide with none of them (same id, or within 10 m of an OSM feature of a compatible kind), marked `source: seed_place`. Seed places outside the outline are dropped (B-T7). On the current seed every seed place inside the outline coincides with an OSM feature, so the file is OSM-only. The web reads it through the display-only `GET /layers/street_furniture` (404 when absent).
 
 ### Height sampling (`sample_heights.py`, billable, not in `data:city`)
 

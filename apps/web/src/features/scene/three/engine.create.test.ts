@@ -84,6 +84,14 @@ vi.mock("three/addons/postprocessing/UnrealBloomPass.js", () => ({
     }
   },
 }));
+vi.mock("./tiltShift", async (orig) => ({
+  ...(await orig<typeof import("./tiltShift")>()),
+  CityBokehPass: class {
+    dispose = vi.fn();
+    setSize = vi.fn();
+    aim = vi.fn();
+  },
+}));
 vi.mock("./aoPass", () => ({
   CityGTAOPass: class {
     dispose = vi.fn();
@@ -146,6 +154,28 @@ describe("createEngine", () => {
       expect(spy.blooms.at(-1)).not.toBe(day);
       expect(spy.blooms.at(-1)?.strength).toBe(LIGHT_PRESETS.night.bloom);
       expect(spy.blooms.at(-1)?.enabled).toBe(true);
+      e.dispose();
+    } finally {
+      spy.pmremFails = true;
+    }
+  });
+
+  it("B-T5/AC-B5: depth of field runs on High with FX wanted only; Low also drops AO", async () => {
+    spy.pmremFails = false;
+    try {
+      const { createEngine } = await import("./engine");
+      const e = createEngine(document.createElement("canvas"), "medium");
+      expect(e.effects()).toEqual({ dof: false, ao: true });
+      e.setDof(true);
+      expect(e.effects().dof).toBe(false); // Medium: never
+      e.setTier("high");
+      expect(e.effects()).toEqual({ dof: true, ao: true });
+      e.setDof(false); // FX off or reduced motion
+      expect(e.effects().dof).toBe(false);
+      e.setDof(true);
+      expect(e.effects().dof).toBe(true);
+      e.setTier("low");
+      expect(e.effects()).toEqual({ dof: false, ao: false });
       e.dispose();
     } finally {
       spy.pmremFails = true;

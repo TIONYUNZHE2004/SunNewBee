@@ -52,14 +52,32 @@ export type GroundBand = keyof typeof GROUND_BANDS;
  */
 export const GROUND_GRADE = { value: 1 };
 
-/** Multiplies the diffuse colour by `GROUND_GRADE` (chains any earlier `onBeforeCompile`). */
-export function applyGroundGrade(material: THREE.Material): void {
+/**
+ * Road grade (B-T4, `LightPreset.roadGrade`): the albedo multiplier for the `roads` and `markings`
+ * bands. Asphalt is the darkest large surface, so at night it is graded less than the land cover.
+ */
+export const ROAD_GRADE = { value: 1 };
+
+/** The grade uniform a band reads: roads and markings take ROAD_GRADE, the rest GROUND_GRADE. */
+export function gradeFor(band: GroundBand): { value: number } {
+  return band === "roads" || band === "markings" ? ROAD_GRADE : GROUND_GRADE;
+}
+
+/**
+ * Multiplies the diffuse colour by a grade uniform (default `GROUND_GRADE`; chains any earlier
+ * `onBeforeCompile`).
+ */
+export function applyGroundGrade(
+  material: THREE.Material,
+  grade: { value: number } = GROUND_GRADE,
+): void {
   const prevKey = material.customProgramCacheKey.bind(material);
-  material.customProgramCacheKey = () => `${prevKey()}_groundGrade`;
+  const key = grade === ROAD_GRADE ? "_roadGrade" : "_groundGrade";
+  material.customProgramCacheKey = () => `${prevKey()}${key}`;
   const prev = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {
     prev?.call(material, shader, renderer);
-    shader.uniforms.uGroundGrade = GROUND_GRADE;
+    shader.uniforms.uGroundGrade = grade;
     shader.fragmentShader = shader.fragmentShader
       .replace("void main() {", "uniform float uGroundGrade;\nvoid main() {")
       .replace(
@@ -81,7 +99,7 @@ export const BAND_CLAY: Record<GroundBand, ClayRole> = {
 
 /**
  * Vertex-coloured clay material for one band (token `BAND_CLAY[band]`), with its polygon offset.
- * Every band except `water` takes the night grade. B-T1: the former `roughness` argument is gone;
+ * Every band except `water` takes the night grade (roads and markings: ROAD_GRADE). B-T1: the former `roughness` argument is gone;
  * roughness comes from the band's clay token (0.6-0.8). `tier` defaults to `clayTier()`.
  */
 export function groundMaterial(band: GroundBand, tier?: Tier): ClayMaterial {
@@ -93,6 +111,6 @@ export function groundMaterial(band: GroundBand, tier?: Tier): ClayMaterial {
     polygonOffsetFactor: offset,
     polygonOffsetUnits: offset,
   });
-  if (band !== "water") applyGroundGrade(m);
+  if (band !== "water") applyGroundGrade(m, gradeFor(band));
   return m;
 }

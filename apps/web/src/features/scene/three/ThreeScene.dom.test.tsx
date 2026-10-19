@@ -19,6 +19,7 @@ import { createMotionUniforms } from "./assets/roleMaterial";
 import { BOOKMARKS, type BookmarkId, DEFAULT_BOOKMARK, HERO_CENTRE } from "./bookmarks";
 import type { Pose } from "./cameraRig";
 import { useCityInfo } from "./cityInfo";
+import { KIND_COLOUR } from "./cityMesh";
 import type { Engine, LodTick } from "./engine";
 import { createFrame } from "./frame";
 import { STALL_COLOUR } from "./ground/lotLayer";
@@ -275,6 +276,10 @@ function fakeEngine() {
     setLighting: vi.fn(),
     setFogRange: vi.fn(),
     setTier: vi.fn(),
+    setDof: vi.fn(),
+    setFocusPoint: vi.fn(),
+    effects: vi.fn(() => ({ dof: false, ao: false })),
+    focusScreen: vi.fn(() => null),
     setViewOffset: vi.fn(),
     resize: vi.fn(),
     rig: {
@@ -452,6 +457,88 @@ describe("ThreeScene", () => {
         expect(last?.group.children.length).toBeGreaterThanOrEqual(1);
         expect(last?.group.children[0]?.geometry.getAttribute("position").count).toBeGreaterThan(0);
       });
+    } finally {
+      accessLayer.data = { type: "FeatureCollection", features: [] };
+    }
+  });
+
+  it("B-T7: the dressing kit draws one zebra per marked crossing and the bench from street furniture", async () => {
+    accessLayer.data = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { id: "s1", type: "street" },
+          geometry: {
+            type: "LineString",
+            coordinates: [frame.toLonLat(-100, 30), frame.toLonLat(100, 30)],
+          },
+        },
+        {
+          type: "Feature",
+          properties: {
+            id: "x1",
+            type: "crossing",
+            crossing: "marked",
+            crossing_status: "reported",
+          },
+          geometry: {
+            type: "LineString",
+            coordinates: [frame.toLonLat(10, 25), frame.toLonLat(10, 35)],
+          },
+        },
+        // unmarked: the plain crossing ribbon only, no stripes (fix round 1)
+        {
+          type: "Feature",
+          properties: {
+            id: "x2",
+            type: "crossing",
+            crossing: "unmarked",
+            crossing_status: "reported",
+          },
+          geometry: {
+            type: "LineString",
+            coordinates: [frame.toLonLat(50, 25), frame.toLonLat(50, 35)],
+          },
+        },
+      ],
+    };
+    try {
+      stubFetch((url) => {
+        if (url.includes("/layers/buildings")) return json(BUILDINGS);
+        if (url.includes("/layers/street_furniture"))
+          return json({
+            furniture: {
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
+                  properties: { id: "osm-node-7", kind: "bench" },
+                  geometry: { type: "Point", coordinates: frame.toLonLat(-20, 40) },
+                },
+              ],
+            },
+          });
+        return json({}, 404);
+      });
+      const { engine } = mount();
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+      act(() => engine.tick());
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(Number(s.getAttribute("data-dressing-facts"))).toBe(11));
+      const layer = engine.setDecor.mock.calls.filter((c) => c[0] === "dressing").at(-1)?.[1] as {
+        group: THREE.Group;
+      };
+      const bench = layer.group.getObjectByName("dressing__bench") as THREE.InstancedMesh;
+      expect(bench.count).toBe(1);
+      expect(bench.userData.sourceIds).toEqual(["osm-node-7"]);
+      const zebra = layer.group.getObjectByName("dressing__zebra") as THREE.InstancedMesh;
+      expect(new Set(zebra.userData.sourceIds)).toEqual(new Set(["x1"]));
+      // Decorative kerb edging along the street: the note is on screen.
+      expect(Number(s.getAttribute("data-dressing-decor"))).toBeGreaterThan(0);
+      expect(
+        screen.getByRole("note", { name: "Decorative details are illustrative." }),
+      ).toBeVisible();
     } finally {
       accessLayer.data = { type: "FeatureCollection", features: [] };
     }
@@ -1019,9 +1106,37 @@ describe("ThreeScene", () => {
         return json({}, 404);
       });
     }
-    type Geo = { buildings: THREE.BufferGeometry };
-    const vertsOf = (engine: Fake, call: number) =>
-      (engine.setCity.mock.calls.at(call)![0] as Geo).buildings.getAttribute("position").count;
+    // How many buildings a setCity call extruded (bevelled since B-T2, so counted by building, not
+    // by a fixed per-box vertex count).
+    type Geo = { faces: { ids: string[] } };
+    const builtOf = (engine: Fake, call: number) =>
+      (engine.setCity.mock.calls.at(call)![0] as Geo).faces.ids.length;
+    const geoOf = (engine: Fake, call: number) =>
+      (engine.setCity.mock.calls.at(call)![0] as unknown as { buildings: THREE.BufferGeometry })
+        .buildings;
+    /** Distinct vertex colours (hex) of a setCity call's buildings. */
+    const coloursOf = (engine: Fake, call: number) => {
+      const c = geoOf(engine, call).getAttribute("color");
+      const out = new Set<string>();
+      for (let i = 0; i < c.count; i++)
+        out.add(
+          new THREE.Color().fromBufferAttribute(c as THREE.BufferAttribute, i).getHexString(),
+        );
+      return out;
+    };
+    /** Whether a setCity call's buildings have bevel faces (tilted between wall and roof). */
+    const bevelledOf = (engine: Fake, call: number) => {
+      const p = geoOf(engine, call).getAttribute("position");
+      const [a, b, c] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+      for (let t = 0; t < p.count; t += 3) {
+        a.fromBufferAttribute(p, t);
+        b.fromBufferAttribute(p, t + 1);
+        c.fromBufferAttribute(p, t + 2);
+        const y = new THREE.Triangle(a, b, c).getNormal(new THREE.Vector3()).y;
+        if (Math.abs(y) > 0.05 && Math.abs(y) < 0.95) return true;
+      }
+      return false;
+    };
 
     it("a runtime switch to Low drops kits, lamp pools, agents, birds and markings; Medium restores them", async () => {
       tierFakes.on = true;
@@ -1059,8 +1174,11 @@ describe("ThreeScene", () => {
         expect(driver()).toBeNull();
         expect(tierFakes.layers[0]?.disposed).toBe(1);
         expect(tierFakes.groundTiers.at(-1)).toBe("low");
-        // The city mesh is never rebuilt for a tier change.
-        expect(engine.setCity.mock.calls.length).toBe(cityCalls);
+        // B-T2: the extrusion mesh alone is rebuilt for the tier's bevel; Low draws plain boxes.
+        expect(bevelledOf(engine, cityCalls - 1)).toBe(true);
+        expect(engine.setCity.mock.calls.length).toBe(cityCalls + 1);
+        expect(bevelledOf(engine, -1)).toBe(false);
+        expect(builtOf(engine, -1)).toBe(builtOf(engine, cityCalls - 1));
 
         act(() => useSceneSettings.setState({ quality: "medium" }));
         await waitFor(() => expect(lastDecor("lamp-pools")).toBeTruthy());
@@ -1068,7 +1186,8 @@ describe("ThreeScene", () => {
         expect(lastDecor("ambient")).toBeTruthy();
         expect(driver()?.group.children).toHaveLength(1);
         expect(tierFakes.groundTiers.at(-1)).toBe("medium");
-        expect(engine.setCity.mock.calls.length).toBe(cityCalls);
+        expect(engine.setCity.mock.calls.length).toBe(cityCalls + 2);
+        expect(bevelledOf(engine, -1)).toBe(true);
         // Every rebuilt motion layer shares one YawMemory, so a rebuild never resets agents' yaw.
         expect(tierFakes.yaws.length).toBeGreaterThanOrEqual(2);
         expect(tierFakes.yaws[0]).toBeInstanceOf(Map);
@@ -1123,9 +1242,17 @@ describe("ThreeScene", () => {
       await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
       expect(engine.setAssets).toHaveBeenCalledTimes(1);
       // The full city first (no holes while loading), then only the plain building (one box).
-      expect(vertsOf(engine, 0)).toBe(90);
-      // 30 plus the styled fallback's trim band (6 per ring edge).
-      expect(vertsOf(engine, -1)).toBe(54);
+      expect(builtOf(engine, 0)).toBe(3);
+      expect(builtOf(engine, -1)).toBe(1);
+      // The full city is unstyled (KIND_COLOUR tan only); the extruded fallback is styled (wall,
+      // roof and trim from the manifest palette).
+      const kind = new Set(
+        Object.values(KIND_COLOUR).map((h) => new THREE.Color(h).getHexString()),
+      );
+      expect([...coloursOf(engine, 0)].every((h) => kind.has(h))).toBe(true);
+      const styled = coloursOf(engine, -1);
+      expect(styled.size).toBeGreaterThanOrEqual(3);
+      expect([...styled].some((h) => !kind.has(h))).toBe(true);
       const inst = engine.setAssets.mock.calls[0]?.[0] as CityInstances;
       expect(inst.group).toBeInstanceOf(THREE.Group);
       expect(console.warn).not.toHaveBeenCalled();
@@ -1164,7 +1291,7 @@ describe("ThreeScene", () => {
         await waitFor(() => expect(s).toHaveAttribute("data-assets", "failed"));
         expect(engine.setCity).toHaveBeenCalled();
         for (let i = 0; i < engine.setCity.mock.calls.length; i++)
-          expect(vertsOf(engine, i)).toBe(90);
+          expect(builtOf(engine, i)).toBe(3);
         expect(engine.setAssets).not.toHaveBeenCalled();
         expect(console.warn).toHaveBeenCalledTimes(1);
         expect(s).toHaveAttribute("data-instances", "0");
@@ -1251,7 +1378,7 @@ describe("ThreeScene", () => {
       await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
       expect(s).toHaveAttribute("data-assets", "off");
       expect(fetchFn.mock.calls.some(([u]) => String(u).includes("/city/"))).toBe(false);
-      expect(vertsOf(engine, -1)).toBe(90);
+      expect(builtOf(engine, -1)).toBe(3);
       expect(engine.setAssets).not.toHaveBeenCalled();
     });
 
@@ -1262,7 +1389,7 @@ describe("ThreeScene", () => {
       const s = screen.getByTestId("three-scene");
       await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
       expect(s).toHaveAttribute("data-instances", "1");
-      expect(vertsOf(engine, -1)).toBe(0);
+      expect(builtOf(engine, -1)).toBe(0);
     });
 
     it('?showroom=1 shows a "Model showroom — not the city" chip; without it, or when assets fail, none', async () => {
@@ -1422,7 +1549,7 @@ describe("ThreeScene", () => {
         await waitFor(() => expect(s).toHaveAttribute("data-assets", "failed"));
         await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
         for (let i = 0; i < engine.setCity.mock.calls.length; i++)
-          expect(vertsOf(engine, i)).toBe(120);
+          expect(builtOf(engine, i)).toBe(4);
         expect(engine.setAssets).not.toHaveBeenCalled();
         expect(console.warn).toHaveBeenCalledTimes(1);
         const msg = String(vi.mocked(console.warn).mock.calls[0]?.[0]);
@@ -1436,7 +1563,7 @@ describe("ThreeScene", () => {
         const s = screen.getByTestId("three-scene");
         await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
         // plain + s1 stay extruded (two boxes, 54 vertices each with the trim band); l1 and l2 are instanced.
-        expect(vertsOf(engine, -1)).toBe(108);
+        expect(builtOf(engine, -1)).toBe(2);
         expect(s).toHaveAttribute("data-instances", "2");
         expect(engine.setAssets).toHaveBeenCalledTimes(1);
         expect(console.warn).toHaveBeenCalledTimes(1);
@@ -1458,7 +1585,7 @@ describe("ThreeScene", () => {
         const s = screen.getByTestId("three-scene");
         await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
         // plain + s1 extruded (two boxes, 54 vertices each), not a hole; l1 and l2 instanced.
-        expect(vertsOf(engine, -1)).toBe(108);
+        expect(builtOf(engine, -1)).toBe(2);
         expect(s).toHaveAttribute("data-instances", "2");
         const inst = engine.setAssets.mock.calls[0]?.[0] as CityInstances;
         const names: string[] = [];
@@ -1490,7 +1617,7 @@ describe("ThreeScene", () => {
       await waitFor(() => expect(engine.setCity).toHaveBeenCalledTimes(1));
       open();
       await waitFor(() => expect(s).toHaveAttribute("data-assets", "failed"));
-      await waitFor(() => expect(vertsOf(engine, -1)).toBe(90));
+      await waitFor(() => expect(builtOf(engine, -1)).toBe(3));
       expect(disposed).toHaveBeenCalled();
       // The full city before the assets, then once more for the fallback (not twice: M6).
       await act(async () => {
@@ -1502,7 +1629,7 @@ describe("ThreeScene", () => {
         await qc.invalidateQueries();
       });
       await waitFor(() => expect(engine.setCity.mock.calls.length).toBeGreaterThan(calls));
-      expect(vertsOf(engine, -1)).toBe(90);
+      expect(builtOf(engine, -1)).toBe(3);
       expect(s).toHaveAttribute("data-assets", "failed");
       expect(engine.setAssets).not.toHaveBeenCalled();
       expect(console.warn).toHaveBeenCalledTimes(1);
@@ -1624,7 +1751,11 @@ describe("ThreeScene", () => {
           if (!d) continue;
           for (const o of drawn(d.group)) {
             names.add(o.name);
-            expect(o.userData.decorative, `${slot}/${o.name}`).toBe(true);
+            // Decorative, or (street dressing kit, B-T7) a data-placed fact prop: never an overlay.
+            expect(
+              o.userData.decorative === true || (slot === "dressing" && o.userData.fact === true),
+              `${slot}/${o.name}`,
+            ).toBe(true);
             expect(PROTO.has(o.raycast), `${slot}/${o.name} raycast`).toBe(false);
             expect(o.userData.pick, `${slot}/${o.name}`).toBeUndefined();
             // The ambient birds sit at 12 in the MAIN scene; the overlay pass is drawn after it.

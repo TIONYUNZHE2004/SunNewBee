@@ -77,6 +77,8 @@ const MEDIAN_LAMP_SPACING = 35;
 const PARK_TREE_RADIUS = 22;
 const FOREST_SPACING = 9;
 const OIL_PALM_SPACING = 8;
+/** Scrub is massed with low shrubs and a few trees: a tighter lattice than forest (A-T10). */
+const SCRUB_SPACING = 6;
 const FURNITURE_EDGE_SPACING = 25;
 const PLACE_FURNITURE_RANGE = 15;
 const BOLLARD_SPACING = 1.5;
@@ -318,7 +320,7 @@ export const TREE_SCALE: Record<TreeContext, Record<TreeVariant, [number, number
   forest: open(),
 };
 
-type TreeSource = "osm" | "street" | "median" | "park" | "forest" | "oil";
+type TreeSource = "osm" | "street" | "median" | "park" | "forest" | "oil" | "scrub";
 /**
  * Share of the tree cap each source may take first (nearest-first within a source). Street and
  * OSM trees read best at hero-near/mid, so they get the most; whatever a source cannot use (too few
@@ -330,6 +332,7 @@ export const TREE_SHARES: Record<TreeSource, number> = {
   park: 0.15,
   forest: 0.12,
   oil: 0.08,
+  scrub: 0.05,
   median: 0.05,
 };
 const PARK_SPECIES: [string, number][] = [
@@ -351,6 +354,7 @@ const SRC_RANK: Record<TreeSource, number> = {
   park: 3,
   forest: 4,
   oil: 5,
+  scrub: 6,
 };
 
 export function planProps(input: PropsInput): PropsPlan {
@@ -596,7 +600,7 @@ export function planProps(input: PropsInput): PropsPlan {
       ? src === "street"
         ? "street"
         : "verge"
-      : src === "forest" || src === "oil"
+      : src === "forest" || src === "oil" || src === "scrub"
         ? "forest"
         : "park";
   /**
@@ -715,10 +719,11 @@ export function planProps(input: PropsInput): PropsPlan {
 
   // Polygons carry their global index (`feature.polygon`), so ids never depend on the box.
   const parkPolys = polysOf(input.parks, frame).filter((p) => overlapsClip(p.bb));
-  const lands: Record<"park" | "forest" | "oil", Poly[]> = {
+  const lands: Record<"park" | "forest" | "oil" | "scrub", Poly[]> = {
     park: parkPolys.map((p) => p.poly),
     forest: [],
     oil: [],
+    scrub: [],
   };
   const constructionPolys: { poly: Poly; id: string }[] = [];
   for (const { poly, id, cls, bb } of polysOf(input.landcover, frame)) {
@@ -728,6 +733,7 @@ export function planProps(input: PropsInput): PropsPlan {
     if (cls === "grass") lands.park.push(poly);
     else if (cls === "forest") lands.forest.push(poly);
     else if (cls === "oil_palm") lands.oil.push(poly);
+    else if (cls === "scrub") lands.scrub.push(poly);
     else if (cls === "construction") constructionPolys.push({ poly, id });
   }
 
@@ -829,6 +835,10 @@ export function planProps(input: PropsInput): PropsPlan {
   lattice(lands.forest, forestCell, "fo", jitterAt(forestCell), treeCap, (id, x, z) =>
     tree(id, x, z, hash01(id, "species") < 0.75 ? "rain_tree" : "coconut_palm", "forest"),
   );
+  const scrubCell = SCRUB_SPACING / Math.SQRT2;
+  lattice(lands.scrub, scrubCell, "sc", jitterAt(scrubCell), treeCap, (id, x, z) =>
+    tree(id, x, z, hash01(id, "species") < 0.8 ? "shrub_round" : "frangipani", "scrub"),
+  );
   lattice(
     lands.oil,
     OIL_PALM_SPACING,
@@ -841,15 +851,11 @@ export function planProps(input: PropsInput): PropsPlan {
     (id, x, z) => tree(id, x, z, "oil_palm", "oil"),
   );
 
-  // Park edge and place furniture: bench and bin pairs, bus shelters, entrance bollards.
+  // Park edge and place furniture: bins and entrance bollards. No decorative bench or bus shelter
+  // (B-T7, AC-B7): those are FACT props, drawn one per data feature by the street dressing kit
+  // (`dressing/`), so a decorative copy would imitate a fact.
   const pair = (id: string, x: number, z: number, yaw: number, building = true) => {
-    const tx = Math.cos(yaw);
-    const tz = -Math.sin(yaw);
-    push("furniture", "furniture/bench", `${id}:bench`, x, z, yaw, { building, ribbon: false });
-    push("furniture", "furniture/bin", `${id}:bin`, x + tx * 1.6, z + tz * 1.6, yaw, {
-      building,
-      ribbon: false,
-    });
+    push("furniture", "furniture/bin", `${id}:bin`, x, z, yaw, { building, ribbon: false });
   };
   for (const { poly, id: pid } of parkPolys) {
     const ring = poly[0]!;
@@ -872,10 +878,6 @@ export function planProps(input: PropsInput): PropsPlan {
       const r = 4 + hash01(pl.id, "furnr") * (PLACE_FURNITURE_RANGE - 6);
       pair(`pf:${pl.id}`, pl.x + Math.cos(a) * r, pl.z + Math.sin(a) * r, a + Math.PI);
     }
-    if (pl.type === "shelter")
-      push("furniture", "furniture/bus_shelter", `bs:${pl.id}`, pl.x, pl.z, undefined, {
-        ribbon: false,
-      });
     if ((pl.type === "school" || pl.type === "mall") && pl.entrances.length > 0)
       pl.entrances.forEach((eid, ei) => {
         const a = (ei + hash01(`${pl.id}:${eid}`, "ent")) * 1.9;

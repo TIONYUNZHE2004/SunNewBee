@@ -28,13 +28,20 @@ import {
 import type { CityGeometry } from "./cityMesh";
 import { type Clearance, createLift } from "./clearance";
 import { cullFrustum, shadowPadM } from "./cull";
-import { applyGroundGrade, GROUND_GRADE, groundMaterial } from "./ground/bands";
+import { applyGroundGrade, GROUND_GRADE, groundMaterial, ROAD_GRADE } from "./ground/bands";
 import type { Boundary } from "./ground/boundary";
 import { cityGroundMeshes } from "./ground/cityGround";
 import type { GroundLayer } from "./ground/groundLayer";
 import { shimmerMaterial } from "./ground/landcover";
 import { createSlab, type SlabLayerObject } from "./ground/slab";
-import { BLOOM, fitShadowCamera, type LightPreset } from "./lighting";
+import {
+  AO_PARAMS,
+  BLOOM,
+  fitShadowCamera,
+  type LightPreset,
+  SHADOW,
+  shadowFrame,
+} from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
 import { applyFog } from "./mood";
 import { createMotionClock, type MotionMode, motionModeFor } from "./motion/motionClock";
@@ -44,6 +51,7 @@ import { THREE_TIERS } from "./quality";
 import { applyClayTier, CLAY_PALETTE, clayMaterial, setClayTier } from "./shared/clayTokens";
 import { createSky } from "./sky";
 import { measure, UPLOAD_MEASURE } from "./stream/streamer";
+import { CityBokehPass, focusDepth } from "./tiltShift";
 import { attachWheelZoom, dispatchOwnWheel } from "./zoom";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
@@ -176,6 +184,20 @@ export interface Engine {
   /** Camera range in metres: fog distances scale with it so the township view is never fogged out. */
   setFogRange(rangeM: number): void;
   setTier(t: Tier): void;
+  /**
+   * Tilt-shift depth of field wanted (B-T5): the FX toggle on and motion not reduced. It runs only
+   * where the tier has it too (`THREE_TIERS.dof`, High).
+   */
+  setDof(on: boolean): void;
+  /**
+   * The depth-of-field subject (B-T5), e.g. the journey hero from the follow rig; null falls back
+   * to the camera target (the map centre: a horizontal focus band in a tilted overview).
+   */
+  setFocusPoint(p: THREE.Vector3 | null): void;
+  /** Which effects run now (acceptance AC-B5): depth of field and AO. */
+  effects(): { dof: boolean; ao: boolean };
+  /** The focus point projected to canvas CSS pixels (acceptance AC-B4), null when behind the camera. */
+  focusScreen(): { x: number; y: number } | null;
   setViewOffset(panelPx: number): void;
   resize(w: number, h: number): void;
   rig: CameraRig;
@@ -444,7 +466,7 @@ function build(
   renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // three r186 removed PCFSoftShadowMap: it warns once and uses PCFShadowMap. Ask for that directly
-  // so the console stays clean.
+  // so the console stays clean. r186 PCF honours `shadow.radius` (soft kernel, B-T4: SHADOW).
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.info.autoReset = false;
 
@@ -478,6 +500,9 @@ function build(
   const camera = new THREE.PerspectiveCamera(VFOV_DEG, 1, 2, 30000);
   const sun = new THREE.DirectionalLight();
   const hemi = new THREE.HemisphereLight();
+  // Soft PCF shadows (B-T4). normalBias follows the box size (placeLight).
+  sun.shadow.radius = SHADOW.radius;
+  sun.shadow.bias = SHADOW.bias;
   scene.add(sun, sun.target, hemi);
   let keyDir: [number, number, number] = [0, 1, 0];
   let lastPreset: LightPreset | null = null;
@@ -872,7 +897,24 @@ function build(
 
   let composer = new EffectComposer(renderer);
   let passes: Pass[] = [];
+  /** The live GTAO pass (null on Low or before the first tier), for the per-mood blend. */
+  let aoPass: CityGTAOPass | null = null;
   let bloomPass: UnrealBloomPass | null = null;
+  /** Tilt-shift (B-T5): wanted by the settings, the live pass, its subject, the current tier. */
+  let dofWanted = false;
+  let bokehPass: CityBokehPass | null = null;
+  const focusPoint = new THREE.Vector3();
+  let focusSet = false;
+  let tierNow: Tier = tier;
+  const bokehSkip: THREE.Object3D[] = [];
+  const focusNow = (out: THREE.Vector3) =>
+    focusSet ? out.copy(focusPoint) : out.copy(controls.target);
+  const focusTmp = new THREE.Vector3();
+  const aimBokeh = () => {
+    if (!bokehPass) return;
+    focusNow(focusTmp);
+    bokehPass.aim(focusDepth(camera, focusTmp), camera.position.distanceTo(focusTmp));
+  };
   /** Strength from the mood preset; the pass is skipped while it is 0 (day). */
   const syncBloom = () => {
     if (!bloomPass) return;
@@ -885,6 +927,7 @@ function build(
   });
   const applyTier = (t: Tier) => {
     const spec = THREE_TIERS[t];
+    tierNow = t;
     // Clay (B-T1): new materials follow the tier; live physical clay drops / regains its sheen.
     setClayTier(t);
     applyClayTier(scene, t);
@@ -912,11 +955,22 @@ function build(
     composer = new EffectComposer(renderer);
     composer.setPixelRatio(pr);
     passes = [new RenderPass(scene, camera)];
+    aoPass = null;
     // AO normal/depth pass without the far LOD2 blocks (I3).
-    if (spec.ao)
+    if (spec.ao) {
       // Agents too: small and moving, their AO is invisible and their draws would double.
-      passes.push(
-        new CityGTAOPass(scene, camera, w, h, () => {
+      // B-T4 tuning: clay contact shadows that shade but never blacken (lighting.ts AO_PARAMS),
+      // blended per mood (LightPreset.aoBlend, kept current in setLighting).
+      const params = {
+        ...AO_PARAMS,
+        blendIntensity: lastPreset?.aoBlend ?? AO_PARAMS.blendIntensity,
+      };
+      const ao = new CityGTAOPass(
+        scene,
+        camera,
+        w,
+        h,
+        () => {
           aoSkip.length = 0;
           if (assets) for (const o of assets.aoExcluded()) aoSkip.push(o);
           if (motionLayer) aoSkip.push(motionLayer.group);
@@ -925,8 +979,25 @@ function build(
           // The journey ribbon is Line2 quads (paint over the ground), not a surface for AO.
           if (journey) aoSkip.push(journey.ribbon);
           return aoSkip;
-        }),
+        },
+        params,
       );
+      aoPass = ao;
+      passes.push(ao);
+    }
+    // Tilt-shift (B-T5) after AO, before the markers: markers, residents and journey pins are
+    // drawn after it (overlay pass, renderJourneyMarkers) and are never blurred.
+    bokehPass = null;
+    if (spec.dof && dofWanted) {
+      bokehPass = new CityBokehPass(scene, camera, () => {
+        bokehSkip.length = 0;
+        if (overlays) bokehSkip.push(overlays.lineGroup);
+        if (journey) bokehSkip.push(journey.ribbon);
+        return bokehSkip;
+      });
+      aimBokeh();
+      passes.push(bokehPass);
+    }
     // Markers and residents after the AO pass and before bloom/tone mapping: no occlusion on them,
     // drawn on top. Overlay lines are not here: they draw in the main pass (lineGroup) to depth-test.
     overlayPass = new RenderPass(overlayScene, camera);
@@ -951,7 +1022,13 @@ function build(
 
   const placeLight = () => {
     const t = controls.target;
-    const fit = fitShadowCamera([t.x, t.z], camera.position.distanceTo(t) * 1.2, keyDir);
+    // B-T4 shadow frame: the box follows the focus (>= 70 m), fades out at range.
+    const shadow = shadowFrame(camera.position.distanceTo(t), sun.shadow.mapSize.x);
+    sun.shadow.intensity = shadow.strength;
+    sun.shadow.normalBias = shadow.normalBias;
+    // Faded out (far camera): stop re-rendering the shadow map.
+    sun.shadow.autoUpdate = shadow.strength > 0;
+    const fit = fitShadowCamera([t.x, t.z], shadow.halfSize, keyDir);
     sun.position.set(...fit.position);
     sun.target.position.set(...fit.target);
     sun.target.updateMatrixWorld();
@@ -1080,12 +1157,19 @@ function build(
     }
     if (lodWanted() && lod.due(now)) {
       const rangeM = camera.position.distanceTo(controls.target);
-      // The shadow box half size is fitShadowCamera's radius (placeLight: range x 1.2).
-      if (assets)
+      // The shadow box half size is the shadow frame's (placeLight); no casters needed once faded.
+      if (assets) {
+        const sf = shadowFrame(rangeM, sun.shadow.mapSize.x);
         assets.update(
           camera.position,
-          cullFrustum(camera, shadowPadM(sun.castShadow, rangeM * 1.2), cull, viewProj),
+          cullFrustum(
+            camera,
+            shadowPadM(sun.castShadow && sf.strength > 0, sf.halfSize),
+            cull,
+            viewProj,
+          ),
         );
+      }
       lodTick.target.x = controls.target.x;
       lodTick.target.z = controls.target.z;
       lodTick.rangeM = rangeM;
@@ -1118,6 +1202,7 @@ function build(
         (2 * dist * Math.tan((camera.fov * RAD) / 2)) / Math.max(1, size[1]),
       );
     }
+    aimBokeh();
     const tRender = performance.now();
     composer.render();
     renderJourneyMarkers();
@@ -1415,7 +1500,9 @@ function build(
       renderer.toneMappingExposure = p.exposure;
       (scene.background as THREE.Color).set(p.background);
       sky.setPreset(p);
+      if (aoPass) aoPass.blendIntensity = p.aoBlend;
       GROUND_GRADE.value = p.groundGrade;
+      ROAD_GRADE.value = p.roadGrade;
       lastPreset = p;
       syncBloom();
       applyFog(scene, p, fogRange, fogReachM(fit, fogRange));
@@ -1431,6 +1518,28 @@ function build(
     },
     setTier(t) {
       if (!disposed) applyTier(t);
+    },
+    setDof(on) {
+      if (disposed || on === dofWanted) return;
+      dofWanted = on;
+      // Rebuild the chain only when the tier has depth of field (otherwise nothing changes).
+      if (THREE_TIERS[tierNow].dof) applyTier(tierNow);
+    },
+    setFocusPoint(p) {
+      if (disposed) return;
+      focusSet = !!p;
+      if (p) focusPoint.copy(p);
+      requestRender();
+    },
+    effects() {
+      return { dof: bokehPass !== null, ao: aoPass !== null };
+    },
+    focusScreen() {
+      focusNow(focusTmp);
+      camera.updateMatrixWorld();
+      const v = focusTmp.project(camera);
+      if (v.z > 1 || v.z < -1) return null;
+      return { x: ((v.x + 1) / 2) * size[0], y: ((1 - v.y) / 2) * size[1] };
     },
     setViewOffset(px) {
       if (disposed) return;

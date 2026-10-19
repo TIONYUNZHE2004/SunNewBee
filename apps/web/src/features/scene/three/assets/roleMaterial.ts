@@ -79,6 +79,90 @@ export const AO_FLOOR = 0.4;
  */
 export const AO_FLOOR_BY_ROLE: readonly number[] = [0.4, 0.4, 0.7, 0.85, 0.7, 0.4, 0.4, 0.4];
 
+/**
+ * Rounded edges for the archetype and landmark GLBs (B-T2, AC-B3): a normal-only bevel in the role
+ * shader, chosen over a Blender bevel modifier (no rebuild of every asset, no extra triangles or
+ * bytes, the 4 MB city-kit budget untouched). Nothing moves: positions, footprints and heights are
+ * exactly the fitted model's (AC-B2), only the shading normal tilts.
+ * - Within `radiusM` (world metres, through the instance or mesh scale) of the model's box edges,
+ *   the normal of a face lying on that box side tilts towards the neighbouring side, reaching 45° at
+ *   the edge, so both faces meet with the same normal and the vertical corners and roof edges shade
+ *   as a quarter-round.
+ * - Every vertical face also rounds into the top within `radiusM` of the model's top (the mall's
+ *   parapet follows its OSM outline, not its box).
+ * - `onFaceM`: how far inside the box side a face may lie and still count as on it (plinths and
+ *   reveals keep the main wall a little inside the box).
+ */
+export const BUILDING_SHADER_BEVEL = { radiusM: 0.45, onFaceM: 0.6 };
+
+/** A model's local bounding box (`[x, y, z]` min and max): the shader bevel's reference. */
+export interface BevelBox {
+  min: [number, number, number];
+  max: [number, number, number];
+}
+
+/** The box of a geometry, for `createRoleMaterial({ bevel })`. */
+export function bevelBoxOf(geo: THREE.BufferGeometry): BevelBox | null {
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const b = geo.boundingBox;
+  if (!b || b.isEmpty()) return null;
+  return { min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] };
+}
+
+/** Vertex GLSL: the view-space images of the object axes (the normal transform, instancing aware). */
+export const BEVEL_VERTEX_DECL = `varying vec3 vTlP;
+varying vec3 vTlN;
+varying vec3 vTlAX;
+varying vec3 vTlAY;
+varying vec3 vTlAZ;
+vec3 tlNrm(vec3 n) {
+#ifdef USE_INSTANCING
+  mat3 tlIm = mat3(instanceMatrix);
+  n /= vec3(dot(tlIm[0], tlIm[0]), dot(tlIm[1], tlIm[1]), dot(tlIm[2], tlIm[2]));
+  n = tlIm * n;
+#endif
+  return normalMatrix * n;
+}`;
+
+export const BEVEL_VERTEX = `vTlP = position;
+vTlN = objectNormal;
+vTlAX = tlNrm(vec3(1.0, 0.0, 0.0));
+vTlAY = tlNrm(vec3(0.0, 1.0, 0.0));
+vTlAZ = tlNrm(vec3(0.0, 0.0, 1.0));`;
+
+export const BEVEL_FRAGMENT_DECL = `uniform vec3 uTlBoxMin;
+uniform vec3 uTlBoxMax;
+uniform vec2 uTlBevel;
+varying vec3 vTlP;
+varying vec3 vTlN;
+varying vec3 vTlAX;
+varying vec3 vTlAY;
+varying vec3 vTlAZ;`;
+
+/** Fragment GLSL after `normal_fragment_maps`: tilts the view-space `normal` near the box edges. */
+export const BEVEL_FRAGMENT = `{
+  // |axis image| = 1 / scale along that axis, so these are world metres.
+  vec3 tlS = vec3(1.0 / max(length(vTlAX), 1e-6), 1.0 / max(length(vTlAY), 1e-6), 1.0 / max(length(vTlAZ), 1e-6));
+  vec3 tlQ = vTlP - 0.5 * (uTlBoxMin + uTlBoxMax);
+  vec3 tlH = 0.5 * (uTlBoxMax - uTlBoxMin);
+  vec3 tlFn = normalize(vTlN);
+  float tlDx = (tlH.x - abs(tlQ.x)) * tlS.x;
+  float tlDz = (tlH.z - abs(tlQ.z)) * tlS.z;
+  float tlDy = (uTlBoxMax.y - vTlP.y) * tlS.y;
+  float tlWx = 1.0 - smoothstep(0.0, uTlBevel.x, tlDx);
+  float tlWz = 1.0 - smoothstep(0.0, uTlBevel.x, tlDz);
+  float tlWy = 1.0 - smoothstep(0.0, uTlBevel.x, tlDy);
+  vec3 tlX = normalize(vTlAX) * sign(tlQ.x);
+  vec3 tlY = normalize(vTlAY);
+  vec3 tlZ = normalize(vTlAZ) * sign(tlQ.z);
+  vec3 tlAdd = vec3(0.0);
+  if (abs(tlFn.y) < 0.3) tlAdd += tlWy * tlY;
+  if (abs(tlFn.x) > 0.9 && tlDx < uTlBevel.y) tlAdd += tlWz * tlZ;
+  else if (abs(tlFn.z) > 0.9 && tlDz < uTlBevel.y) tlAdd += tlWx * tlX;
+  else if (tlFn.y > 0.9 && tlDy < uTlBevel.y) tlAdd += tlWx * tlX + tlWz * tlZ;
+  normal = normalize(normal + tlAdd);
+}`;
+
 /** Shared by every kit material; driven by the motion clock (Task 8). */
 export interface MotionUniforms {
   uTime: { value: number };
@@ -145,6 +229,12 @@ export function createRoleMaterial(opts: {
   glassGlow?: number;
   /** Quality tier for the clay factory (High: physical + sheen; below: standard). Default: `clayTier()`. */
   tier?: Tier;
+  /**
+   * Buildings (archetypes, landmarks): the model's box for the normal-only shader bevel
+   * (`BUILDING_SHADER_BEVEL`). The box is a per-material uniform, so each model gets its own
+   * material; the program is shared (`_bv` key).
+   */
+  bevel?: BevelBox;
 }): THREE.MeshStandardMaterial {
   const { instanced, uniforms } = opts;
   const palette = opts.palette ?? DEFAULT_PALETTE;
@@ -161,8 +251,10 @@ export function createRoleMaterial(opts: {
   const mat = clayMaterial(clayRole, { vertexColors: true, tier: opts.tier });
   mat.name = "tl_role";
   const baseKey = instanced ? "tl_role_i" : "tl_role_s";
+  const bevel = opts.bevel;
   mat.customProgramCacheKey = () =>
-    `${moving || parked ? `${baseKey}_${kind}` : baseKey}${flicker ? "_fl" : ""}${glassGlow === 1 ? "" : `_g${glassGlow}`}`;
+    `${moving || parked ? `${baseKey}_${kind}` : baseKey}${flicker ? "_fl" : ""}${glassGlow === 1 ? "" : `_g${glassGlow}`}${bevel ? "_bv" : ""}`;
+  if (bevel) mat.userData.bevel = { box: bevel, ...BUILDING_SHADER_BEVEL };
 
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWindowGlow = uniforms.uWindowGlow;
@@ -245,6 +337,35 @@ if (tlRole == 3 && vColor.b < uLitShare) totalEmissiveRadiance += vec3(1.0, 0.78
       };
 ${parked ? "" : `if (tlRole >= 7) totalEmissiveRadiance += ${vec3Of(FIXED_ROLE_COLOURS.light)} * uLightGlow;`}`,
     );
+    if (bevel) {
+      shader.uniforms.uTlBoxMin = { value: new THREE.Vector3(...bevel.min) };
+      shader.uniforms.uTlBoxMax = { value: new THREE.Vector3(...bevel.max) };
+      shader.uniforms.uTlBevel = {
+        value: new THREE.Vector2(BUILDING_SHADER_BEVEL.radiusM, BUILDING_SHADER_BEVEL.onFaceM),
+      };
+      vs = vs
+        .replace(
+          "void main() {",
+          `${BEVEL_VERTEX_DECL}
+void main() {`,
+        )
+        .replace(
+          "#include <defaultnormal_vertex>",
+          `#include <defaultnormal_vertex>
+${BEVEL_VERTEX}`,
+        );
+      fs = fs
+        .replace(
+          "void main() {",
+          `${BEVEL_FRAGMENT_DECL}
+void main() {`,
+        )
+        .replace(
+          "#include <normal_fragment_maps>",
+          `#include <normal_fragment_maps>
+${BEVEL_FRAGMENT}`,
+        );
+    }
     shader.vertexShader = vs;
     shader.fragmentShader = fs;
     if (motion && moving) applyKind(shader, kind as RoleKind, motion, instanced);

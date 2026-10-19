@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { type LodBucket, lodFor } from "../assets/cityInstances";
-import { paletteFor } from "../assets/fit";
+import { hash01, paletteFor } from "../assets/fit";
 import type { AssetLibrary } from "../assets/library";
 import type { Manifest } from "../assets/manifest";
 import {
@@ -14,11 +14,15 @@ import {
   DENSITY_PEAK,
   densityFor,
   displayScale,
+  easedDistance,
   type MoodMix,
   type Pose2,
   poseAt,
   smoothYaw,
 } from "./agents";
+import type { BakedClip, CrowdKit } from "./crowdBake";
+import { advanceGait, framePair, type GaitState, gaitStartPhase } from "./crowdGait";
+import { type CrowdRenderer, createCrowdRenderer } from "./crowdRenderer";
 
 /**
  * Smoothed yaw per agent id, with the motion time (ms) it was last updated. Keyed by id (not by
@@ -26,7 +30,7 @@ import {
  * smoothly: pass the same map to each rebuild. Each rebuild prunes the ids that are not in its agent
  * set, so streaming never grows the map beyond the latest set.
  */
-export type YawMemory = Map<string, { yaw: number; at: number }>;
+export type YawMemory = Map<string, { yaw: number; at: number; gait?: GaitState }>;
 
 export interface MotionLayer {
   group: THREE.Group;
@@ -56,6 +60,25 @@ export function agentLods(lods: readonly { maxM: number | null }[]): { maxM: num
   );
 }
 const ASSET: Record<Agent["kind"], string> = { person: "people", vehicle: "vehicles" };
+
+/**
+ * The crowd look of a person agent: its `look` id when the kit has it (C-T8 assigns them), else a
+ * seeded pick over all looks. Display only.
+ */
+export function crowdLookIndex(kit: CrowdKit, a: Agent): number {
+  const byId = a.look === undefined ? undefined : kit.lookIndex.get(a.look);
+  if (byId !== undefined) return byId;
+  const n = kit.manifest.looks.length;
+  return Math.min(n - 1, Math.floor(hash01(a.id, "look") * n));
+}
+
+interface CrowdSlot {
+  agent: Agent;
+  rank: number;
+  raw: LodBucket | undefined;
+  walk: BakedClip;
+  idle: BakedClip;
+}
 const KIND: Record<Agent["kind"], RoleKind> = { person: "person", vehicle: "vehicle" };
 
 interface Bucket {
@@ -94,8 +117,15 @@ export function createMotionLayer(
   m: Manifest,
   uniforms: RoleUniforms,
   motion: MotionUniforms,
-  opts: { yaw?: YawMemory } = {},
-): MotionLayer & { setDensity(w: MoodMix): void } {
+  opts: {
+    yaw?: YawMemory;
+    /**
+     * People (C-T7): a crowd kit draws them with the baked-animation crowd renderer; `null` (kit still
+     * loading or failed) draws no people; omitted, the legacy `people` kit with the shader limb swing.
+     */
+    crowd?: CrowdKit | null;
+  } = {},
+): MotionLayer & { setDensity(w: MoodMix): void; crowd: CrowdRenderer | null } {
   const yawMemory: YawMemory = opts.yaw ?? new Map();
   if (opts.yaw) {
     const ids = new Set(agents.map((a) => a.id));
@@ -178,7 +208,27 @@ export function createMotionLayer(
   const total: Record<Agent["kind"], number> = { person: 0, vehicle: 0 };
   const slots: Slot[] = [];
   const lodsByVariant = new Map<string, { maxM: number | null }[]>();
+  const crowdMode = opts.crowd !== undefined;
+  const kit = opts.crowd ?? null;
+  const crowdSlots: CrowdSlot[] = [];
+  const crowdLooks: number[] = [];
+  const crowdLods = kit ? kit.manifest.lods.map((l) => ({ maxM: l.maxM })) : [];
   for (const a of agents) {
+    if (a.kind === "person" && crowdMode) {
+      if (!kit) continue;
+      const look = crowdLookIndex(kit, a);
+      const spec = kit.manifest.looks[look];
+      const clips = spec ? kit.clips[spec.body] : undefined;
+      const walk = spec && clips?.[spec.clips.walk];
+      const idle = spec && clips?.[spec.clips.idle];
+      if (!walk || !idle) continue;
+      const rank = rankOf.get(a.kind) ?? 0;
+      rankOf.set(a.kind, rank + 1);
+      total[a.kind]++;
+      crowdSlots.push({ agent: a, rank, raw: undefined, walk, idle });
+      crowdLooks.push(look);
+      continue;
+    }
     const asset = ASSET[a.kind];
     const spec = m.assets[asset];
     const vspec = spec?.variants[a.variant];
@@ -205,14 +255,31 @@ export function createMotionLayer(
       palette: [new THREE.Color(pal[0]), new THREE.Color(pal[1]), new THREE.Color(pal[2])],
     });
   }
+  const crowd = kit && crowdSlots.length > 0 ? createCrowdRenderer(kit, crowdLooks) : null;
+  if (crowd) group.add(crowd.group);
   const allBuckets = [...bucketsByVariant.values()].flatMap((v) =>
     v.buckets.filter((b): b is Bucket => !!b),
   );
   const active: Record<Agent["kind"], number> = { ...total };
   const pose: Pose2 = { x: 0, z: 0, yaw: 0 };
 
+  /** Smoothed yaw for an agent at pose.yaw; returns it and the seconds since its last update. */
+  const smoothed = (id: string, nowMs: number) => {
+    const mem = yawMemory.get(id);
+    if (!mem) {
+      const fresh: { yaw: number; at: number; gait?: GaitState } = { yaw: pose.yaw, at: nowMs };
+      yawMemory.set(id, fresh);
+      return { yaw: pose.yaw, dt: 0, mem: fresh };
+    }
+    const dt = Math.max(0, nowMs - mem.at) / 1000;
+    mem.yaw = smoothYaw(mem.yaw, pose.yaw, dt);
+    mem.at = nowMs;
+    return { yaw: mem.yaw, dt, mem };
+  };
+
   return {
     group,
+    crowd,
     setDensity(w) {
       const share = Math.min(1, densityFor(w) / DENSITY_PEAK);
       active.person = Math.round(total.person * share);
@@ -233,14 +300,7 @@ export function createMotionLayer(
         _p.set(pose.x, AGENT_LIFT_M, pose.z);
         // Smooth the tangent yaw before the frustum test, so an agent panning into view has
         // already turned. A long gap (hidden, out of range) settles at once (k -> 1).
-        const mem = yawMemory.get(s.agent.id);
-        let yaw = pose.yaw;
-        if (!mem) yawMemory.set(s.agent.id, { yaw, at: nowMs });
-        else {
-          yaw = smoothYaw(mem.yaw, pose.yaw, Math.max(0, nowMs - mem.at) / 1000);
-          mem.yaw = yaw;
-          mem.at = nowMs;
-        }
+        const { yaw } = smoothed(s.agent.id, nowMs);
         if (frustum && !frustum.intersectsSphere(_sphere.set(_p, FRUSTUM_MARGIN_M))) continue;
         const k = displayScale(d);
         _q.setFromAxisAngle(_y, yaw);
@@ -251,6 +311,46 @@ export function createMotionLayer(
         }
         b.n++;
       }
+      // The crowd (C-T7): LOD0 / LOD1 by distance from the manifest, hidden beyond the last band
+      // (300 m); the gait phase integrates the distance walked (crowdGait.ts, P5).
+      for (const [i, s] of crowdSlots.entries()) {
+        if (!crowd) break;
+        if (s.rank >= active.person) {
+          crowd.hide(i);
+          continue;
+        }
+        poseAt(s.agent, t, pose);
+        const d = Math.hypot(pose.x - camera.x, camera.y, pose.z - camera.z);
+        const raw = lodFor(d, crowdLods, s.raw);
+        s.raw = raw;
+        if (raw < 0) {
+          crowd.hide(i);
+          continue;
+        }
+        _p.set(pose.x, AGENT_LIFT_M, pose.z);
+        const { yaw, dt, mem } = smoothed(s.agent.id, nowMs);
+        const k = displayScale(d);
+        const dist = easedDistance(s.agent, t);
+        if (!mem.gait)
+          mem.gait = { phase: gaitStartPhase(s.agent.id, dist, s.walk, k), dist, idle: false };
+        else advanceGait(mem.gait, dist, dt, k, s.walk, s.idle);
+        if (frustum && !frustum.intersectsSphere(_sphere.set(_p, FRUSTUM_MARGIN_M))) {
+          crowd.hide(i);
+          continue;
+        }
+        const clip = mem.gait.idle ? s.idle : s.walk;
+        const f = framePair(mem.gait.phase, clip.frames);
+        _q.setFromAxisAngle(_y, yaw);
+        crowd.set(
+          i,
+          raw === 0 ? 0 : 1,
+          _m.compose(_p, _q, _s.set(k, k, k)),
+          clip.row + f.f0,
+          clip.row + f.f1,
+          f.t,
+        );
+      }
+      crowd?.commit();
       for (const b of allBuckets) {
         const was = b.mesh.count;
         b.mesh.count = b.n;
@@ -262,6 +362,7 @@ export function createMotionLayer(
     },
     setOpacity(o) {
       for (const mt of materials.values()) mt.opacity = o;
+      crowd?.setOpacity(o);
       group.visible = o > 0;
     },
     dispose() {
@@ -274,6 +375,7 @@ export function createMotionLayer(
         g.dispose();
       }
       for (const mt of materials.values()) mt.dispose();
+      crowd?.dispose();
       group.clear();
     },
   };

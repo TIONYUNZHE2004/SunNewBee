@@ -16,6 +16,7 @@ import {
   moodSource,
   moodWeights,
 } from "../mood";
+import { sunNow } from "../sunClock";
 import type { SceneBus } from "./sceneBus";
 
 /** Mood crossfade on a source change: day to dusk, and any other pair. */
@@ -56,7 +57,8 @@ export function useMood({
         dayOn: day.on,
         dayT: day.t,
         choice: useTheme.getState().choice,
-        now: new Date(),
+        // The clock source: the real time, or the pinned sun time (acceptance, demo; sunClock.ts).
+        now: sunNow(),
       });
     };
     const apply = (w: MoodWeights, src: MoodSource) => {
@@ -69,7 +71,7 @@ export function useMood({
       roleUniforms.uLightGlow.value = g.uLightGlow;
       const preset = moodPreset(w);
       if (sectionRef.current) sectionRef.current.style.background = preset.background;
-      engine.setLighting(preset, moodKeyDir(src, w, new Date(), home.lat, home.lon));
+      engine.setLighting(preset, moodKeyDir(src, w, sunNow(), home.lat, home.lon));
     };
     const step = () => {
       raf = 0;
