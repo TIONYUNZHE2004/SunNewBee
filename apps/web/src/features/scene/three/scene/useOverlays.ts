@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useEvacCentres, useGaps, useLayer, useScenarioWater } from "../../../../lib/api";
 import { gapsActive } from "../../../gaps/gapModel";
+import { useJourney } from "../../../journey/journeyStore";
 import { type LonLat, pointFeatures } from "../../geo";
+import { useSceneSettings } from "../../sceneSettingsStore";
 import { useScene } from "../../sceneStore";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
+import type { Boundary } from "../ground/boundary";
 import { createOverlayLayer, type OverlayLayer } from "../overlays/accessLayers";
 import { useResidents } from "../overlays/useResidents";
 import { lineToLocal } from "../routeLine";
@@ -21,17 +24,24 @@ export function useOverlays({
   accessData,
   onScreen,
   running,
+  boundary = null,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
   accessData: LayerData | undefined;
   onScreen: boolean;
   running: boolean;
+  /** The Elmina outline: place markers outside it are hidden (display only). */
+  boundary?: Boundary | null;
 }) {
   const route = useScene((s) => s.route);
+  // While a journey plays, its own ribbon (features/journey) draws the trip's route by status; the
+  // blue overlay line would sit on top of it (overlay pass), so it steps aside.
+  const journeyOn = useJourney((s) => !!s.plan);
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const accessVisible = useScene((s) => s.lensVisible.access);
+  const pathStatus = useSceneSettings((s) => s.pathStatus);
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const whatIf = useScene((s) => s.whatIf);
   const gapsQ = useGaps(profile, gapsOn && accessVisible);
@@ -39,12 +49,32 @@ export function useOverlays({
   const floodLens = useScene((s) => s.lensVisible.flood);
   const wasteLens = useScene((s) => s.lensVisible.waste);
   const focusPlaceId = useScene((s) => s.focusPlaceId);
+  const selectedPlaceId = useScene((s) => s.selectedPlaceId);
+  const vrs = useJourney((s) => s.vrs);
+  const journeyLine = useJourney((s) => s.plan?.polyline ?? null);
+  // Never hide what the user is being shown (A-T5 fix round 2): the selected place, places a
+  // verification request targets (the focused place is added by the layer), and the ends of the
+  // current route and journey.
+  const keepPlaceIds = useMemo(
+    () => [...(selectedPlaceId ? [selectedPlaceId] : []), ...vrs.map((v) => v.element_id)],
+    [selectedPlaceId, vrs],
+  );
+  const keepNear = useMemo(() => {
+    const ends: number[][] = [];
+    const line = (route?.geojson.coordinates ?? []) as number[][];
+    for (const l of [line, (journeyLine ?? []) as number[][]])
+      if (l.length) ends.push(l[0] as number[], l[l.length - 1] as number[]);
+    return ends;
+  }, [route, journeyLine]);
   const floodOn = !!scenarioId && floodLens;
   const waterQ = useScenarioWater(floodOn ? scenarioId : null);
   const floodQ = useLayer("flood", profile, scenarioId, floodOn);
   const wasteQ = useLayer("waste", profile, scenarioId, wasteLens);
   const evacQ = useEvacCentres(floodOn ? scenarioId : null, profile);
-  /** Place markers built into the overlay (honest count of the access layer's points). */
+  /**
+   * Place markers drawn (`data-markers`): the access layer's points minus those hidden off the slab
+   * (A-T5); without an outline, every point.
+   */
   const [markerCount, setMarkerCount] = useState(0);
 
   const routePositions = useMemo(
@@ -70,9 +100,10 @@ export function useOverlays({
     overlay.update({
       access: accessData ?? null,
       accessVisible,
+      pathStatus,
       gaps: gapsQ.data ?? null,
       gapsOn,
-      route: routeOn ? (route?.geojson ?? null) : null,
+      route: routeOn && !journeyOn ? (route?.geojson ?? null) : null,
       whatIf,
       water: waterQ.data ?? null,
       floodEdges: floodQ.data ?? null,
@@ -81,17 +112,22 @@ export function useOverlays({
       wasteOn: wasteLens,
       evac: evacQ.data ?? null,
       focusPlaceId,
+      boundary,
+      keepPlaceIds,
+      keepNear,
     });
-    setMarkerCount(accessVisible ? pointFeatures(accessData).length : 0);
+    setMarkerCount(accessVisible ? overlay.drawnPlaces() : 0);
     engine.requestRender();
   }, [
     engine,
     overlay,
     accessData,
     accessVisible,
+    pathStatus,
     gapsQ.data,
     gapsOn,
     routeOn,
+    journeyOn,
     route,
     whatIf,
     waterQ.data,
@@ -101,6 +137,9 @@ export function useOverlays({
     wasteLens,
     evacQ.data,
     focusPlaceId,
+    boundary,
+    keepPlaceIds,
+    keepNear,
   ]);
   // Elmina Day and rollout residents ride the same overlay layer.
   useResidents(engine, overlay, frame, { onScreen, clockRunning: running });

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseManifest } from "../assets/manifest";
 import { createFrame } from "../frame";
+import { clayPalette } from "../shared/clayTokens";
 import { boxAround } from "../stream/area";
 import { tileAt } from "../stream/tiles";
 import { planConstruction, TRACK_STRIDE, TRACK_WIDTH_M } from "./construction";
@@ -58,7 +59,15 @@ describe("construction.ts (split out of propsPlan)", () => {
     ] as const) {
       const p = planProps({ ...input, area: { box: boxAround(0, 0, 1200), seed: "t" }, caps });
       const after = [...p.kits].filter(([k]) => k.startsWith("construction/"));
-      expect(JSON.parse(JSON.stringify(after))).toEqual(before[name]);
+      // B-T1: palettes now load through the clay token table; the fixture predates it.
+      const want = (before[name] ?? []).map(([k, list]) => [
+        k,
+        (list as { palette: [string, string, string]; asset: string }[]).map((pl) => ({
+          ...pl,
+          palette: clayPalette(pl.palette, pl.asset),
+        })),
+      ]);
+      expect(JSON.parse(JSON.stringify(after))).toEqual(want);
     }
   });
 });

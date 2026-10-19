@@ -150,6 +150,16 @@ class DeepSpot(BaseModel):
     bbox: list[float]  # [w, s, e, n]
 
 
+class BoundaryRef(BaseModel):
+    """Display-only Elmina outline (base/boundary.geojson); routing and answers never read it."""
+
+    file: str
+    source: str  # owner_master_plan | osm_relation | fallback_union
+    method: str
+    area_km2: float
+    as_of: str
+
+
 class SceneConfig(BaseModel):
     hero: str = "cesium_google_photoreal"
     fallback: str = "cesium_osm_buildings"
@@ -175,6 +185,7 @@ class Site(BaseModel):
     )
     attribution: list[str] = Field(default_factory=list)
     data_as_of: str | None = None
+    boundary: BoundaryRef | None = None
 
 
 class Scenario(BaseModel):

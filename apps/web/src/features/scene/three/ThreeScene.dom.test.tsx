@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGlb } from "../../../test/glbFixture";
 import { json, newQueryClient, renderWithClient, stubFetch } from "../../../test/helpers";
 import { useTheme } from "../../../ui/theme";
+import demoJourney from "../../journey/fixtures/demoPlan.json";
+import type { JourneyPlan } from "../../journey/timeline";
 import { usePanel } from "../../main/panelStore";
 import { usePerfStats } from "../cesium/PerfOverlay";
 import { useSceneSettings } from "../sceneSettingsStore";
@@ -19,9 +21,10 @@ import type { Pose } from "./cameraRig";
 import { useCityInfo } from "./cityInfo";
 import type { Engine, LodTick } from "./engine";
 import { createFrame } from "./frame";
+import { STALL_COLOUR } from "./ground/lotLayer";
 import { LIGHT_PRESETS } from "./lighting";
 import type { PickHit } from "./pick";
-import ThreeScene from "./ThreeScene";
+import ThreeScene, { DECORATIVE_NOTE } from "./ThreeScene";
 
 const CENTER: [number, number] = [101.5099, 3.1813];
 const SITE = {
@@ -268,6 +271,7 @@ function fakeEngine() {
     motion: createMotionUniforms(),
     setBounds: vi.fn(),
     setOverlays: vi.fn(),
+    setJourney: vi.fn(),
     setLighting: vi.fn(),
     setFogRange: vi.fn(),
     setTier: vi.fn(),
@@ -343,6 +347,7 @@ const reducedMq = () => ({
 });
 
 type Fake = ReturnType<typeof fakeEngine>;
+const journeyPlan = demoJourney as unknown as JourneyPlan;
 
 function mount(engine: Fake = fakeEngine(), onOps?: (o: unknown) => void) {
   const createEngineFn = vi.fn(() => engine as unknown as Engine);
@@ -390,6 +395,7 @@ beforeEach(() => {
     focusRouteRequest: null,
   });
   usePanel.setState({ open: false });
+  useSceneSettings.setState({ pathStatus: false });
   history.replaceState(null, "", "/");
   instancesFault.on = false;
   libraryHook.next = null;
@@ -470,6 +476,54 @@ describe("ThreeScene", () => {
     expect(g.buildings.getAttribute("position")).toBeTruthy();
   });
 
+  it("AC-A1: Path status off builds no status-line objects but the route highlight still draws; on draws them", async () => {
+    const home = frame.toLonLat(0, 0);
+    const east = frame.toLonLat(80, 0);
+    accessLayer.data = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { id: "e1", type: "street", status: "unknown" },
+          geometry: { type: "LineString", coordinates: [home, east] },
+        },
+      ],
+    };
+    try {
+      const { engine } = mount();
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+      act(() =>
+        useScene.getState().applyIntent({
+          kind: "route.highlight",
+          route_id: "r1",
+          geojson: route,
+        } as never),
+      );
+      await waitFor(() =>
+        expect(screen.getByTestId("three-scene")).toHaveAttribute("data-route", "on"),
+      );
+      const layer = engine.setOverlays.mock.calls.filter((c: unknown[]) => c[0]).at(-1)?.[0];
+      // status lines are renderOrder 10, the route 13; count what is in the scene graph
+      const count = (order: number) => {
+        let n = 0;
+        layer.lineGroup.traverse((o: { isLineSegments2?: boolean; renderOrder: number }) => {
+          if (o.isLineSegments2 && o.renderOrder === order) n++;
+        });
+        return n;
+      };
+      expect(count(10)).toBe(0);
+      expect(count(13)).toBe(1);
+      act(() => useSceneSettings.getState().setPathStatus(true));
+      await waitFor(() => expect(count(10)).toBeGreaterThan(0));
+      expect(count(13)).toBe(1);
+      act(() => useSceneSettings.getState().setPathStatus(false));
+      await waitFor(() => expect(count(10)).toBe(0));
+      expect(count(13)).toBe(1);
+    } finally {
+      accessLayer.data = { type: "FeatureCollection", features: [] };
+    }
+  });
+
   it('route.highlight sets a route (data-route="on") and clearRoute removes it ("off"); the line is drawn by the overlay layer', async () => {
     const { engine } = mount();
     await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
@@ -486,7 +540,7 @@ describe("ThreeScene", () => {
     expect(layer).toBeTruthy();
     const routeLines = () => {
       const out: { renderOrder: number; count: number }[] = [];
-      layer.group.traverse(
+      layer.lineGroup.traverse(
         (o: {
           renderOrder: number;
           isLineSegments2?: boolean;
@@ -506,6 +560,51 @@ describe("ThreeScene", () => {
     act(() => useScene.getState().clearRoute());
     await waitFor(() => expect(s).toHaveAttribute("data-route", "off"));
     expect(routeLines()).toEqual([]);
+  });
+
+  it("journey.play (D-T7): ribbon layer set, the blue route steps aside, label shown, decorative note kept", async () => {
+    const { engine } = mount();
+    await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+    act(() =>
+      useScene.getState().applyIntent({
+        kind: "route.highlight",
+        route_id: "r1",
+        geojson: route,
+      } as never),
+    );
+    const s = screen.getByTestId("three-scene");
+    await waitFor(() => expect(s).toHaveAttribute("data-route", "on"));
+    const layer = engine.setOverlays.mock.calls.find((c: unknown[]) => c[0])?.[0];
+    // A-T2: overlay lines live in the main-scene lineGroup
+    const routeBatches = () => {
+      let n = 0;
+      layer.lineGroup.traverse((o: { isLineSegments2?: boolean; renderOrder: number }) => {
+        if (o.isLineSegments2 && o.renderOrder === 13) n++;
+      });
+      return n;
+    };
+    expect(routeBatches()).toBe(1);
+    const decorBefore = screen.queryByRole("note", { name: DECORATIVE_NOTE }) !== null;
+    act(() =>
+      useScene.getState().applyIntent({
+        kind: "journey.play",
+        route_id: journeyPlan.route_id,
+        start_time: journeyPlan.start_time,
+        journey: journeyPlan,
+      } as never),
+    );
+    await waitFor(() =>
+      expect(engine.setJourney).toHaveBeenCalledWith(
+        expect.objectContaining({ ribbon: expect.anything(), markers: expect.anything() }),
+      ),
+    );
+    expect(
+      screen.getByRole("note", { name: "Simulation · indicative times, not a prediction" }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(routeBatches()).toBe(0));
+    expect(screen.queryByRole("note", { name: DECORATIVE_NOTE }) !== null).toBe(decorBefore);
+    act(() => useScene.getState().reset());
+    await waitFor(() => expect(engine.setJourney).toHaveBeenLastCalledWith(null));
   });
 
   it("camera.fly_to calls rig.flyTo with the goal converted to a Pose (pitch -45, range from the intent)", async () => {
@@ -1542,7 +1641,7 @@ describe("ThreeScene", () => {
           | undefined;
         expect(marks).toBeDefined();
         const col = marks!.geometry.getAttribute("color");
-        const stall = new THREE.Color("#f2f1ec");
+        const stall = new THREE.Color(STALL_COLOUR);
         let white = 0;
         for (let i = 0; i < col.count; i++)
           if (new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)).getHex() === stall.getHex())
@@ -1555,6 +1654,7 @@ describe("ThreeScene", () => {
         // The overlay layer handed to the engine: lines, flood edges and markers draw on top.
         const overlay = engine.setOverlays.mock.calls.filter((c) => c[0]).at(-1)?.[0] as {
           group: THREE.Group;
+          lineGroup: THREE.Group;
           update(s: unknown): void;
         };
         expect(overlay).toBeDefined();
@@ -1573,6 +1673,7 @@ describe("ThreeScene", () => {
               features: [line("a", "blocked", 0), line("b", "unknown", 10)],
             },
             accessVisible: true,
+            pathStatus: true,
             gaps: null,
             gapsOn: false,
             route: {
@@ -1584,12 +1685,14 @@ describe("ThreeScene", () => {
             floodOn: true,
           }),
         );
-        const overlayDrawn = drawn(overlay.group);
+        const overlayDrawn = [...drawn(overlay.group), ...drawn(overlay.lineGroup)];
         expect(overlayDrawn.length).toBeGreaterThanOrEqual(4);
         for (const o of overlayDrawn) {
           const mats = (o as THREE.Mesh).material;
           for (const m of Array.isArray(mats) ? mats : [mats])
-            expect((m as THREE.Material).depthTest, o.name).toBe(false);
+            expect((m as THREE.Material).depthTest, o.name).toBe(
+              !!(m as { isLineMaterial?: boolean }).isLineMaterial,
+            );
           expect(o.renderOrder, o.name).toBeGreaterThanOrEqual(10);
           expect(o.renderOrder, o.name).toBeGreaterThan(maxDecor);
         }

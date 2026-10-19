@@ -1,6 +1,7 @@
 import { hash01, jitterFor, type Placement, paletteFor } from "../assets/fit";
 import type { Manifest } from "../assets/manifest";
 import type { LocalFrame } from "../frame";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import { type Box, boxCentre, inBox, perLayer, touchesBox } from "../stream/area";
 import type { Tile } from "../stream/tiles";
 import {
@@ -40,8 +41,8 @@ export const CRANE_PER_M2 = 10000;
 export const MAX_PER_KIND = 40;
 /** Earth track width (m) and the colours the renderer uses for the tracks and the site tint. */
 export const TRACK_WIDTH_M = 4;
-export const TRACK_COLOUR = "#8a7556";
-export const GRAVEL_TINT = "#b9ad96";
+export const TRACK_COLOUR: string = CLAY_PALETTE.construction.track;
+export const GRAVEL_TINT: string = CLAY_PALETTE.construction.gravel;
 /** Floats per track segment in `tracks`: x0, z0, x1, z1 (the centre line; the band is 4 m wide). */
 export const TRACK_STRIDE = 4;
 const TRACK_STEP_M = 2;

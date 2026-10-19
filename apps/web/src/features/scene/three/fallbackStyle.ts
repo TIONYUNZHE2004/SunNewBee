@@ -1,5 +1,6 @@
-import { paletteFor, precinctGroupOf } from "./assets/fit";
+import { hash01, paletteFor, precinctGroupOf } from "./assets/fit";
 import type { Manifest } from "./assets/manifest";
+import { CLAY_PALETTE } from "./shared/clayTokens";
 
 export interface FallbackColours {
   wall: string;
@@ -8,14 +9,10 @@ export interface FallbackColours {
 }
 
 /** No manifest: a neutral warm white wall, dark roof and a slightly darker parapet. */
-export const NEUTRAL_COLOURS: FallbackColours = {
-  wall: "#ece8df",
-  roof: "#3d4147",
-  trim: "#d8d3c8",
-};
+export const NEUTRAL_COLOURS: FallbackColours = { ...CLAY_PALETTE.neutral };
 
 /** The archetype whose palette stands in for a building of this OSM kind. Display only. */
-const KIND_ARCHETYPE: Record<string, string> = {
+export const KIND_ARCHETYPE: Record<string, string> = {
   residential: "semi_d",
   commercial: "shop_office",
   office: "shop_office",
@@ -23,6 +20,22 @@ const KIND_ARCHETYPE: Record<string, string> = {
   industrial: "factory",
   civic: "school",
 };
+
+/** Flat-roof block archetypes: their manifest palettes hold only three walls, so they also draw from BLOCK_WALLS. */
+const BLOCK_ARCHETYPES = new Set([
+  "generic",
+  "shop_office",
+  "highrise",
+  "school",
+  "mosque",
+  "factory",
+  "mall",
+]);
+/**
+ * Extra pale wall tones for flat-roof blocks (A-T9): sand, sage, peach, stone. Picked by
+ * hash01(id, "wall:variant") together with the palette wall. Display only; none is a water colour.
+ */
+export const BLOCK_WALLS = CLAY_PALETTE.blockWalls;
 
 const hex2 = (n: number) => Math.round(n).toString(16).padStart(2, "0");
 /** The wall colour darkened by 8%: the parapet band reads as a coping, not a stripe. */
@@ -49,7 +62,12 @@ export function fallbackColours(
     "generic";
   const spec = m.assets[name] ?? m.assets.generic ?? Object.values(m.assets)[0];
   if (!spec) return NEUTRAL_COLOURS;
-  const [wall, roof] = paletteFor(spec, precinctGroupOf(p.precinct, groups), p.id);
+  const [palWall, roof] = paletteFor(spec, precinctGroupOf(p.precinct, groups), p.id);
+  let wall = palWall;
+  if (BLOCK_ARCHETYPES.has(name)) {
+    const pool = [palWall, ...BLOCK_WALLS];
+    wall = pool[Math.min(pool.length - 1, Math.floor(hash01(p.id, "wall:variant") * pool.length))]!;
+  }
   return { wall, roof, trim: darken(wall) };
 }
 

@@ -4207,7 +4207,53 @@
         "title": "SimViolation",
         "type": "object"
       },
-      "Site": {
+      "SiteBoundary": {
+        "description": "The display-only Elmina outline with its geometry, for the stylised renderer's clip and\ndiorama slab. Routing, evaluation and answers never read it. `geometry` is null when the file\nis missing, unreadable or not one Polygon / MultiPolygon.",
+        "properties": {
+          "area_km2": {
+            "title": "Area Km2",
+            "type": "number"
+          },
+          "as_of": {
+            "title": "As Of",
+            "type": "string"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "source",
+          "method",
+          "area_km2",
+          "as_of"
+        ],
+        "title": "SiteBoundary",
+        "type": "object"
+      },
+      "SiteInfo": {
         "properties": {
           "attribution": {
             "items": {
@@ -4222,6 +4268,16 @@
             },
             "title": "Bbox",
             "type": "array"
+          },
+          "boundary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SiteBoundary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "center": {
             "items": {
@@ -4302,7 +4358,7 @@
           "center",
           "bbox"
         ],
-        "title": "Site",
+        "title": "SiteInfo",
         "type": "object"
       },
       "Stage": {
@@ -6923,7 +6979,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Site"
+                  "$ref": "#/components/schemas/SiteInfo"
                 }
               }
             },

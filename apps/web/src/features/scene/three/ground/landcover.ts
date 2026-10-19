@@ -1,27 +1,16 @@
 import * as THREE from "three";
 import { localRing, triangulate } from "../cityMesh";
 import type { LocalFrame } from "../frame";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import { LANDCOVER_MAX_Y } from "./bands";
 
 /**
  * Decorative land-cover tints (ESA WorldCover / OSM). Fill only: no outline, no hatch, no meaning.
- * Water is the BASE water blue, never the flood scenario blue (#1e6fb8).
+ * Water is the BASE water blue, never the flood scenario blue. Colours: the clay token table.
  */
-export const LANDCOVER_COLOURS: Record<string, string> = {
-  forest: "#6f9a5b",
-  grass: "#9cc483",
-  scrub: "#8fae6e",
-  farmland: "#c9c98f",
-  oil_palm: "#7d9a55",
-  residential: "#e6e1d6",
-  commercial: "#e0dbe4",
-  industrial: "#d9d6cf",
-  parking: "#c7c4bd",
-  construction: "#c9b28d",
-  bare: "#d8ccb3",
-  water: "#7fb6c9",
-};
-const UNKNOWN_COLOUR = "#d8d3c8";
+export const LANDCOVER_COLOURS: Record<string, string> = { ...CLAY_PALETTE.landcover };
+export const UNKNOWN_LANDCOVER_COLOUR: string = CLAY_PALETTE.landcoverUnknown;
+const UNKNOWN_COLOUR = UNKNOWN_LANDCOVER_COLOUR;
 
 /** Draw order, lowest first. */
 export const LANDCOVER_ORDER = [

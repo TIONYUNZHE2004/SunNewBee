@@ -1,10 +1,18 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { CLAY, CLAY_PALETTE } from "../shared/clayTokens";
 import {
+  AO_FLOOR,
+  AO_FLOOR_BY_ROLE,
+  aoFloorGlsl,
   createMotionUniforms,
   createRoleMaterial,
   createRoleUniforms,
+  FIXED_ROLE_COLOURS,
   type MotionUniforms,
+  ROLE_CLAY,
+  ROLE_SHEEN_GLSL,
+  roleResponseGlsl,
 } from "./roleMaterial";
 
 function compile(
@@ -38,6 +46,30 @@ describe("createRoleMaterial", () => {
     expect(shader.uniforms.uLightGlow).toBe(uniforms.uLightGlow);
     expect(shader.uniforms.uAoStrength).toBe(uniforms.uAoStrength);
     expect(mat.vertexColors).toBe(true);
+  });
+
+  it("floors the baked AO so a zero corner never multiplies the role colour to black (A-T8)", () => {
+    const { shader } = compile(true);
+    expect(shader.fragmentShader).toContain("max(vColor.r, tlAoFloor)");
+    expect(shader.fragmentShader).toContain(aoFloorGlsl());
+  });
+
+  it("per-role AO floors: glass is (nearly) exempt, walls and roofs keep contact shadows", () => {
+    expect(AO_FLOOR_BY_ROLE).toHaveLength(8);
+    for (const f of AO_FLOOR_BY_ROLE) {
+      expect(f).toBeGreaterThanOrEqual(AO_FLOOR);
+      expect(f).toBeLessThanOrEqual(1);
+    }
+    expect(AO_FLOOR_BY_ROLE[3]).toBeGreaterThanOrEqual(0.85);
+    expect(AO_FLOOR_BY_ROLE[0]).toBe(AO_FLOOR);
+    expect(AO_FLOOR_BY_ROLE[1]).toBe(AO_FLOOR);
+    expect(aoFloorGlsl()).toContain("if (tlRole == 3) tlAoFloor = 0.85;");
+  });
+
+  it("no fake glass reflection: glass has no daylight emissive term", () => {
+    const { shader } = compile(true);
+    expect(shader.fragmentShader).not.toContain("GLASS_SKY");
+    expect(shader.fragmentShader).toContain("if (tlRole == 3 && vColor.b < uLitShare)");
   });
 
   it("single mesh: uniform palette, no instanced attributes", () => {
@@ -177,5 +209,100 @@ describe("createRoleMaterial window flicker", () => {
       .replace("uniform float uTime;\nuniform float uFlicker;\n", "")
       .replace(/ \* mix\(1\.0, 0\.9[^;]*uFlicker\)/, "");
     expect(strip).toBe(base.shader.fragmentShader);
+  });
+});
+
+describe("clay role material (B-T1)", () => {
+  it("High: physical clay with sheen; every shader patch lands in the physical program", () => {
+    const uniforms = createRoleUniforms();
+    const mat = createRoleMaterial({ instanced: true, uniforms, tier: "high", flicker: true });
+    expect(mat).toBeInstanceOf(THREE.MeshPhysicalMaterial);
+    expect((mat as THREE.MeshPhysicalMaterial).sheen).toBe(CLAY.wall.sheen);
+    expect(mat.roughness).toBe(CLAY.wall.roughness);
+    const shader = {
+      vertexShader: THREE.ShaderLib.physical.vertexShader,
+      fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+      uniforms: {} as Record<string, { value: unknown }>,
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: shader stub
+    (mat.onBeforeCompile as any)(shader, null);
+    expect(shader.fragmentShader).not.toContain("#include <color_fragment>");
+    expect(shader.fragmentShader).toContain(roleResponseGlsl("wall"));
+    // Per-role sheen lands after the physical lighting setup (USE_SHEEN guards Medium / Low).
+    const at = shader.fragmentShader.indexOf("#include <lights_physical_fragment>");
+    expect(at).toBeGreaterThan(-1);
+    expect(shader.fragmentShader.indexOf(ROLE_SHEEN_GLSL)).toBeGreaterThan(at);
+    expect(shader.fragmentShader).toContain("varying vec3 vPal0");
+    expect(shader.vertexShader).toContain("attribute vec3 iPal0");
+  });
+
+  it("Medium / Low: the standard program (no sheen)", () => {
+    for (const tier of ["medium", "low"] as const) {
+      const mat = createRoleMaterial({ instanced: true, uniforms: createRoleUniforms(), tier });
+      expect(mat).not.toBeInstanceOf(THREE.MeshPhysicalMaterial);
+    }
+  });
+
+  it("per-role response: roughness from each role's token, metalness only on role 5 (metal)", () => {
+    expect(ROLE_CLAY).toHaveLength(8);
+    const glsl = roleResponseGlsl();
+    ROLE_CLAY.forEach((role, i) => {
+      const tok = CLAY[role];
+      expect(glsl).toContain(`roughnessFactor = ${tok.roughness.toFixed(2)}`);
+      if (i !== 5) expect(tok.metalness, role).toBe(0);
+    });
+    expect(CLAY[ROLE_CLAY[5]!].metalness).toBeGreaterThan(0);
+  });
+
+  it("people and vehicles take their own clay token", () => {
+    const u = createRoleUniforms();
+    expect(
+      createRoleMaterial({ instanced: true, uniforms: u, kind: "person" }).userData.clayRole,
+    ).toBe("person");
+    expect(
+      createRoleMaterial({ instanced: true, uniforms: u, kind: "parked" }).userData.clayRole,
+    ).toBe("vehicle");
+  });
+});
+
+describe("per-role sheen (B-T1 fix round 1)", () => {
+  it("each role's sheen is scaled relative to the material's base token, with its sheen roughness", () => {
+    for (const base of ["wall", "person", "vehicle"] as const) {
+      const glsl = roleResponseGlsl(base);
+      ROLE_CLAY.forEach((role) => {
+        expect(glsl).toContain(`tlSheenK = ${(CLAY[role].sheen / CLAY[base].sheen).toFixed(4)}`);
+        expect(glsl).toContain(`tlSheenR = ${CLAY[role].sheenRoughness.toFixed(2)}`);
+      });
+    }
+    // Roles really differ (foliage 0.5 vs glass 0.15), so the multiplier is not a constant.
+    expect(CLAY.foliage.sheen).not.toBe(CLAY.glass.sheen);
+  });
+
+  it("person materials compile the person-based multipliers", () => {
+    const mat = createRoleMaterial({
+      instanced: true,
+      uniforms: createRoleUniforms(),
+      kind: "person",
+      tier: "high",
+    });
+    const shader = {
+      vertexShader: THREE.ShaderLib.physical.vertexShader,
+      fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+      uniforms: {} as Record<string, { value: unknown }>,
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: shader stub
+    (mat.onBeforeCompile as any)(shader, null);
+    expect(shader.fragmentShader).toContain(roleResponseGlsl("person"));
+  });
+});
+
+describe("tree trunks are clay (B-T1 fix round 1)", () => {
+  it("kind tree: the dark role (trunks) draws CLAY_PALETTE.trunk; other kinds keep the fixed dark", () => {
+    const c = (h: string) => {
+      const k = new THREE.Color(h);
+      return `tlRole == 4) tlBase = vec3(${k.r.toFixed(5)}, ${k.g.toFixed(5)}, ${k.b.toFixed(5)})`;
+    };
+    expect(compile(true, { kind: "tree" }).shader.fragmentShader).toContain(c(CLAY_PALETTE.trunk));
+    expect(compile(true).shader.fragmentShader).toContain(c(FIXED_ROLE_COLOURS.dark));
   });
 });

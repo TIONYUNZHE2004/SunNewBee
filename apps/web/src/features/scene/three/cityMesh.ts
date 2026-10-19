@@ -5,6 +5,7 @@ import { type HeightOf, toBuildings } from "../shared/model";
 import type { FallbackColours } from "./fallbackStyle";
 import type { LocalFrame } from "./frame";
 import { PARK_Y, WATER_Y } from "./ground/bands";
+import { CLAY_PALETTE } from "./shared/clayTokens";
 
 export { PARK_Y, WATER_Y };
 /** Height of the trim (parapet) band at the top of a styled fallback building. */
@@ -12,17 +13,10 @@ export const PARAPET_M = 0.6;
 const GROUND_MARGIN_M = 500;
 
 /** Display-only tints per OSM building kind. Illustrative, not facts about the buildings. */
-export const KIND_COLOUR: Record<string, string> = {
-  residential: "#d9b99b",
-  commercial: "#a9b8c9",
-  industrial: "#a3a39b",
-  civic: "#c9a0a0",
-  other: "#c4bfb5",
-  building: "#cfc8bd",
-};
-const PARK_COLOUR = "#8fbf7a";
+export const KIND_COLOUR: Record<string, string> = { ...CLAY_PALETTE.kindWall };
+const PARK_COLOUR = CLAY_PALETTE.park;
 /** Decorative base water. Deliberately not the flood scenario WATER_COLOR. */
-const BASE_WATER_COLOUR = "#7fb6c9";
+export const BASE_WATER_COLOUR: string = CLAY_PALETTE.baseWater;
 
 /** This overhaul's renderer may draw the Google-sampled display height (data/README.md). */
 export const displayHeight: HeightOf = (p) => p.display_height_m ?? p.height_m;

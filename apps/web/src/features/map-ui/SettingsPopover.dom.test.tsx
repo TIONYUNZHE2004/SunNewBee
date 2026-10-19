@@ -42,6 +42,7 @@ afterEach(() => {
 beforeEach(() => {
   Object.assign(ENV, { googleKey: "", cesiumToken: "", mapboxToken: "" });
   useScene.getState().reset();
+  useSceneSettings.setState({ pathStatus: false });
   useMode.setState({ mode: "resident" });
 });
 
@@ -65,7 +66,27 @@ describe("SettingsPopover", () => {
       "max-h-[min(70%,calc(100%-var(--sheet-h,0px)-var(--attr-h,0px)-6rem))]",
     );
   });
+  it("AC-A1: Path status is off by default, legend hides status rows, toggling shows them", async () => {
+    renderWithClient(<SettingsPopover />, seeded());
+    await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+    const group = screen.getByRole("radiogroup", { name: "Path status" });
+    expect(within(group).getByRole("radio", { name: "Path status off" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    const legend = screen.getByRole("list", { name: "Path status legend" });
+    expect(within(legend).queryByText("Not checked yet")).toBeNull();
+    expect(within(legend).getByText("Suggested route")).toBeInTheDocument();
+    await userEvent.click(within(group).getByRole("radio", { name: "Path status on" }));
+    expect(useSceneSettings.getState().pathStatus).toBe(true);
+    expect(within(legend).getByText("Not checked yet")).toBeInTheDocument();
+    await userEvent.click(within(group).getByRole("radio", { name: "Path status off" }));
+    expect(useSceneSettings.getState().pathStatus).toBe(false);
+    expect(within(legend).queryByText("Not checked yet")).toBeNull();
+  });
   it("lists the legend with all six statuses incl. Suggested route", async () => {
+    useSceneSettings.setState({ pathStatus: true });
+    useScene.getState().setScenario("stage_p1m");
     renderWithClient(<SettingsPopover />, seeded());
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
     const legend = screen.getByRole("list", { name: "Path status legend" });

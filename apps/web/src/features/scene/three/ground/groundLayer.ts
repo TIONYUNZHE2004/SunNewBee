@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Tier } from "../../shared/quality";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import { GROUND_BANDS, type GroundBand, groundMaterial } from "./bands";
 import { applyGroundDetail } from "./groundDetail";
 import { shimmerMaterial } from "./landcover";
@@ -12,13 +13,8 @@ export interface GroundLayer {
 }
 
 /** Display-only tints per road kind (illustrative; a road's colour says nothing about access). */
-const ROAD_COLOUR: Record<Ribbon["kind"], string> = {
-  major: "#55595e",
-  residential: "#6e7176",
-  footway: "#b9b3a6",
-  other: "#8b8a86",
-};
-const MARK_COLOUR = "#ece6d2";
+const ROAD_COLOUR: Record<Ribbon["kind"], string> = CLAY_PALETTE.road;
+const MARK_COLOUR = CLAY_PALETTE.marking;
 
 const noRaycast = () => {};
 
@@ -109,6 +105,8 @@ export function createGroundLayer(
     mesh.receiveShadow = true;
     mesh.castShadow = false;
     mesh.userData.decorative = true;
+    // Names the band for the acceptance harness's road pick mask (it raycasts roads directly).
+    mesh.userData.groundBand = band;
     mesh.raycast = noRaycast;
     group.add(mesh);
     geometries.push(geo);
