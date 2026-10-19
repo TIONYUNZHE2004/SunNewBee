@@ -18,6 +18,23 @@ vi.mock("resium", () => ({
   useCesium: () => ({ viewer: undefined }),
 }));
 
+// The real Cesium bundle takes 10-30 s to import cold under jsdom (more on a loaded machine), which
+// made this file the flakiest in the suite. Nothing here exercises Cesium itself: the patches
+// have their own real-Cesium tests (frustumClone.camera.test.ts), and this file only checks the
+// wiring and the Viewer prop identity. NOTE: when CesiumScene.tsx (or a module it imports) uses a
+// new Cesium member at import or render time, add a stand-in for it below (the error names it). So a light stand-in carries the identities that matter.
+vi.mock("cesium", () => {
+  class PerspectiveFrustum {}
+  class Camera {}
+  const Color = { fromCssColorString: (c: string) => c };
+  class CustomShader {
+    constructor(public o: unknown) {}
+  }
+  const UniformType = { FLOAT: "float" };
+  class DistanceDisplayCondition {}
+  return { PerspectiveFrustum, Camera, Color, CustomShader, UniformType, DistanceDisplayCondition };
+});
+
 const patches = vi.hoisted(() => ({ frustum: [] as unknown[], camera: [] as unknown[] }));
 vi.mock("./frustumClone", () => ({
   patchFrustumClone: (c: unknown) => patches.frustum.push(c),
@@ -25,14 +42,12 @@ vi.mock("./frustumClone", () => ({
 }));
 
 describe("CesiumScene", () => {
-  // The first test pays for the cold import of the whole Cesium bundle, which can pass the 5 s
-  // default on a loaded machine or a CI runner.
   it("patches Cesium's frustum clone and pick ray when the module loads", async () => {
     const Cesium = await import("cesium");
     await import("./CesiumScene");
     expect(patches.frustum).toEqual([Cesium.PerspectiveFrustum]);
     expect(patches.camera).toEqual([Cesium.Camera]);
-  }, 30_000);
+  });
 
   it("passes read-only Viewer props by stable reference so resium never recreates the viewer", async () => {
     const { default: CesiumScene } = await import("./CesiumScene");
@@ -47,7 +62,7 @@ describe("CesiumScene", () => {
     expect(seen[0]?.contextOptions).toEqual({ webgl: { alpha: true } });
     for (const s of seen) expect(s.contextOptions).toBe(seen[0]?.contextOptions);
     expect(mounts).toBe(1);
-  }, 60_000);
+  });
 
   it("a camera move updates the compass heading without re-rendering the Viewer subtree", async () => {
     const { default: CesiumScene } = await import("./CesiumScene");
@@ -73,5 +88,5 @@ describe("CesiumScene", () => {
     await act(async () => fire());
     expect(useCameraHeading.getState().heading).toBe(1.25);
     expect(seen.length).toBe(before);
-  }, 60_000);
+  });
 });

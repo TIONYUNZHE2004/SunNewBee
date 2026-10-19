@@ -10,7 +10,24 @@ const lineFor = (html: string, label: string) => {
 };
 
 describe("StatusLegend", () => {
-  const html = renderToStaticMarkup(<StatusLegend />);
+  const html = renderToStaticMarkup(<StatusLegend showStatus showFlood />);
+  it("hides the status rows (keeps the route row) while Path status is off", () => {
+    const off = renderToStaticMarkup(<StatusLegend showStatus={false} />);
+    expect(renderToStaticMarkup(<StatusLegend />)).toBe(off); // default setting is off
+    expect(off).not.toContain("Not checked yet");
+    expect(off).not.toContain("No known barrier");
+    expect(off).toContain("Suggested route");
+  });
+  it("path status off + scenario active: flood rows visible, access rows hidden", () => {
+    const h = renderToStaticMarkup(<StatusLegend showStatus={false} showFlood />);
+    expect(h).toContain("Likely flooded (indicative)");
+    expect(h).toContain("Possibly flooded (indicative)");
+    expect(h).not.toContain("No known barrier");
+    expect(h).not.toContain("Not checked yet");
+    expect(h).not.toContain("Not passable");
+    const none = renderToStaticMarkup(<StatusLegend showStatus={false} showFlood={false} />);
+    expect(none).not.toContain("flooded");
+  });
   it("lists the statuses", () => {
     expect(html).toContain("No known barrier");
     expect(html).toContain("Not checked yet");
