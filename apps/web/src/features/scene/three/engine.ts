@@ -47,6 +47,7 @@ import { applyFog } from "./mood";
 import { createMotionClock, type MotionMode, motionModeFor } from "./motion/motionClock";
 import type { MotionLayer } from "./motion/motionLayer";
 import type { OverlayLayer } from "./overlays/accessLayers";
+import { markerProgramStandIn } from "./overlays/markers";
 import { THREE_TIERS } from "./quality";
 import { applyClayTier, CLAY_PALETTE, clayMaterial, setClayTier } from "./shared/clayTokens";
 import { createSky } from "./sky";
@@ -282,8 +283,12 @@ const RAD = Math.PI / 180;
 const MOVING_MS = 300;
 /** LOD re-bucketing while the camera moves: at most this often, plus once after it stops. */
 const LOD_INTERVAL_MS = 250;
-/** A bound on pinned shader programs (the scene uses about 32; see `pinPrograms`). */
-const MAX_PINNED_PROGRAMS = 96;
+/**
+ * A bound on pinned shader programs (see `pinPrograms`). The journey adds cut, hero, override and
+ * crowd variants: with 96 the place markers' program went unpinned, was deleted when a marker layer
+ * was replaced and linked again on the next answer (gate AC-D18). Programs are small.
+ */
+const MAX_PINNED_PROGRAMS = 256;
 /**
  * Motion time (ms) at trip time 0 while a journey drives the decorative clock (`setDecorClock`):
  * a fixed epoch, so the seeded crowd and traffic stand where they would after a minute of motion.
@@ -613,6 +618,8 @@ function build(
   };
   /** Journey ribbon (main scene) and markers (their own scene, after post-processing). */
   let journey: JourneyOverlay | null = null;
+  /** An overlay layer whose programs are still compiling (shown when ready, see setOverlays). */
+  let pendingOverlays: OverlayLayer | null = null;
   /** A journey layer whose programs are still compiling (shown when ready, see setJourney). */
   let pendingJourney: JourneyOverlay | null = null;
   const dropJourney = () => {
@@ -633,6 +640,8 @@ function build(
     renderer.autoClear = autoClear;
   };
   undo.push(() => {
+    pendingOverlays?.dispose();
+    pendingOverlays = null;
     pendingJourney?.dispose();
     pendingJourney = null;
     dropJourney();
@@ -749,13 +758,17 @@ function build(
    * variant found under `root`, wearing each override, so `compileAsync` builds those programs too
    * (the hero's skinned variants were compiled mid-trip, gate AC-D18).
    */
+  const shadowDepthStandIn = new THREE.MeshDepthMaterial({ depthPacking: THREE.BasicDepthPacking });
   const overrideStandIns = (root: THREE.Object3D): THREE.Group | null => {
     const overrides: THREE.Material[] = [];
     if (aoPass) overrides.push(aoPass.normalMaterial);
     const depth = (bokehPass as unknown as { _materialDepth?: THREE.Material } | null)
       ?._materialDepth;
     if (depth) overrides.push(depth);
-    if (overrides.length === 0) return null;
+    // the sun's shadow map draws casters with a basic-packed depth material (the hero's skinned
+    // variant was linked on her first shadow draw, gate AC-D18)
+    const shadow = sun.castShadow && renderer.shadowMap.enabled ? shadowDepthStandIn : null;
+    if (overrides.length === 0 && !shadow) return null;
     const group = new THREE.Group();
     const seen = new Set<string>();
     root.traverse((o) => {
@@ -770,7 +783,8 @@ function build(
       const key = `${!!m.isSkinnedMesh}|${!!m.isInstancedMesh}|${!!m.instanceColor}|${morph}`;
       if (seen.has(key)) return;
       seen.add(key);
-      for (const ov of overrides) {
+      const wear = shadow && m.castShadow ? [...overrides, shadow] : overrides;
+      for (const ov of wear) {
         // a shallow stand-in: same geometry (and skeleton / instance buffers), the override material
         const c = m.clone(false) as THREE.Mesh;
         c.material = ov;
@@ -789,15 +803,17 @@ function build(
     root: THREE.Object3D,
     target: THREE.WebGLRenderTarget | null,
     overrides = true,
+    /** The scene it is drawn in (its fog and lights pick the program variant). */
+    into: THREE.Scene = scene,
   ): Promise<unknown> => {
     if (typeof renderer.compileAsync !== "function") return Promise.resolve();
     const prev = renderer.getRenderTarget();
     renderer.setRenderTarget(target);
     const jobs: Promise<unknown>[] = [];
     try {
-      jobs.push(renderer.compileAsync(root, camera, scene));
+      jobs.push(renderer.compileAsync(root, camera, into));
       const stand = overrides ? overrideStandIns(root) : null;
-      if (stand) jobs.push(renderer.compileAsync(stand, camera, scene));
+      if (stand) jobs.push(renderer.compileAsync(stand, camera, into));
     } catch (err) {
       warnCompileOnce(err);
     } finally {
@@ -1407,6 +1423,9 @@ function build(
   };
 
   applyTier(tier);
+  // The place / waste / centre markers' program (the overlay layers rebuild their markers when an
+  // answer lands): compiled now, in the background, and pinned once it renders.
+  void compileRoot(markerProgramStandIn(), composer.readBuffer, false, overlayScene);
 
   return {
     get groundGeneration() {
@@ -1611,9 +1630,18 @@ function build(
     cameraDriven: () => driving,
     setOverlays(o) {
       if (disposed) return;
-      if (o === overlays) return;
-      dropOverlays();
-      if (o) {
+      if (o === overlays || (o && o === pendingOverlays)) return;
+      pendingOverlays?.dispose();
+      pendingOverlays = null;
+      if (!o) {
+        dropOverlays();
+        requestRender();
+        return;
+      }
+      const attach = () => {
+        if (disposed || pendingOverlays !== o) return;
+        pendingOverlays = null;
+        dropOverlays();
         overlays = o;
         o.setResolution(size[0], size[1]);
         o.setPixelRatio(pixelRatio);
@@ -1621,8 +1649,21 @@ function build(
         overlayScene.add(o.group);
         scene.add(o.groundGroup);
         scene.add(o.lineGroup);
+        requestRender();
+      };
+      pendingOverlays = o;
+      if (typeof renderer.compileAsync !== "function") {
+        attach();
+        return;
       }
-      requestRender();
+      // Their programs compile in parallel before they show, the previous layer drawn meanwhile:
+      // the answer's route and place markers linked on first draw (gate AC-D18). A layer replaced
+      // while compiling is never shown, and is disposed like a replaced one.
+      Promise.all([
+        compileRoot(o.group, composer.readBuffer, false, overlayScene),
+        compileRoot(o.groundGroup, composer.readBuffer, false),
+        compileRoot(o.lineGroup, composer.readBuffer, false),
+      ]).then(attach, attach);
     },
     setJourney(j) {
       if (disposed) {
@@ -1655,7 +1696,8 @@ function build(
       // they are shown: no program links on the main thread when the answer lands (gate AC-D18).
       Promise.all([
         compileRoot(j.ribbon, composer.readBuffer, false),
-        compileRoot(j.markers, null, false),
+        // the markers draw in their own scene (no fog, no lights), straight to the canvas
+        compileRoot(j.markers, null, false, j.markers),
       ]).then(attach, attach);
     },
     setDecorClock(c) {

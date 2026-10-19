@@ -128,6 +128,14 @@ void main() {
 
 type Item = { id: string; x: number; z: number };
 
+/**
+ * One marker point with the markers' shader, for precompiling its program (`Engine` compiles it at
+ * start-up, so the first markers of an answer never link on the main thread). Never drawn.
+ */
+export function markerProgramStandIn(): THREE.Points {
+  return pointsOf("place" as Kind, [{ id: "", x: 0, z: 0 }], 9, "#0f5c63", 1);
+}
+
 function pointsOf(kind: Kind, items: Item[], px: number, color: string, pr: number): THREE.Points {
   const pos = new Float32Array(items.length * 3);
   items.forEach((it, i) => {

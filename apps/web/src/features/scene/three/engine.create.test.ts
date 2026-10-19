@@ -850,6 +850,61 @@ describe("engine motion clock", () => {
     }
   });
 
+  it("setOverlays: the layer compiles before it shows, the previous one stays drawn; a newer one supersedes", async () => {
+    const { e } = await setup({ on: false });
+    const THREE = await import("three");
+    const proto = THREE.WebGLRenderer.prototype as unknown as {
+      compileAsync?: unknown;
+      getRenderTarget?: unknown;
+      setRenderTarget?: unknown;
+    };
+    const overlay = () => ({
+      group: new THREE.Group(),
+      lineGroup: new THREE.Group(),
+      groundGroup: new THREE.Group(),
+      update: vi.fn(),
+      setMetresPerPixel: vi.fn(),
+      hasVisible: () => false,
+      drawnPlaces: () => 0,
+      setResolution: vi.fn(),
+      setPixelRatio: vi.fn(),
+      setView: vi.fn(),
+      attach: vi.fn(() => () => {}),
+      dispose: vi.fn(),
+    });
+    try {
+      settle();
+      const scenes = spy.scenes as import("three").Scene[];
+      const holds = (g: import("three").Object3D) => scenes.some((sc) => sc.children.includes(g));
+      const first = overlay();
+      e.setOverlays(first as never); // no compileAsync on this renderer: shown at once
+      expect(holds(first.group)).toBe(true);
+      const resolves: (() => void)[] = [];
+      proto.compileAsync = vi.fn(() => new Promise<void>((r) => resolves.push(r)));
+      proto.getRenderTarget = () => null;
+      proto.setRenderTarget = () => {};
+      const a = overlay();
+      e.setOverlays(a as never);
+      expect(holds(a.group)).toBe(false);
+      expect(holds(first.group)).toBe(true);
+      const b = overlay();
+      e.setOverlays(b as never);
+      expect(a.dispose).toHaveBeenCalledTimes(1);
+      for (const r of resolves) r();
+      for (let i = 0; i < 4; i++) await Promise.resolve();
+      expect(holds(b.group)).toBe(true);
+      expect(holds(b.lineGroup)).toBe(true);
+      expect(holds(first.group)).toBe(false);
+      expect(first.dispose).toHaveBeenCalledTimes(1);
+      expect(holds(a.group)).toBe(false);
+    } finally {
+      delete proto.compileAsync;
+      delete proto.getRenderTarget;
+      delete proto.setRenderTarget;
+      teardown(e);
+    }
+  });
+
   it("material patches run on a decor layer before it compiles, and on the scene when added", async () => {
     const { e } = await setup({ on: false });
     const THREE = await import("three");
