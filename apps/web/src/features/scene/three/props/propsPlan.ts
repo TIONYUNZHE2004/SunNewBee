@@ -69,6 +69,8 @@ const STREET_TREE_EXTRA = 1.5;
 /** A street lamp stands this far beyond the kerb. */
 const STREET_LAMP_EXTRA = 0.8;
 const MEDIAN_TREE_SPACING = 14;
+/** Median palms stand this far to alternating sides of the centre line (clear of the keep-out). */
+const MEDIAN_OFFSET_M = 1.6;
 const STREET_LAMP_SPACING = 30;
 const STREET_LAMP_START = 9;
 const MEDIAN_LAMP_SPACING = 35;
@@ -87,6 +89,12 @@ const TREE_MOVE_STEP_M = 0.5;
 const DEFAULT_CANOPY_M = 20;
 /** A canopy may reach this far past a footway or path centreline (at y < 3 m). */
 const CANOPY_OVERHANG_M = 1;
+/**
+ * A decorative tree trunk never stands within this far of any walk line (footway, crossing, path
+ * or road centre line): a resident's route runs along the walk network, so no trunk is on it.
+ * Display only; nothing here is a fact.
+ */
+export const TRUNK_KEEPOUT_M = 1;
 /** Footway segments are indexed this far out: the widest canopy radius (11 m) stays inside. */
 const FOOT_REACH_M = 12;
 /**
@@ -431,6 +439,40 @@ export function planProps(input: PropsInput): PropsPlan {
       footGrid.add(footSegs.push({ a, b }) - 1, x0, z0, x1, z1);
     }
   }
+  // Every walk line of any kind (the route follows these), for the trunk keep-out.
+  const walkGrid = new Grid();
+  const walkSegs: { a: P; b: P; rid: string }[] = [];
+  for (const r of roads) {
+    if (!touchesBox(footBox, ...r.bb)) continue;
+    for (let i = 0; i < r.pts.length - 1; i++) {
+      const a = r.pts[i]!;
+      const b = r.pts[i + 1]!;
+      const k = FOOT_REACH_M; // also the canopy-fit reach
+      const x0 = Math.min(a[0], b[0]) - k;
+      const z0 = Math.min(a[1], b[1]) - k;
+      const x1 = Math.max(a[0], b[0]) + k;
+      const z1 = Math.max(a[1], b[1]) + k;
+      if (!touchesBox(footBox, x0, z0, x1, z1)) continue;
+      walkGrid.add(walkSegs.push({ a, b, rid: r.id }) - 1, x0, z0, x1, z1);
+    }
+  }
+  /** True when (x, z) is within the trunk keep-out of any walk line. */
+  const onWalkLine = (x: number, z: number): boolean => {
+    for (const i of walkGrid.at(x, z))
+      if (distSeg(x, z, walkSegs[i]!.a, walkSegs[i]!.b) < TRUNK_KEEPOUT_M) return true;
+    return false;
+  };
+  /** Distance to the nearest walk line of any kind, leaving out the tree's own road (`own`). */
+  const routeDist = (x: number, z: number, own?: string): number => {
+    let d = Number.POSITIVE_INFINITY;
+    for (const i of walkGrid.at(x, z)) {
+      const sg = walkSegs[i]!;
+      if (sg.rid !== own) d = Math.min(d, distSeg(x, z, sg.a, sg.b));
+    }
+    return d;
+  };
+  let droppedTrunk = 0;
+  let droppedCanopy = 0;
   const footDist = (x: number, z: number): number => {
     let d = Number.POSITIVE_INFINITY;
     for (const i of footGrid.at(x, z))
@@ -573,6 +615,7 @@ export function planProps(input: PropsInput): PropsPlan {
     src: TreeSource,
     dir?: [number, number],
     ribbon?: boolean,
+    own?: string,
   ): boolean => {
     let ctx = treeCtx(src);
     if (src === "osm" && footDist(x, z) < FOOT_REACH_M) ctx = "verge";
@@ -582,18 +625,26 @@ export function planProps(input: PropsInput): PropsPlan {
     // 20 m), never skipped.
     const size = m.assets.trees?.variants[v]?.size[0] ?? DEFAULT_CANOPY_M;
     const steps = dir ? Math.round(TREE_MOVE_M / TREE_MOVE_STEP_M) : 0;
+    let trunkBlocked = true;
     for (let k = 0; k <= steps; k++) {
       const t = k * TREE_MOVE_STEP_M;
       const px = x + (dir ? dir[0] * t : 0);
       const pz = z + (dir ? dir[1] * t : 0);
-      // The largest scale whose radius stays within the allowed overhang.
-      const fit = ((footDist(px, pz) + CANOPY_OVERHANG_M) * 2) / size;
+      if (onWalkLine(px, pz)) continue;
+      trunkBlocked = false;
+      // The largest scale whose radius stays within the allowed overhang of ANY walk line (the
+      // route runs along them), apart from the tree's own road.
+      const fit = ((routeDist(px, pz, own) + CANOPY_OVERHANG_M) * 2) / size;
       if (fit < lo - 1e-9) continue;
       return push("trees", `trees/${v}`, id, px, pz, undefined, {
         src,
         sc: Math.min(sc, fit),
         ribbon,
       });
+    }
+    if (inPad(x, z)) {
+      if (trunkBlocked) droppedTrunk++;
+      else droppedCanopy++;
     }
     return false;
   };
@@ -613,10 +664,16 @@ export function planProps(input: PropsInput): PropsPlan {
           const id = `st:${r.id}:${side}:${p.s.toFixed(1)}`;
           const x = p.x + p.tz * off * side;
           const z = p.z - p.tx * off * side;
-          tree(id, x, z, pick(id, "species", STREET_SPECIES), "street", [
-            p.tz * side,
-            -p.tx * side,
-          ]);
+          tree(
+            id,
+            x,
+            z,
+            pick(id, "species", STREET_SPECIES),
+            "street",
+            [p.tz * side, -p.tx * side],
+            undefined,
+            r.id,
+          );
         }
       }
       const lampOff = r.width / 2 + STREET_LAMP_EXTRA;
@@ -633,7 +690,12 @@ export function planProps(input: PropsInput): PropsPlan {
     } else {
       for (const p of along(r.pts, MEDIAN_TREE_SPACING)) {
         const id = `mt:${r.id}:${p.s.toFixed(1)}`;
-        tree(id, p.x, p.z, "royal_palm", "median", undefined, false);
+        // The median palm stands beside the road's centre line (the walk line), alternating sides,
+        // so its trunk is never on the route.
+        const side = Math.round(p.s / MEDIAN_TREE_SPACING) % 2 === 0 ? 1 : -1;
+        const mx = p.x + p.tz * MEDIAN_OFFSET_M * side;
+        const mz = p.z - p.tx * MEDIAN_OFFSET_M * side;
+        tree(id, mx, mz, "royal_palm", "median", undefined, false, r.id);
       }
       for (const p of along(r.pts, MEDIAN_LAMP_SPACING, MEDIAN_LAMP_SPACING / 2)) {
         const yaw = Math.atan2(p.tx, -p.tz);
@@ -951,6 +1013,9 @@ export function planProps(input: PropsInput): PropsPlan {
       }
     }
     plan.stats.trees = n;
+    // Candidates the walk-line rules dropped (trunk within 1 m of a line / canopy over the route).
+    plan.stats["trees.droppedTrunk"] = droppedTrunk;
+    plan.stats["trees.droppedCanopy"] = droppedCanopy;
     for (const [k, v] of Object.entries(stat)) plan.stats[`trees.${k}`] = v;
   };
   emitTrees();
