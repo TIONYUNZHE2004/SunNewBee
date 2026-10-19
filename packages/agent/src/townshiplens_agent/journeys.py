@@ -118,3 +118,29 @@ def journey_steps(facts: dict) -> list[str]:
             f"{_join(names)}."
         )
     return out
+
+
+def journey_vr_targets(
+    plan: JourneyPlan, route: dict, filed: set[tuple[str, str]]
+) -> list[tuple[str, str, str]]:
+    """(element_id, attribute, reason) to ask staff about so every unchecked place the walk stops
+    at has a verification request (D-T10; a card says "verification request filed" only when one
+    was filed for its element and attribute). plan_route files at most MAX_ROUTE_VRS in route
+    order, which can leave out a place the walk shows; this asks for one attribute of each such
+    event and nothing for events that already have a request. Unknown events only: no other card
+    claims a request."""
+    reasons = {
+        (u.get("element_id"), u.get("attribute")): u.get("reason") or "unknown"
+        for u in route.get("unknowns") or []
+    }
+    out: list[tuple[str, str, str]] = []
+    asked = set(filed)
+    for e in plan.events:
+        if e.kind != "unknown" or not e.element_id or not e.attributes:
+            continue
+        if any((e.element_id, a) in asked for a in e.attributes):
+            continue
+        attr = e.attributes[0]
+        asked.add((e.element_id, attr))
+        out.append((e.element_id, attr, reasons.get((e.element_id, attr), "unknown")))
+    return out
