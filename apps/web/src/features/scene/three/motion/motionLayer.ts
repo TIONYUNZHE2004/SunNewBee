@@ -9,6 +9,7 @@ import {
   type RoleKind,
   type RoleUniforms,
 } from "../assets/roleMaterial";
+import { markUsed } from "../assets/uploadRange";
 import {
   AGENT_LIFT_M,
   type Agent,
@@ -476,8 +477,8 @@ export function createMotionLayer(
         b.mesh.count = b.n;
         b.mesh.visible = b.n > 0;
         if (b.n === 0 && was === 0) continue;
-        b.mesh.instanceMatrix.needsUpdate = true;
-        for (const a of b.pal) a.needsUpdate = true;
+        markUsed(b.mesh.instanceMatrix, b.n);
+        for (const a of b.pal) markUsed(a, b.n);
       }
     },
     setOpacity(o) {
