@@ -41,6 +41,35 @@ export function slabCorners(b: Boundary): Corner[] {
   return out;
 }
 
+/** 2D convex hull (monotone chain) of x, z points; collinear points dropped. */
+function hull2(pts: readonly Corner[]): Corner[] {
+  const s = [...pts].sort((a, b) => a[0] - b[0] || a[2] - b[2]);
+  if (s.length < 3) return s;
+  const cross = (o: Corner, a: Corner, b: Corner) =>
+    (a[0] - o[0]) * (b[2] - o[2]) - (a[2] - o[2]) * (b[0] - o[0]);
+  const lower: Corner[] = [];
+  for (const p of s) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2]!, lower[lower.length - 1]!, p) <= 0)
+      lower.pop();
+    lower.push(p);
+  }
+  const upper: Corner[] = [];
+  for (let i = s.length - 1; i >= 0; i--) {
+    const p = s[i]!;
+    while (upper.length >= 2 && cross(upper[upper.length - 2]!, upper[upper.length - 1]!, p) <= 0)
+      upper.pop();
+    upper.push(p);
+  }
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+
+/** The corners on the 2D convex hull of each height level (see `CameraFit.hull`). */
+export function cornerHull(corners: readonly Corner[]): Corner[] {
+  const byY = new Map<number, Corner[]>();
+  for (const c of corners) byY.set(c[1], [...(byY.get(c[1]) ?? []), c]);
+  return [...byY.values()].flatMap(hull2);
+}
+
 /** The poses that bound the max-range window for an axis: both directions, edge and middle. */
 function windowPoses(fit: CameraFit, rangeM: number): Pose[] {
   const out: Pose[] = [];
@@ -66,7 +95,7 @@ function windowPoses(fit: CameraFit, rangeM: number): Pose[] {
 export function fitCost(fit: CameraFit, rangeM: number = LIMITS.maxRangeM): number {
   let worst = 0;
   for (const p of windowPoses(fit, rangeM))
-    for (const a of FIT_ASPECTS) worst = Math.max(worst, requiredVfovDeg(p, fit.corners, a));
+    for (const a of FIT_ASPECTS) worst = Math.max(worst, requiredVfovDeg(p, fit.hull, a));
   return worst;
 }
 
@@ -94,19 +123,21 @@ function extentCentre(corners: readonly Corner[], headingDeg: number): [number, 
 
 /**
  * Pattern search over the centre (kept inside the outline) and the shift along the view, for one
- * axis: the least-cost fit.
+ * axis: the least-cost fit. A generator: it yields after every pass over the six moves, so a
+ * caller can spread the search over idle slices (`fitSteps`).
  */
-function bestFit(
+function* bestFit(
   b: Boundary,
   corners: readonly Corner[],
+  hull: readonly Corner[],
   axis: number,
   minStep: number,
-): { fit: CameraFit; cost: number } {
-  let centre = extentCentre(corners, axis);
+): Generator<void, { fit: CameraFit; cost: number }> {
+  let centre = extentCentre(hull, axis);
   if (!insideBoundary(b, centre[0], centre[1]))
     // The extent centre fell in a notch: start from the outline's own box centre.
     centre = [(b.box[0] + b.box[2]) / 2, (b.box[1] + b.box[3]) / 2];
-  let fit: CameraFit = { boundary: b, corners, centre, shiftM: 0, axisHeadingDeg: axis };
+  let fit: CameraFit = { boundary: b, corners, hull, centre, shiftM: 0, axisHeadingDeg: axis };
   let best = fitCost(fit);
   for (let step = 400; step >= minStep; step /= 2) {
     let moved = true;
@@ -130,29 +161,42 @@ function bestFit(
           moved = true;
         }
       }
+      yield;
     }
   }
   return { fit, cost: best };
 }
 
 /**
- * The fit for an outline: the axis heading (scanned every 5 deg, each with a coarse search) and
- * the centre and view shift (a fine pattern search, centre kept inside the outline) that need the
- * least field of view over the max-range window and the reference aspects. Pure apart from a
- * temporary geometry.
+ * The fit for an outline, as resumable steps (each a few ms): the axis heading (scanned every 5
+ * deg, each with a coarse search) and the centre and view shift (a fine pattern search, centre
+ * kept inside the outline) that need the least field of view over the max-range window and the
+ * reference aspects. The search runs on the corner hull (`cornerHull`). The engine runs it in idle
+ * slices so it never blocks a frame; `fitFor` runs it to the end.
  */
-export function fitFor(b: Boundary): CameraFit {
+export function* fitSteps(b: Boundary): Generator<void, CameraFit> {
   const corners = slabCorners(b);
+  const hull = cornerHull(corners);
+  yield;
   let axis = 0;
   let best = Number.POSITIVE_INFINITY;
   for (let a = 0; a < 180; a += AXIS_STEP_DEG) {
-    const v = bestFit(b, corners, a, 100).cost;
+    const v = (yield* bestFit(b, corners, hull, a, 100)).cost;
     if (v < best - 1e-9) {
       best = v;
       axis = a;
     }
   }
-  return bestFit(b, corners, axis, 5).fit;
+  return (yield* bestFit(b, corners, hull, axis, 5)).fit;
+}
+
+/** The fit for an outline, computed synchronously (`fitSteps` run to the end). Pure apart from a temporary geometry. */
+export function fitFor(b: Boundary): CameraFit {
+  const it = fitSteps(b);
+  for (;;) {
+    const r = it.next();
+    if (r.done) return r.value;
+  }
 }
 
 /**
@@ -167,7 +211,7 @@ export function overviewPose(fit: CameraFit): Pose {
   let bestV = Number.POSITIVE_INFINITY;
   for (let pitchDeg = FIT.farPitchMinDeg; pitchDeg <= FIT.farPitchMaxDeg + 1e-9; pitchDeg += 2.5) {
     const p: Pose = { target, rangeM: LIMITS.maxRangeM, pitchDeg, headingDeg };
-    const v = requiredVfovDeg(p, fit.corners, Math.min(...FIT_ASPECTS));
+    const v = requiredVfovDeg(p, fit.hull, Math.min(...FIT_ASPECTS));
     if (v < bestV - 1e-9) {
       bestV = v;
       best = p;

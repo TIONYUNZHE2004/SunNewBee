@@ -203,3 +203,23 @@ describe("markers", () => {
     expect(sprites(m.group).filter((s) => s.visible)).toHaveLength(2);
   });
 });
+
+describe("place markers outside the Elmina outline (A-T5 fix round 1, display only)", () => {
+  it("draws only the places inside; waste and evacuation markers are kept", () => {
+    // Inside: x < 50 m (p1 at 0 m); outside: p2 at ~110 m east.
+    const m = createMarkers({ places, waste, evac, placeInside: (x) => x < 50 }, frame, fakeCanvas);
+    const place = points(m.group).find((p) => p.name.includes("place"));
+    expect(place).toBeDefined();
+    expect(place?.userData.ids).toEqual(["p1"]);
+    expect(place?.geometry.getAttribute("position").count).toBe(1);
+    expect(points(m.group).some((p) => p.name.includes("waste"))).toBe(true);
+    expect(points(m.group).filter((p) => p.name.includes("evac")).length).toBeGreaterThan(0);
+    m.dispose();
+  });
+  it("draws every place without an outline", () => {
+    const m = make();
+    const place = points(m.group).find((p) => p.name.includes("place"));
+    expect(place?.userData.ids).toEqual(["p1", "p2"]);
+    m.dispose();
+  });
+});

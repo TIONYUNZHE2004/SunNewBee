@@ -34,8 +34,12 @@ export const BOOKMARKS: Record<
   // probe-a / probe-b: the two most-built of the plan's named Elmina precincts (Elmina Valley 3-5,
   // Elmina Green, Business Park). Valley 4, Valley 5 and Business Park have no buildings; Elmina
   // Valley 3 and Elmina Green have 55 each.
-  // probe-a: Elmina Valley 3, 55 buildings, ~1.5 km from hero.
-  "probe-a": { centre: [101.50863, 3.1666], rangeM: 800, pitchDeg: -45, headingDeg: 0 },
+  // probe-a (re-posed in A-T5 fix round 1): the Elmina Valley 3 centroid (101.50863, 3.1666) lies
+  // 229 m outside the Elmina outline. Now the nearest 50 m grid point to it that is >= 400 m inside
+  // the outline and >= 1.2 km from hero and the other probes: 84 buildings within 400 m, ~1.2 km
+  // from hero, 670 m north-west of the old centroid. `bookmarks.test.ts` checks every centre against
+  // the seed outline.
+  "probe-a": { centre: [101.50413, 3.17067], rangeM: 800, pitchDeg: -45, headingDeg: 0 },
   // probe-b: Elmina Green, 55 buildings, ~3.4 km.
   "probe-b": { centre: [101.49473, 3.20748], rangeM: 800, pitchDeg: -45, headingDeg: 0 },
   // probe-c / probe-d (re-posed in A-T5): the A-T4 clip drops everything outside the Elmina

@@ -47,6 +47,13 @@ export interface CameraFit {
   boundary: Boundary;
   /** What must be on screen at max range: every outline vertex (y 0) and the outer foot of its soil section. */
   corners: readonly (readonly [number, number, number])[];
+  /**
+   * The corners on the convex hull of each height level (the outline at y 0, the section feet
+   * below): the vertices of the corners' 3D hull are among them. A projection's extremes (and any
+   * corner behind the camera) lie on hull vertices, so `requiredVfovDeg` over `hull` equals it over
+   * `corners`, for a fraction of the cost.
+   */
+  hull: readonly (readonly [number, number, number])[];
   /** The max-range target is `centre` (inside the outline) plus `shiftM` along the view (`fitCentre`). */
   centre: [number, number];
   shiftM: number;
@@ -88,7 +95,8 @@ export function fitWeight(rangeM: number): number {
   return t * t * (3 - 2 * t);
 }
 
-const wrap180 = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
+/** An angle difference (deg) wrapped to [-180, 180). */
+export const wrap180 = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
 
 /** The heading kept within `devDeg` of the axis or its opposite, whichever is nearer. Pure. */
 export function clampHeading(headingDeg: number, axisDeg: number, devDeg: number): number {
@@ -249,7 +257,7 @@ export function vfovFor(p: Pose, fit: CameraFit | null | undefined, aspect: numb
   if (t === 0) return VFOV_DEG;
   const need = requiredVfovDeg(
     { ...p, target: fitCentre(fit, p.headingDeg), rangeM: LIMITS.maxRangeM },
-    fit.corners,
+    fit.hull,
     aspect,
   );
   return VFOV_DEG + (clamp(need, VFOV_DEG, FIT.maxVfovDeg) - VFOV_DEG) * t;

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import * as THREE from "three";
-import { fitCost, overviewPose, rangeNeededM } from "../cameraFit";
+import { fitCost, fitFor, overviewPose, rangeNeededM } from "../cameraFit";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { createFrameStats, type PerfSample } from "../frameStats";
@@ -135,6 +135,8 @@ export interface AcceptanceApi {
   overviewPose(): GeoPose | null;
   /** The slab camera fit's reports (A-T5): fov the max-range window needs, range needed to fit. */
   fitReport(): { axisHeadingDeg: number; costDeg: number; rangeNeededM: number } | null;
+  /** Test-only: the camera fit computed synchronously once (ms), for the long-task report; null without a slab. */
+  timeFitSyncMs(): number | null;
   /** A rig flight to a pose (as the app's fly-to intents do). */
   flyTo(p: GeoPose, durationMs: number): void;
   /**
@@ -653,6 +655,13 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
       const p = overviewPose(fit);
       const [lon, lat] = frame.toLonLat(p.target[0], p.target[1]);
       return { lon, lat, rangeM: p.rangeM, pitchDeg: p.pitchDeg, headingDeg: p.headingDeg };
+    },
+    timeFitSyncMs: () => {
+      const fit = engine.cameraFit?.();
+      if (!fit) return null;
+      const t0 = performance.now();
+      fitFor(fit.boundary);
+      return performance.now() - t0;
     },
     fitReport: () => {
       const fit = engine.cameraFit?.();

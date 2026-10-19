@@ -35,6 +35,12 @@ export interface EvacMarkerRow {
 export interface MarkerInput {
   /** Place markers (the access layer's points). */
   places: readonly MarkerPoint[];
+  /**
+   * Display only (A-T5 fix round 1): when given, place markers whose point (local x, z) is not
+   * inside the Elmina outline are not drawn (no point, no label), so none floats over the void past
+   * the slab. The places stay in the data, the list view and the answers.
+   */
+  placeInside?: (x: number, z: number) => boolean;
   waste: readonly MarkerPoint[];
   evac: readonly EvacMarkerRow[];
 }
@@ -153,10 +159,14 @@ export function createMarkers(
   };
 
   const labels: Label[] = [];
-  const placeItems = input.places.map(item);
+  const inside = input.placeInside;
+  const shownPlaces = input.places
+    .map((p) => ({ p, it: item(p) }))
+    .filter(({ it }) => !inside || inside(it.x, it.z));
+  const placeItems = shownPlaces.map(({ it }) => it);
   if (placeItems.length)
     group.add(pointsOf("place", placeItems, MARKER_STYLE.place.px, MARKER_STYLE.place.color, 1));
-  input.places.forEach((p, i) => {
+  shownPlaces.forEach(({ p }, i) => {
     const it = placeItems[i] as Item;
     labels.push({ key: `place:${p.id}`, id: p.id, kind: "place", text: p.name, x: it.x, z: it.z });
   });

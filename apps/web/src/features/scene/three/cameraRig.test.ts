@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
-import { fitCost, fitFor, overviewPose, rangeNeededM } from "./cameraFit";
+import { fitCost, fitFor, fitSteps, overviewPose, rangeNeededM } from "./cameraFit";
 import {
   type CameraRig,
   clampHeading,
@@ -12,6 +12,7 @@ import {
   LIMITS,
   type Pose,
   poseToCamera,
+  requiredVfovDeg,
   tweenPose,
   VFOV_DEG,
   vfovFor,
@@ -211,6 +212,53 @@ describe("fitFor (Elmina seed)", () => {
     // If this fails for a new outline, `need` is the range the slab needs (AC-A6 vs AC-A7).
     expect(cost).toBeLessThanOrEqual(FIT.maxVfovDeg);
     expect(need).toBeLessThanOrEqual(LIMITS.maxRangeM);
+  });
+});
+
+describe("fitFor cost (fix round 1)", () => {
+  it("the corner hull gives the same required field of view as every corner", () => {
+    expect(fit.hull.length).toBeLessThan(fit.corners.length);
+    const r = rng(9);
+    for (let i = 0; i < 500; i++) {
+      const p = clampPose(randomPose(r, 1000, 40000), box, fit);
+      for (const a of [1.05, 1.5]) {
+        const all = requiredVfovDeg(p, fit.corners, a);
+        const h = requiredVfovDeg(p, fit.hull, a);
+        if (Number.isFinite(all)) expect(h).toBeCloseTo(all, 9);
+        else expect(h).toBe(all);
+      }
+    }
+  });
+  it("reports its synchronous cost on the seed", () => {
+    fitFor(B); // warm up the JIT
+    const t0 = performance.now();
+    fitFor(B);
+    const ms = performance.now() - t0;
+    console.info(
+      `A-T5 fitFor (Elmina seed, ${fit.corners.length} corners, hull ${fit.hull.length}): ${ms.toFixed(1)} ms`,
+    );
+    // Wall time is reported, not asserted (it varies with machine load): the engine never runs
+    // fitFor in one go, it runs `fitSteps` in idle slices (next test).
+    expect(ms).toBeGreaterThan(0);
+  });
+  it("fitSteps yields in small steps (the engine runs them in idle slices) and ends at fitFor", () => {
+    const it = fitSteps(B);
+    let worst = 0;
+    let steps = 0;
+    let r: IteratorResult<void, ReturnType<typeof fitFor>>;
+    for (;;) {
+      const t0 = performance.now();
+      r = it.next();
+      worst = Math.max(worst, performance.now() - t0);
+      steps++;
+      if (r.done) break;
+    }
+    console.info(`A-T5 fitSteps: ${steps} steps, longest ${worst.toFixed(1)} ms`);
+    // Split finely: the search is hundreds of steps (each ~1 ms here), so an 8 ms idle slice
+    // holds several and never becomes a long task. Timing is reported, not asserted.
+    expect(steps).toBeGreaterThan(100);
+    expect(r.value.centre).toEqual(fit.centre);
+    expect(r.value.axisHeadingDeg).toBe(fit.axisHeadingDeg);
   });
 });
 

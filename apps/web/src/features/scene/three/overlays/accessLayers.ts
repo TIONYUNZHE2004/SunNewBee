@@ -5,6 +5,7 @@ import { diffLines, WHATIF_STYLE } from "../../../whatif/whatifModel";
 import { groupEdgesByStatus, type LonLat, lineFeatures, pointFeatures } from "../../geo";
 import { ROUTE_STYLE } from "../../styles";
 import type { LocalFrame } from "../frame";
+import { type Boundary, insideBoundary } from "../ground/boundary";
 import { lineToLocal, ROUTE_LIFT_M } from "../routeLine";
 import { createFloodLayer } from "./floodLayer";
 import { createLineBatch, dashFromCesium, setDashScale, statusLineStyle } from "./lines";
@@ -38,6 +39,8 @@ export interface OverlayState {
   wasteOn?: boolean;
   evac?: readonly EvacMarkerRow[] | null;
   focusPlaceId?: string | null;
+  /** The Elmina outline (display only): place markers outside it are not drawn (A-T5 fix round 1). */
+  boundary?: Boundary | null;
 }
 
 export interface OverlayLayer {
@@ -74,7 +77,8 @@ export interface OverlayLayer {
 /** A batch the overlay layer draws and feeds the per-frame view. */
 export interface OverlayChild {
   group: THREE.Group;
-  setView?(cam: { x: number; y: number; z: number }, nowMs: number): void;
+  /** Camera position, clock, and the camera's live vertical fov (deg; it widens at long range, A-T5). */
+  setView?(cam: { x: number; y: number; z: number }, nowMs: number, fovDeg?: number): void;
   /** Canvas size in the same (CSS) pixels as the layer's `setResolution`. */
   setResolution?(w: number, h: number): void;
   dispose(): void;
@@ -166,7 +170,8 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
     const places = s.accessVisible ? s.access : null;
     const waste = s.wasteOn ? s.waste : null;
     const evac = s.floodOn ? (s.evac ?? null) : null;
-    const key = [places, waste, evac];
+    const b = s.boundary ?? null;
+    const key = [places, waste, evac, b];
     if (!markerKey || key.some((k, i) => k !== markerKey?.[i])) {
       markerKey = key;
       markers?.dispose();
@@ -178,6 +183,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
             places: places ? pointFeatures(places) : [],
             waste: waste ? pointFeatures(waste) : [],
             evac: evac ?? [],
+            placeInside: b ? (x, z) => insideBoundary(b, x, z) : undefined,
           },
           frame,
         );
@@ -232,7 +238,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
     },
     setView(c, fovDeg) {
       // Attached batches also follow the clock, so they are fed before the camera-moved early return.
-      for (const ch of children) ch.setView?.(c, performance.now());
+      for (const ch of children) ch.setView?.(c, performance.now(), fovDeg);
       // The engine calls this every frame: relabel only when the camera moved.
       if (cam && cam.x === c.x && cam.y === c.y && cam.z === c.z && fov === fovDeg) return;
       cam = { x: c.x, y: c.y, z: c.z };

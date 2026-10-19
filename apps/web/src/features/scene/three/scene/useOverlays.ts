@@ -7,6 +7,7 @@ import { useSceneSettings } from "../../sceneSettingsStore";
 import { useScene } from "../../sceneStore";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
+import type { Boundary } from "../ground/boundary";
 import { createOverlayLayer, type OverlayLayer } from "../overlays/accessLayers";
 import { useResidents } from "../overlays/useResidents";
 import { lineToLocal } from "../routeLine";
@@ -23,12 +24,15 @@ export function useOverlays({
   accessData,
   onScreen,
   running,
+  boundary = null,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
   accessData: LayerData | undefined;
   onScreen: boolean;
   running: boolean;
+  /** The Elmina outline: place markers outside it are hidden (display only). */
+  boundary?: Boundary | null;
 }) {
   const route = useScene((s) => s.route);
   // While a journey plays, its own ribbon (features/journey) draws the trip's route by status; the
@@ -88,6 +92,7 @@ export function useOverlays({
       wasteOn: wasteLens,
       evac: evacQ.data ?? null,
       focusPlaceId,
+      boundary,
     });
     setMarkerCount(accessVisible ? pointFeatures(accessData).length : 0);
     engine.requestRender();
@@ -110,6 +115,7 @@ export function useOverlays({
     wasteLens,
     evacQ.data,
     focusPlaceId,
+    boundary,
   ]);
   // Elmina Day and rollout residents ride the same overlay layer.
   useResidents(engine, overlay, frame, { onScreen, clockRunning: running });

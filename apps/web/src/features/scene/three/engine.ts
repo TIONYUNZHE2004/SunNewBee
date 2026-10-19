@@ -11,7 +11,7 @@ import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
 import { createMotionUniforms, type MotionUniforms } from "./assets/roleMaterial";
-import { fitFor } from "./cameraFit";
+import { fitSteps } from "./cameraFit";
 import {
   type CameraFit,
   type CameraRig,
@@ -23,6 +23,7 @@ import {
   VFOV_DEG,
   vfovFor,
   viewOffsetFor,
+  wrap180,
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
 import { type Clearance, createLift } from "./clearance";
@@ -207,10 +208,12 @@ export interface EngineRig extends CameraRig {
 }
 
 const POSE_EPS = 1e-3;
+/** The camera-fit search yields to the frame loop after this many ms of a slice. */
+const FIT_SLICE_MS = 8;
 
 /** True when two poses differ by more than POSE_EPS (metres or degrees; heading on the circle). */
 function poseMoved(a: Pose, b: Pose): boolean {
-  const dh = Math.abs(((((a.headingDeg - b.headingDeg) % 360) + 540) % 360) - 180);
+  const dh = Math.abs(wrap180(a.headingDeg - b.headingDeg));
   return (
     Math.abs(a.target[0] - b.target[0]) > POSE_EPS ||
     Math.abs(a.target[1] - b.target[1]) > POSE_EPS ||
@@ -612,6 +615,47 @@ function build(
   let bounds: Bounds = { min: [0, 0], max: [0, 0] };
   /** The slab's camera fit (A-T5): set with the slab, null without one (the tiny fixture). */
   let fit: CameraFit | null = null;
+  let fitJob = 0;
+  /**
+   * Computes the slab's camera fit in idle slices of at most FIT_SLICE_MS (fix round 1: the search
+   * took about 130 ms, a long task at load). Until it lands the camera keeps the plain clamp. The
+   * whole computation is measured as `tl:camera-fit` (wall time, slices included).
+   */
+  const startFit = (b: Boundary | null) => {
+    const job = ++fitJob;
+    fit = null;
+    if (!b) return;
+    const steps = fitSteps(b);
+    const t0 = performance.now();
+    let slices = 0;
+    const idle = (cb: () => void) => {
+      const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: object) => number })
+        .requestIdleCallback;
+      if (ric) ric(cb, { timeout: 500 });
+      else setTimeout(cb, 0);
+    };
+    const run = () => {
+      if (disposed || job !== fitJob) return;
+      slices++;
+      const s0 = performance.now();
+      for (;;) {
+        const r = steps.next();
+        if (r.done) {
+          fit = r.value;
+          try {
+            performance.measure("tl:camera-fit", { start: t0, detail: { slices } });
+          } catch {
+            /* measure unsupported: ignore */
+          }
+          requestRender();
+          return;
+        }
+        if (performance.now() - s0 >= FIT_SLICE_MS) break;
+      }
+      idle(run);
+    };
+    idle(run);
+  };
   const listeners = new Set<(dtMs: number, info: FrameInfo) => void>();
   undo.push(() => {
     disposed = true;
@@ -1118,7 +1162,7 @@ function build(
     setSlab(b) {
       if (disposed) return;
       dropSlab();
-      fit = b ? fitFor(b) : null;
+      startFit(b);
       if (b) {
         slab = createSlab(b, groundMat);
         scene.add(slab.group);
