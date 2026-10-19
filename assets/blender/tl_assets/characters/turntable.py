@@ -138,3 +138,35 @@ def render_all(arm, acts: list, variant: str, out: Path) -> None:
         shots.append(p)
     sheet.compose([shots], out / "cameras_walk.png")
     arm.parent = None
+    closeups(arm, by_name, n, scene, cam, benches, tiles, out)
+
+
+def closeups(arm, by_name, n, scene, cam, benches, tiles, out: Path) -> None:
+    """Touch-up QA: the lap in sit_idle (front, high), the back of the tudung and the back of
+    the clothing in sit_idle and walk, from close perspective cameras."""
+    cam.data.type = "PERSP"
+    scene.render.resolution_x, scene.render.resolution_y = 640, 640
+    for b in benches:
+        b.hide_render = False
+    sit, walk = by_name["sit_idle"], by_name["walk"]
+    shots = []
+    for name, act, fr, loc, target, lens in (
+        ("lap_front", sit, 0, (0.0, -1.1, 1.25), (0.0, -0.25, 0.55), 50.0),
+        ("lap_side", sit, 0, (1.1, -0.3, 0.75), (0.0, -0.25, 0.55), 50.0),
+        ("lap_top", sit, 0, (0.5, -0.9, 1.5), (0.0, -0.25, 0.5), 50.0),
+        ("sit_back_close", sit, 0, (0.0, 1.2, 1.1), (0.0, 0.0, 0.9), 50.0),
+        ("sit_back_high", sit, 0, (0.4, 1.0, 1.5), (0.0, 0.0, 0.85), 50.0),
+        ("walk_back_close", walk, n // 4, (0.0, 1.1, 1.05), (0.0, 0.0, 0.9), 50.0),
+        ("walk_back_low", walk, n // 2, (0.3, 1.0, 0.7), (0.0, 0.0, 0.55), 50.0),
+    ):
+        cam.data.lens = lens
+        for b in benches:
+            b.hide_render = act is walk
+        _frame(arm, act, fr)
+        cam.location = loc
+        d = mathutils.Vector(target) - mathutils.Vector(loc)
+        cam.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
+        p = tiles / f"{name}.png"
+        sheet.render(scene, p)
+        shots.append(p)
+    sheet.compose([shots[:4], shots[4:]], out / "closeups.png")

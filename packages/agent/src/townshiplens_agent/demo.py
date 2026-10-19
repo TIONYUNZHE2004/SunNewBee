@@ -62,7 +62,8 @@ def save(k: str, events: list[ChatEvent], meta: dict, demo_dir: Path | None = No
     d.mkdir(parents=True, exist_ok=True)
     path = d / f"{k}.jsonl"
     rows = [{"meta": meta}] + [e.model_dump(mode="json") for e in events]
-    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), "utf-8")
+    text = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
+    path.write_text(text, "utf-8", newline="\n")  # LF on Windows too: byte-stable re-records
     return path
 
 
