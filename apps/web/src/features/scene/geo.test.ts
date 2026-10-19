@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  accessLineData,
   clickedPlaceId,
   floodEdgePickId,
   groupByStatus,
@@ -184,5 +185,36 @@ describe("clickedPlaceId", () => {
   it("returns null when nothing matches", () => {
     expect(clickedPlaceId([f("evac-centres")], ["evac-centres"])).toBeNull();
     expect(clickedPlaceId(undefined, ["a"])).toBeNull();
+  });
+});
+
+describe("accessLineData", () => {
+  const fc = {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [0, 0],
+            [1, 1],
+          ],
+        },
+      },
+      { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [0, 0] } },
+    ],
+  } as GeoJSON.FeatureCollection;
+  it("keeps the status lines only while Path status is on and gaps are off", () => {
+    expect(accessLineData(fc, false, true)).toBe(fc);
+    for (const [gaps, ps] of [
+      [false, false],
+      [true, true],
+      [true, false],
+    ] as const) {
+      const out = accessLineData(fc, gaps, ps);
+      expect(out.features.map((f) => f.geometry.type)).toEqual(["Point"]);
+    }
   });
 });

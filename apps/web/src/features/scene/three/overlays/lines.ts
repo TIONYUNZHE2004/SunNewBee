@@ -4,6 +4,69 @@ import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
 import { CESIUM_DASH, type EdgeStatus, statusStyle } from "../../styles";
 
+/** Status lines are fully opaque inside this camera distance (metres) and gone beyond FADE_FAR_M. */
+export const FADE_NEAR_M = 900;
+export const FADE_FAR_M = 1500;
+
+/**
+ * Opacity factor for a line fragment `distM` metres from the camera: 1 up to `near`, 0 from `far`,
+ * smoothstep (the same curve the shader uses) in between. AC-A3.
+ */
+export function distanceFade(distM: number, near = FADE_NEAR_M, far = FADE_FAR_M): number {
+  if (!(distM > near)) return 1;
+  if (distM >= far) return 0;
+  const t = (distM - near) / (far - near);
+  return 1 - t * t * (3 - 2 * t);
+}
+
+/**
+ * Depth bias of a line, as a fraction of its view distance (it is pulled this much toward the
+ * camera, screen position unchanged). The ground bands use a large polygonOffset factor, which on
+ * an oblique plane at range moves them metres toward the camera (about 1% of the distance at the
+ * hero bookmark), so a fixed 0.4 m lift loses to the roads at 800 m: lines would vanish. A line
+ * quad is screen-aligned (no depth slope), so a polygonOffset does nothing for it. 0.15% of the
+ * distance (1.2 m at 800 m, 0.5 m at 300 m) was enough to show lines on roads in the acceptance
+ * renders and stays below a storey, so a roof or wall still hides a line behind it.
+ */
+export const LINE_DEPTH_BIAS = 0.0015;
+
+/**
+ * Patches LineMaterial's shaders: a view-distance depth bias (always) and, with `fade`, a
+ * view-distance alpha fade (a varying and two uniforms, no per-frame work).
+ */
+function patchLineShaders(material: LineMaterial, fade: boolean): void {
+  material.uniforms.uDepthBias = { value: LINE_DEPTH_BIAS };
+  let vs = material.vertexShader
+    .replace(
+      "void main() {",
+      "uniform float uDepthBias;\n" + (fade ? "varying float vFadeDist;\n" : "") + "void main() {",
+    )
+    .replace(
+      "gl_Position = clip;",
+      "float dn = clip.w * ( 1.0 - uDepthBias );\n\t\t\tclip.z = ( projectionMatrix[3][2] / dn - projectionMatrix[2][2] ) * clip.w;\n\t\t\tgl_Position = clip;",
+    );
+  if (fade)
+    vs = vs.replace(
+      "#include <fog_vertex>",
+      "#include <fog_vertex>\n\t\t\tvFadeDist = length( mvPosition.xyz );",
+    );
+  material.vertexShader = vs;
+  if (fade) {
+    material.uniforms.uFadeNear = { value: FADE_NEAR_M };
+    material.uniforms.uFadeFar = { value: FADE_FAR_M };
+    material.fragmentShader = material.fragmentShader
+      .replace(
+        "void main() {",
+        "varying float vFadeDist;\nuniform float uFadeNear;\nuniform float uFadeFar;\nvoid main() {",
+      )
+      .replace(
+        "gl_FragColor = vec4( diffuseColor.rgb, alpha );",
+        "alpha *= 1.0 - smoothstep( uFadeNear, uFadeFar, vFadeDist );\n\t\t\tif ( alpha < 0.004 ) discard;\n\t\t\tgl_FragColor = vec4( diffuseColor.rgb, alpha );",
+      );
+  }
+  material.needsUpdate = true;
+}
+
 export interface LineStyle {
   color: string;
   widthPx: number;
@@ -36,7 +99,10 @@ const bits = (n: number) => {
 /**
  * One batched Line2 (LineSegments2, one draw call) for many polylines at a constant lift. Each
  * input is xyz triplets (y is replaced by `liftM`); lines under two points are skipped.
- * Overlay pass: depthTest false, depthWrite false, `renderOrder` >= 10 so it always draws on top.
+ * Transparent pass: depthTest true (a building hides a line behind it, AC-A2), depthWrite false, a
+ * polygon offset on top of the lift so it never z-fights the ground ribbons, `renderOrder` >= 10 so
+ * it draws after the ground bands (1-6). Buildings are opaque and write depth. With `fade` the
+ * alpha follows `distanceFade` per fragment (view distance, shader uniform, no per-frame work).
  * Not decorative and no raycast override: picking is the shared picker's job. With `ids` (one per
  * input line) the batch keeps `userData.segPos` (the segment endpoints, 6 floats each) and
  * `userData.segIds` (the line id per segment), so the picker can name the line under the cursor.
@@ -47,6 +113,7 @@ export function createLineBatch(
   liftM: number,
   renderOrder: number,
   ids?: readonly string[],
+  fade = false,
 ): THREE.Object3D {
   const usable = lines.flatMap((l, i) => (l.length >= 6 ? [{ l, id: ids?.[i] ?? "" }] : []));
   let segs = 0;
@@ -83,9 +150,16 @@ export function createLineBatch(
     worldUnits: false,
     transparent: true,
     opacity: style.opacity ?? 1,
-    depthTest: false,
+    depthTest: true,
     depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    // Lines are in the main scene now: fog them like the ground, or they read as a crisp
+    // wireframe over fogged terrain at the overview.
+    fog: true,
   });
+  patchLineShaders(material, fade);
   if (style.dash) {
     material.dashed = true;
     material.userData.dashPx = {

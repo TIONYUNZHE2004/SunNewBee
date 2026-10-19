@@ -94,15 +94,19 @@ export function glowFor(w: MoodWeights): {
   };
 }
 
-/** Fog scales with camera range so the township view is never fogged out. */
+/**
+ * Fog scales with camera range (the preset's `nearK` / `farK` multiples, floored by its metres) so
+ * the fog ramps over 0.7x to 1.45x the range: the far ground blends into the fog colour while the
+ * farthest Elmina boundary vertex (1.39x the range at the overview) stays short of full fog.
+ */
 export function fogFor(
   p: LightPreset,
   rangeM: number,
 ): { color: string; near: number; far: number } {
   return {
     color: p.fog.color,
-    near: Math.max(p.fog.near, 0.6 * rangeM),
-    far: Math.max(p.fog.far, 2.2 * rangeM),
+    near: Math.max(p.fog.near, p.fog.nearK * rangeM),
+    far: Math.max(p.fog.far, p.fog.farK * rangeM),
   };
 }
 

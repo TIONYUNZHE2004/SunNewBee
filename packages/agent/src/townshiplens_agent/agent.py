@@ -33,6 +33,7 @@ from .events import (
     VerificationRequested,
 )
 from .facts import categories, merge, tool_values
+from .journeys import journey_facts, plan_for
 from .labels import crossing_note, enrich_unknowns
 from .mock import mock_model
 from .record import TurnRecord
@@ -271,6 +272,9 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
             enrich_unknowns(deps.ctx.world, r)  # readable element labels and notes
             if note := crossing_note(r):
                 r["crossing_note"] = note  # the model copies it word for word (prompt 5h)
+            if (plan := plan_for(deps.ctx.world, r)) is not None:
+                rec.journeys[r["id"]] = plan
+                r["journey"] = journey_facts(plan)  # counts the answer may state (prompt 9a)
             rec.routes[r["id"]] = r
             rec.route_status[r["id"]] = r["status"]
         for c in res.data.get("closures") or []:

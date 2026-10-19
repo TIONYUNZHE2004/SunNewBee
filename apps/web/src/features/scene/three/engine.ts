@@ -6,6 +6,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import type { Pass } from "three/addons/postprocessing/Pass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { reducedMotion } from "../cesium/controls/cameraOps";
 import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
@@ -22,10 +23,12 @@ import {
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
 import { cullFrustum, shadowPadM } from "./cull";
-import { groundMaterial } from "./ground/bands";
+import { applyGroundGrade, GROUND_GRADE, groundMaterial } from "./ground/bands";
+import type { Boundary } from "./ground/boundary";
 import { cityGroundMeshes } from "./ground/cityGround";
 import type { GroundLayer } from "./ground/groundLayer";
 import { shimmerMaterial } from "./ground/landcover";
+import { createSlab, type SlabLayerObject } from "./ground/slab";
 import { BLOOM, fitShadowCamera, type LightPreset } from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
 import { applyFog } from "./mood";
@@ -33,7 +36,9 @@ import { createMotionClock, type MotionMode, motionModeFor } from "./motion/moti
 import type { MotionLayer } from "./motion/motionLayer";
 import type { OverlayLayer } from "./overlays/accessLayers";
 import { THREE_TIERS } from "./quality";
+import { createSky } from "./sky";
 import { measure, UPLOAD_MEASURE } from "./stream/streamer";
+import { attachWheelZoom, dispatchOwnWheel } from "./zoom";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
 export interface Bounds {
@@ -56,6 +61,20 @@ export interface LodTick {
   nowMs: number;
 }
 
+/**
+ * The resident-journey layer as the engine sees it (`features/journey/three/journeyLayer.ts`).
+ * The ribbon joins the main scene (depth-tested, left out of the AO G-buffer); the markers are a
+ * scene of their own, rendered straight to the screen after the composer (spec §6.4: post passes
+ * drew the prototype's sprites as black quads).
+ */
+export interface JourneyOverlay {
+  ribbon: THREE.Object3D;
+  markers: THREE.Scene;
+  setResolution(w: number, h: number): void;
+  setMetresPerPixel(mpp: number): void;
+  dispose(): void;
+}
+
 export interface Engine {
   readonly frames: number;
   setCity(g: CityGeometry): void;
@@ -63,6 +82,11 @@ export interface Engine {
   setAssets(a: CityInstances | null): void;
   /** Land cover, roads and markings; replaces and disposes the previous layer; null removes it. */
   setGround(g: GroundLayer | null): void;
+  /**
+   * The diorama slab (A-T4): its top (the Elmina outline) replaces the rectangular base plane and
+   * its layered soil edge closes the map. null removes it and shows the base plane again.
+   */
+  setSlab(b: Boundary | null): void;
   /**
    * Decorative extras (lamp pools, birds, cloud shadows) by slot name: replaces and disposes the
    * slot's previous content; null clears it. The group is added to the scene as is.
@@ -92,6 +116,12 @@ export interface Engine {
    * disposes the previous layer; null removes it.
    */
   setOverlays(o: OverlayLayer | null): void;
+  /**
+   * The journey ribbon and event markers (see `JourneyOverlay`). Independent of `setOverlays`, so
+   * the ribbon shows with the status lines off. Replaces and disposes the previous layer; null
+   * removes it.
+   */
+  setJourney(j: JourneyOverlay | null): void;
   setLighting(p: LightPreset, keyDir: [number, number, number]): void;
   /** Camera range in metres: fog distances scale with it so the township view is never fogged out. */
   setFogRange(rangeM: number): void;
@@ -100,6 +130,11 @@ export interface Engine {
   resize(w: number, h: number): void;
   rig: CameraRig;
   requestRender(): void;
+  /**
+   * Renders one frame now, synchronously (cancels a pending frame). Test-only: the acceptance
+   * harness times uncapped frames with it (`scene/useAcceptanceHook.ts`); the app never calls it.
+   */
+  renderNow?(): void;
   onFrame(cb: (dtMs: number, info: FrameInfo) => void): () => void;
   /**
    * Runs `cb` on the instanced-LOD schedule (at most every 250 ms while the camera moves, plus once
@@ -267,6 +302,9 @@ function build(
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color();
+  const sky = createSky();
+  scene.add(sky.mesh);
+  undo.push(() => sky.dispose());
   const pmrem = new THREE.PMREMGenerator(renderer);
   undo.push(() => pmrem.dispose());
   const room = new RoomEnvironment();
@@ -295,8 +333,19 @@ function build(
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
   });
+  applyGroundGrade(groundMat);
   const city = new THREE.Group();
   scene.add(city);
+  /** The rectangular base plane of the last setCity (hidden while a slab is set). */
+  let basePlane: THREE.Mesh | null = null;
+  let slab: SlabLayerObject | null = null;
+  const dropSlab = () => {
+    if (!slab) return;
+    scene.remove(slab.group);
+    slab.dispose();
+    slab = null;
+    if (basePlane) basePlane.visible = true;
+  };
   const disposeCity = () => {
     for (const o of [...city.children]) {
       if (o instanceof THREE.Mesh) o.geometry.dispose();
@@ -304,6 +353,7 @@ function build(
     }
   };
   undo.push(disposeCity);
+  undo.push(dropSlab);
 
   /** Overlay lines (data, not decoration): a scene of their own, see setOverlays. */
   const overlayScene = new THREE.Scene();
@@ -324,10 +374,31 @@ function build(
     if (!overlays) return;
     overlayScene.remove(overlays.group);
     scene.remove(overlays.groundGroup);
+    scene.remove(overlays.lineGroup);
     overlays.dispose();
     overlays = null;
   };
+  /** Journey ribbon (main scene) and markers (their own scene, after post-processing). */
+  let journey: JourneyOverlay | null = null;
+  const dropJourney = () => {
+    if (!journey) return;
+    scene.remove(journey.ribbon);
+    journey.dispose();
+    journey = null;
+  };
+  const renderJourneyMarkers = () => {
+    if (!journey || journey.markers.children.length === 0) return;
+    // After the OutputPass: straight to the canvas, over the finished image, never through the
+    // composer (no AO, bloom or tone mapping on the sprites; their alpha stays alpha).
+    renderer.setRenderTarget(null);
+    const autoClear = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.clearDepth();
+    renderer.render(journey.markers, camera);
+    renderer.autoClear = autoClear;
+  };
   undo.push(() => {
+    dropJourney();
     dropOverlays();
     for (const m of [buildingMat, parksMat, waterMat, groundMat]) m.dispose();
     sun.shadow.map?.dispose();
@@ -505,12 +576,23 @@ function build(
   const controls = new MapControls(camera, canvas);
   controls.enableDamping = true;
   controls.zoomToCursor = true;
-  // 0.95^(speed x |deltaY| / 100) per wheel event: about 26% per 200-unit notch (default: 10%).
-  controls.zoomSpeed = 3;
+  // Wheel zoom is proportional and smoothed by ./zoom (AC-A7); OrbitControls only applies each
+  // frame's share through synthetic wheel events (zoom to cursor, clamping): scale 0.95^(|dy|/100).
+  controls.zoomSpeed = 1;
   controls.minDistance = LIMITS.minRangeM;
   controls.maxDistance = LIMITS.maxRangeM;
   controls.minPolarAngle = (90 + LIMITS.minPitchDeg) * RAD;
   controls.maxPolarAngle = (90 + LIMITS.maxPitchDeg) * RAD;
+  undo.push(
+    attachWheelZoom({
+      canvas,
+      range: () => camera.position.distanceTo(controls.target),
+      apply: (factor, x, y) => dispatchOwnWheel(canvas, factor, x, y),
+      reducedMotion,
+      minM: LIMITS.minRangeM,
+      maxM: LIMITS.maxRangeM,
+    }),
+  );
   controls.addEventListener("change", moved);
   undo.push(() => {
     controls.removeEventListener("change", moved);
@@ -570,11 +652,14 @@ function build(
           if (assets) for (const o of assets.aoExcluded()) aoSkip.push(o);
           if (motionLayer) aoSkip.push(motionLayer.group);
           // The flood tint is data on the ground: AO must not darken it.
-          if (overlays) aoSkip.push(overlays.groundGroup);
+          if (overlays) aoSkip.push(overlays.groundGroup, overlays.lineGroup);
+          // The journey ribbon is Line2 quads (paint over the ground), not a surface for AO.
+          if (journey) aoSkip.push(journey.ribbon);
           return aoSkip;
         }),
       );
-    // Overlays after the AO pass and before bloom/tone mapping: no occlusion on them, drawn on top.
+    // Markers and residents after the AO pass and before bloom/tone mapping: no occlusion on them,
+    // drawn on top. Overlay lines are not here: they draw in the main pass (lineGroup) to depth-test.
     overlayPass = new RenderPass(overlayScene, camera);
     overlayPass.clear = false;
     passes.push(overlayPass);
@@ -669,8 +754,15 @@ function build(
     syncDashes();
     overlays?.setView(camera.position, camera.fov);
     if (overlayPass) overlayPass.enabled = !!overlays?.hasVisible();
+    if (journey) {
+      const dist = camera.position.distanceTo(controls.target);
+      journey.setMetresPerPixel(
+        (2 * dist * Math.tan((camera.fov * RAD) / 2)) / Math.max(1, size[1]),
+      );
+    }
     const tRender = performance.now();
     composer.render();
+    renderJourneyMarkers();
     if (swapped) {
       swapped = false;
       measure(UPLOAD_MEASURE, tRender);
@@ -736,6 +828,13 @@ function build(
     rig,
     motion,
     requestRender,
+    renderNow() {
+      if (disposed) return;
+      cancelAnimationFrame(raf);
+      raf = 0;
+      dirty = true;
+      tick();
+    },
     setDecor(slot, d) {
       if (disposed) {
         d?.dispose();
@@ -832,6 +931,9 @@ function build(
       const ground = new THREE.Mesh(plane, groundMat);
       ground.position.set(g.ground.center[0], 0, g.ground.center[1]);
       for (const m of [parks, water, ground]) m.receiveShadow = true;
+      ground.name = "base-plane";
+      ground.visible = !slab;
+      basePlane = ground;
       city.add(ground, parks, water, buildings);
       if (!g.bounds.isEmpty())
         bounds = { min: [g.bounds.min.x, g.bounds.min.z], max: [g.bounds.max.x, g.bounds.max.z] };
@@ -865,6 +967,16 @@ function build(
       }
       requestRender();
     },
+    setSlab(b) {
+      if (disposed) return;
+      dropSlab();
+      if (b) {
+        slab = createSlab(b, groundMat);
+        scene.add(slab.group);
+        if (basePlane) basePlane.visible = false;
+      }
+      requestRender();
+    },
     setBounds(b) {
       if (disposed) return;
       bounds = b;
@@ -880,6 +992,21 @@ function build(
         syncDashes(true);
         overlayScene.add(o.group);
         scene.add(o.groundGroup);
+        scene.add(o.lineGroup);
+      }
+      requestRender();
+    },
+    setJourney(j) {
+      if (disposed) {
+        j?.dispose();
+        return;
+      }
+      if (j === journey) return;
+      dropJourney();
+      if (j) {
+        journey = j;
+        j.setResolution(size[0], size[1]);
+        scene.add(j.ribbon);
       }
       requestRender();
     },
@@ -894,6 +1021,8 @@ function build(
       scene.environmentIntensity = p.envIntensity;
       renderer.toneMappingExposure = p.exposure;
       (scene.background as THREE.Color).set(p.background);
+      sky.setPreset(p);
+      GROUND_GRADE.value = p.groundGrade;
       lastPreset = p;
       syncBloom();
       applyFog(scene, p, fogRange);
@@ -922,6 +1051,7 @@ function build(
       renderer.setSize(w, h, false);
       composer.setSize(w, h);
       overlays?.setResolution(w, h);
+      journey?.setResolution(w, h);
       syncDashes(true);
       applyViewOffset();
       requestRender();

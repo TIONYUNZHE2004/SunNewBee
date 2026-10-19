@@ -20,6 +20,8 @@ export interface OverlayState {
   access: AccessData | null;
   /** The Access lens. Also gates the gap bands, which replace the status lines. */
   accessVisible: boolean;
+  /** The "Path status" setting: the per-edge status lines exist only while true. */
+  pathStatus: boolean;
   gaps: GapsData | null;
   /** `gapsActive(...)`: the gap bands replace the status lines while true. */
   gapsOn: boolean;
@@ -39,14 +41,21 @@ export interface OverlayState {
 }
 
 export interface OverlayLayer {
-  /** Overlay scene: lines and markers (no depth, drawn on top). */
+  /** Overlay scene: markers, residents and attached batches (no depth, drawn on top). */
   group: THREE.Group;
+  /**
+   * MAIN scene: every line batch (status, gaps, what-if, route, flood edges). They must depth-test
+   * against buildings (AC-A2), and the overlay pass renders into a buffer without the scene's
+   * depth, so the lines draw in the main pass at renderOrder >= 10 (after the ground bands).
+   * The engine adds and AO-skips it.
+   */
+  lineGroup: THREE.Group;
   /** MAIN scene: the flood tint, depth tested so buildings occlude it. The engine adds and AO-skips it. */
   groundGroup: THREE.Group;
   update(state: OverlayState): void;
   /** Dashes are screen-constant: the engine passes the metres per pixel at the camera target. */
   setMetresPerPixel(mpp: number): void;
-  /** True when any batch would draw (the engine skips the overlay pass otherwise). */
+  /** True when a marker or attached batch would draw (the engine skips the overlay pass otherwise). */
   hasVisible(): boolean;
   /** Line2 widths are in pixels: the engine passes the viewport on every resize. */
   setResolution(w: number, h: number): void;
@@ -92,7 +101,10 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   groundGroup.name = "flood-ground-slot";
   let pixelRatio = 1;
   const markerGroup = new THREE.Group();
-  group.add(floodGroup, status, gapsGroup, whatIfGroup, routeGroup, markerGroup);
+  const lineGroup = new THREE.Group();
+  lineGroup.name = "overlay-lines";
+  lineGroup.add(floodGroup, status, gapsGroup, whatIfGroup, routeGroup);
+  group.add(markerGroup);
   let flood: { dispose(): void } | null = null;
   let markers: Markers | null = null;
   let markerKey: unknown[] | null = null;
@@ -114,8 +126,9 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   };
 
   function update(s: OverlayState) {
-    const accessChanged = s.access !== last.access;
-    if (accessChanged) fill(status, s.access ? statusBatches(s.access, frame) : []);
+    const statusSrc = s.pathStatus ? s.access : null;
+    if (statusSrc !== (last.pathStatus ? last.access : null))
+      fill(status, statusSrc ? statusBatches(statusSrc, frame) : []);
     if (s.gaps !== last.gaps) fill(gapsGroup, s.gaps ? gapBatches(s.gaps, frame) : []);
     if (s.whatIf !== last.whatIf) fill(whatIfGroup, s.whatIf ? whatIfBatches(s.whatIf, frame) : []);
     if (s.route !== last.route) fill(routeGroup, s.route ? routeBatches(s.route, frame) : []);
@@ -178,15 +191,17 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
 
   return {
     group,
+    lineGroup,
     groundGroup,
     update,
     setMetresPerPixel(m) {
       if (!(m > 0) || !Number.isFinite(m)) return;
       mpp = m;
-      group.traverse((o) => setDashScale(o, m));
+      for (const g of [group, lineGroup]) g.traverse((o) => setDashScale(o, m));
     },
     hasVisible() {
-      const own = [status, gapsGroup, whatIfGroup, routeGroup, floodGroup, markerGroup];
+      // Lines draw in the main pass (lineGroup): only markers and attached batches need the overlay pass.
+      const own = [markerGroup];
       return [...own, ...[...children].map((c) => c.group)].some(drawable);
     },
     setResolution(w, h) {
@@ -194,10 +209,11 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       resSet = true;
       for (const ch of children) ch.setResolution?.(w, h);
       if (cam) markers?.setView(cam, fov, h);
-      group.traverse((o) => {
-        const m = (o as THREE.Mesh).material as LineMaterial | undefined;
-        if (m?.resolution) m.resolution.set(w, h);
-      });
+      for (const g of [group, lineGroup])
+        g.traverse((o) => {
+          const m = (o as THREE.Mesh).material as LineMaterial | undefined;
+          if (m?.resolution) m.resolution.set(w, h);
+        });
     },
     setPixelRatio(pr) {
       pixelRatio = pr;
@@ -235,6 +251,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       markerGroup.clear();
       for (const g of [status, gapsGroup, whatIfGroup, routeGroup]) drop(g);
       group.removeFromParent();
+      lineGroup.removeFromParent();
     },
   };
 }
@@ -265,6 +282,8 @@ function statusBatches(access: AccessData, f: LocalFrame): THREE.Object3D[] {
         statusLineStyle(st),
         LIFT.status,
         ORDER.status,
+        undefined,
+        true,
       ),
     );
   return out;

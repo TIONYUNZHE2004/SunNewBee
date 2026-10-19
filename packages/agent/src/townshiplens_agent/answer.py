@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from .events import SceneIntent
+from .events import AnswerSceneIntent
 
 
 class Claim(BaseModel):
@@ -21,6 +21,7 @@ class FinalAnswer(BaseModel):
     claims: list[Claim] = Field(default_factory=list)
     route_id: str | None = None
     scenario_id: str | None = None
-    scene_intents: list[SceneIntent] = Field(default_factory=list)
+    # Model-facing intents: the server attaches geometry, summaries and journey plans (run.py).
+    scene_intents: list[AnswerSceneIntent] = Field(default_factory=list)
     caveats: list[str] = Field(default_factory=list)
     followups: list[str] = Field(default_factory=list)

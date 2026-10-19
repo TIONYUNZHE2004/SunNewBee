@@ -2,6 +2,7 @@ import re
 
 from .answer import Claim, FinalAnswer
 from .events import SceneIntent
+from .journeys import PLAYABLE, journey_facts, journey_steps, start_time_for
 from .labels import (
     attribute_label,
     closure_caveats,
@@ -667,6 +668,20 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
         summary = f"Route {tail}."
     if status == "no_data":
         summary = "No route can be shown between these places."  # the data-gap caveat says why
+    # The walk (spec 2026-10-19 §6.3): same facts and intents as the mock's route answer, from
+    # the plan call_tool built for this route; an evacuation route is not played.
+    plan = rec.journeys.get(rid)
+    walk = (
+        plan is not None
+        and status in PLAYABLE
+        and not rec.route_closures
+        and "list_evacuation_centres" not in rec.tool_calls
+    )
+    intents = [SceneIntent(kind="route.highlight", route_id=rid)]
+    if walk:
+        intents.append(
+            SceneIntent(kind="journey.play", route_id=rid, start_time=start_time_for(question))
+        )
     return FinalAnswer(
         answer_status="answered"
         if status == "confirmed"
@@ -675,9 +690,10 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
         and not rec.route_closures
         else "partial",
         summary=summary,
+        steps=journey_steps(journey_facts(plan)) if walk else [],
         claims=claims,
         route_id=rid,
         scenario_id=scenario_id,
         caveats=caveats,
-        scene_intents=[SceneIntent(kind="route.highlight", route_id=rid)],
+        scene_intents=intents,
     )

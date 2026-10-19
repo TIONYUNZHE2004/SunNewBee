@@ -43,6 +43,15 @@ describe("createGroundLayer", () => {
     expect(hits).toHaveLength(0);
   });
 
+  it("names each mesh's band (the acceptance harness finds road surfaces by it)", () => {
+    const layer = createGroundLayer([ribbon("major"), ribbon("major", true)], lc(), "high");
+    expect(meshes(layer.group).map((m) => m.userData.groundBand)).toEqual([
+      "landcover",
+      "roads",
+      "markings",
+    ]);
+  });
+
   it("merges all roads into one mesh and markings into another (3 draws)", () => {
     const layer = createGroundLayer(
       [ribbon("major"), ribbon("footway"), ribbon("other"), ribbon("major", true)],

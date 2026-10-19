@@ -11,7 +11,22 @@ export interface LightPreset {
   envIntensity: number;
   exposure: number;
   background: string;
-  fog: { color: string; near: number; far: number };
+  /** Sky zenith colour; the horizon end of the sky gradient is `fog.color`, so far ground blends into it. */
+  skyTop: string;
+  /**
+   * Fog distances in metres (floors for close cameras) and as multiples of the camera range
+   * (`nearK`, `farK`). At the 7 km overview the farthest Elmina boundary vertex is 1.39x the range
+   * away (9.73 km, `mood.test.ts` derives it from boundary.geojson); `farK` 1.45 keeps it below full
+   * fog (about 90%) so the diorama slab edge (A-T4) is not swallowed, while the top of the frame
+   * (about 1.28x) is at about 76%. Mood-driven: night closes in slightly. Fog colour is never a saturated blue, so it
+   * cannot tint roofs into the water hue band (mood.test.ts).
+   */
+  fog: { color: string; near: number; far: number; nearK: number; farK: number };
+  /**
+   * Albedo multiplier on ground and road materials: 1 by day, lower at night. Land-cover water is
+   * darkened with the rest of the ground (hue-preserving); only the separate base `water` band is exempt.
+   */
+  groundGrade: number;
   /** 0 by day, > 0 at dusk and night. */
   windowEmissive: number;
   /** Bloom strength; 0 turns the pass off. Off by day: see BLOOM. */
@@ -39,8 +54,10 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     hemiIntensity: 0.5,
     envIntensity: 0.35,
     exposure: 1,
-    background: "#bfe0f5",
-    fog: { color: "#cfe6f5", near: 600, far: 3500 },
+    background: "#dfe5e7",
+    skyTop: "#5f9fe0",
+    fog: { color: "#dfe5e7", near: 600, far: 3500, nearK: 0.7, farK: 1.45 },
+    groundGrade: 1,
     windowEmissive: 0,
     bloom: 0,
   },
@@ -52,8 +69,10 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     hemiIntensity: 0.4,
     envIntensity: 0.3,
     exposure: 1,
-    background: "#f2a27c",
-    fog: { color: "#e8a589", near: 500, far: 3000 },
+    background: "#e8a589",
+    skyTop: "#5a4f8c",
+    fog: { color: "#e8a589", near: 500, far: 3000, nearK: 0.7, farK: 1.45 },
+    groundGrade: 0.9,
     windowEmissive: 0.8,
     bloom: 0.6,
   },
@@ -65,8 +84,10 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     hemiIntensity: 0.35,
     envIntensity: 0.15,
     exposure: 1.1,
-    background: "#0d0b24",
-    fog: { color: "#1a1640", near: 400, far: 2500 },
+    background: "#1a1640",
+    skyTop: "#06050f",
+    fog: { color: "#1a1640", near: 400, far: 2500, nearK: 0.7, farK: 1.45 },
+    groundGrade: 0.72,
     windowEmissive: 1.6,
     bloom: 0.6,
   },
@@ -135,11 +156,15 @@ export function blendPresets(a: LightPreset, b: LightPreset, k: number): LightPr
     envIntensity: mix(a.envIntensity, b.envIntensity, k),
     exposure: mix(a.exposure, b.exposure, k),
     background: mixColour(a.background, b.background, k),
+    skyTop: mixColour(a.skyTop, b.skyTop, k),
     fog: {
       color: mixColour(a.fog.color, b.fog.color, k),
       near: mix(a.fog.near, b.fog.near, k),
       far: mix(a.fog.far, b.fog.far, k),
+      nearK: mix(a.fog.nearK, b.fog.nearK, k),
+      farK: mix(a.fog.farK, b.fog.farK, k),
     },
+    groundGrade: mix(a.groundGrade, b.groundGrade, k),
     windowEmissive: mix(a.windowEmissive, b.windowEmissive, k),
     bloom: mix(a.bloom, b.bloom, k),
   };

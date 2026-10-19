@@ -7,6 +7,7 @@ import type { FacadeBuilding } from "../facade/facadeLayer";
 import type { RoofItem, TileRoofs } from "../facade/roofLayer";
 import { roofDressing } from "../facade/roofPlan";
 import { createFrame, type LocalFrame } from "../frame";
+import type { Boundary } from "../ground/boundary";
 import { ribbonsFromWalk } from "../ground/ribbons";
 import { planVerges } from "../ground/verges";
 import { planAgents } from "../motion/agents";
@@ -14,6 +15,7 @@ import { planProps } from "../props/propsPlan";
 import { planSigns } from "../signs/signPlan";
 import { type PlanArea, seedFor } from "./area";
 import { tileCap, VERGE_PIECES_PER_CAP, VERGE_SHRUBS_PER_CAP } from "./caps";
+import { guardTile } from "./clipTile";
 import { lotKits, planTileLots, warmLots } from "./lotsPlan";
 import type { Ring, TileContent } from "./streamer";
 import { type Tile, type TileKey, tileAt, tileOf } from "./tiles";
@@ -30,6 +32,12 @@ export interface TileInputs {
   facades: Map<TileKey, FacadeBuilding[]> | null;
   /** Roof inputs by tile (`bucketRoofs`); absent or null: no roof dressing. */
   roofs?: Map<TileKey, RoofInput[]> | null;
+  /**
+   * The Elmina outline (A-T4). `walk` and `buildings` are already cut to it (`ground/clipLayer.ts`);
+   * with it every planned tile also passes the vertex guard (`clipTile.ts`) and agents keep to
+   * paths inside. Absent or null (a world without an outline): nothing is clipped.
+   */
+  boundary?: Boundary | null;
 }
 
 /**
@@ -140,6 +148,7 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
           tier,
           caps: { vehicles, people },
           m: manifest,
+          boundary: inp.boundary,
         })
       : [];
   const signs =
@@ -152,7 +161,7 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
   const ribbons = ribbonsFromWalk(walk as GeoJSON.FeatureCollection, frame, {
     area: areaOf(tile, SALT.roads),
   });
-  return {
+  const content: TileContent = {
     kits,
     lamps: LAMP_KITS.flatMap((k) => kits.get(k) ?? []),
     agents,
@@ -163,6 +172,8 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
     verges: planTileVerges(inp, tile, ring, tier),
     ...lots.content, // Task 10: parking, tracks, gravel
   };
+  // A-T4: nothing drawn outside the Elmina outline (display only).
+  return guardTile(content, inp.boundary);
 }
 
 // --- Task 9: grass verges and shrub rows (self-contained) ---------------------------------------

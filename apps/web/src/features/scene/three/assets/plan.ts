@@ -7,6 +7,7 @@ import { type PodiumDeck, podiumDeck } from "../facade/podiumDeck";
 import { area, cleanRing, MIN_ROOF_AREA_M2, type RoofBuilding } from "../facade/roofPlan";
 import { type FallbackColours, fallbackColours, propsByBuildingId } from "../fallbackStyle";
 import type { LocalFrame } from "../frame";
+import { type Boundary, insideBoundary } from "../ground/boundary";
 import type { Placement } from "./fit";
 import { fitArchetype, footprintObb, hash01, paletteFor, precinctGroupOf, variantFor } from "./fit";
 import type { AssetSpec, Manifest } from "./manifest";
@@ -81,12 +82,18 @@ export function unitPalettes(units: Placement[], spec: AssetSpec, group: string)
   });
 }
 
-/** Which buildings get an archetype (and how many row units), and which stay extruded. Pure. */
+/**
+ * Which buildings get an archetype (and how many row units), and which stay extruded. Pure.
+ * `layer` is expected already cut to the Elmina outline (`ground/clipLayer.ts`: footprints more than
+ * 5 m outside are dropped there, so the extrusions and this plan agree); with `boundary`, a landmark
+ * placed by its manifest anchor (not its footprint) is also skipped when the anchor lies outside.
+ */
 export function planCity(
   layer: BuildingsLayer | null | undefined,
   frame: LocalFrame,
   m: Manifest,
   has: (asset: string) => boolean,
+  boundary?: Boundary | null,
 ): CityPlan {
   const plan = emptyPlan();
   if (!layer) return plan;
@@ -122,8 +129,9 @@ export function planCity(
     let placed: Placement | null = null;
     if (spec.placement === "anchor") {
       const a = m.landmarks[model]?.anchor;
-      if (a) {
-        const [x, z] = frame.toLocal(a[0], a[1]);
+      const at = a ? frame.toLocal(a[0], a[1]) : null;
+      if (at && (!boundary || insideBoundary(boundary, at[0], at[1]))) {
+        const [x, z] = at;
         placed = {
           id,
           asset: model,
