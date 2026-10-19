@@ -62,6 +62,7 @@ docs/
 │   ├── mvp-spec.md                   prioritised features + acceptance criteria
 │   ├── demo-script.md                3-minute demo + recovery plan
 │   ├── evaluation-plan.md            golden set, metrics, user study, results table
+│   ├── resident-journey-simulation.md  concept: third-person follow of a simulated trip (not built)
 │   └── field-verification-guide.md   site visit protocol + ethics
 ├── 04-architecture/
 │   ├── README.md                     overview + canonical names

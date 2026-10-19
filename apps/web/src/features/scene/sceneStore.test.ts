@@ -92,7 +92,7 @@ describe("redesign additions", () => {
 
 describe("map style default", () => {
   beforeEach(() => useScene.getState().reset());
-  it("defaultMapStyle: stylised when buildings exist, else realistic", () => {
+  it("defaultMapStyle: Stylised (Three.js) when buildings exist, else Realistic (Cesium)", () => {
     expect(defaultMapStyle(true, false)).toBe("stylised");
     expect(defaultMapStyle(true, true)).toBe("stylised");
     expect(defaultMapStyle(false, true)).toBe("realistic");

@@ -2,19 +2,22 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { createFrame } from "../frame";
 import {
+  CONSTRUCTION_Y,
   GROUND_BANDS,
   groundMaterial,
   LANDCOVER_MAX_Y,
   MARKING_Y,
   PARK_Y,
   ROAD_Y,
+  VERGE_Y,
   WATER_Y,
 } from "./bands";
 import { createGroundLayer } from "./groundLayer";
 import { LANDCOVER_ORDER, landcoverMesh } from "./landcover";
 import type { Ribbon } from "./ribbons";
 
-const ORDER = ["landcover", "parks", "water", "roads", "markings"] as const;
+// Wave 4b (ruling P4-X): six ground draws, one per band, in this draw order.
+const ORDER = ["landcover", "decor", "parks", "water", "roads", "markings"] as const;
 
 describe("ground bands", () => {
   it("ground, land cover, parks and base water stay within 0.06 m, below the 0.08 m road lift", () => {
@@ -27,9 +30,20 @@ describe("ground bands", () => {
     expect(MARKING_Y).toBeGreaterThan(ROAD_Y);
   });
 
-  it("lifts rise land cover < parks < base water < roads < markings", () => {
-    const ys = [LANDCOVER_MAX_Y, PARK_Y, WATER_Y, ROAD_Y, MARKING_Y];
+  it("lifts rise land cover < parks < base water < verges < roads < markings", () => {
+    expect(VERGE_Y).toBe(0.07);
+    const ys = [LANDCOVER_MAX_Y, PARK_Y, WATER_Y, VERGE_Y, ROAD_Y, MARKING_Y];
     for (let i = 1; i < ys.length; i++) expect(ys[i]!).toBeGreaterThan(ys[i - 1]!);
+  });
+
+  it("exactly six bands; ground decor (verges 0.07 m + construction ground 0.045 m) draws right after land cover", () => {
+    expect(Object.keys(GROUND_BANDS).sort()).toEqual([...ORDER].sort());
+    expect(CONSTRUCTION_Y).toBeGreaterThan(LANDCOVER_MAX_Y);
+    expect(CONSTRUCTION_Y).toBeLessThan(PARK_Y);
+    // Render order within the old verges band (3.5) and below parks: parks, water and roads paint over it.
+    expect(GROUND_BANDS.decor.order).toBeLessThanOrEqual(3.5);
+    expect(GROUND_BANDS.decor.order).toBeGreaterThan(GROUND_BANDS.landcover.order);
+    expect(GROUND_BANDS.decor.order).toBeLessThan(GROUND_BANDS.parks.order);
   });
 
   it("polygonOffset and renderOrder are strictly increasing in the same order", () => {

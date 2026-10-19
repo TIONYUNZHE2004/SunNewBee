@@ -1,14 +1,20 @@
 import * as THREE from "three";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssetLibrary } from "../assets/library";
 import type { Manifest } from "../assets/manifest";
 import { createMotionUniforms, createRoleUniforms } from "../assets/roleMaterial";
 import {
+  createMotionClock,
   createMotionDriver,
   DECOR_FADE_MS,
   decorativeOpacity,
+  MOTION_FALLBACK_FPS,
   MOTION_FRAME_MS,
+  MOTION_SLACK_MS,
+  type MotionMode,
+  motionModeFor,
   motionRunning,
+  resetMotionSession,
 } from "./motionClock";
 import { createMotionLayer } from "./motionLayer";
 
@@ -220,5 +226,107 @@ describe("createMotionDriver", () => {
     const { d } = setup();
     expect(d.group.userData.decorative).toBe(true);
     expect(createMotionUniforms().uSway.value).toBe(1);
+  });
+});
+
+describe("createMotionClock (P4: display rate, one-shot 30 fps fallback)", () => {
+  beforeEach(() => resetMotionSession());
+
+  it("display mode is the default: every live rAF is a motion tick and the next wake is the next rAF", () => {
+    const c = createMotionClock();
+    expect(c.mode).toBe<MotionMode>("display");
+    // A fake rAF loop at 60 Hz driven only by the clock's own wake requests.
+    let rafs = 0;
+    let ticks = 0;
+    let now = 1000;
+    let pending = true;
+    for (let i = 0; i < 120 && pending; i++) {
+      pending = false;
+      rafs++;
+      if (c.frame(now, true)) ticks++;
+      expect(c.at).toBe(now);
+      const wake = c.nextWakeMs(now, true);
+      if (wake === 0) pending = true;
+      now += 1000 / 60;
+    }
+    expect(rafs).toBe(120);
+    expect(ticks).toBe(rafs);
+  });
+
+  it("running false schedules nothing and freezes the clock (P3 Review Focus 3)", () => {
+    const c = createMotionClock();
+    c.frame(1000, true);
+    expect(c.frame(1016, false)).toBe(false);
+    expect(c.at).toBe(1000);
+    expect(c.nextWakeMs(1016, false)).toBeNull();
+    const slow = createMotionClock({ mode: "30fps" });
+    expect(slow.frame(5, false)).toBe(false);
+    expect(slow.nextWakeMs(5, false)).toBeNull();
+  });
+
+  it("30fps mode keeps the P3 cadence: due at once on (re)start, then every MOTION_FRAME_MS - slack", () => {
+    const c = createMotionClock({ mode: "30fps" });
+    expect(c.frame(0, true)).toBe(true);
+    expect(c.nextWakeMs(0, true)).toBeCloseTo(MOTION_FRAME_MS - MOTION_SLACK_MS);
+    expect(c.frame(16, true)).toBe(false);
+    expect(c.at).toBe(0);
+    expect(c.nextWakeMs(16, true)).toBeCloseTo(MOTION_FRAME_MS - MOTION_SLACK_MS - 16);
+    expect(c.frame(30, true)).toBe(true);
+    // A stop then a restart: due at once again.
+    c.frame(40, false);
+    expect(c.frame(41, true)).toBe(true);
+  });
+
+  it("falls back to 30 fps once after a slow median during motion, for the session", () => {
+    expect(MOTION_FALLBACK_FPS).toBe(45);
+    const c = createMotionClock();
+    // Fast frames (60 fps) for 4 s: no change.
+    let now = 0;
+    for (let i = 0; i < 240; i++, now += 1000 / 60) c.frame(now, true);
+    expect(c.mode).toBe("display");
+    // Slow frames (30 fps) for a full window: falls back.
+    const changes: MotionMode[] = [];
+    c.onModeChange((m) => changes.push(m));
+    for (let i = 0; i < 120; i++, now += 1000 / 30) c.frame(now, true);
+    expect(c.mode).toBe("30fps");
+    expect(changes).toEqual(["30fps"]);
+    // Fast again: it stays at 30 fps (once per session), and a new clock starts at 30 fps too.
+    for (let i = 0; i < 400; i++, now += 1000 / 120) c.frame(now, true);
+    expect(c.mode).toBe("30fps");
+    expect(changes).toEqual(["30fps"]);
+    expect(createMotionClock().mode).toBe("30fps");
+  });
+
+  it("slow frames while motion is stopped never trigger the fallback; reportFrameMedian is the external hook", () => {
+    const c = createMotionClock();
+    let now = 0;
+    for (let i = 0; i < 200; i++, now += 100) c.frame(now, false);
+    expect(c.mode).toBe("display");
+    expect(c.reportFrameMedian(20)).toBe(false); // last frame was not live
+    c.frame(now, true);
+    expect(c.reportFrameMedian(50)).toBe(false);
+    expect(c.reportFrameMedian(44)).toBe(true);
+    expect(c.mode).toBe("30fps");
+    expect(c.reportFrameMedian(10)).toBe(false); // only once
+  });
+
+  it("an idle gap (stop, then restart) is not counted as one slow frame", () => {
+    const c = createMotionClock();
+    let now = 0;
+    for (let k = 0; k < 40; k++) {
+      c.frame(now, true);
+      now += 1000 / 60;
+      c.frame(now, true);
+      now += 1000; // stopped for a second
+      c.frame(now, false);
+      now += 16;
+    }
+    expect(c.mode).toBe("display");
+  });
+
+  it("motionModeFor: display at High and Medium, null (motion off) at Low", () => {
+    expect(motionModeFor("high")).toBe("display");
+    expect(motionModeFor("medium")).toBe("display");
+    expect(motionModeFor("low")).toBeNull();
   });
 });

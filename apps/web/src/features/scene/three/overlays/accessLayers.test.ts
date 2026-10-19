@@ -384,6 +384,33 @@ describe("createOverlayLayer", () => {
   });
 });
 
+describe("attach: canvas size", () => {
+  it("residents' pixel floor tracks the canvas height set through the layer", async () => {
+    const T = await import("three");
+    const { createResidents, MIN_HEIGHT_PX, RESIDENT_HEIGHT_M } = await import("./residents");
+    const { VFOV_DEG } = await import("../cameraRig");
+    const layer = createOverlayLayer(frame);
+    const r = createResidents(frame);
+    r.setDay([{ r: "a", lon: frame.origin[0], lat: frame.origin[1], state: "walk" }], null);
+    layer.attach(r);
+    const tall = (h: number) => {
+      layer.setResolution(1440, h);
+      layer.setView({ x: 0, y: 0, z: 4000 }, VFOV_DEG);
+      let m: import("three").InstancedMesh | undefined;
+      r.group.traverse((o) => {
+        if (o.userData.pick) m = o as import("three").InstancedMesh;
+      });
+      const mat = new T.Matrix4();
+      (m as import("three").InstancedMesh).getMatrixAt(0, mat);
+      const sy = new T.Vector3().setFromMatrixScale(mat).y;
+      const px = (sy * RESIDENT_HEIGHT_M * h) / (2 * 4000 * Math.tan((VFOV_DEG * Math.PI) / 360));
+      return px;
+    };
+    expect(tall(600)).toBeCloseTo(MIN_HEIGHT_PX, 1);
+    expect(tall(1080)).toBeCloseTo(MIN_HEIGHT_PX, 1);
+  });
+});
+
 describe("attach", () => {
   it("adds a child batch, counts it in hasVisible, feeds it the view and disposes it", async () => {
     const T = await import("three");

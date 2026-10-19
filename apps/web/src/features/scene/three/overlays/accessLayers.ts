@@ -66,6 +66,8 @@ export interface OverlayLayer {
 export interface OverlayChild {
   group: THREE.Group;
   setView?(cam: { x: number; y: number; z: number }, nowMs: number): void;
+  /** Canvas size in the same (CSS) pixels as the layer's `setResolution`. */
+  setResolution?(w: number, h: number): void;
   dispose(): void;
 }
 
@@ -97,6 +99,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   let cam: { x: number; y: number; z: number } | null = null;
   let fov = 40;
   let res: [number, number] = [1, 1];
+  let resSet = false;
   let mpp = 1;
   let last: Partial<OverlayState> = {};
   const children = new Set<OverlayChild>();
@@ -188,6 +191,8 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
     },
     setResolution(w, h) {
       res = [w, h];
+      resSet = true;
+      for (const ch of children) ch.setResolution?.(w, h);
       if (cam) markers?.setView(cam, fov, h);
       group.traverse((o) => {
         const m = (o as THREE.Mesh).material as LineMaterial | undefined;
@@ -201,6 +206,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
     attach(child) {
       children.add(child);
       group.add(child.group);
+      if (resSet) child.setResolution?.(res[0], res[1]);
       if (cam) child.setView?.(cam, performance.now());
       return () => {
         if (!children.delete(child)) return;

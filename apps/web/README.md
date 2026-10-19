@@ -3,8 +3,9 @@
 The TownshipLens browser app: a Vite + React 19 SPA with two screens and a time-of-day theme (Day / Dusk / Night).
 
 - `/` **Main** (`features/main/MainPage.tsx`): on wide screens a stone frame holds a slim rail
-  (`app/Rail.tsx`), the map (`MapStage`: Cesium 3D, three.js, Mapbox lite or the List view) as a
-  rounded card, and the **assistant** docked beside it as its own card (a bottom sheet on phones). Overlays sit in map slots (route tag, flood banner, settings popover, place
+  (`app/Rail.tsx`), the map (`MapStage`: Three.js or Cesium 3D, Mapbox lite or the List view) as a
+  rounded card, and the **assistant** docked beside it as its own card (a bottom sheet on phones).
+  Overlays sit in map slots (route tag, flood banner, settings popover, place
   and path overlays). The assistant has modes with starter questions (`features/assistant/starters.ts`),
   answer cards with a summary strip, collapsed evidence and uncertainty banners, and a Gaps section
   of unverified facts. See "Layout", "Answers" and "Phone bottom sheet" below.
@@ -30,14 +31,16 @@ switch with the view buttons.
 
 | View | Needs | Falls back to |
 | --- | --- | --- |
-| 3D (Cesium + Resium): **Stylised** city, or **Realistic** (Google photorealistic tiles, else Cesium OSM Buildings) | WebGL2, and building data (`/layers/buildings`) or `GOOGLE_MAPS_API_KEY` or `CESIUM_ION_ACCESS_TOKEN` | Lite map |
+| 3D: **Stylised** city (Three.js), or **Realistic** (Cesium + Resium: Google photorealistic tiles, else Cesium OSM Buildings) | WebGL2, and building data (`/layers/buildings`) or `GOOGLE_MAPS_API_KEY` or `CESIUM_ION_ACCESS_TOKEN` | Lite map |
 | Lite map (Mapbox GL Standard, GeoJSON layers) | `MAPBOX_ACCESS_TOKEN` (must start with `pk.`) | List |
 | List (text, no map) | nothing | n/a |
 
 With no keys the app shows the stylised 3D city when the world has building data (the Elmina
-seed does), else the list view, and everything still works. Renderers are lazy-loaded
-(the Cesium chunk is large) and wrapped in an error boundary, so a bad key, a missing WebGL
-context or a failed chunk drops to the list instead of a blank page.
+seed does), else the list view, and everything still works. `three/engineChoice.ts`
+(`rendererFor(view, style)`) sends the 3D view to Three.js for Stylised and to Cesium for
+Realistic. Renderers are lazy-loaded (the Cesium chunk is large) and wrapped in `RendererBoundary`,
+so a bad key, a missing WebGL context or a failed chunk drops to the next one (Three.js or Cesium,
+then Mapbox lite, then List) instead of a blank page.
 
 ## Environment keys
 
@@ -122,7 +125,7 @@ skin; components use semantic tokens such as `bg-surface`, `bg-raised`, `text-fg
 and `border-edge`, not raw palette values. Status is never colour only: `src/ui/status.ts` and
 `StatusChip` pair every status with an icon, a border or pattern and a label in both skins, and own
 the honest wording. `ThemeMenu` (Auto / Day / Dusk / Night) sits in the Shell. The map follows the
-mood: Stylised re-lights per mood, Realistic Cesium night is a dark sky with dimmed tiles
+mood: Stylised (Three.js) re-lights per mood, Realistic Cesium night is a dark sky with dimmed tiles
 (`scene/cesium/timeOfDay.ts`; Google tiles cannot be relit), Mapbox uses its light presets, and the
 List view follows the page.
 
@@ -231,15 +234,15 @@ glyphs do not justify it. Add a glyph by adding a path to `PATHS` and a name to 
 - The demo cache (`data/demo/*.jsonl`) was re-recorded with the mock so replayed intents carry the
   same route fields.
 
-## Map styles (Stylised and Realistic)
+## Map styles (Stylised: Three.js, Realistic: Cesium)
 
 Inside the 3D view there are two map styles. The user picks one with the **Map style** radios in
 the settings popover.
 
-- **Stylised** (the default when the world has buildings): a low-poly city drawn from committed OSM
-  footprints (`GET /layers/buildings`: buildings, trees and base water). It has a Day palette and a
-  Night palette with lit windows. It needs no key and makes no billable request.
-- **Realistic photos (Google)**: Google Photorealistic 3D tiles. Without a Google key, but with an
+- **Stylised** (the default when the world has buildings): a low-poly city drawn by Three.js from
+  committed OSM footprints (`GET /layers/buildings`: buildings, trees and base water). It has Day,
+  Dusk and Night moods with lit windows. It needs no key and makes no billable request.
+- **Realistic photos (Google)**: Cesium with Google Photorealistic 3D tiles. Without a Google key, but with an
   Ion token, it falls back to Cesium Ion world imagery and OSM Buildings.
 - **Choosing the style:** `sceneStore` holds `mapStyle` and `mapStyleChosen`.
   - `defaultMapStyle(hasBuildings, hasGoogle)` returns `stylised` when buildings exist. The
@@ -251,27 +254,30 @@ the settings popover.
   building data", "Needs a Google Maps key" or "Needs a 3D-capable device". A disabled option is
   never checked.
 - **Honesty:** while Stylised is active the popover says "Decorative details are illustrative."
-  Building heights are mostly defaults by building kind, and the parapet adds 0.6 m (display only).
-  Everything else is decoration, seeded and never a fact: the six facade tones and window styles,
-  lit windows, rooftop clutter, cars, street trees, lamps and light pools (flat ground imagery under
-  the route and flood lines), birds, clouds and cloud shadows, parks, pavements, kerbs and markings, and base water. Base water is never a flood
-  scenario. The route, flood and place layers are the same data in both styles. The full rules are
-  under "Honesty (decorative rules)" below.
-- **Time of day:** Stylised re-skins itself on theme change (`reskin.ts`: palette, sky, light) with a crossfade.
-  Realistic uses `timeOfDay.ts`.
-- **Camera:** the home view is closer for Stylised: `framingFor("stylised", home)` gives a 1200 m
-  range, a -35 degree pitch and a 30 degree vertical field of view (`fovForVertical` converts it to
-  Cesium's horizontal `fov` for the canvas aspect); Realistic keeps -45 degrees and 60. Switching
-  style keeps the current camera.
+  Building heights are mostly defaults by building kind (display only). Everything else is
+  decoration, seeded and never a fact. The route, flood and place layers are the same data in both
+  styles. The full rules are under "Decorative content, tiers, picking and honesty (Three.js)" below.
+- **Time of day:** Stylised re-lights per theme mood (palette, sky, light) in `ThreeScene`.
+  Realistic uses `cesium/timeOfDay.ts`.
+- **Camera:** each renderer has its own camera rig (`three/cameraRig.ts`, `cesium/camera.ts`).
+  Each style is its own renderer, so a style switch remounts it and the camera does not carry
+  over. Instead the new renderer re-frames the view on the current focus: on mount it jumps to the
+  intent standing in `sceneStore` (route, then what-if, then focused place, then the last
+  `camera.fly_to`; Realistic also frames a rehearsed trip), else to its start view (Three.js: the
+  `hero-mid` bookmark; Cesium: the site home). Ruling P5-14: no camera-pose hand-off.
 
-### Three.js Stylised engine (opt-in)
+### Stylised (Three.js)
 
-A spike renderer for the Stylised style, in `features/scene/three/`. Realistic stays on Cesium;
-Mapbox lite and List are unchanged.
+The Stylised renderer, in `features/scene/three/`. Realistic stays on Cesium; Mapbox lite and List
+are unchanged. The old Cesium Stylised code and the `/dev/stylised` route are gone. Stylised never falls back to Cesium:
+a Three.js crash goes to Mapbox lite, else List.
 
-- **Turning it on:** `?engine=three` (persisted as `tl.engine` in `localStorage`; `?engine=cesium`
-  switches back). It only replaces the Stylised style on the 3D view. If it crashes (no WebGL2,
-  chunk error), the renderer boundary falls back to Mapbox, else List.
+- **Selection:** `rendererFor(view, style)` (`three/engineChoice.ts`) returns `"three"` for the 3D view
+  with Stylised; there is no `?engine=` parameter. `clearLegacyEngineChoice` removes a stale
+  `tl.engine` from `localStorage` once on `MapStage` mount. If it crashes (no WebGL2, chunk error),
+  `RendererBoundary` falls back to Mapbox, else List.
+- **Shared modules:** `features/scene/shared/{quality,model,roads}.ts` hold
+  the tiers, the building model and the road tables used by Three.js.
 - **`?bookmark=hero-near|hero-mid|township`:** the start view for the gate screenshots
   (`bookmarks.ts`); without it the camera opens on `hero-mid`.
 - **`?perf=1`:** the fps / frame time / draw calls / tier readout (`PerfOverlay`).
@@ -282,7 +288,7 @@ Mapbox lite and List are unchanged.
 - **DOM contract:** `<section data-testid="three-scene" data-frames data-route="on|off">`, with
   the same aria-label and keyboard handling as `CesiumScene`. `data-frames` updates at most every
   500 ms.
-- **Display only:** the same rules as the Cesium Stylised city. Kind tints, default heights, parks
+- **Display only:** Kind tints, default heights, parks
   and base water are illustrative; base water is never a flood scenario.
 
 #### City assets
@@ -316,17 +322,104 @@ after it stops.
 - The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
   `dist/city/`.
 
+#### Streaming (Three.js)
+
+Decorative content is planned per 250 m tile around the camera target (`stream/`), not for a fixed
+hero district.
+
+- **Tiles and rings:** ring 0 is the target tile, ring 1 the 8 around it, ring 2 two tiles out (only
+  while the camera range is ≤ 1500 m). Beyond 1500 m only rings 0–1 show, and only trees and roads.
+  Caps per tile come from `tileCap` (`TILE_CAPS[tier][ring]`, ×1.6 in the hero district); seeds come
+  from the tile key, so a tile's content depends only on its key, the tier and the data, never on
+  visit order, the mood or Day playback.
+- **Streamer:** `createStreamer` runs on the engine's 250 ms LOD tick (`engine.onLodTick`) and asks
+  for at most one tile per tick. Plans are kept in an LRU of 64 (tile × ring); a tile whose ring or
+  tier changed keeps its old content until its re-plan.
+- **Planning in a Worker:** `planClient.ts` posts the inputs once (`init`) to a module Worker
+  (`stream/plan.worker.ts`) and then one `plan` at a time; the result is applied on a later tick.
+  At most one plan is in flight: a newer request supersedes a waiting one (its promise rejects with
+  `Superseded`) and a stale reply is dropped. Without `Worker`, or if constructing it throws, planning
+  runs on the main thread, one tile per call. A Worker `error` switches the session to the main
+  thread and re-plans the pending tile there. Determinism is the same on both paths (the planners
+  are pure and seeded by tile key). The planners' layer caches are warmed once per input set: in the
+  Worker on `init`, and on the main thread (`warmPlanners`, idle callback) only in the fallback. The
+  sign font is warmed once per sign set (`warmSignFont`) so a cold glyph does not stall a sign
+  rebuild.
+- **Merging:** `useDecor` (kits via `setKits`, lamp pools, signs), `useMotion` (agents), `useRoads`
+  (the `roads` decor slot) and `useFacades` (facades for ring ≤ 1 tiles only, no shadows) rebuild
+  only when the active tiles change. The scene's `data-tiles` attribute is the active tile count.
+- **Sliced rebuilds:** when a merge or layer build exceeds 8 ms, merged layers (kits, lamps, signs,
+  roads, ground decor) are rebuilt in steps by `sliceWork` (`scene/idle.ts`), at most 8 ms of steps
+  per frame. A layer swaps in only when complete (`onDone`); a newer job replaces a pending one.
+  Facades and roofs keep their own idle task.
+- **Shaders and swaps:** before a replaced decor layer is shown, `engine.ts` runs
+  `renderer.compileAsync` against the scene pass target (the old layer stays drawn meanwhile; if it
+  throws, the layer is shown anyway and compiles on first render, with one console warning).
+  Compiled shader programs are pinned (`pinPrograms`) so a layer that disappears (beyond 1500 m) and
+  returns does not link again. Replaced layers are disposed after the next render.
+- **Measures:** User Timing `tl:stream-plan` (main-thread plan), `tl:stream-reply` (one Worker
+  reply), `tl:stream-init` (one-off `init` post), `tl:stream-merge` (only the passive-effects share
+  of a merge, so not comparable with P4), `tl:stream-slice` (one sliced frame), per-layer
+  `tl:stream-{kits,lamps,signs,roads,ground,facades,roofs,union}`, and `tl:stream-upload` (the first
+  render after a swap). `tl:worker-plan` is the Worker's own time and is not a main-thread task.
+- **Fly measurement:** `scripts/measure-fly.mjs` (a mock dev server running) flies hero-mid, probe-c,
+  probe-a, hero-mid three times at Medium and reports every `tl:*` measure. Its gate is no
+  `tl:stream-*` measure above 16 ms during the fly loops; load-time `tl:stream-init` and the cold
+  first merge are outside it (ruling P5-15). `--no-worker` A/Bs the main-thread path. Numbers are
+  indicative (one machine, GPU).
+- **Status (honest):** on the final code the 16 ms gate passed in 1 of 3 runs. The residual spikes
+  are GC pauses and unattributed time around 19-20 ms, plus facade idle builds up to 18.5 ms. Owner
+  ruling P5-19 accepted this for P5; it is logged for P6.
+- **Facades (decorative):** `useFacades` (the `facades` decor slot) lays procedural window and
+  shopfront quads (`facade/facadePlan.ts`, `facade/facadeLayer.ts`; at most 5 draws) 0.05 m out
+  from the walls of the extruded buildings in ring ≤ 1 tiles. Window storeys come from the displayed
+  height ÷ 3.2 m, including `default` heights (their card already says "Default estimate"). A facade
+  never changes a footprint or a height and never rises above the roof; the building under it stays
+  pickable as the same building. Farther tiles, and every tile at Low, show the plain palette
+  extrusion. Shopfront palettes are chosen per unit, and facades and roofs rebuild only when
+  the tier moves between Low and not-Low.
+- **Roofs (decorative):** `useRoofs` (the `roofs` decor slot) draws rooftop units, skylights and an
+  edge band on the extruded roofs of 600 m² or more in ring ≤ 1 tiles (`facade/roofPlan.ts`,
+  `facade/roofLayer.ts`; no shadows, none at Low). Landmark buildings get none. The OSM podium
+  under the Kanopi tower gets a podium deck instead (planters, a pool in base-water `#7fb6c9`, a
+  pergola; `facade/podiumDeck.ts`) and stays pickable. Large extruded roofs whose palette roof is
+  grey take one of four `ROOF_TINTS` (warm concrete, terracotta, sand, cool membrane) at every tier.
+- **Ground decor, verges and lots (decorative):** `planTileVerges` plans grass verge strips (ring
+  ≤ 1, skipping parks and water; Medium ring 0 only, ruling P4-Z: hitch budget) and ring 0 shrubs; `planTileLots`
+  (`stream/lotsPlan.ts`) plans parking stalls and parked cars only on land-cover `parking`
+  polygons, plus construction sites (gravel tint, earth tracks, by-area kit props). Verges and the
+  construction ground share one ground-decor mesh (`useGroundDecor`, the `ground-decor` slot,
+  `ground/groundDecor.ts`); stall lines ride the road-markings mesh (`useRoads`). The ground stays at
+  6 draws (`ground/bands.ts`). Parked cars are their own stream kind `parked` (costed per car at
+  the worst variant), ride the static kit buckets with the `parked` material (unlit at every
+  mood, unlike moving traffic), fill a fixed 70 % of the stalls (`CARS_SHARE`, ruling P4-AF: never
+  mood-dependent), and never move or fade with Day / Rollout.
+  None of it at Low or beyond 1500 m.
+- **Culling:** `CityInstances.update` gets the view frustum padded by the shadow extent (`cull.ts`),
+  so an off-screen shadow caster is never left stale.
+- **Probe views:** `probe-a`…`probe-d` in `bookmarks.ts` are 800 m views over four non-hero
+  precincts (Elmina Valley 3, Elmina Green, Subang Galaksi, Seksyen U16); with `hero-mid` and
+  `township` they are the six views the any-position budget holds at Medium. Open one with
+  `?bookmark=probe-a`. `scripts/measure-probes.mjs` records draws, tris and MB at all
+  six (`pnpm --filter @tl/web exec node scripts/measure-probes.mjs`, with a mock dev server running).
+- **Per tier:** High and Medium stream everything above (Medium draws verges at ring 0 only); Low
+  plans roads only: no facade detail, roof dressing, verges, shrubs, lots, props, agents or signs.
+
 #### Motion (Three.js)
 
 Decorative traffic and pedestrians (`motion/`), plus the birds, cloud shadows, tree sway, water
-shimmer and window flicker, all move on one motion clock in `engine.ts`. It runs on real time at
-30 fps at most. It runs only while Motion is on, `prefers-reduced-motion` is off, the tab is visible
+shimmer and window flicker, all move on one motion clock (`motion/motionClock.ts`, driven by
+`engine.ts`). It runs on real time: one tick per rAF (display rate) at High and Medium, and 30 fps
+for the rest of the page session once the clock measures a median below 45 fps during motion. At
+Low, motion is off: there is no motion driver, no motion frame or timer, and sway, shimmer and
+flicker hold their rest pose. It runs only while Motion is on, `prefers-reduced-motion` is off, the tab is visible
 and the map is on screen (`IntersectionObserver`). Otherwise no frame is scheduled: the engine idles
-at render on demand and holds a still pose.
+at render on demand and holds a still pose. Motion time excludes stopped spans, so agents resume
+where they stopped instead of jumping. Every rebuilt agent layer shares one smoothed-yaw memory.
 
 - **Agents:** `planAgents` puts seeded vehicles on `street`/`major_road` edges and people on
-  `footway`/`path`/`pedestrian` edges in the hero district, weighted ×3 near schools, malls and parks.
-  The count is `PROP_CAPS` × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
+  `footway`/`path`/`pedestrian` edges of each streamed tile, weighted ×3 near schools, malls and
+  parks. The count is the tile's cap × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
   edges with no routing or collision, so cars can pass through each other.
 - **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD. Matrices are rewritten
   each tick, but only for agents in view (with a 50 m margin). Agents beyond their last LOD's `maxM`
@@ -343,21 +436,29 @@ at render on demand and holds a still pose.
 described by the assistant or the cards): the ground layer (land-cover tints, road surfaces,
 markings, water shimmer), the prop kits (trees, lamps, street furniture, construction), lamp light
 pools, people and vehicles (motion layer), birds and cloud shadows (ambient), window flicker, and any
-landmark the manifest marks `decorative`. The stylised fallback building is *not* decorative: it is a
+landmark the manifest marks `decorative`; and the P4 decor: procedural facades, rooftop units,
+skylights and roof bands, the Kanopi podium deck, grass verges, verge shrubs, parked cars, parking
+stall lines and the construction ground (gravel tint, earth tracks). The stylised fallback building is *not* decorative: it is a
 real, pickable OSM building, and only its colours are display styling (derived from the manifest
 palette; its card says "(shown as a simple block)"). While any decorative layer is drawn the map shows
 the note **"Decorative details are illustrative."** (`DecorativeChip`, `notes` slot).
 `honesty.test.ts` guards the spec section 5 list: decorative tags and no-op raycasts, signs only with a
 source, the 1 s Day/Rollout fade, flat matte flood water at 0.30 m, and no land-cover or base-water
-colour (`#7fb6c9`) equal to a flood colour (`#C53030`, `#DD6B20`, `#1e6fb8`).
+colour (`#7fb6c9`) equal to a flood colour (`#C53030`, `#DD6B20`, `#1e6fb8`). For the streamed
+decor it also checks (on a really planned tile and the Elmina seed): every new layer is decorative
+and raycasts to nothing; the building under a facade, and the Kanopi podium (`w1545153991`) under its
+deck, still pick as themselves; parked cars (`pk:` ids) are never agents and keep their opacity
+through the Day/Rollout fade; facades never rise above a building's height or leave its walls; no
+decor colour (stalls, gravel, tracks, verges, deck pool, roof tints, kit palettes) equals a flood
+colour; and every overlay keeps `depthTest` off and a `renderOrder` ≥ 10, above every decor object
+(the ambient birds sit at 12 inside the main scene, which the overlay pass draws over).
 
 **Query params:**
 
 | Param | Effect |
 |---|---|
-| `?engine=three` | Use this engine (`?engine=cesium` switches back). |
 | `?perf=1` | Show the perf line. |
-| `?bookmark=hero-near\|hero-mid\|township` | Start view (default `hero-mid`). |
+| `?bookmark=hero-near\|hero-mid\|township\|probe-a\|probe-b\|probe-c\|probe-d` | Start view (default `hero-mid`). |
 | `?assets=0` | Extruded city only, no manifest fetch. |
 | `?showroom=1` | Model showroom grid instead of the city. |
 
@@ -368,8 +469,14 @@ no_archetype, `ns` no_asset (the same counts as `data-fallback`).
 **Tiers** (Auto picks from the GPU and drops one tier when frames run slow; or choose one in Map
 settings):
 
-- `PROP_CAPS[tier]` (`props/caps.ts`) caps each kit: High 6000 trees / 1500 lamps / 600 furniture /
-  300 construction / 400 people / 250 vehicles; Medium 3500 / 900 / 350 / 200 / 220 / 140.
+- Props are capped per streamed tile, not per city: `TILE_CAPS[tier][ring][kind]`
+  (`three/stream/caps.ts`), read through `tileCap`, which multiplies by `HERO_BOOST` (×1.6) when
+  the tile centre is in the hero district. Ring 0 caps (before the boost), High / Medium: trees
+  145 / 60, lamps 80 / 60, furniture 50 / 36, construction 12 / 6, people 24 / 14, vehicles
+  16 / 10, signs 60 / 40, verges 50 / 37, parking stalls 200 / 120, parked cars 24 / 20. Ring 1
+  is roughly half that (Medium ring 1 has no verges, ruling P4-Z), and ring 2 draws trees only
+  (High 60, Medium 40). Low caps everything at 0. `caps.ts` is the source of truth; its comments
+  give the triangle budget the caps are sized for.
 - `KIT_LOD_SCALE` multiplies kit LOD distances at run time (High 0.75, Medium 0.5, Low 1); archetypes
   are not scaled.
 - **Low draws no props and no agents** (no lamps, people, vehicles, birds or clouds), and no signs.
@@ -416,87 +523,7 @@ the click itself picks with `scene.drillPick` over an 8 px window, so thin groun
 hit and place markers win over paths. The compass reads its own heading store
 (`controls/cameraHeadingStore.ts`), so camera moves re-render only the camera controls.
 
-### Motion
-
-Birds, clouds with cloud shadows, canopy sway, base-water ripple, lamp fade and night window
-flicker. All are decorative, seeded and deterministic, and never tied to data. There is no moving
-traffic. Water animation touches only decorative base water, never a flood scenario. One loop,
-capped at 30 fps, drives it, and it stops when the tab is hidden, the map is off-screen, Motion is
-Off or `prefers-reduced-motion` is set. Switch it off with **Motion: Off** in the settings popover
-(stored in `tl.motion`). With Motion off (or reduced motion) the scene is a still frame: birds are
-hidden and canopies are rebuilt without the sway shader.
-
-Wing flap and canopy sway are vertex-shader effects clocked by `czm_frameNumber`, because a custom
-appearance vertex shader cannot read a material uniform in Cesium 1.146. They run at their designed
-speed at the loop's 30 fps and faster while the camera moves (more frames). Clouds are drawn at
-50% opacity and hidden while a route is highlighted or a flood scenario is active, so they never
-cover the answer. Leaving Stylised (for Realistic) restores the viewer's own resolution, FXAA,
-bloom, ambient occlusion and shadow settings.
-
-### Quality
-
-**Quality** (Auto / High / Medium / Low, stored in `tl.quality`) is picked from the GPU string and
-device memory (`quality.ts`, `pickTier`) and lowered automatically when the median frame rate during
-camera movement stays under 24 fps; a slow device is also offered the List view. Tiers set shadow
-type and map size, bloom, the maximum pixel ratio (2 / 1.5 / 1, applied with
-`useBrowserRecommendedResolution = false` plus `resolutionScale`), bird and cloud counts and the
-small-detail range. Ambient occlusion is off at every tier: Cesium's HBAO caused streak artifacts on
-this scene. Buildings, trees and cars cast shadows only (`CAST_ONLY`). Add `?perf=1` to the URL for a
-performance readout (its "draws" is Cesium's command list, which includes ~40 globe tiles).
-
-Draw budget (2026-10-17, RTX 2050 via ANGLE D3D11, 1440x900, Home view): the decorative ground was
-stencil ClassificationPrimitives and the buildings 64 class primitives, giving High 15 fps / 175
-commands. Now the ground decals and light pools are globe imagery (`groundImagery.ts`), all
-buildings are one primitive with one material, and flocks and clouds are one primitive each: High
-60 fps (the headless vsync cap) with 61 commands at Night and 65 at Day, Low 58. With Motion off
-(or reduced motion) a still scene renders 0 frames: Cesium 1.146's `PerspectiveFrustum.clone`
-dropped the panel-reserve `xOffset`, so the camera never matched its per-frame clone and the scene
-rendered continuously; `cesium/frustumClone.ts` patches the clone, and `Camera.getPickRay` so picks
-follow the same off-centre frustum (double-click glide, zoom-to-cursor).
-
-### Honesty (decorative rules)
-
-Everything above is display-only and covered by "Decorative details are illustrative." There is no
-moving traffic and there are no invented landmarks or signage. Pavements, kerbs, markings and parks
-are painted into globe imagery (a tiled canvas `ImageryProvider`, one layer per palette, crossfaded by
-layer alpha), so every route, path-status, gap and flood overlay draws on top and imagery is never
-pickable. Light pools are their own imagery layer above the ground decals (alpha 0.35 x glow), so they
-never tint a route or flood line, and they show only at Dusk and Night. Parks are display-only and read
-`base/parks.geojson`, which the seed does not currently contain (Overpass was blocked); fetch it
-with `uv run python data/scripts/build_buildings.py --parks --max-requests 40`. Water is a
-GroundPrimitive with a shimmer material and is never drawn as a flood scenario. See
-[ADR 0011](../../docs/00-overview/decisions/0011-time-of-day-theme-and-decorative-motion.md).
-
-### Stylised module map (`features/scene/cesium/stylised/`)
-
-```
-model.ts               GeoJSON -> buildings (height, kind, one of six tones, window style grid|strip|curtain, lit seed), grid buckets, trees; hashUnit
-palette.ts             paletteFor("day" | "dusk" | "night"): ground, roads, water, six facade tones, roofs, windows, trees, cars, sky
-buildingsMesh.ts       walls + roof geometry with metric st (window columns x floors; roof t = -1, parapet t = -2); parapet draws 0.6 m above the data height (decorative)
-buildingsPrimitive.ts  every building in one Primitive (split past 2M vertices) + one window Material; tone and
-                       window style decoded per vertex from st.s (TONE_STRIDE 1024)
-groundImagery.ts       decals -> grid index -> tiled canvas ImageryProvider (whole globe, geographic, ~0.2 m/px
-                       deepest level); ground layers crossfaded per palette; light-pool layer
-ground.ts              roadsFromWalk (width by road kind); groundDecals (roads, pavements, kerbs, markings,
-                       shore, parks) drawn as imagery; decorative water is a GroundPrimitive with a shimmer
-props.ts               kerbCars, streetTrees, streetLamps, instanced primitives (allowPicking: false, CAST_ONLY shadows)
-colour.ts              hex <-> rgb and colour mixing helpers
-lighting.ts            shared shader light model (key, fill, bounce, cloud-shadow `tl_cloud`)
-postfx.ts              per mood and tier post-processing (bloom values)
-quality.ts             High / Medium / Low tier specs, pickTier, lowerTier, frame monitor
-crossfade.ts           palette fade between moods (3 s Day to Dusk, otherwise 2 s)
-lines.ts               pure line helpers: dedupe, offsetLine, dashSegments (kerbs, markings)
-roofs.ts               seeded AC boxes and water tanks on larger flat roofs
-motion/clock.ts        one capped (30 fps) loop for all decorative motion
-motion/flocks.ts       seeded bird loops and cloud spots
-motion/sky.ts          one bird and one cloud primitive (per-instance flock / offset attributes; never
-                       pickable, no shadows, hidden at Night)
-reskin.ts              applies a palette to globe, sky, fog, light and every handle
-StylisedCity.tsx       mounts it all inside <Viewer>; roads and props start after the buildings' first frame
-StylisedPreview.tsx    DEV only: /dev/stylised (bare viewer, Day/Night toggle, window.__tlStylised timing hooks)
-```
-
-Camera and overlays, beside `stylised/`:
+### Realistic camera and overlays (Cesium)
 
 ```
 cesium/controls/*      CameraControls (button cluster, hint), cameraOps, cameraMath (limits, clamps),
@@ -504,14 +531,16 @@ cesium/controls/*      CameraControls (button cluster, hint), cameraOps, cameraM
 cesium/PerfOverlay.tsx ?perf=1 readout (frame time, tier)
 ```
 
-Related: `cesium/realistic.ts` sets up and cleans up the Google/Ion tiles and imagery,
-`cesium/home.ts` has `homeView`, `stylisedHomeView` and `shouldReframe`, and
-`cesium/heightRef.ts` clamps overlays to the ground when Stylised is active.
-
-**`/dev/stylised`** is registered only under `import.meta.env.DEV`, and the production build
-contains none of it. It renders the city alone for visual and frame-time checks. Add `?overlays=1`
-to mount the access and flood layers too. Measured numbers are in
-[the quality report](../../docs/03-product/stylised-city-quality-report.md).
+`cesium/realistic.ts` sets up and cleans up the Google/Ion tiles and imagery, and `cesium/home.ts`
+has `homeView`, `framingFor` and `shouldReframe`. `cesium/heightRef.ts` picks the height reference for
+markers and labels (clamp to Google tiles when configured, else to the ground). `cesium/frustumClone.ts`
+patches Cesium 1.146's `PerspectiveFrustum.clone`, which dropped the panel-reserve `xOffset` (so the
+camera never matched its per-frame clone and a still scene rendered continuously under
+`requestRenderMode`), and `Camera.getPickRay`, so picks follow the same off-centre frustum
+(double-click glide, zoom-to-cursor). The decorative motion, quality tiers and honesty
+rules for Stylised are under "Stylised (Three.js)" above; see also
+[ADR 0011](../../docs/00-overview/decisions/0011-time-of-day-theme-and-decorative-motion.md) and
+[the quality report](../../docs/03-product/stylised-city-quality-report.md) (historical Cesium numbers).
 
 ## Scene-intent flow
 
@@ -579,7 +608,7 @@ src/
     flood/                  floodPath ("Why this path?" facts, always indicative)
     places/                 SourceBanner, placeModel
     scene/                  sceneStore (incl. mapStyle), selectView, useMapStyle, status, styles, StatusLegend;
-                            cesium/ (incl. stylised/, realistic.ts), mapbox/, list/ adapters
+                            three/ (Stylised), cesium/ (Realistic, incl. realistic.ts), shared/ (quality, model, roads), mapbox/, list/ adapters
     tickets/                TicketsPage, TicketList, TicketDetail, OutcomeForm, BeforeAfter,
                             StaffAccess, useStaffToken, attributeCatalogue
 e2e/heroes.spec.ts          Playwright flows
@@ -598,6 +627,10 @@ before each run), `STAFF_TOKEN=e2e-token`, and all three map keys empty (list vi
 `e2e/heroes.spec.ts` covers the two-screen flow: the access and flood questions (route status,
 honest demo evidence, "not a forecast", never "safe"), a gap that becomes a ticket, resolving a
 ticket with the staff token, and the assistant's answer changing after the ticket is resolved.
+`e2e/three.spec.ts` covers the Three.js Stylised renderer: frames, a route, the
+decorative note, a place pick, the real city assets, and tile streaming at `probe-a` (`data-tiles` >
+0; the tiny fixture lies ~1.5 km away, so the rig clamps the target near the world bounds and the
+tiles around it stream).
 Playwright uses its own ports (web 5273, API 8100) and waits for `/api/site`, so a dev server on
 :5173/:8000 is never reused (a leftover e2e server on :5273 is reused locally, never in CI). First
 run: `pnpm --filter @tl/web exec playwright install chromium`.

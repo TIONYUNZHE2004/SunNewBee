@@ -3,7 +3,7 @@ import { ENV } from "../../lib/env";
 import { ListView } from "../scene/list/ListView";
 import { useScene } from "../scene/sceneStore";
 import { availableViews, effectiveView, selectView, webglSupported } from "../scene/selectView";
-import { rendererFor, stylisedEngine } from "../scene/three/engineChoice";
+import { clearLegacyEngineChoice, rendererFor } from "../scene/three/engineChoice";
 import { useMapStyle } from "../scene/useMapStyle";
 import { LoadingTownship } from "./LoadingTownship";
 import { BottomStack, InSlot, TopStack } from "./mapSlots";
@@ -47,6 +47,7 @@ function FailedAlert({ children }: { children: ReactNode }) {
 export function MapStage({ children }: { children?: ReactNode }) {
   const { view, setView, rendererFailed, setRendererFailed } = useScene();
   const applyDefaultMapStyle = useScene((s) => s.applyDefaultMapStyle);
+  const mapStyleChosen = useScene((s) => s.mapStyleChosen);
   const { style, hasBuildings, hasGoogle, settled } = useMapStyle();
   const webglOk = useMemo(webglSupported, []);
   const available = useMemo(
@@ -55,6 +56,17 @@ export function MapStage({ children }: { children?: ReactNode }) {
   );
   // Keyless worlds can still get the 3D (stylised) city once buildings data arrives: wait for it.
   const waiting = !autoSelected && !settled && webglOk && !available.includes("cesium");
+
+  // A stale `tl.engine` from the retired engine switch is dropped once; Stylised is always Three.js.
+  useEffect(() => {
+    let store: Storage | null = null;
+    try {
+      store = localStorage;
+    } catch {
+      /* blocked storage */
+    }
+    clearLegacyEngineChoice(store);
+  }, []);
 
   // Auto-select once per page load; never overwrite a view the user chose before a remount.
   useEffect(() => {
@@ -70,7 +82,11 @@ export function MapStage({ children }: { children?: ReactNode }) {
 
   const has3d = available.some((v) => v !== "list");
   const effective = effectiveView(view, available, rendererFailed);
-  const renderer = rendererFor(effective, style, stylisedEngine());
+  const renderer = rendererFor(effective, style);
+  // With a key the 3D view is available before /layers/buildings settles, while the unchosen style
+  // still reads Realistic: wait for the default style instead of mounting (and discarding) Cesium.
+  // A style the user chose is already known, so it goes straight to its renderer.
+  const styleUnknown = effective === "cesium" && !settled && !mapStyleChosen;
   const listFallback = (
     <div className="h-full space-y-3 overflow-auto p-4 pr-[calc(var(--panel-w,0px)+1rem)]">
       <FailedAlert>{LIST_FALLBACK_TEXT}</FailedAlert>
@@ -83,7 +99,7 @@ export function MapStage({ children }: { children?: ReactNode }) {
 
   return (
     <div className="relative h-full min-h-72 overflow-hidden bg-surface">
-      {waiting ? (
+      {waiting || styleUnknown ? (
         <LoadingTownship />
       ) : effective === "list" ? (
         <div className="h-full space-y-3 overflow-auto p-4 pr-[calc(var(--panel-w,0px)+1rem)]">

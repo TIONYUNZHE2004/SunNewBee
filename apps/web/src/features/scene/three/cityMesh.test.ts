@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../lib/api";
 import { WATER_COLOR } from "../styles";
 import { buildCityGeometry, faceBuildingId, KIND_COLOUR, PARK_Y, WATER_Y } from "./cityMesh";
+import { largeRoofTint } from "./facade/roofPlan";
 import { createFrame } from "./frame";
 
 const frame = createFrame([101.5, 3.0]);
@@ -139,6 +140,42 @@ describe("buildCityGeometry", () => {
     expect(seen).toEqual({ roof: 2, trim: 8, wall: 8 });
   });
 
+  it("roofTint recolours the roof cap of a large roof only (P4 Task 8: no flat grey big roofs)", () => {
+    const colours = { wall: "#ff0000", roof: "#4a4e55", trim: "#0000ff" };
+    const g = buildCityGeometry(
+      layer({
+        buildings: fc([
+          feat(poly(square(0, 0, 40)), { id: "big", height_m: 9 }), // 1600 m2
+          feat(poly(square(100, 0, 10)), { id: "small", height_m: 9 }), // 100 m2
+        ]),
+      }),
+      frame,
+      { colours: () => colours, roofTint: largeRoofTint },
+    );
+    const p = pos(g.buildings);
+    const col = g.buildings.getAttribute("color");
+    const nor = g.buildings.getAttribute("normal");
+    const lin = (h: string) => new THREE.Color(h).toArray();
+    const near = (i: number, c: string) =>
+      lin(c).every((v, k) => Math.abs(v - [col.getX(i), col.getY(i), col.getZ(i)][k]!) < 1e-5);
+    const tint = largeRoofTint("big", g.footprints[0]!.ring, colours.roof)!;
+    expect(tint).not.toBeNull();
+    let big = 0;
+    let small = 0;
+    for (let i = 0; i < p.count; i += 3) {
+      if (nor.getY(i) !== 1 || p.getY(i) !== 9) continue;
+      if (p.getX(i) < 50) {
+        expect(near(i, tint)).toBe(true);
+        big++;
+      } else {
+        expect(near(i, colours.roof)).toBe(true);
+        small++;
+      }
+    }
+    expect(big).toBeGreaterThan(0);
+    expect(small).toBeGreaterThan(0);
+  });
+
   it("without colours keeps the kind tan and the 30 vertices", () => {
     const g = buildCityGeometry(
       layer({ buildings: fc([feat(poly(square(0, 0)), { height_m: 9, kind: "commercial" })]) }),
@@ -175,6 +212,40 @@ describe("buildCityGeometry", () => {
     g.buildings.computeBoundingBox();
     expect(g.buildings.boundingBox!.min.y).toBeCloseTo(3, 6);
     expect(g.buildings.boundingBox!.max.y).toBeCloseTo(9, 6);
+  });
+
+  it("emits position, normal and colour only: no uv attribute (nothing samples wall UVs)", () => {
+    const g = buildCityGeometry(
+      layer({ buildings: fc([feat(poly(square(0, 0)), { height_m: 9.6, min_height_m: 3.2 })]) }),
+      frame,
+      { colours: () => ({ wall: "#ff0000", roof: "#00ff00", trim: "#0000ff" }) },
+    );
+    expect(Object.keys(g.buildings.attributes).sort()).toEqual(["color", "normal", "position"]);
+  });
+
+  it("lists the drawn footprints (local ring, display height, base) for the facade layer", () => {
+    const g = buildCityGeometry(
+      layer({
+        buildings: fc([
+          feat(poly(square(0, 0)), { id: "a", height_m: 9, display_height_m: 12, kind: "retail" }),
+          feat(poly(square(50, 0)), { id: "b", height_m: 6, min_height_m: 2 }),
+          feat(poly([frame.toLonLat(0, 0), frame.toLonLat(5, 0), frame.toLonLat(0, 0)]), {
+            id: "bad",
+          }),
+        ]),
+      }),
+      frame,
+      { only: new Set(["a", "b", "bad"]) },
+    );
+    expect(g.footprints.map((f) => f.id)).toEqual(["a", "b"]);
+    const [a, b] = g.footprints;
+    expect(a).toMatchObject({ id: "a", kind: "retail", heightM: 12, minHeightM: 0 });
+    expect(b).toMatchObject({ id: "b", heightM: 6, minHeightM: 2 });
+    expect(a!.ring).toHaveLength(4);
+    for (const [x, z] of a!.ring) {
+      expect(Math.abs(x) < 1e-3 || Math.abs(x - 10) < 1e-3).toBe(true);
+      expect(Math.abs(z) < 1e-3 || Math.abs(z - 10) < 1e-3).toBe(true);
+    }
   });
 
   it("MultiPolygon, 2-point ring and non-finite coordinates are skipped and counted", () => {

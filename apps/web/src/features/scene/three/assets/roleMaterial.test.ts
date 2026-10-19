@@ -10,7 +10,7 @@ import {
 function compile(
   instanced: boolean,
   extra: {
-    kind?: "tree" | "person" | "vehicle" | "static";
+    kind?: "tree" | "person" | "vehicle" | "parked" | "static";
     motion?: MotionUniforms;
     flicker?: boolean;
   } = {},
@@ -98,6 +98,32 @@ describe("createRoleMaterial motion and kit kinds", () => {
     expect(shader.fragmentShader).toContain(c("#fff4d6"));
     expect(shader.fragmentShader).toContain(c("#ff3b30"));
     expect(shader.fragmentShader).toContain("max(uLightGlow, 0.15)");
+  });
+
+  it("parked: the static program with the light role unlit (no headlight, tail light or lamp glow)", () => {
+    const base = compile(true);
+    const { shader, mat } = compile(true, { kind: "parked" });
+    expect(shader.vertexShader).toBe(base.shader.vertexShader);
+    expect(shader.fragmentShader).not.toContain("tlRole >= 7) totalEmissiveRadiance");
+    expect(shader.fragmentShader).not.toContain("max(uLightGlow, 0.15)");
+    expect(base.shader.fragmentShader).toContain("tlRole >= 7) totalEmissiveRadiance");
+    // Glass and every other role are as the static program draws them.
+    expect(shader.fragmentShader).toContain("uWindowGlow");
+    expect(mat.customProgramCacheKey()).not.toBe(base.mat.customProgramCacheKey());
+    expect(mat.customProgramCacheKey()).not.toBe(
+      compile(true, { kind: "vehicle" }).mat.customProgramCacheKey(),
+    );
+  });
+
+  it("parked: light-role faces take the vehicle body colour (primary palette), not the lamp colour", () => {
+    const { shader } = compile(true, { kind: "parked" });
+    const base = compile(true).shader;
+    expect(shader.fragmentShader).toContain("else if (tlRole >= 7) tlBase = vPal0;");
+    expect(base.fragmentShader).not.toContain("tlRole >= 7) tlBase = vPal0");
+    // The single-mesh program reads the body colour from its uniform.
+    expect(compile(false, { kind: "parked" }).shader.fragmentShader).toContain(
+      "else if (tlRole >= 7) tlBase = uPal0;",
+    );
   });
 
   it("tree, person and vehicle use distinct program cache keys", () => {
