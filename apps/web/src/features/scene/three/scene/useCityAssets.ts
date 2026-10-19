@@ -13,7 +13,7 @@ import type { RoleUniforms } from "../assets/roleMaterial";
 import { showroomBounds, showroomManifest, showroomPlan } from "../assets/showroom";
 import { HERO_CENTRE } from "../bookmarks";
 import { useCityInfo } from "../cityInfo";
-import { buildCityGeometry, type CityGeometry } from "../cityMesh";
+import { bevelForTier, buildCityGeometry, type CityGeometry } from "../cityMesh";
 import { createClearance, type ModelBox, obstaclesFromCity } from "../clearance";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";
@@ -185,6 +185,12 @@ export function useCityAssets({
   const tierRef = useRef(tier);
   tierRef.current = tier;
   const kitLodScale = () => (showroom ? 1 : KIT_LOD_SCALE[tierRef.current]);
+  /** The last city mesh build's inputs: a tier change re-extrudes with that tier's bevel (B-T2). */
+  const cityArgs = useRef<{
+    buildings: BuildingsLayer;
+    frame: LocalFrame;
+    opts: Parameters<typeof buildCityGeometry>[2] & {};
+  } | null>(null);
 
   const dropInstances = () => {
     if (handedOff.current) engine?.setAssets(null);
@@ -241,7 +247,9 @@ export function useCityAssets({
   useEffect(() => {
     if (!engine || !frame || !buildings) return;
     const full = () => {
-      const g = buildCityGeometry(buildings, frame);
+      const args = { bevel: bevelForTier(tierRef.current) };
+      const g = buildCityGeometry(buildings, frame, args);
+      cityArgs.current = { buildings, frame, opts: args };
       engine.setCity(g);
       // Building clearance (A-T7): every drawn footprint at its display height.
       engine.setClearance?.(createClearance(obstaclesFromCity(buildings, frame)));
@@ -273,11 +281,14 @@ export function useCityAssets({
         motion: engine.motion,
         kitLodScale: scale,
       });
-      const g = buildCityGeometry(buildings, frame, {
+      const opts = {
         only: plan.extrude,
         colours: showroom ? undefined : fallbackColourFn(buildings.buildings, m),
         roofTint: showroom ? undefined : largeRoofTint,
-      });
+        bevel: bevelForTier(tierRef.current),
+      };
+      const g = buildCityGeometry(buildings, frame, opts);
+      cityArgs.current = { buildings, frame, opts };
       engine.setCity(g);
       engine.setAssets(inst);
       // Building clearance (A-T7): the footprints plus every placed archetype and landmark box (the
@@ -404,6 +415,17 @@ export function useCityAssets({
     },
     [engine, showroom],
   );
+
+  // A tier change re-extrudes the city mesh with that tier's bevel (Low: plain boxes, Medium: one
+  // segment, High: two). Only the merged extrusion mesh is rebuilt; plan and instances stay.
+  useEffect(() => {
+    const a = cityArgs.current;
+    if (!engine || !a) return;
+    const bevel = bevelForTier(tier);
+    if (JSON.stringify(a.opts.bevel) === JSON.stringify(bevel)) return;
+    a.opts = { ...a.opts, bevel };
+    engine.setCity(buildCityGeometry(a.buildings, a.frame, a.opts));
+  }, [engine, tier]);
 
   // A tier change rescales the kit LOD distances. Deferred to a microtask so a props re-plan for the
   // same tier change (setKits from useDecor, later in this commit) is applied once, not twice.

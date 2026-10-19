@@ -6,11 +6,11 @@ import { useScene } from "../scene/sceneStore";
 import type { Engine, JourneyOverlay } from "../scene/three/engine";
 import { createFrame } from "../scene/three/frame";
 import demoPlan from "./fixtures/demoPlan.json";
-import { JourneyMount } from "./JourneyMount";
-import { useJourney } from "./journeyStore";
+import { HERO_SLOT, JourneyMount } from "./JourneyMount";
+import { journeyHero, useJourney } from "./journeyStore";
 import { SIM_LABEL } from "./SimulationLabel";
 import type { JourneyLayer } from "./three/journeyLayer";
-import { buildTimeline, type JourneyPlan } from "./timeline";
+import { buildTimeline, type JourneyPlan, stateAt } from "./timeline";
 import { WatchTripButton } from "./WatchTripButton";
 
 const plan = demoPlan as unknown as JourneyPlan;
@@ -23,7 +23,13 @@ function fakeEngine() {
   camera.updateMatrixWorld();
   const frames = new Set<() => void>();
   let current: JourneyOverlay | null = null;
+  const decor = new Map<string, { group: THREE.Object3D; dispose(): void }>();
   const engine = {
+    setDecor: vi.fn((slot: string, d: { group: THREE.Object3D; dispose(): void } | null) => {
+      decor.get(slot)?.dispose();
+      if (d) decor.set(slot, d);
+      else decor.delete(slot);
+    }),
     setJourney: vi.fn((j: JourneyOverlay | null) => {
       if (current && current !== j) current.dispose();
       current = j;
@@ -43,6 +49,7 @@ function fakeEngine() {
       for (const f of frames) f();
     },
     layer: () => current as JourneyLayer | null,
+    heroGroup: () => decor.get(HERO_SLOT)?.group ?? null,
   };
 }
 
@@ -231,5 +238,85 @@ describe("JourneyMount", () => {
       });
     expect(useJourney.getState().t).toBeGreaterThan(0.5);
     expect(f.spy.requestRender).toHaveBeenCalled();
+  });
+});
+
+describe("JourneyMount: the hero (D-T6)", () => {
+  const heroOf = (g: THREE.Object3D | null) => g?.getObjectByName("journey-hero") ?? null;
+
+  it("mounts the hero and the rest benches with the plan, and drops them with it", () => {
+    const f = fakeEngine();
+    render(<JourneyMount engine={f.engine} frame={frame} />);
+    expect(f.heroGroup()).toBeNull();
+    expect(journeyHero.current).toBeNull();
+    act(() => playIntent());
+    const g = f.heroGroup();
+    expect(heroOf(g)).not.toBeNull();
+    const benches: THREE.Object3D[] = [];
+    g?.traverse((o) => {
+      if (o.name === "journey-bench") benches.push(o);
+    });
+    expect(benches).toHaveLength(plan.events.filter((e) => e.kind === "rest").length);
+    expect(journeyHero.current?.clip).toBe("idle");
+    act(() => useScene.getState().clearRoute());
+    expect(f.heroGroup()).toBeNull();
+    expect(f.spy.setDecor).toHaveBeenLastCalledWith(HERO_SLOT, null);
+    expect(journeyHero.current).toBeNull();
+  });
+
+  it("poses the rendered hero at t and writes it to the store (the crowd keep-out seam)", () => {
+    const f = fakeEngine();
+    render(<JourneyMount engine={f.engine} frame={frame} />);
+    act(() => playIntent());
+    const tl = buildTimeline(plan);
+    const walk = tl.phases.find((p) => p.kind === "walk" && p.m1 - p.m0 > 50);
+    const unknown = tl.phases.find((p) => p.event?.kind === "unknown");
+    for (const [p, clip] of [
+      [walk, "walk"],
+      [unknown, "look"],
+    ] as const) {
+      if (!p) throw new Error("phase missing");
+      const t = (p.t0 + p.t1) / 2;
+      act(() => useJourney.getState().seek(t));
+      const h = journeyHero.current;
+      expect(h?.clip).toBe(clip);
+      expect(h?.distance_m).toBeCloseTo(stateAt(tl, t).distance_m, 6);
+      const o = heroOf(f.heroGroup()) as THREE.Object3D;
+      expect(o.position.x).toBeCloseTo(h?.x as number, 9);
+      expect(o.position.z).toBeCloseTo(h?.z as number, 9);
+      expect(o.position.y).toBeCloseTo(0.08, 9);
+      const [lon, lat] = frame.toLonLat(h?.x as number, h?.z as number);
+      expect(h?.lon).toBeCloseTo(lon, 9);
+      expect(h?.lat).toBeCloseTo(lat, 9);
+      // the mini-map dot and the rendered hero agree on the route metre
+      const lp = f.layer()?.path;
+      if (!lp) throw new Error("no layer");
+      const [rx, rz] = lp.pointAt(h?.distance_m as number);
+      expect(Math.hypot(rx - (h?.x as number), rz - (h?.z as number))).toBeLessThan(1e-6);
+    }
+    expect(f.spy.requestRender).toHaveBeenCalled();
+  });
+
+  it("sits at the bench place when the access layer has it", () => {
+    const f = fakeEngine();
+    const places = new Map<string, [number, number]>();
+    const { rerender } = render(<JourneyMount engine={f.engine} frame={frame} places={places} />);
+    act(() => playIntent());
+    const rest = plan.events.find((e) => e.kind === "rest") as JourneyPlan["events"][number];
+    const path = f.layer()?.path;
+    if (!path) throw new Error("no layer");
+    const [px, pz] = path.pointAt(rest.at_m);
+    const bench = frame.toLonLat(px + 3, pz);
+    const withBench = new Map<string, [number, number]>([[rest.element_id as string, bench]]);
+    rerender(<JourneyMount engine={f.engine} frame={frame} places={withBench} />);
+    const tl = buildTimeline(plan);
+    const hold =
+      tl.phases.find((p) => p.event === rest) ??
+      tl.phases.find((p) => p.event?.element_id === rest.element_id);
+    if (!hold) throw new Error("rest hold missing");
+    act(() => useJourney.getState().seek(hold.t0 + (hold.t1 - hold.t0) / 2));
+    const h = journeyHero.current;
+    expect(h?.clip).toBe("sit_idle");
+    expect(Math.hypot((h?.x as number) - (px + 3), (h?.z as number) - pz)).toBeLessThan(0.01);
   });
 });

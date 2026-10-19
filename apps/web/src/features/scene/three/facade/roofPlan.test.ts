@@ -118,14 +118,17 @@ describe("roofDressing", () => {
     expect(Math.hypot(m[0]![8]!, m[0]![10]!)).toBeCloseTo(1.5, 5);
   });
 
-  it("adds a 0.4 m edge band just inside the roof, the large-roof tint and the palette trim", () => {
+  it("adds a 0.4 m edge band on the flat cap inside the 0.5 m bevel, the large-roof tint and the palette trim", () => {
     const ring = rect(60, 30);
     const r = roofDressing(big(), NEUTRAL_COLOURS);
     expect(r.band.length / 16).toBe(4);
     for (const m of mats(r.band)) {
       expect(Math.hypot(m[8]!, m[10]!)).toBeCloseTo(0.4, 5);
       expect(inside(ring, m[12]!, m[14]!)).toBe(true);
-      expect(edgeDist(ring, m[12]!, m[14]!)).toBeCloseTo(0.2, 5);
+      expect(edgeDist(ring, m[12]!, m[14]!)).toBeCloseTo(0.7, 5);
+      // it stops short of the corners: its length is the edge minus the bevel and band at both ends
+      const len = Math.hypot(m[0]!, m[2]!);
+      expect([60, 30].map((e) => e - 1.8)).toContainEqual(expect.closeTo(len, 5));
     }
     expect(r.tint).toBe(largeRoofTint("big1", ring));
     expect(r.edge).toBe(NEUTRAL_COLOURS.trim);

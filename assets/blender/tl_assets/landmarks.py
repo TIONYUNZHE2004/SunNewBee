@@ -34,8 +34,11 @@ def _spread(length: float, n: int) -> list[float]:
 
 # --- lakeside mall ----------------------------------------------------------------------
 
-WALL_H = 9.0
+# The model's top is the parapet at WALL_H + PARAPET_H = 9.0 m, the manifest size and the seed's
+# display_height_m for way/1308938137 (B-T2 fidelity: before, roof plant reached 11.5 m).
+WALL_H = 8.2
 PARAPET_H = 0.8
+PLANT_H = (0.3, 0.7)  # roof plant stays below the parapet top
 PARAPET_T = 0.3
 CANOPY_Y = 4.2  # underside of the canopy slab
 CANOPY_T = 0.25
@@ -159,7 +162,7 @@ def _mall(variant: Variant, lod: int) -> list:
     if lod >= 2:  # simplified massing: one wall quad per edge and the roof
         walls = _Mesh()
         for a, b, n, _ in edges:
-            _strip(walls, a, b, n, 0.0, WALL_H, 0.0)
+            _strip(walls, a, b, n, 0.0, WALL_H + PARAPET_H, 0.0)
         return _keep(walls.obj("walls", "primary"), _deck(pts, WALL_H, 30.0).obj("roof", "primary"))
 
     walls, parapet = _Mesh(), _Mesh()
@@ -202,7 +205,7 @@ def _mall(variant: Variant, lod: int) -> list:
         y_lo, y_hi = CANOPY_Y - 0.55, CANOPY_Y + CANOPY_T + 0.3
         _slab(canopy, a, b, n, CANOPY_OUT - 0.2, CANOPY_OUT, y_lo, y_hi)  # deep white fascia
         if lod == 0:
-            _slab(accent, a, b, n, 0.0, 0.1, 7.2, 8.2, skip=("bottom", "s0"))
+            _slab(accent, a, b, n, 0.0, 0.1, 6.9, 7.7, skip=("bottom", "s0"))
         for t0, t1 in bays:  # glazed shopfront bays under the canopy
             p, q = _lerp(a, b, t0 / length), _lerp(a, b, t1 / length)
             _strip(random.choice(glass), p, q, n, 0.3, 3.6, 0.04)
@@ -230,7 +233,7 @@ def _mall(variant: Variant, lod: int) -> list:
         while gz < max(zs):
             if _inside(pts, gx, gz) and _dist_to_edges(pts, gx, gz) > 9.0:
                 sx, sz = random.uniform(5.0, 9.0), random.uniform(3.0, 6.0)
-                sy = random.uniform(1.4, 2.6)
+                sy = random.uniform(*PLANT_H)
                 plant.box(gx - sx / 2, gx + sx / 2, WALL_H, WALL_H + sy, gz - sz / 2, gz + sz / 2)
             gz += step
         gx += step

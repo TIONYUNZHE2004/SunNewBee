@@ -270,8 +270,10 @@ the settings popover.
   derives a camera fit from the boundary at runtime (slab corners, a view axis, a max-range target).
   `clampPose` keeps the target inside the outline (nearest outline point when outside) and, from
   `FIT.startRangeM` (2.5 km) to `LIMITS.maxRangeM` (7,900 m, unchanged), narrows pitch to
-  [-60, -45], heading to ±15° of the axis, pulls the target to the fit target and widens the field
+  [-50, -45] (A-T3b outline: steeper bands need a wider field of view), heading to ±15° of the axis, pulls the target to the fit target and widens the field
   of view (`vfovFor`, capped at 50°) so the whole slab sits clear of the map chrome at max range.
+  At long range the fog's far end also follows the slab (`fogReachM`: the farthest outline vertex
+  sits at 90% of the fog ramp), and bookmark centres go through `anchorInside` (>= 300 m inside).
   Below 2.5 km nothing changes. The engine re-applies the clamp after every MapControls update
   (`rig.constrain()`). "Whole township", `?bookmark=township` and the acceptance `overview` use
   `overviewPose(fit)`; the static `township` bookmark is only the fallback for worlds without an outline.
@@ -327,6 +329,21 @@ after it stops.
   dropped manifest entry (the library collects failures in `failed`; it never warns). Footprints an
   archetype cannot fit, and archetypes with no asset, stay extruded.
 - **`?assets=0`:** skip the assets (no manifest fetch); the extruded city only.
+- **Rounded buildings (B-T2):** extrusions are bevelled by default (`cityMesh.ts` `bevelBody`,
+  `BUILDING_BEVEL`: a 0.5 m quarter-round top edge cut into the body, 0.14 m cuts with smooth normals
+  on convex corners). Walls stay on the OSM outline and the top at `display_height_m`;
+  `cityMesh.fidelity.test.ts` checks every seed building in the boundary (area ±2 %, vertices
+  ≤ 0.15 m, top ±0.1 m). Archetype and landmark glbs round in the role shader only
+  (`BUILDING_SHADER_BEVEL`, a per-model box uniform, so one material per asset, variant and LOD):
+  no extra triangles, nothing moves.
+  The bevel follows the quality tier (`BEVEL_BY_TIER`): Low draws plain boxes, Medium one segment,
+  High two; a tier change re-extrudes only the merged extrusion mesh.
+- **Fact fidelity ruling (B-T2 fix round 1):** archetype models are display stand-ins fitted to the
+  footprint OBB (ADR 0012), so their footprint is not a fact. Footprint fidelity (area, outline) is
+  guaranteed on the extrusion path, which can draw every building. Heights match on every path: an
+  extrusion tops out at `display_height_m`, and an archetype or landmark is scaled by its glb's drawn
+  LOD0 top (manifest `top`), so its top lands there too (`assets/planHeights.test.ts`; a traced
+  landmark tower such as Kanopi is drawn at its documented design height, `heightBasis`).
 - **`?showroom=1`:** replace the plan with `assets/showroom.ts`: every asset variant once at LOD0,
   one row per asset (landmarks on the outer rows). Each row spaces its variants max(30 m, widest
   + 5 m) apart and rows sit max(30 m, half their depths + 5 m) apart, so nothing overlaps and one big
@@ -464,9 +481,19 @@ where they stopped instead of jumping. Every rebuilt agent layer shares one smoo
   `footway`/`path`/`pedestrian` edges of each streamed tile, weighted ×3 near schools, malls and
   parks. The count is the tile's cap × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
   edges with no routing or collision, so cars can pass through each other.
-- **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD. Matrices are rewritten
+- **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD for vehicles. Matrices are rewritten
   each tick, but only for agents in view (with a 50 m margin). Agents beyond their last LOD's `maxM`
   are hidden. Agents cast no shadows and are left out of the AO pass.
+- **Crowd people (C-T7):** `useMotion` loads the crowd kit once (`motion/crowdKit.ts`: the six
+  `characters/crowd_<body>.glb`, one body per idle slice) and bakes every clip at runtime into a
+  bone-matrix texture (`motion/crowdBake.ts`: per frame and bone the 3×4 `boneWorld(t) × boneWorld(rest)⁻¹`
+  as RGBA half floats, 821 rows × 57 texels = 0.37 MB, 0 bytes on disk; props are one-bone skinned).
+  `motion/crowdRenderer.ts` draws all people as two BatchedMeshes (LOD0 ≤ 60 m, LOD1 ≤ 300 m, hidden
+  beyond: 2 draw calls), skinning in the vertex shader from (row0, row1, blend, look) per instance
+  and recolouring from a palette texture (role × look). The gait phase integrates the distance walked
+  over `stride × display scale` (`motion/crowdGait.ts`, P5: no skating) from a seeded start phase.
+  An agent's optional `look` id picks its look (C-T8 assigns them); else a seeded pick. While the
+  kit loads no people are drawn; if it fails the legacy `people` kit (shader limb swing) is the fallback.
 - **Scale-up:** agents are drawn 1× within 150 m of the camera, rising to 3× at 800 m, for
   legibility. This is display only; the models are unchanged.
 - **Day/Rollout fade:** people and vehicles fade out over 1 s while Elmina Day or Rollout playback
@@ -642,7 +669,8 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
 - **Overlay (D-T7).** `JourneyMount` (mounted by `ThreeScene`) shows the overlay while `sceneStore.journey` is set; it never starts playback. The timeline is advanced only by D-T8's shared, ref-counted `useJourneyDriver` (mounted by the controls and by the mount); a change of `t` asks the engine for a frame. Per-frame work is limited to the shown event card, which subscribes to engine frames during its hold and re-places itself without a React commit; the card area (side panel, phone sheet, top stack, mini-map) is measured by `useMapInsets` (ResizeObserver). The "Simulation · indicative times, not a prediction" label and the HUD go in the map's `sim` slot; the mini-map (spans by status, hero dot from `routePath.ts`, the same maths as the 3D hero) sits top right; one `EventCard` shows during each hold and none during dive / walk / pull, anchored to the projected marker and clamped inside the map (clear of the side panel, phone sheet, top stack and mini-map: `cardPlacement.ts`).
 - **Card wording.** `cardContent.ts` `journeyCardContent(event)` is the one source of card text, and `CardSourceRow` the one provenance row, for the 3D card and the List / Mapbox step list (AC-D14): the "Demo value · not surveyed" chip exactly when `demo`; "Verified" only for a verified, non-demo claim; UNKNOWN says "Not checked yet", plus "verification request filed" (`withVerificationRequest`) only when a `verification.requested` event this session matches the event's element and one of its attributes (`vrFiledFor`, `journeyStore.vrs`, fed by `useChatStream`); the rest gap is a "Data gap". `uiStrings.dom.test.tsx` scans every journey UI string (AC-D6).
 - **Ribbon and markers.** `journey/three/journeyLayer.ts`, handed to `Engine.setJourney`, not part of the status-line overlay: the ribbon (PASS solid green, UNKNOWN amber dashes, on a wider white casing so it reads apart from status lines) is a world-unit Line2 in the main scene, depth-tested so buildings and the hero cover it, with a 35 % ghost (`depthFunc` Greater) where a building hides it, left out of the AO G-buffer; it shows with Path status off. While a journey is loaded the blue route overlay line steps aside, the route tag shows the ribbon legend, and "Clear route from map" also clears the journey. Event markers are sprites in their own scene, rendered straight to the canvas after the composer (never through post-processing: the prototype's black-quad bug).
-- **Acceptance.** `acceptance/journey-overlay.accept.ts` (AC-D11, AC-D12) drives `window.__journey` (dev builds and `?demo=1`): `seek`, `play`, `pause`, `setCam`, `phases`, `total`, `state()`, plus `plan` and `hero()` (`{distance_m}`; the timeline distance until D-T6 reads the rendered hero).
+- **Acceptance.** `acceptance/journey-overlay.accept.ts` (AC-D11, AC-D12) drives `window.__journey` (dev builds and `?demo=1`): `seek`, `play`, `pause`, `setCam`, `phases`, `total`, `state()`, plus `plan` and `hero()` (the rendered hero, below). `acceptance/journey-hero.accept.ts` (AC-D10) samples a full playback at 10 Hz (clip per phase, never inside a building) and checks ground contact at every beat.
+- **Hero (D-T6).** `scene/three/journey/heroDriver.ts` is a pure state machine, `heroStateAt(timeline, t, {pointAt, seatOf})` → position (on the route via `routePath.pointAt`), yaw (`smoothYaw` folded over a fixed 1 s window, so it is deterministic), clip (`walk|idle|sit_down|sit_idle|stand_up|look`), clip time, walk rate and, in the first 0.2 s of a beat whose clip changed, a crossfade (`fade: {prevClip, prevTime, blend}`): walk phases walk (rate = pace / 7/6 m/s × 1.6), verified / covered / gap holds are a slow walk, unknown stops and looks, rest walks to the bench-front stand point, steps round to face away from the bench (0.6 s), sits down (0.85 s), sits, stands up (0.85 s) with the root fixed (the clip carries the hips back onto the seat; C-T3 ruling) and walks back, arrive / dive / pull-back idle. Same output by play or seek. Models implement `scene/three/characters/hero.ts` `Hero` (`object3d`, `setPose`, `play(clip, time, rate, fade?)`, `contacts`, `dispose`; the sit / stand time base and the seat geometry contract are documented there); `placeholderHero.ts` is the primitive clay chibi with walker and yellow ring at 1.55× (about 2.4 m) until the rigged GLB (C-T4). `journey/three/heroLayer.ts` adds her and a bench per rest to the engine decor slot `journey-hero`. **The bench position is display-approximate: the bench fact is the rest point.** The stand point (her root while seated; the bench stands behind it per `characters/benchGeometry.ts` `HERO_BENCH`, read from the asset manifest `public/city/characters/manifest.json` through `heroManifest.ts`, as are the display scale, clip lengths and walk stride; sit_down / stand_up clip time runs 0..1.5 s over their 0.85 s screen beat, and walk rate is the manifest's no-slide `walkRate`) is the access layer's bench place when it is 1.2–6 m off the route, else 1.9 m to the side: the place's side when it is at least 0.5 m off the route, else the side with more clearance from OSM building footprints. During a rest she and the bench stand on the drawn ground sampled along route → seat (the ground bands, once streamed in), on the route her root stands at the footway height (0.08 m); each foot and walker leg is planted on the drawn ground under it (`Hero.setGround`) from a precomputed height table of the route corridor (`journey/three/groundIndex.ts`: ground-band triangles within 2.5 m of the route and the rest paths, bucketed on a 2 m grid; exact barycentric heights, no raycasts per frame, identical in play and seek). The table is rebuilt only when `Engine.groundGeneration` moves and the set of ground meshes actually changed (per-mesh triangle scans are cached). `JourneyMount` poses her on every `t` change and writes what it drew to `journeyHero.current` in `journeyStore.ts` (a plain holder, no store update per frame): `__journey.hero()` reads it, and so will the crowd keep-out (C-T8), which never reads journey events. The hero is the simulation subject, not decoration: no `userData.decorative` (picks pass through her no-op raycast).
 
 ## File map
 

@@ -67,6 +67,20 @@ export interface Measurement extends FrameSummary {
   perf: Partial<PerfSample> | null;
 }
 
+export interface PoseLogRow {
+  t: number;
+  x: number;
+  z: number;
+  lon: number;
+  lat: number;
+  rangeM: number;
+  pitchDeg: number;
+  headingDeg: number;
+  fov: number;
+  inside: boolean | null;
+  fitReady: boolean;
+}
+
 export interface AcceptanceApi {
   setPose(p: GeoPose): void;
   getPose(): GeoPose;
@@ -131,6 +145,13 @@ export interface AcceptanceApi {
   insideOutline(x: number, z: number): boolean | null;
   /** The camera's current vertical field of view (deg): it widens towards max range (A-T5). */
   fovDeg(): number;
+  /**
+   * Starts logging the base camera pose on every rendered engine frame (inside the engine's own
+   * frame callback, so no sampling-order artefacts): A-T5 flight / landing smoothness checks.
+   */
+  startPoseLog(): void;
+  /** Stops the pose log and returns its rows (local x, z; deg; ms on the performance clock). */
+  stopPoseLog(): PoseLogRow[];
   /** The overview derived from the slab outline (`cameraFit.ts` overviewPose); null without a slab. */
   overviewPose(): GeoPose | null;
   /** The slab camera fit's reports (A-T5): fov the max-range window needs, range needed to fit. */
@@ -508,6 +529,41 @@ function crowdReport(engine: Engine): CrowdReport {
     return { x: ((q.x + 1) / 2) * w, y: ((1 - q.y) / 2) * h };
   };
   const walk = (o: THREE.Object3D) => {
+    const bm = o as THREE.BatchedMesh;
+    if (bm.isBatchedMesh && o.userData.crowd) {
+      // The crowd renderer (C-T7): slot i is instance i on both LOD meshes.
+      const lod = Number(o.userData.lod);
+      const ids = o.userData.lookIds as string[];
+      const heights = o.userData.heights as number[];
+      if (lod === 0) planned.person += ids.length;
+      for (let i = 0; i < ids.length; i++) {
+        if (!o.visible || !bm.getVisibleAt(i)) continue;
+        bm.getMatrixAt(i, _cm);
+        _cm.decompose(_cp, _cq, _cs);
+        const hM = heights[i] ?? 0;
+        const feet = proj(_cp);
+        const headW = _cp.clone().setY(_cp.y + hM * _cs.y);
+        const head = proj(headW);
+        const dist = v.camera.position.distanceTo(headW);
+        _ray.set(v.camera.position, headW.clone().sub(v.camera.position).normalize());
+        _ray.far = dist - 0.3;
+        _ray.camera = v.camera;
+        rows.push({
+          kind: "person",
+          variant: ids[i] ?? "",
+          lod,
+          distM: dist,
+          scale: _cs.y,
+          heightM: hM * _cs.y,
+          head,
+          feet,
+          heightPx: head && feet ? Math.abs(feet.y - head.y) : null,
+          inCanvas: !!head && head.x >= 0 && head.x <= w && head.y >= 0 && head.y <= h,
+          occluded: _ray.intersectObjects(blockers, false).length > 0,
+        });
+      }
+      return;
+    }
     const im = o as THREE.InstancedMesh;
     if (im.isInstancedMesh && o.name.startsWith("motion__")) {
       const [, asset, variant, lodTag] = o.name.split("__") as [string, string, string, string];
@@ -600,6 +656,7 @@ function slabOf(roots: THREE.Object3D[]): THREE.Object3D | null {
 
 export function createAcceptanceApi(engine: Engine, frame: LocalFrame): AcceptanceApi {
   let camLog: { log: CameraLog; off: () => void } | null = null;
+  let poseLog: { rows: PoseLogRow[]; off: (() => void) | null } = { rows: [], off: null };
   const camPos = (): [number, number, number] => {
     const p = engine.pickView().camera.position;
     return [p.x, p.y, p.z];
@@ -649,6 +706,36 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
       return fit ? insideBoundary(fit.boundary, x, z) : null;
     },
     fovDeg: () => (engine.pickView().camera as THREE.PerspectiveCamera).fov,
+    startPoseLog() {
+      poseLog.off?.();
+      const rows: PoseLogRow[] = [];
+      const off = engine.onFrame((_dt, info) => {
+        const p = engine.rig.get();
+        const [lon, lat] = frame.toLonLat(p.target[0], p.target[1]);
+        const fit = engine.cameraFit?.() ?? null;
+        rows.push({
+          // The tick's clock, not now: a long render would otherwise time-shift the pose.
+          t: info.at ?? performance.now(),
+          x: p.target[0],
+          z: p.target[1],
+          lon,
+          lat,
+          rangeM: p.rangeM,
+          pitchDeg: p.pitchDeg,
+          headingDeg: p.headingDeg,
+          fov: (engine.pickView().camera as THREE.PerspectiveCamera).fov,
+          inside: fit ? insideBoundary(fit.boundary, p.target[0], p.target[1]) : null,
+          fitReady: !!fit,
+        });
+      });
+      poseLog = { rows, off };
+    },
+    stopPoseLog() {
+      poseLog.off?.();
+      const rows = poseLog.rows;
+      poseLog = { rows: [], off: null };
+      return rows;
+    },
     overviewPose: () => {
       const fit = engine.cameraFit?.();
       if (!fit) return null;

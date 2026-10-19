@@ -74,7 +74,7 @@ export interface CameraFit {
  */
 export const FIT = {
   startRangeM: 2500,
-  farPitchMinDeg: -60,
+  farPitchMinDeg: -50,
   farPitchMaxDeg: -45,
   farHeadingDevDeg: 15,
   /**
@@ -153,8 +153,19 @@ export function clampTarget(
     const dx = q[0] - p[0];
     const dz = q[1] - p[1];
     const l = Math.hypot(dx, dz) || 1;
-    const n: [number, number] = [q[0] + (dx / l) * 0.5, q[1] + (dz / l) * 0.5];
-    p = insideBoundary(b, n[0], n[1]) ? n : towards(b, centre, q);
+    // Nudge 0.5 m in along the approach; at a sharp corner that can miss, so try a ring of
+    // directions at 0.5-2 m before falling back to the line towards the centre.
+    let n: [number, number] | null = [q[0] + (dx / l) * 0.5, q[1] + (dz / l) * 0.5];
+    if (!insideBoundary(b, n[0], n[1])) {
+      n = null;
+      for (const r of [0.5, 1, 2])
+        for (let k = 0; k < 16 && !n; k++) {
+          const a = (k / 16) * 2 * Math.PI;
+          const c: [number, number] = [q[0] + Math.cos(a) * r, q[1] + Math.sin(a) * r];
+          if (insideBoundary(b, c[0], c[1])) n = c;
+        }
+    }
+    p = n ?? towards(b, centre, q);
   }
   const [cx, cz] = centre;
   const d = Math.hypot(p[0] - cx, p[1] - cz);

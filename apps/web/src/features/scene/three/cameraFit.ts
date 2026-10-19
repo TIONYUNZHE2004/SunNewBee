@@ -3,8 +3,10 @@ import {
   clampHeading,
   FIT,
   fitCentre,
+  fitWeight,
   LIMITS,
   type Pose,
+  poseToCamera,
   requiredVfovDeg,
 } from "./cameraRig";
 import { type Boundary, insideBoundary } from "./ground/boundary";
@@ -229,4 +231,21 @@ export function rangeNeededM(fit: CameraFit): number {
   let r = 1000;
   while (r < 100_000 && fitCost(fit, r) > FIT.maxVfovDeg) r += 100;
   return r;
+}
+
+/**
+ * The slab's fog reach (m) at a camera range: 0 below FIT.startRangeM; towards max range
+ * (fitWeight) the distance from the overview camera to the farthest outline vertex. `fogFor` puts
+ * that vertex at FOG_REACH_SHARE of the fog ramp, so the far fog follows the outline's size
+ * instead of a fixed multiple of the range (fix: a 7 km outline seen along its length).
+ */
+export function fogReachM(fit: CameraFit | null | undefined, rangeM: number): number {
+  if (!fit) return 0;
+  const t = fitWeight(rangeM);
+  if (t === 0) return 0;
+  const c = poseToCamera(overviewPose(fit)).position;
+  let far = 0;
+  for (const [x, y, z] of fit.corners)
+    if (y === 0) far = Math.max(far, Math.hypot(x - c[0], y - c[1], z - c[2]));
+  return far * t;
 }

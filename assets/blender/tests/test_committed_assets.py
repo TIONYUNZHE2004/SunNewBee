@@ -34,15 +34,33 @@ def test_manifest_has_no_test_assets():
     assert set(m["assets"]) <= set(specs.ASSETS)
 
 
+def _city_kit_files() -> list[Path]:
+    """The city kits: archetypes/, kits/, landmarks/ and manifest.json (not characters/)."""
+    out = [p for f in FOLDERS for p in (CITY / f).rglob("*") if p.is_file()]
+    return out + [MANIFEST] if MANIFEST.exists() else out
+
+
 def test_folder_total_is_within_budget():
     if _manifest() is None:
         pytest.skip("no manifest committed yet")
-    total = sum(p.stat().st_size for p in CITY.rglob("*") if p.is_file())
+    total = sum(p.stat().st_size for p in _city_kit_files())
     assert total <= specs.MAX_TOTAL_BYTES
     assert total <= P4_TOTAL_BYTES, total
 
 
-P4_TOTAL_BYTES = 4_000_000  # P4 Task 7: the detail pass keeps the whole city folder under 4 MB
+def test_characters_total_is_within_budget():
+    """Coordinator ruling (C-T6 fix round 1): hero + crowd meshes and clips in characters/
+    have their own budget, separate from the city kits. Crowd animation textures (spec P4,
+    <= 4 MB) are C-T7's and are checked there."""
+    files = [p for p in (CITY / "characters").rglob("*") if p.is_file()]
+    if not files:
+        pytest.skip("no characters committed yet")
+    total = sum(p.stat().st_size for p in files)
+    assert total <= CHARACTERS_TOTAL_BYTES, total
+
+
+P4_TOTAL_BYTES = 4_000_000  # P4 Task 7: the city kits (archetypes, kits, landmarks) under 4 MB
+CHARACTERS_TOTAL_BYTES = 2_000_000  # hero + crowd glbs and manifests (C-T6 ruling)
 
 
 def _committed_assets() -> list[str]:
@@ -119,3 +137,16 @@ def test_committed_mall_anchor_matches_the_seed():
     assert ring is not None, "seed landmarks.geojson has no lakeside_mall feature"
     lon, lat = ring_centroid(ring)
     assert m["landmarks"]["lakeside_mall"]["anchor"] == pytest.approx([lon, lat], abs=1e-7)
+
+
+def test_committed_manifest_top_is_the_glb_lod0_top():
+    """B-T2 fix round 1: every variant's `top` is its packed LOD0 world max y (the web fit
+    scales height by it, so a placed model's top lands on the building's display height)."""
+    m = _manifest()
+    if m is None:
+        pytest.skip("no manifest committed yet")
+    for asset_id, a in m["assets"].items():
+        info = read_glb(CITY / a["file"])
+        for v, spec in a["variants"].items():
+            hi = info.nodes[f"{asset_id}__{v}__LOD0"].bounds[1]
+            assert spec["top"] == pytest.approx(hi[1], abs=1e-3), (asset_id, v)

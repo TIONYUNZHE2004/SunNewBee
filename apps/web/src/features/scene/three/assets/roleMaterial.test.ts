@@ -5,6 +5,12 @@ import {
   AO_FLOOR,
   AO_FLOOR_BY_ROLE,
   aoFloorGlsl,
+  BEVEL_FRAGMENT,
+  BEVEL_FRAGMENT_DECL,
+  BEVEL_VERTEX,
+  BEVEL_VERTEX_DECL,
+  BUILDING_SHADER_BEVEL,
+  bevelBoxOf,
   createMotionUniforms,
   createRoleMaterial,
   createRoleUniforms,
@@ -304,5 +310,104 @@ describe("tree trunks are clay (B-T1 fix round 1)", () => {
     };
     expect(compile(true, { kind: "tree" }).shader.fragmentShader).toContain(c(CLAY_PALETTE.trunk));
     expect(compile(true).shader.fragmentShader).toContain(c(FIXED_ROLE_COLOURS.dark));
+  });
+});
+
+describe("shader bevel for archetype and landmark GLBs (B-T2, AC-B3)", () => {
+  const box = { min: [-5, 0, -4], max: [5, 9, 4] } as {
+    min: [number, number, number];
+    max: [number, number, number];
+  };
+  const build = (instanced: boolean, lib: "standard" | "physical", bevel = true) => {
+    const mat = createRoleMaterial({
+      instanced,
+      uniforms: createRoleUniforms(),
+      ...(bevel ? { bevel: box } : {}),
+      tier: lib === "physical" ? "high" : "medium",
+    });
+    const shader = {
+      vertexShader: THREE.ShaderLib[lib].vertexShader,
+      fragmentShader: THREE.ShaderLib[lib].fragmentShader,
+      uniforms: {} as Record<string, { value: unknown }>,
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: shader stub
+    (mat.onBeforeCompile as any)(shader, null);
+    return { mat, shader };
+  };
+
+  it("rounds within 0.45 m of the model box edges, normal only", () => {
+    expect(BUILDING_SHADER_BEVEL.radiusM).toBe(0.45);
+    // shading only: the vertex chunk never writes a position
+    expect(BEVEL_VERTEX).not.toMatch(/transformed|gl_Position/);
+    expect(BEVEL_FRAGMENT).toContain("normal = normalize(normal + tlAdd)");
+  });
+
+  for (const lib of ["standard", "physical"] as const)
+    for (const instanced of [true, false])
+      it(`patches the ${lib} program (${instanced ? "instanced" : "single mesh"}): the box, the radius, after the normal maps`, () => {
+        const { mat, shader } = build(instanced, lib);
+        expect(mat.customProgramCacheKey()).toMatch(/_bv$/);
+        expect(shader.vertexShader).toContain(BEVEL_VERTEX_DECL);
+        expect(shader.fragmentShader).toContain(BEVEL_FRAGMENT_DECL);
+        expect(shader.vertexShader).toContain(`#include <defaultnormal_vertex>
+${BEVEL_VERTEX}`);
+        expect(shader.fragmentShader).toContain(`#include <normal_fragment_maps>
+${BEVEL_FRAGMENT}`);
+        expect(shader.fragmentShader.indexOf("uniform vec3 uTlBoxMin")).toBeLessThan(
+          shader.fragmentShader.indexOf("void main()"),
+        );
+        expect((shader.uniforms.uTlBoxMax!.value as THREE.Vector3).toArray()).toEqual([5, 9, 4]);
+        expect((shader.uniforms.uTlBevel!.value as THREE.Vector2).toArray()).toEqual([
+          BUILDING_SHADER_BEVEL.radiusM,
+          BUILDING_SHADER_BEVEL.onFaceM,
+        ]);
+      });
+
+  /** Inlines every `#include <chunk>` from THREE.ShaderChunk, recursively. */
+  const expand = (src: string): string =>
+    src.replace(/#include <(\w+)>/g, (_m, name: string) => {
+      const chunk = (THREE.ShaderChunk as Record<string, string>)[name];
+      expect(chunk, name).toBeTypeOf("string");
+      return expand(chunk!);
+    });
+  const count = (src: string, re: RegExp) => src.match(re)?.length ?? 0;
+
+  for (const lib of ["standard", "physical"] as const)
+    for (const instanced of [true, false])
+      it(`each vTl* varying is declared exactly once per stage once the chunks are inlined (${lib}, ${instanced ? "instanced" : "single"})`, () => {
+        const { shader } = build(instanced, lib);
+        const vs = expand(shader.vertexShader);
+        const fs = expand(shader.fragmentShader);
+        for (const v of ["vTlP", "vTlN", "vTlAX", "vTlAY", "vTlAZ"]) {
+          const decl = new RegExp(String.raw`varying\s+vec3\s+${v}\s*;`, "g");
+          expect(count(vs, decl), `vertex ${v}`).toBe(1);
+          expect(count(fs, decl), `fragment ${v}`).toBe(1);
+          // written once in the vertex stage
+          expect(count(vs, new RegExp(String.raw`\b${v}\s*=`, "g")), `write ${v}`).toBe(1);
+        }
+        for (const u of ["uTlBoxMin", "uTlBoxMax", "uTlBevel"])
+          expect(count(fs, new RegExp(String.raw`uniform\s+vec[23]\s+${u}\s*;`, "g")), u).toBe(1);
+        // the tilt runs after the shading normal exists and before lighting reads it
+        expect(fs.indexOf("normal = normalize(normal + tlAdd)")).toBeGreaterThan(
+          fs.indexOf("vec3 normal ="),
+        );
+        expect(fs.indexOf("normal = normalize(normal + tlAdd)")).toBeLessThan(
+          fs.indexOf("vec3 geometryNormal = normal"),
+        );
+        // the helper reads the instance matrix only where three declares it
+        expect(vs).toContain("#ifdef USE_INSTANCING\n  mat3 tlIm");
+      });
+
+  it("without a box nothing changes (kits, people, vehicles, facades)", () => {
+    const { mat, shader } = build(true, "standard", false);
+    expect(mat.customProgramCacheKey()).not.toMatch(/_bv/);
+    expect(shader.fragmentShader).not.toContain("uTlBoxMin");
+    expect(mat.userData.bevel).toBeUndefined();
+  });
+
+  it("bevelBoxOf reads the geometry's bounds", () => {
+    const g = new THREE.BoxGeometry(2, 3, 4).translate(0, 1.5, 0);
+    expect(bevelBoxOf(g)).toEqual({ min: [-1, 0, -2], max: [1, 3, 2] });
+    expect(bevelBoxOf(new THREE.BufferGeometry())).toBeNull();
   });
 });

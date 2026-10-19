@@ -211,7 +211,10 @@ export function fitArchetype(
   if (obb.fill < (opts.minFill ?? 0.75)) return null;
   const v = spec.variants[variant];
   if (!v) return null;
-  const [sw, sh, sd] = v.size;
+  const [sw, size_h, sd] = v.size;
+  // Height scales by the model's drawn top, not its nominal size: the placed top is the building's
+  // display height (a fact) even for models with a dome or parapet above `size` (B-T2 fix round 1).
+  const sh = v.top ?? size_h;
   if (!(sw > 0 && sh > 0 && sd > 0)) return null;
   const fit = opts.fit ?? spec.fit;
 

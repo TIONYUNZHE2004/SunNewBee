@@ -11,6 +11,10 @@ assets (calib) are packed only through --only.
 `--heroes` instead packs the rigged hero glbs (out/raw/characters/hero_<variant>.glb, from
 tl_assets/characters/export_hero.py) into apps/web/public/city/characters/ with the same
 meshopt settings, and writes characters/manifest.json from their stats.
+
+`--crowd` packs the crowd kit (out/raw/characters/crowd_<body>.glb, from
+tl_assets/characters/export_crowd.py) the same way and writes characters/crowd.json (looks,
+bodies, clips, palettes; C-T6).
 """
 
 import argparse
@@ -81,6 +85,30 @@ def pack_heroes(out: Path) -> int:
     return 0
 
 
+def pack_crowd(out: Path) -> int:
+    from tl_assets.characters import crowd, crowd_looks
+
+    raw = RAW / "characters"
+    stats, sizes = {}, {}
+    for b in crowd.BODIES:
+        src = raw / f"crowd_{b}.glb"
+        if not src.exists():
+            print(f"no raw glb for crowd body {b}; run export_crowd.py", file=sys.stderr)
+            return 1
+        dest = out / "characters" / src.name
+        pack_one(src, dest)
+        stats[b] = json.loads((raw / f"crowd_{b}.json").read_text(encoding="utf-8"))
+        nodes = read_glb(dest).nodes  # triangles as shipped
+        stats[b]["meshes"] = {n: i.tris for n, i in nodes.items() if "__LOD" in n}
+        sizes[b] = dest.stat().st_size
+        print(f"packed crowd {b}: {sizes[b]} bytes -> {dest}")
+    m = crowd_looks.build_manifest(stats, sizes)
+    path = out / "characters" / "crowd.json"
+    path.write_text(json.dumps(m, indent=2) + "\n", encoding="utf-8", newline="\n")
+    print(f"wrote {path} ({len(m['looks'])} looks, {sum(sizes.values())} bytes)")
+    return 0
+
+
 def _drop_pnpm_separator(argv: list[str]) -> list[str]:
     """`pnpm assets:build -- --all` hands the script a literal leading `--`; argparse would
     treat everything after it as positional, so drop it."""
@@ -92,10 +120,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--only", action="append", default=[], help="asset id (repeatable)")
     ap.add_argument("--out", type=Path, help=f"output folder (default {CITY})")
     ap.add_argument("--heroes", action="store_true", help="pack the rigged hero glbs only")
+    ap.add_argument("--crowd", action="store_true", help="pack the crowd kit glbs only")
     args = ap.parse_args(_drop_pnpm_separator(sys.argv[1:] if argv is None else argv))
     out = args.out or CITY
     if args.heroes:
         return pack_heroes(out)
+    if args.crowd:
+        return pack_crowd(out)
     if args.only:
         ids = args.only
         tests = [a for a in ids if a in TEST_ASSETS]
