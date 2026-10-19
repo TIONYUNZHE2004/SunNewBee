@@ -1,0 +1,16 @@
+{
+  "request": {
+    "message": "Can I drive from Car Park B to the playground?",
+    "profile": "drive"
+  },
+  "checked_text": "Route status: likely OK (estimated from map data, not checked)\nLakeside Mall Car Park B to Urban Park playground: route likely OK (estimated from map data, not checked), 113.3 m.\n1. Start heading north-east along the street for about 37 m (likely OK, estimated from map data).\n2. Turn right onto the street. Continue about 48 m (likely OK, estimated from map data).\n3. Turn left onto the street. Continue about 3 m (likely OK, estimated from map data).\n4. Turn right onto the street. Continue about 26 m (likely OK, estimated from map data).\n5. Arrive at your destination.\nWorth knowing:\n• Estimated from map data (OpenStreetMap path types and tags), not checked on site.\n• Segment facts are demo values, not yet surveyed.",
+  "done": {
+    "type": "done",
+    "message_id": "75becb60e32c",
+    "answer_status": "partial",
+    "model": "mock-scripted"
+  },
+  "known_endpoint_gap_m": 123.3,
+  "finding": "The API explicitly warns that distance/time stop at the road, but the AI step says Arrive at your destination. This claims an off-graph arrival that was not computed.",
+  "cost_usd": 0
+}

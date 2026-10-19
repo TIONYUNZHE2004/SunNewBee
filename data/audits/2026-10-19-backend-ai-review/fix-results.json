@@ -101,13 +101,15 @@
       "A distance from another maneuver can be borrowed.",
       "A legitimate closed street absent from the detour maneuvers is rejected.",
       "Hidden steps are claimed to appear on a nonexistent map step list.",
-      "Arrive at destination is false when driving geometry stops 123.3 m away at the road."
+      "Arrive at destination is false when driving geometry stops 123.3 m away at the road.",
+      "Real mock drive chat omits the API road-end gap and standing legal-turn warning before claiming arrival."
     ],
     "evidence": [
       "../2026-10-20-t021/probe_ai_steps.py",
       "../2026-10-20-t021/probe_ai_steps.json",
       "../2026-10-20-t021/api-routes.json",
-      "../2026-10-20-driving/route-comparison.json"
+      "../2026-10-20-driving/route-comparison.json",
+      "../2026-10-20-t021/drive-arrival-chat.json"
     ],
     "seed_identity_audit": {
       "coordinate_derived_nodes": 11736,
