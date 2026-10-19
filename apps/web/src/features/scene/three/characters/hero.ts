@@ -27,6 +27,12 @@ export interface HeroContact {
   x: number;
   y: number;
   z: number;
+  /**
+   * On or climbing onto the bench (the rigged hero's authored window: `sit_idle`, `sit_down` from
+   * 1.0 s, `stand_up` until 0.5 s; a clip-time rule, never foot height): her feet leave the ground
+   * by design, so they are not ground contacts then. Never set while standing or walking.
+   */
+  airborne?: boolean;
 }
 
 /**

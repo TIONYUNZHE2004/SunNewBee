@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import * as THREE from "three";
 import { fitCost, fitFor, overviewPose, rangeNeededM } from "../cameraFit";
+import { createHeroLab, type HeroLab } from "../characters/heroLab";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { createFrameStats, type PerfSample } from "../frameStats";
@@ -101,6 +102,8 @@ export interface AcceptanceApi {
    * the main thread. The pose is restored afterwards, as it is after `measure`.
    */
   measureUncapped(frames: number, orbitDegPerFrame: number): UncappedMeasurement;
+  /** C-T4 hero test scene (H5-H7, H11): a footway and bench at the camera target with the GLB hero. */
+  heroLab(): HeroLab;
   /** Vertices in the visible road-surface meshes: the streamed road layer has arrived when > 0. */
   roadVertices(): number;
   /** The scene's live fog (colour as #rrggbb sRGB, distances in metres) and background colour; null when fog is off. */
@@ -661,6 +664,7 @@ function slabOf(roots: THREE.Object3D[]): THREE.Object3D | null {
 export function createAcceptanceApi(engine: Engine, frame: LocalFrame): AcceptanceApi {
   let camLog: { log: CameraLog; off: () => void } | null = null;
   let poseLog: { rows: PoseLogRow[]; off: (() => void) | null } = { rows: [], off: null };
+  let lab: HeroLab | null = null;
   const camPos = (): [number, number, number] => {
     const p = engine.pickView().camera.position;
     return [p.x, p.y, p.z];
@@ -971,6 +975,10 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
         vendor: String(gl.getParameter(ext ? ext.UNMASKED_VENDOR_WEBGL : gl.VENDOR)),
         renderer: String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER)),
       };
+    },
+    heroLab() {
+      lab ??= createHeroLab(engine);
+      return lab;
     },
     measureUncapped(frames, orbitDegPerFrame) {
       const render = engine.renderNow;

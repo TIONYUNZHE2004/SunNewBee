@@ -10,19 +10,31 @@ import {
   type RoleUniforms,
 } from "../assets/roleMaterial";
 import {
+  AGENT_LIFT_M,
   type Agent,
   DENSITY_PEAK,
   densityFor,
   displayScale,
   easedDistance,
   type MoodMix,
+  PEOPLE_VISIBLE_M,
   type Pose2,
+  peopleScale,
   poseAt,
   smoothYaw,
 } from "./agents";
 import type { BakedClip, CrowdKit } from "./crowdBake";
 import { advanceGait, framePair, type GaitState, gaitStartPhase } from "./crowdGait";
-import { type CrowdRenderer, createCrowdRenderer } from "./crowdRenderer";
+import { type CrowdRenderer, createCrowdRenderer, crowdLodBands } from "./crowdRenderer";
+import {
+  assignLooks,
+  type HeroXZ,
+  type KeepOutMemory,
+  type KeepOutResult,
+  keepOut,
+  type LookMemory,
+  lookSpeed,
+} from "./crowdRules";
 
 /**
  * Smoothed yaw per agent id, with the motion time (ms) it was last updated. Keyed by id (not by
@@ -30,7 +42,15 @@ import { type CrowdRenderer, createCrowdRenderer } from "./crowdRenderer";
  * smoothly: pass the same map to each rebuild. Each rebuild prunes the ids that are not in its agent
  * set, so streaming never grows the map beyond the latest set.
  */
-export type YawMemory = Map<string, { yaw: number; at: number; gait?: GaitState }>;
+export interface YawEntry {
+  yaw: number;
+  /** Motion time (ms) of the last yaw update; NaN for an entry made by the keep-out before any pose. */
+  at: number;
+  gait?: GaitState;
+  /** C-T8 keep-out side memory (P8). */
+  keep?: KeepOutMemory;
+}
+export type YawMemory = Map<string, YawEntry>;
 
 export interface MotionLayer {
   group: THREE.Group;
@@ -42,32 +62,42 @@ export interface MotionLayer {
 
 /** Agents just outside the view still get matrices, so nothing pops in at the edge while panning. */
 const FRUSTUM_MARGIN_M = 50;
-/** On the road ribbons (0.08 m) rather than in them. */
-export const AGENT_LIFT_M = 0.08;
+
+/** On the road ribbons (0.08 m) rather than in them (defined in agents.ts; the hero shares it). */
+export { AGENT_LIFT_M };
+
 const NOOP = () => {};
 /**
- * Agents stay visible (on their last LOD, scaled up by displayScale) out to this distance, or the
- * kit's own last maxM when that is larger, then hide. Owner ruling P2: decorative people and
- * vehicles read "1x near, rising to about 3x at hero-mid", and hero-mid's camera is > 565 m away,
- * beyond the people kit's 300 m LOD1.
+ * Vehicles stay visible (on their last LOD, scaled up by displayScale) out to this distance, or the
+ * kit's own last maxM when that is larger, then hide. Owner ruling P2: decorative vehicles read
+ * "1x near, rising to about 3x at hero-mid", and hero-mid's camera is > 565 m away. People follow
+ * R-J7 instead: peopleScale, visible to PEOPLE_VISIBLE_M (800 m), hidden beyond.
  */
 export const AGENT_VISIBLE_M = 900;
 
-/** The kit's LOD bands with the last one stretched to AGENT_VISIBLE_M (never shortened). */
-export function agentLods(lods: readonly { maxM: number | null }[]): { maxM: number | null }[] {
+/** The kit's LOD bands with the last one stretched to `visibleM` (never shortened). */
+export function agentLods(
+  lods: readonly { maxM: number | null }[],
+  visibleM = AGENT_VISIBLE_M,
+): { maxM: number | null }[] {
   return lods.map((l, i) =>
-    i === lods.length - 1 && l.maxM !== null ? { maxM: Math.max(l.maxM, AGENT_VISIBLE_M) } : l,
+    i === lods.length - 1 && l.maxM !== null ? { maxM: Math.max(l.maxM, visibleM) } : l,
   );
 }
+/** Display scale by kind: people R-J7 (`peopleScale`), vehicles ruling P2 (`displayScale`). */
+const scaleFor = (kind: Agent["kind"], d: number) =>
+  kind === "person" ? peopleScale(d) : displayScale(d);
 const ASSET: Record<Agent["kind"], string> = { person: "people", vehicle: "vehicles" };
 
 /**
- * The crowd look of a person agent: its `look` id when the kit has it (C-T8 assigns them), else a
- * seeded pick over all looks. Display only.
+ * The crowd look of a person agent: its `look` id when the kit has it, else the C-T8 assignment
+ * (`assigned`, from assignLooks), else a seeded pick over all looks. Display only.
  */
-export function crowdLookIndex(kit: CrowdKit, a: Agent): number {
+export function crowdLookIndex(kit: CrowdKit, a: Agent, assigned?: Map<string, number>): number {
   const byId = a.look === undefined ? undefined : kit.lookIndex.get(a.look);
   if (byId !== undefined) return byId;
+  const given = assigned?.get(a.id);
+  if (given !== undefined && kit.manifest.looks[given]) return given;
   const n = kit.manifest.looks.length;
   return Math.min(n - 1, Math.floor(hash01(a.id, "look") * n));
 }
@@ -124,6 +154,13 @@ export function createMotionLayer(
      * loading or failed) draws no people; omitted, the legacy `people` kit with the shader limb swing.
      */
     crowd?: CrowdKit | null;
+    /** Crowd looks by agent id, kept across rebuilds like `yaw` (C-T8, P3); reset to this agent set. */
+    looks?: LookMemory;
+    /**
+     * The hero's position and heading, read every tick (C-T8 keep-out, P8): no crowd person within
+     * 2 m of her or of her next 10 m. Only these numbers; never the journey plan or its events (P9).
+     */
+    hero?: () => HeroXZ | null;
   } = {},
 ): MotionLayer & { setDensity(w: MoodMix): void; crowd: CrowdRenderer | null } {
   const yawMemory: YawMemory = opts.yaw ?? new Map();
@@ -212,20 +249,29 @@ export function createMotionLayer(
   const kit = opts.crowd ?? null;
   const crowdSlots: CrowdSlot[] = [];
   const crowdLooks: number[] = [];
-  const crowdLods = kit ? kit.manifest.lods.map((l) => ({ maxM: l.maxM })) : [];
+  const crowdLods = kit ? crowdLodBands(kit.manifest.lods) : [];
+  // C-T8: no cyclists in the people crowd (they would walk at 4.5 m/s); looks with no twins nearby.
+  const crowdPeople = kit
+    ? agents.filter((a) => a.kind === "person" && a.variant !== "cyclist" && a.look === undefined)
+    : [];
+  const assigned = kit ? assignLooks(crowdPeople, kit.manifest.looks, opts.looks) : undefined;
   for (const a of agents) {
     if (a.kind === "person" && crowdMode) {
-      if (!kit) continue;
-      const look = crowdLookIndex(kit, a);
+      if (!kit || a.variant === "cyclist") continue;
+      const look = crowdLookIndex(kit, a, assigned);
       const spec = kit.manifest.looks[look];
       const clips = spec ? kit.clips[spec.body] : undefined;
       const walk = spec && clips?.[spec.clips.walk];
       const idle = spec && clips?.[spec.clips.idle];
-      if (!walk || !idle) continue;
+      if (!spec || !walk || !idle) continue;
+      // The look's own pace (older, walker, wheelchair slower; cadence capped), on its own object.
+      const stride = kit.manifest.bodies[spec.body].clips[spec.clips.walk]?.stride ?? 0;
+      const speed = lookSpeed(a, spec, stride);
+      const agent = speed === a.speed ? a : { ...a, speed };
       const rank = rankOf.get(a.kind) ?? 0;
       rankOf.set(a.kind, rank + 1);
       total[a.kind]++;
-      crowdSlots.push({ agent: a, rank, raw: undefined, walk, idle });
+      crowdSlots.push({ agent, rank, raw: undefined, walk, idle });
       crowdLooks.push(look);
       continue;
     }
@@ -242,7 +288,7 @@ export function createMotionLayer(
     const lk = `${a.kind}/${a.variant}`;
     let lods = lodsByVariant.get(lk);
     if (!lods) {
-      lods = agentLods(vspec.lods);
+      lods = agentLods(vspec.lods, a.kind === "person" ? PEOPLE_VISIBLE_M : AGENT_VISIBLE_M);
       lodsByVariant.set(lk, lods);
     }
     slots.push({
@@ -262,12 +308,40 @@ export function createMotionLayer(
   );
   const active: Record<Agent["kind"], number> = { ...total };
   const pose: Pose2 = { x: 0, z: 0, yaw: 0 };
+  const kept: KeepOutResult = { x: 0, z: 0, hidden: false };
+  const heroOf = opts.hero ?? (() => null);
+  /**
+   * The keep-out (P8) on `pose` for a person: moves pose.x / z out of her zone; false when the
+   * person must not be drawn this frame. Vehicles are untouched (they keep to the carriageway).
+   */
+  const keepClear = (a: Agent, hero: HeroXZ | null): boolean => {
+    if (a.kind !== "person") return true;
+    let mem = yawMemory.get(a.id);
+    if (!hero) {
+      if (mem?.keep) mem.keep.side = undefined;
+      return true;
+    }
+    if (!mem) {
+      mem = { yaw: pose.yaw, at: Number.NaN };
+      yawMemory.set(a.id, mem);
+    }
+    mem.keep ??= {};
+    keepOut(pose.x, pose.z, hero, mem.keep, kept);
+    pose.x = kept.x;
+    pose.z = kept.z;
+    return !kept.hidden;
+  };
 
   /** Smoothed yaw for an agent at pose.yaw; returns it and the seconds since its last update. */
   const smoothed = (id: string, nowMs: number) => {
     const mem = yawMemory.get(id);
-    if (!mem) {
-      const fresh: { yaw: number; at: number; gait?: GaitState } = { yaw: pose.yaw, at: nowMs };
+    if (!mem || Number.isNaN(mem.at)) {
+      // An entry the keep-out made before the first pose (at NaN) keeps its keep-out side.
+      const fresh: YawEntry = {
+        yaw: pose.yaw,
+        at: nowMs,
+        ...(mem?.keep ? { keep: mem.keep } : {}),
+      };
       yawMemory.set(id, fresh);
       return { yaw: pose.yaw, dt: 0, mem: fresh };
     }
@@ -287,14 +361,16 @@ export function createMotionLayer(
     },
     tick(nowMs, camera, frustum) {
       const t = nowMs / 1000;
+      const hero = heroOf();
       for (const b of allBuckets) b.n = 0;
       for (const s of slots) {
         if (s.rank >= active[s.agent.kind]) continue;
         poseAt(s.agent, t, pose);
+        if (!keepClear(s.agent, hero)) continue;
         const d = Math.hypot(pose.x - camera.x, camera.y, pose.z - camera.z);
         const raw = lodFor(d, s.lods, s.raw);
         s.raw = raw;
-        if (raw < 0) continue;
+        if (raw < 0 || (s.agent.kind === "person" && d > PEOPLE_VISIBLE_M)) continue;
         const b = s.buckets[s.resolve[raw] ?? -1];
         if (!b) continue;
         _p.set(pose.x, AGENT_LIFT_M, pose.z);
@@ -302,7 +378,7 @@ export function createMotionLayer(
         // already turned. A long gap (hidden, out of range) settles at once (k -> 1).
         const { yaw } = smoothed(s.agent.id, nowMs);
         if (frustum && !frustum.intersectsSphere(_sphere.set(_p, FRUSTUM_MARGIN_M))) continue;
-        const k = displayScale(d);
+        const k = scaleFor(s.agent.kind, d);
         _q.setFromAxisAngle(_y, yaw);
         b.mesh.setMatrixAt(b.n, _m.compose(_p, _q, _s.set(k, k, k)));
         for (let i = 0; i < 3; i++) {
@@ -311,8 +387,9 @@ export function createMotionLayer(
         }
         b.n++;
       }
-      // The crowd (C-T7): LOD0 / LOD1 by distance from the manifest, hidden beyond the last band
-      // (300 m); the gait phase integrates the distance walked (crowdGait.ts, P5).
+      // The crowd (C-T7): LOD0 to 60 m, LOD1 to 800 m (R-J7, crowdLodBands), hidden beyond; the
+      // gait phase integrates the distance walked (crowdGait.ts, P5); the keep-out moves people
+      // out of the hero's way (P8).
       for (const [i, s] of crowdSlots.entries()) {
         if (!crowd) break;
         if (s.rank >= active.person) {
@@ -320,16 +397,18 @@ export function createMotionLayer(
           continue;
         }
         poseAt(s.agent, t, pose);
+        const clear = keepClear(s.agent, hero);
         const d = Math.hypot(pose.x - camera.x, camera.y, pose.z - camera.z);
         const raw = lodFor(d, crowdLods, s.raw);
         s.raw = raw;
-        if (raw < 0) {
+        // R-J7: hidden beyond 800 m outright (the LOD hysteresis would hold a person to 880 m).
+        if (raw < 0 || !clear || d > PEOPLE_VISIBLE_M) {
           crowd.hide(i);
           continue;
         }
         _p.set(pose.x, AGENT_LIFT_M, pose.z);
         const { yaw, dt, mem } = smoothed(s.agent.id, nowMs);
-        const k = displayScale(d);
+        const k = peopleScale(d);
         const dist = easedDistance(s.agent, t);
         if (!mem.gait)
           mem.gait = { phase: gaitStartPhase(s.agent.id, dist, s.walk, k), dist, idle: false };

@@ -12,7 +12,14 @@ import demo from "../fixtures/demoPlan.json";
 import { createRoutePath } from "../routePath";
 import { buildTimeline, type JourneyPlan, type Phase } from "../timeline";
 import { buildGroundIndex, corridorCells, groundBandMeshes } from "./groundIndex";
-import { createHeroLayer, footprintClearance, groundAt, HERO_GROUND_Y } from "./heroLayer";
+import {
+  createHeroLayer,
+  FACT_BENCH_STAND_M,
+  factBenchFor,
+  footprintClearance,
+  groundAt,
+  HERO_GROUND_Y,
+} from "./heroLayer";
 
 const plan = demo as unknown as JourneyPlan;
 const frame = createFrame([101.5135, 3.18]);
@@ -234,5 +241,105 @@ describe("hero layer seats keep out of drawn buildings (D-T5 ruling)", () => {
     const far = box(px + 5, pz, 1);
     const both = (x: number, z: number) => (grid.topAt(x, z) > 0 || far.topAt(x, z) > 0 ? 0 : 1);
     expect(approachClear(both, [px, pz], { x: px + 8, z: pz })).toBe(false);
+  });
+});
+
+describe("fact benches (B-T7 ruling: one bench per fact)", () => {
+  const restIdx = plan.events.findIndex((e) => e.kind === "rest");
+  const benchCount = (g: THREE.Object3D) => {
+    let n = 0;
+    g.traverse((o) => {
+      if (o.name === "journey-bench") n++;
+    });
+    return n;
+  };
+  const rests = plan.events.filter((e) => e.kind === "rest").length;
+
+  it("matches by source id first, else the nearest within 3 m of the seat or place", () => {
+    const a = { id: "p1", x: 50, z: 50, yaw: 0 };
+    const b = { x: 2, z: 0, yaw: 1 };
+    const c = { x: 2.5, z: 0, yaw: 2 };
+    expect(factBenchFor([a, b], "p1", [[0, 0]])).toBe(a);
+    expect(factBenchFor([a, b, c], "zz", [[0, 0]])).toBe(b);
+    expect(factBenchFor([a, c], undefined, [null, [0, 0]])).toBe(c);
+    expect(factBenchFor([{ x: 3.5, z: 0, yaw: 0 }], undefined, [[0, 0]])).toBeNull();
+    expect(factBenchFor(undefined, "p1", [[0, 0]])).toBeNull();
+  });
+
+  it("a rest with a fact bench within 3 m draws no bench of its own; she sits on the fact bench, facing as it faces", () => {
+    const plain = createHeroLayer(plan, path, frame);
+    const own = plain.seats.get(restIdx) as { x: number; z: number };
+    expect(benchCount(plain.group)).toBe(rests);
+    plain.dispose();
+    // a fact bench 2 m from where our own bench would stand, facing +x
+    const fact = { x: own.x + 2, z: own.z, yaw: Math.PI / 2 };
+    const layer = createHeroLayer(plan, path, frame, { factBenches: [fact] });
+    expect(benchCount(layer.group)).toBe(rests - 1);
+    const seat = layer.seats.get(restIdx) as { x: number; z: number; yaw?: number };
+    expect(seat.x).toBeCloseTo(fact.x + FACT_BENCH_STAND_M, 9);
+    expect(seat.z).toBeCloseTo(fact.z, 9);
+    expect(seat.yaw).toBe(fact.yaw);
+    // seated: her root on the stand point, facing the bench's way (back to the fact bench)
+    const r = rest.t0 + (sch.sitIdle[0] + sch.sitIdle[1]) / 2;
+    const p = layer.pose(tl, r);
+    expect(Math.hypot(p.x - seat.x, p.z - seat.z)).toBeLessThan(1e-6);
+    expect(
+      Math.abs(Math.atan2(Math.sin(p.yaw - fact.yaw), Math.cos(p.yaw - fact.yaw))),
+    ).toBeLessThan(1e-6);
+    layer.dispose();
+  });
+
+  it("a fact bench far from every rest changes nothing", () => {
+    const layer = createHeroLayer(plan, path, frame, {
+      factBenches: [{ x: 1e4, z: 1e4, yaw: 0 }],
+    });
+    expect(benchCount(layer.group)).toBe(rests);
+    layer.dispose();
+  });
+});
+
+describe("fact benches at rests (D-T5 extra scope: ~3 m of the rest point; drawn boxes avoided)", () => {
+  const restIdx = plan.events.findIndex((e) => e.kind === "rest");
+  const e = plan.events[restIdx] as JourneyPlan["events"][number];
+  const [px, pz] = path.pointAt(e.at_m);
+  const benchCount = (g: THREE.Object3D) => {
+    let n = 0;
+    g.traverse((o) => {
+      if (o.name === "journey-bench") n++;
+    });
+    return n;
+  };
+  const rests = plan.events.filter((ev) => ev.kind === "rest").length;
+
+  it("a fact bench 2.5 m from the rest point is the rest's bench (no second hero bench)", () => {
+    const fact = { id: "osm-node-9", x: px + 2.5, z: pz, yaw: -Math.PI / 2 };
+    const l = createHeroLayer(plan, path, frame, { factBenches: [fact] });
+    expect(benchCount(l.group)).toBe(rests - 1);
+    const seat = l.seats.get(restIdx) as { x: number; z: number; yaw?: number };
+    expect(seat.yaw).toBe(fact.yaw);
+    expect(Math.hypot(seat.x - fact.x, seat.z - fact.z)).toBeCloseTo(FACT_BENCH_STAND_M, 9);
+    l.dispose();
+  });
+
+  it("a fact bench inside a drawn building box is not used: our own seat, outside the box", () => {
+    const fact = { id: "osm-node-9", x: px + 2.5, z: pz, yaw: -Math.PI / 2 };
+    const grid = createClearance([
+      {
+        id: "landmark-box",
+        ring: [
+          [fact.x - 1.5, fact.z - 1.5],
+          [fact.x + 1.5, fact.z - 1.5],
+          [fact.x + 1.5, fact.z + 1.5],
+          [fact.x - 1.5, fact.z + 1.5],
+        ],
+        topM: 9,
+      },
+    ]);
+    const l = createHeroLayer(plan, path, frame, { factBenches: [fact], grid });
+    expect(benchCount(l.group)).toBe(rests);
+    const seat = l.seats.get(restIdx) as { x: number; z: number; yaw?: number };
+    expect(seat.yaw).toBeUndefined();
+    expect(grid.topAt(seat.x, seat.z)).toBe(0);
+    l.dispose();
   });
 });

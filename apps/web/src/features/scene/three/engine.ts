@@ -207,6 +207,18 @@ export interface Engine {
    * harness times uncapped frames with it (`scene/useAcceptanceHook.ts`); the app never calls it.
    */
   renderNow?(): void;
+  /**
+   * Test only (acceptance hero lab, C-T4/C-T5 screenshots): pins the camera at a free pose for the
+   * following frames, below the rig's 30 m minimum range; null hands the camera back to the rig.
+   */
+  setCameraOverride?(
+    pose: {
+      position: [number, number, number];
+      target: [number, number, number];
+      /** Vertical field of view (deg); default: the rig's close-range VFOV_DEG (the follow view). */
+      fovDeg?: number;
+    } | null,
+  ): void;
   onFrame(cb: (dtMs: number, info: FrameInfo) => void): () => void;
   /**
    * Runs `cb` on the instanced-LOD schedule (at most every 250 ms while the camera moves, plus once
@@ -1125,6 +1137,11 @@ function build(
     return { driven: true, animating: !!pose.animating };
   };
 
+  let cameraOverride: {
+    position: [number, number, number];
+    target: [number, number, number];
+    fovDeg?: number;
+  } | null = null;
   function tick() {
     raf = 0;
     if (disposed) return;
@@ -1141,6 +1158,16 @@ function build(
     if (!drive.driven) rig.constrain();
     syncFov(now);
     const lifting = drive.driven ? false : clearCamera(now);
+    if (cameraOverride) {
+      camera.position.set(...cameraOverride.position);
+      camera.lookAt(...cameraOverride.target);
+      const fov = cameraOverride.fovDeg ?? VFOV_DEG;
+      if (Math.abs(camera.fov - fov) > 1e-4) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
+      camera.updateMatrixWorld();
+    }
     clearTimeout(motionTimer);
     motionTimer = undefined;
     const live = motionMode !== null && !!motionLayer && motionRunning();
@@ -1275,6 +1302,10 @@ function build(
     rig,
     motion,
     requestRender,
+    setCameraOverride(pose) {
+      cameraOverride = pose;
+      schedule();
+    },
     renderNow() {
       if (disposed) return;
       cancelAnimationFrame(raf);

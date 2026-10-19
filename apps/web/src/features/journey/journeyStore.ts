@@ -28,13 +28,21 @@ export interface HeroPose {
   walkRate: number;
   /** False while a rest's ground is not sampled yet (its streamed ground band was not in yet). */
   groundKnown: boolean;
+  /**
+   * Her path over the next 10 m ([x, z] local metres, every 0.25 m from her route metre): position
+   * data for the crowd keep-out (C-T8, P8). Never an event.
+   */
+  ahead?: [number, number][];
   /** Test probe (AC-D10): contacts with the drawn ground under each, and the rest benches' seat corners. */
   probe?: () => HeroProbe;
 }
 
 export interface HeroProbe {
   contacts: (HeroContact & { groundY: number; band: string | null; onFootway: boolean })[];
-  benches: { eventIndex: number; corners: [number, number][] }[];
+  /** Each rest's bench corners; `fact`: the street dressing's fact bench (no own bench drawn). */
+  benches: { eventIndex: number; corners: [number, number][]; fact?: boolean }[];
+  /** Which hero model is drawn: "glb" (C-T4), "placeholder" (loading or fallback) or "custom". */
+  model?: string;
   /** Per-pose cost of the hero (driver + planting + model), ms, and the ground table rebuilds. */
   cost?: {
     poses: number;

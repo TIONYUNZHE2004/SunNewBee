@@ -516,9 +516,15 @@ at render on demand and holds a still pose. Motion time excludes stopped spans, 
 where they stopped instead of jumping. Every rebuilt agent layer shares one smoothed-yaw memory.
 
 - **Agents:** `planAgents` puts seeded vehicles on `street`/`major_road` edges and people on
-  `footway`/`path`/`pedestrian` edges of each streamed tile, weighted ×3 near schools, malls and
-  parks. The count is the tile's cap × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
-  edges with no routing or collision, so cars can pass through each other.
+  `footway`/`path`/`pedestrian`/`sidewalk`/`crossing` edges and on pavement paths beside every
+  `street`/`major_road` (`WIDTH_BY_TYPE / 2 + 0.6–1.2 m` from the centre line, C-T8) of each streamed
+  tile, weighted ×3 near schools, malls and parks. A person's path that enters a building footprint or
+  base water moves to the other side of its line, else is not planned (P7). The count is the tile's
+  cap × mood density (day 1.0, dusk 1.15, night 0.45); in the detail bubble (rings 0–1) people are
+  raised to a floor of one per 40 m of street at day density (`PAVEMENT_FLOOR_MAX_RING`, the
+  perf-gate knob). No cyclists (they would render as people
+  walking at 4.5 m/s). Agents loop along the edges with no routing or collision, so cars can pass
+  through each other.
 - **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD for vehicles. Matrices are rewritten
   each tick, but only for agents in view (with a 50 m margin). Agents beyond their last LOD's `maxM`
   are hidden. Agents cast no shadows and are left out of the AO pass.
@@ -526,14 +532,26 @@ where they stopped instead of jumping. Every rebuilt agent layer shares one smoo
   `characters/crowd_<body>.glb`, one body per idle slice) and bakes every clip at runtime into a
   bone-matrix texture (`motion/crowdBake.ts`: per frame and bone the 3×4 `boneWorld(t) × boneWorld(rest)⁻¹`
   as RGBA half floats, 821 rows × 57 texels = 0.37 MB, 0 bytes on disk; props are one-bone skinned).
-  `motion/crowdRenderer.ts` draws all people as two BatchedMeshes (LOD0 ≤ 60 m, LOD1 ≤ 300 m, hidden
-  beyond: 2 draw calls), skinning in the vertex shader from (row0, row1, blend, look) per instance
+  `motion/crowdRenderer.ts` draws all people as two BatchedMeshes (LOD0 ≤ 60 m, LOD1 ≤ 800 m per R-J7,
+  hidden beyond: 2 draw calls), skinning in the vertex shader from (row0, row1, blend, look) per instance
   and recolouring from a palette texture (role × look). The gait phase integrates the distance walked
   over `stride × display scale` (`motion/crowdGait.ts`, P5: no skating) from a seeded start phase.
-  An agent's optional `look` id picks its look (C-T8 assigns them); else a seeded pick. While the
-  kit loads no people are drawn; if it fails the legacy `people` kit (shader limb swing) is the fallback.
-- **Scale-up:** agents are drawn 1× within 150 m of the camera, rising to 3× at 800 m, for
-  legibility. This is display only; the models are unchanged.
+  An agent's optional `look` id picks its look; else `motion/crowdRules.ts` `assignLooks` (C-T8, P3):
+  graph colouring over path proximity, so no two people whose paths come within 10 m share a look,
+  seeded and kept across tile streaming (`LookMemory`); joggers take young or adult looks without a
+  prop. Each look walks at its own pace (`lookSpeed`: walker 0.6, older 0.75, wheelchair 0.8,
+  stroller 0.9, child 0.85 of the planned speed, capped at 1.5 walk cycles/s at 1.55×). The keep-out
+  (`keepOut`, P8) moves people sideways out of a zone 2 m around the hero and her path over the next
+  10 m (`HeroPose.ahead`, published by `heroLayer` every 0.25 m; her heading when absent), reading
+  only these positions (`useMotion` `heroXZ` from `journeyHero`); a person crossing her line inside
+  the zone is hidden until clear. Pavement paths are cut back where they meet another street or major
+  road (half width + 1.2 m from its centre line), so pavement walkers turn at the kerb. The crowd never imports journey code
+  (`crowdBoundary.test.ts`, P9). While the kit loads no people are drawn; if it fails the legacy
+  `people` kit (shader limb swing) is the fallback.
+- **Scale-up:** people (R-J3, R-J7: `peopleScale`) are drawn 1.55× within 300 m of the camera (the
+  hero's scale), easing up to 2.5× at 800 m and hidden beyond 800 m. Vehicles keep ruling P2
+  (`displayScale`: 1× within 150 m, rising to 3× at 800 m, visible to 900 m). Display only; the
+  models are unchanged.
 - **Day/Rollout fade:** people and vehicles fade out over 1 s while Elmina Day or Rollout playback
   is on, and fade back in when both are off.
 - **Honesty:** decorative only (`userData.decorative`, no-op raycast), never picked or described.
@@ -710,6 +728,7 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
 - **Acceptance.** `acceptance/journey-overlay.accept.ts` (AC-D11, AC-D12) drives `window.__journey` (dev builds and `?demo=1`): `seek`, `play`, `pause`, `setCam`, `phases`, `total`, `state()`, plus `plan` and `hero()` (the rendered hero, below). `acceptance/journey-hero.accept.ts` (AC-D10) samples a full playback at 10 Hz (clip per phase, never inside a building) and checks ground contact at every beat.
 - **Hero (D-T6).** `scene/three/journey/heroDriver.ts` is a pure state machine, `heroStateAt(timeline, t, {pointAt, seatOf})` → position (on the route via `routePath.pointAt`), yaw (`smoothYaw` folded over a fixed 1 s window, so it is deterministic), clip (`walk|idle|sit_down|sit_idle|stand_up|look`), clip time, walk rate and, in the first 0.2 s of a beat whose clip changed, a crossfade (`fade: {prevClip, prevTime, blend}`): walk phases walk (rate = pace / 7/6 m/s × 1.6), verified / covered / gap holds are a slow walk, unknown stops and looks, rest walks to the bench-front stand point, steps round to face away from the bench (0.6 s), sits down (0.85 s), sits, stands up (0.85 s) with the root fixed (the clip carries the hips back onto the seat; C-T3 ruling) and walks back, arrive / dive / pull-back idle. Same output by play or seek. Models implement `scene/three/characters/hero.ts` `Hero` (`object3d`, `setPose`, `play(clip, time, rate, fade?)`, `contacts`, `dispose`; the sit / stand time base and the seat geometry contract are documented there); `placeholderHero.ts` is the primitive clay chibi with walker and yellow ring at 1.55× (about 2.4 m) until the rigged GLB (C-T4). `journey/three/heroLayer.ts` adds her and a bench per rest to the engine decor slot `journey-hero`. **The bench position is display-approximate: the bench fact is the rest point.** The stand point (her root while seated; the bench stands behind it per `characters/benchGeometry.ts` `HERO_BENCH`, read from the asset manifest `public/city/characters/manifest.json` through `heroManifest.ts`, as are the display scale, clip lengths and walk stride; sit_down / stand_up clip time runs 0..1.5 s over their 0.85 s screen beat, and walk rate is the manifest's no-slide `walkRate`) is the access layer's bench place when it is 1.2–6 m off the route, else 1.9 m to the side: the place's side when it is at least 0.5 m off the route, else the side with more clearance from OSM building footprints. During a rest she and the bench stand on the drawn ground sampled along route → seat (the ground bands, once streamed in), on the route her root stands at the footway height (0.08 m); each foot and walker leg is planted on the drawn ground under it (`Hero.setGround`) from a precomputed height table of the route corridor (`journey/three/groundIndex.ts`: ground-band triangles within 2.5 m of the route and the rest paths, bucketed on a 2 m grid; exact barycentric heights, no raycasts per frame, identical in play and seek). The table is rebuilt only when `Engine.groundGeneration` moves and the set of ground meshes actually changed (per-mesh triangle scans are cached). `JourneyMount` poses her on every `t` change and writes what it drew to `journeyHero.current` in `journeyStore.ts` (a plain holder, no store update per frame): `__journey.hero()` reads it, and so will the crowd keep-out (C-T8), which never reads journey events. The hero is the simulation subject, not decoration: no `userData.decorative` (picks pass through her no-op raycast).
 - **Follow camera (D-T5).** `scene/three/journey/followRig.ts` is pure pose maths: `journeyCameraAt(scene, t, mode)` → `{pos, look}` for `follow` (dive from the derived overview `cameraFit.ts` `overviewPose` over 4 s, the follow pose, the pull-back over 5 s), `overview` (that pose) or `free` (null). Follow pose: 8.5 m back along the route tangent, 4.5 m to the right, 4.2 m up, looking 4 m ahead (nudged 0.3 m up and 1.5 m to the far side of her line so her whole box sits ≥ 14 % inside the frame). Per-event framing: rest = side view across the route-to-seat line (both in frame), unknown = the element from the side with the clearer view, arrive = from behind her towards the destination place; verified / covered / gap follow. Damping is a Gaussian over ±0.75 s of timeline time on the offsets from her, in polar form (a change of side swings round her), so it is a pure function of t (scrub == play). Building clearance (`clearance.ts`): the camera is lifted (x, z kept) by the windowed max of the line-of-sight lift (`segmentLiftM` to her chest, plus the floor with a 6 m skirt), tapered over ±1 s so it rises before a building arrives; when the default side needs > 3 m of lift it takes the same shot mirrored or turned about her (she walks out of Harmoni 1 with the camera in front of her, not 150 m above); a lifted camera tilts down onto her; the hard floor (roof + 2 m) is applied last and never eased. `journey/followCamera.ts` makes it an engine camera driver (`Engine.setCameraDriver`: the camera is put exactly at the driven pose, MapControls off, rig flights dropped, no rig lift): the player takes the camera only once used (play, seek, a mode chosen), a mode change eases in over 1 s (wall clock; snaps under reduced motion), Free and the end of the trip hand it back to the orbit rig (Free: a 0.6 s flight to an orbit around her). Event cards keep clear of her body box on screen (`cardPlacement.ts` `keepClear`, ruling). `__journey.camera()` is the acceptance probe (`journey/three/cameraProbe.ts`); `acceptance/journey-camera.accept.ts` checks AC-D8 / AC-D9.
+- **GLB hero (C-T4).** `scene/three/characters/glbHero.ts` `createGlbHero({profile})` is the default hero: it shows the placeholder at once, loads `public/city/characters/hero_<variant>.glb` (older_adult_rest → walker, stroller → stroller, wheelchair → wheelchair, else none; meshopt GLTFLoader, bytes cached per session) and swaps it in, keeping the placeholder if the load fails (and in unit tests, which have no loader). Each `play` sets the actions' times from the driver and updates the mixer by 0 (scrub-safe; loops wrap, `sit_down` / `stand_up` hold their last frame), crossfades by weighting two actions, and then plants: each foot moves vertically onto `setGround`'s height (the walk's swing lift softly capped at 2.5 cm so H5's 3 cm holds at 1.55×), the prop takes the best-fit plane under its `contact_*` bones, and a hand that held a grip is brought back with a two-bone CCD. Seated, her dangling feet are reported `airborne` (not ground contacts). LOD1 beyond 40 m (switched from the ring's `onBeforeRender`). For frame cost (H11) the prop is folded into the skinned body of each LOD and the ring and disc are one opaque mesh, so she is two draws per pass. Never call `skeleton.pose()` on these glbs. Acceptance: `acceptance/hero-runtime.accept.ts` (H5–H7, H11 and the C-T5 H8–H10 captures) on `__tlAcceptance.heroLab()`, a footway strip and bench at the camera target; `Engine.setCameraOverride` (test only) pins close camera poses below the rig's 30 m minimum.
 
 ## File map
 

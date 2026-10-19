@@ -131,30 +131,50 @@ describe("planAgents", () => {
     expect(plan({ area: { ...base.area, seed: "other" } })).not.toEqual(a);
   });
 
-  it("vehicles only on street or major_road, people only on footway, path or pedestrian", () => {
-    const agents = plan();
+  it("vehicles only on street or major_road; people on footway, path or pedestrian, or on the pavement beside a street", () => {
+    const agents = plan({ caps: { vehicles: 20, people: 200 } });
     expect(ofKind(agents, "vehicle").length).toBeGreaterThan(0);
     expect(ofKind(agents, "person").length).toBeGreaterThan(0);
     const seen = new Set<string>();
     for (const a of agents) {
       const { type, d } = typeOf(a);
-      seen.add(type);
-      // On the line, give or take the lane offset.
-      expect(d).toBeLessThan(3);
-      if (a.kind === "vehicle") expect(["street", "major_road"]).toContain(type);
-      else expect(["footway", "path", "pedestrian"]).toContain(type);
+      seen.add(`${a.kind}:${type}`);
+      if (a.kind === "vehicle") {
+        expect(["street", "major_road"]).toContain(type);
+        // On the line, give or take the lane offset.
+        expect(d).toBeLessThan(3);
+      } else if (type === "street" || type === "major_road") {
+        // C-T8 (A-T12 hand-off): WIDTH / 2 + 0.6–1.2 m from the centre line, never in the road.
+        const half = type === "street" ? 3 : 5;
+        expect(d).toBeGreaterThanOrEqual(half + 0.6 - 0.05);
+        expect(d).toBeLessThanOrEqual(half + 1.2 + 0.05);
+      } else {
+        expect(["footway", "path", "pedestrian"]).toContain(type);
+        expect(d).toBeLessThanOrEqual(0.8 + 0.05);
+      }
     }
-    expect([...seen].sort()).toEqual(["footway", "major_road", "path", "pedestrian", "street"]);
+    expect([...seen].sort()).toEqual([
+      "person:footway",
+      "person:major_road",
+      "person:path",
+      "person:pedestrian",
+      "person:street",
+      "vehicle:major_road",
+      "vehicle:street",
+    ]);
   });
 
-  it("speeds: vehicles 8–11 m/s on streets and 12–16 on major roads; people 1.2–1.5, jogger 2.5, cyclist 4.5", () => {
-    for (const a of plan()) {
+  it("speeds: vehicles 8–11 m/s on streets and 12–16 on major roads; people 1.2–1.5, jogger 2.5; no cyclists", () => {
+    const agents = plan({ caps: { vehicles: 20, people: 400 } });
+    expect(agents.some((a) => a.variant === "jogger")).toBe(true);
+    for (const a of agents) {
       if (a.kind === "vehicle") {
         if (typeOf(a).type === "major_road") expect(a.speed >= 12 && a.speed <= 16).toBe(true);
         else expect(a.speed >= 8 && a.speed <= 11).toBe(true);
       } else if (a.variant === "jogger") expect(a.speed).toBe(2.5);
-      else if (a.variant === "cyclist") expect(a.speed).toBe(4.5);
       else expect(a.speed >= 1.2 && a.speed <= 1.5).toBe(true);
+      // C-T7 ruling: a cyclist would render as a person walking at 4.5 m/s.
+      expect(a.variant).not.toBe("cyclist");
     }
   });
 
