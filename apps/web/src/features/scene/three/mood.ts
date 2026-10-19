@@ -102,13 +102,21 @@ export function glowFor(w: MoodWeights): {
 export function fogFor(
   p: LightPreset,
   rangeM: number,
+  reachM = 0,
 ): { color: string; near: number; far: number } {
+  const near = Math.max(p.fog.near, p.fog.nearK * rangeM);
+  // A slab reach (A-T5, `cameraFit.ts` fogReachM): the farthest outline vertex sits at
+  // FOG_REACH_SHARE of the ramp, so a long outline's far edge is hazed, not swallowed.
+  const reach = reachM > near ? near + (reachM - near) / FOG_REACH_SHARE : 0;
   return {
     color: p.fog.color,
-    near: Math.max(p.fog.near, p.fog.nearK * rangeM),
-    far: Math.max(p.fog.far, p.fog.farK * rangeM),
+    near,
+    far: Math.max(p.fog.far, p.fog.farK * rangeM, reach),
   };
 }
+
+/** Where along the fog ramp (0 near, 1 far) the slab's farthest outline vertex sits at long range. */
+export const FOG_REACH_SHARE = 0.9;
 
 /** The moment the key light is computed for: the day clock mapped onto today's KL date, else now. */
 export function lightDate(src: MoodSource, now: Date): Date {
@@ -144,8 +152,8 @@ export function moodKeyDir(
 }
 
 /** Mutates the scene's one Fog (creating it once). */
-export function applyFog(scene: THREE.Scene, p: LightPreset, rangeM: number): void {
-  const f = fogFor(p, rangeM);
+export function applyFog(scene: THREE.Scene, p: LightPreset, rangeM: number, reachM = 0): void {
+  const f = fogFor(p, rangeM, reachM);
   if (!(scene.fog instanceof THREE.Fog)) scene.fog = new THREE.Fog(f.color, f.near, f.far);
   else {
     scene.fog.color.set(f.color);

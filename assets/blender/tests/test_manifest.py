@@ -47,6 +47,8 @@ def test_manifest_lists_only_built_assets_and_never_calib():
     assert lods[0] == {"node": "link_intermediate__gable__LOD0", "tris": 5999, "maxM": 300.0}
     assert lods[2]["maxM"] is None
     assert link["variants"]["gable"]["size"] == [6.4, 8.5, 15.5]
+    # the drawn LOD0 top, from the glb bounds (the web fit scales height by it)
+    assert link["variants"]["gable"]["top"] == 1.0
 
 
 def test_anchor_is_the_ring_centroid_for_anchor_landmarks_only():

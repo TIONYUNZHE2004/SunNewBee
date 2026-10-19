@@ -22,6 +22,9 @@ type Ring = P[];
 /** Verges run from the kerb (half the 6 m street width) out to 1.5 m beyond it. */
 export const VERGE_INNER_M = 3;
 export const VERGE_OUTER_M = 4.5;
+/** The outer shoulder (B-T3): the verge edge rolls off this far outward and this far down (m). */
+export const VERGE_SHOULDER_M = 0.14;
+export const VERGE_SHOULDER_DROP_M = 0.05;
 /** Length of one strip piece along the road (m). */
 const PIECE_M = 2;
 /** Shrub row spacing, jitter along the row, and lateral jitter across the verge (m). */
@@ -299,7 +302,7 @@ export function planVerges(
   cap: number,
   pieceCap = Number.POSITIVE_INFINITY,
   keepOut: { parks?: unknown; water?: unknown } = {},
-): { strips: Float32Array; shrubs: Placement[] } {
+): { strips: Float32Array; skirts: Float32Array; shrubs: Placement[] } {
   const box = tile.box;
   const lines = linesOf(walk, frame);
   const segGrid = segGridOf(walk, frame);
@@ -332,7 +335,12 @@ export function planVerges(
     return false;
   };
 
-  const pieces: { d: number; quad: P[] }[] = [];
+  const pieces: {
+    d: number;
+    quad: P[];
+    skirt: [number, number, number][];
+    inner: [number, number, number][];
+  }[] = [];
   const shrubs: { pl: Placement; d: number }[] = [];
   const cx = (box.x0 + box.x1) / 2;
   const cz = (box.z0 + box.z1) / 2;
@@ -393,7 +401,26 @@ export function planVerges(
           if (bad) continue;
           // Wound to face +y, like the road ribbons.
           const quad = side === 1 ? [c00, c10, c01, c10, c11, c01] : [c00, c01, c10, c01, c11, c10];
-          pieces.push({ d: Math.hypot(m[0] - cx, m[1] - cz), quad });
+          // Rounded outer shoulder (B-T3): the outer edge steps outward and down, wound like the quad.
+          const top = (q: P): [number, number, number] => [q[0], q[1], VERGE_Y];
+          const low = (q: P): [number, number, number] => [
+            q[0],
+            q[1],
+            VERGE_Y - VERGE_SHOULDER_DROP_M,
+          ];
+          const [t01, t11] = [top(c01), top(c11)];
+          const s01 = low(at(t0, outer + VERGE_SHOULDER_M));
+          const s11 = low(at(t1, outer + VERGE_SHOULDER_M));
+          const skirt =
+            side === 1 ? [t01, t11, s01, t11, s11, s01] : [t01, s01, t11, t11, s01, s11];
+          // Inner shoulder toward the road: closes the step between the verge and the road's sunken rim.
+          const t00 = top(c00);
+          const t10 = top(c10);
+          const i00 = low(at(t0, inner - VERGE_SHOULDER_M));
+          const i10 = low(at(t1, inner - VERGE_SHOULDER_M));
+          const innerSkirt =
+            side === 1 ? [i00, i10, t00, i10, t10, t00] : [i00, t00, i10, i10, t00, t10];
+          pieces.push({ d: Math.hypot(m[0] - cx, m[1] - cz), quad, skirt, inner: innerSkirt });
         }
       }
     }
@@ -469,8 +496,18 @@ export function planVerges(
       strips[o++] = VERGE_Y;
       strips[o++] = p[1];
     }
+  // One outer and one inner shoulder per kept piece (4 triangles, 36 floats): the edge rolls off outward
+  // and down, so the grass has no hard 90-degree kerb. Display only.
+  const skirts = new Float32Array(n * 36);
+  for (let i = 0, o = 0; i < n; i++)
+    for (const p of [...pieces[i]!.skirt, ...pieces[i]!.inner]) {
+      skirts[o++] = p[0];
+      skirts[o++] = p[2];
+      skirts[o++] = p[1];
+    }
   return {
     strips,
+    skirts,
     shrubs: shrubs.slice(0, Math.max(0, Math.floor(cap))).map((s) => s.pl),
   };
 }

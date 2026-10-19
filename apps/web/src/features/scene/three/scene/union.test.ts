@@ -32,11 +32,16 @@ describe("unionKits", () => {
       kits: new Map([["trees/rain_tree", [pl("t1", "rain_tree")]]]),
       verges: {
         strips: new Float32Array(0),
+        skirts: new Float32Array(0),
         shrubs: [pl("vg1", "shrub_round"), pl("vg2", "shrub_hedge")],
       },
     });
     const b = tile(260, {
-      verges: { strips: new Float32Array(0), shrubs: [pl("vg1", "shrub_round")] },
+      verges: {
+        strips: new Float32Array(0),
+        skirts: new Float32Array(0),
+        shrubs: [pl("vg1", "shrub_round")],
+      },
     });
     const u = unionKits([a, b]);
     expect(u.get("trees/rain_tree")?.map((p) => p.id)).toEqual(["t1"]);
