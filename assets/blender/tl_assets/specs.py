@@ -271,7 +271,7 @@ _LANDMARK_SPECS = (
             "osm",
             (MALL_BBOX[0], 9.0, MALL_BBOX[1]),
             (80000, 10000, 1500),
-            y_range=(8.0, 12.0),
+            y_range=(8.95, 9.05),  # the parapet top is the 9.0 m size (B-T2)
             x_range=(MALL_BBOX[0] - 0.1, MALL_BBOX[0] + 3.1),
             z_range=(MALL_BBOX[1] - 0.1, MALL_BBOX[1] + 3.1),
         ),

@@ -137,3 +137,16 @@ def test_committed_mall_anchor_matches_the_seed():
     assert ring is not None, "seed landmarks.geojson has no lakeside_mall feature"
     lon, lat = ring_centroid(ring)
     assert m["landmarks"]["lakeside_mall"]["anchor"] == pytest.approx([lon, lat], abs=1e-7)
+
+
+def test_committed_manifest_top_is_the_glb_lod0_top():
+    """B-T2 fix round 1: every variant's `top` is its packed LOD0 world max y (the web fit
+    scales height by it, so a placed model's top lands on the building's display height)."""
+    m = _manifest()
+    if m is None:
+        pytest.skip("no manifest committed yet")
+    for asset_id, a in m["assets"].items():
+        info = read_glb(CITY / a["file"])
+        for v, spec in a["variants"].items():
+            hi = info.nodes[f"{asset_id}__{v}__LOD0"].bounds[1]
+            assert spec["top"] == pytest.approx(hi[1], abs=1e-3), (asset_id, v)
