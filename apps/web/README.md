@@ -717,6 +717,12 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
   `map-ui/RolloutTag` (top right) always says "simulation, not a forecast".
 - **Pure helpers** are in `whatif/rolloutModel`.
 
+**Clay look and tilt-shift (journey Phase B, display only):**
+- **Clay tokens.** `scene/three/shared/clayTokens.ts` (`CLAY_PALETTE`, `CLAY`) is the one table of surface colours, roughness and sheen; layer code imports colours only from it (AC-B1). Fact geometry keeps OSM footprints and `display_height_m`; rounding is cosmetic.
+- **Tilt-shift.** `scene/three/tiltShift.ts` (`TILT_SHIFT`) drives a `BokehPass` focused on the follow target (`Engine.setFocusPoint`), else the camera target. High quality only; off with the FX toggle off or under `prefers-reduced-motion`.
+- **Pinned sun.** `?sun=pinned` (acceptance, `sunClock.ts`) and `?demo=1` light the scene at 10:30 MYT on a fixed date so evidence is reproducible; normal users keep the real clock. A pinned Day/Dusk/Night theme still wins for the mood.
+- Decorative details (street dressing, crowd, cars) stay labelled "Decorative details are illustrative." and never cause a journey event.
+
 **Resident journey (D-T4, spec 2026-10-19 §6.2 and §6.4):**
 - **Contract.** `journey.play` carries the backend's `JourneyPlan` (`intent.journey`). `sceneStore.applyIntent` stores it as `journey` and loads `features/journey/journeyStore` paused at the start; `chatReducer` notes `journey: {routeId, startTime}` on the answer. Changing the profile or scenario, or `reset`, drops the journey.
 - **Timeline.** `features/journey/timeline.ts` is pure: `buildTimeline(plan)` gives phases (`dive` 4 s, `walk` at 20x, one `event` hold per plan event with the screen time from `HOLD_SCREEN_S` and the plan's `hold_s` as simulated time (arrive adds none), `pull` 5 s); `stateAt(timeline, t)` gives distance, simulated seconds, the "HH:MM" clock, rests taken and minutes outdoors. During verified / gap / covered holds she keeps walking at her pace (capped at the next event); unknown / rest / arrive holds stand still. Minutes outdoors pause only on the span of a *verified* covered event (a reported roof is not a checked fact). The HUD at each event start equals the plan.
