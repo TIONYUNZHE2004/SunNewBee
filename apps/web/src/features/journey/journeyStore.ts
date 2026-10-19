@@ -70,11 +70,11 @@ export const journeyHero: { current: HeroPose | null } = { current: null };
  * Test-only (`__journey.camera()`); computed when called, never per frame.
  */
 export const journeyCamera: { current: (() => CameraProbe) | null } = { current: null };
-/** A drawn part the acceptance hook can switch off: the ribbon, or her body's colour (depth kept). */
+/** A drawn part the acceptance hook can switch: the ribbon, or her body's own colours (flat magenta when off). */
 export type JourneyPart = "ribbon" | "heroColour";
 /**
- * Acceptance only (`__journey.show(part, false)`): hides or shows the journey ribbon, or stops her
- * body writing colour (her depth and shadow stay), so a check can find her silhouette and compare
+ * Acceptance only (`__journey.show(part, false)`): hides or shows the journey ribbon, or draws her
+ * body flat magenta (geometry, depth and shadow unchanged), so a check can find her silhouette and compare
  * her pixels with and without the ribbon (gate: the ribbon ghost painted over her). Null without
  * a 3D player.
  */

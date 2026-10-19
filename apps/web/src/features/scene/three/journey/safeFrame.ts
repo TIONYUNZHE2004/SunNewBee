@@ -54,6 +54,9 @@ export const SAFE_FIT = {
   rampS: 0.6,
   /** Screen pads: the active marker sprite (~65 px tall at 900 px), the element, her body. */
   markerPadPx: 36,
+  /** Her box for the fit (m): half-width around her and top; seated, the walker stands out. */
+  heroBoxRadiusM: 1.25,
+  heroBoxTopM: 2.6,
   elementPadPx: 12,
   heroPadPx: 8,
 } as const;
@@ -129,12 +132,14 @@ function screenBox(p: CamPoseLike, subjects: readonly Subject[], view: ViewFit) 
   return { x0, y0, x1, y1 };
 }
 
-/** Shift (px) that moves the span [a, b] inside [lo, hi], centring it when it does not fit. */
+/**
+ * Shift (px) for the span [a, b] against [lo, hi]: none while it is inside; once any part is out,
+ * the shift that centres it (a minimal shift parks the subjects on the edge: her feet on the
+ * frame's bottom margin when the marker is brought down, gate AC-D8).
+ */
 function shiftInto(a: number, b: number, lo: number, hi: number): number {
-  if (b - a > hi - lo) return (lo + hi) / 2 - (a + b) / 2;
-  if (a < lo) return lo - a;
-  if (b > hi) return hi - b;
-  return 0;
+  if (a >= lo && b <= hi) return 0;
+  return (lo + hi) / 2 - (a + b) / 2;
 }
 
 /** True when every subject's padded box lies inside the safe rectangle (within `tolPx`). */
@@ -153,6 +158,8 @@ export function fitSafe(
   pose: CamPoseLike,
   subjects: readonly Subject[],
   view: ViewFit,
+  /** Applied to the camera after every move (e.g. the hard floor), so the fit sees the result. */
+  constrain?: (p: CamPoseLike) => void,
 ): CamPoseLike {
   if (subjects.length === 0) return pose;
   let p: CamPoseLike = { pos: [...pose.pos], look: [...pose.look] };
@@ -166,12 +173,14 @@ export function fitSafe(
       if (!canPull) break;
       p = pullBack(p, SAFE_FIT.pullStep);
       pulled *= SAFE_FIT.pullStep;
+      constrain?.(p);
       continue;
     }
     const tooBig = b.x1 - b.x0 > s.r - s.l || b.y1 - b.y0 > s.b - s.t;
     if (tooBig && canPull) {
       p = pullBack(p, SAFE_FIT.pullStep);
       pulled *= SAFE_FIT.pullStep;
+      constrain?.(p);
       continue;
     }
     const dx = shiftInto(b.x0, b.x1, s.l, s.r);

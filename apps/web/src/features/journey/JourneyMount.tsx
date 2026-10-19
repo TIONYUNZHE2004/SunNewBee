@@ -68,18 +68,33 @@ export function JourneyMount({
     const l = createJourneyLayer(plan, frame);
     engine.setJourney(l);
     setLayer(l);
+    // heroColour false: her body drawn flat magenta (same geometry, order and depth, so shadows,
+    // AO and the ribbon are untouched): the pixels that change are exactly her visible silhouette.
+    const flat = new THREE.MeshBasicMaterial({
+      color: 0xff00ff,
+      transparent: true,
+      toneMapped: false,
+    });
+    const saved = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
     journeyShow.current = (part, visible) => {
       if (part === "ribbon") l.ribbon.visible = visible;
-      else
+      else if (!visible)
         heroRef.current?.hero.object3d.traverse((o) => {
           const m = o as THREE.Mesh;
-          if (!m.isMesh || o.userData.heroPart === "ring") return;
-          for (const mat of Array.isArray(m.material) ? m.material : [m.material])
-            if (mat) mat.colorWrite = visible;
+          if (!m.isMesh || o.userData.heroPart === "ring" || saved.has(m)) return;
+          saved.set(m, m.material);
+          m.material = flat;
         });
+      else {
+        for (const [m, mat] of saved) m.material = mat;
+        saved.clear();
+      }
       engine.requestRender();
     };
     return () => {
+      for (const [m, mat] of saved) m.material = mat;
+      saved.clear();
+      flat.dispose();
       journeyShow.current = null;
       engine.setJourney(null); // disposes the layer
       setLayer(null);

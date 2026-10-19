@@ -155,10 +155,10 @@ export interface Engine {
    */
   setMotion(l: MotionLayer | null, running: () => boolean): void;
   /**
-   * A deterministic clock (seconds) for the decorative shader motion (tree sway, water shimmer,
-   * window flicker, legacy limb swing: `motion.uTime`), e.g. the journey's trip time t, so a beat
-   * renders the same at any wall time (AC-D17). While it returns a number, uTime is that number;
-   * null (or no clock) keeps the motion clock. Agents and birds keep the motion clock.
+   * A deterministic clock (seconds) for the decorative motion, e.g. the journey's trip time t, so a
+   * beat renders the same at any wall time (AC-D17). While it returns a number, the shader motion
+   * (`motion.uTime`: sway, shimmer, flicker, limbs) and the motion layer (decorative people, cars,
+   * birds) run on it, offset by a fixed epoch; null (or no clock) keeps the motion clock.
    */
   setDecorClock?(c: (() => number | null) | null): void;
   /**
@@ -284,6 +284,11 @@ const MOVING_MS = 300;
 const LOD_INTERVAL_MS = 250;
 /** A bound on pinned shader programs (the scene uses about 32; see `pinPrograms`). */
 const MAX_PINNED_PROGRAMS = 96;
+/**
+ * Motion time (ms) at trip time 0 while a journey drives the decorative clock (`setDecorClock`):
+ * a fixed epoch, so the seeded crowd and traffic stand where they would after a minute of motion.
+ */
+const DECOR_EPOCH_MS = 60_000;
 
 export interface RigView {
   camera: THREE.PerspectiveCamera;
@@ -1310,6 +1315,12 @@ function build(
       // More tiles to plan: one more LOD tick an interval later (the trailing timer wakes it).
       if (more) lod.moved();
     }
+    // A journey's trip time drives the decorative motion while a trip is loaded: shader sway and
+    // shimmer, and the decorative people and cars (their routes are seeded functions of time), so
+    // a paused beat draws the same at any wall time (AC-D17). Otherwise the motion clock.
+    const decorT = decorClock?.() ?? null;
+    const tripMs =
+      decorT !== null && Number.isFinite(decorT) ? DECOR_EPOCH_MS + decorT * 1000 : null;
     if (motionLayer) {
       if (due) {
         motion.uTime.value = clock.at / 1000;
@@ -1320,11 +1331,9 @@ function build(
       frustum.setFromProjectionMatrix(
         viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
       );
-      motionLayer.tick(clock.at, camera.position, frustum);
+      motionLayer.tick(tripMs ?? clock.at, camera.position, frustum);
     }
-    // A journey's trip time drives the decorative shader motion (deterministic beats, AC-D17).
-    const decorT = decorClock?.() ?? null;
-    if (decorT !== null && Number.isFinite(decorT)) motion.uTime.value = decorT;
+    if (tripMs !== null) motion.uTime.value = tripMs / 1000;
     placeLight();
     renderer.info.reset();
     syncDashes();

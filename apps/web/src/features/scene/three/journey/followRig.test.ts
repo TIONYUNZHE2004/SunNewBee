@@ -425,6 +425,34 @@ describe("UI-safe hold framing (final gate AC-D11)", () => {
     }
   });
 
+  it("through every hold (ease in and out included), her box stays in AC-D8's 10% frame", () => {
+    const sc = scene({ view, markerOf });
+    let n = 0;
+    const bad: string[] = [];
+    for (const p of tl.phases.filter((q) => q.kind === "event" && q.eventIndex !== undefined)) {
+      for (let t = p.t0; t < p.t1; t += 0.1) {
+        const pose = journeyCameraAt(sc, t, "follow") as CamPose;
+        const h = heroPositionAt(tl, t, helpers);
+        for (const y of [0.08, 2.5])
+          for (const dx of [-0.9, 0.9])
+            for (const dz of [-0.9, 0.9]) {
+              const q = view.project(pose, [h[0] + dx, y, h[1] + dz]);
+              n++;
+              if (
+                !q ||
+                q[0] < 0.1 * vp.w ||
+                q[0] > 0.9 * vp.w ||
+                q[1] < 0.1 * vp.h ||
+                q[1] > 0.9 * vp.h
+              )
+                bad.push(`${p.eventIndex}@${t.toFixed(1)}`);
+            }
+      }
+    }
+    expect(n).toBeGreaterThan(1000);
+    expect([...new Set(bad)]).toEqual([]);
+  });
+
   it("without a view the poses are the plain follow poses; with one, walks are unchanged", () => {
     const plain = scene();
     const fitted = scene({ view, markerOf });

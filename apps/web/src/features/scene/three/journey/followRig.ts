@@ -587,11 +587,13 @@ export function holdSubjects(
   distanceM: number,
 ): Subject[] {
   const h = sc.heroAt?.(t) ?? sc.pointAt(distanceM);
-  // her body box (walker and ring radius around her, feet to head): the AC-D8 box
+  // her body box (feet to head, walker around her; seated she leans and the walker stands out
+  // further, so a wider box than her standing radius): the AC-D8 box with room to spare
   const out: Subject[] = [];
-  for (const y of [0.08, 2.5])
-    for (const dx of [-HERO_RADIUS_M, HERO_RADIUS_M])
-      for (const dz of [-HERO_RADIUS_M, HERO_RADIUS_M])
+  const r = SAFE_FIT.heroBoxRadiusM;
+  for (const y of [0, SAFE_FIT.heroBoxTopM])
+    for (const dx of [-r, r])
+      for (const dz of [-r, r])
         out.push({ p: [h[0] + dx, y, h[1] + dz], padPx: SAFE_FIT.heroPadPx });
   const el = elementPoint(sc, eventIndex, distanceM);
   if (el) out.push({ p: el, padPx: SAFE_FIT.elementPadPx });
@@ -606,7 +608,10 @@ function fitHold(sc: FollowScene, t: number, st: ReturnType<typeof stateAt>, p: 
   if (!view || st.eventIndex === undefined) return p;
   const w = holdFitWeight(t, st.phase.t0, st.phase.t1);
   if (w <= 0) return p;
-  const fit = fitSafe(p, holdSubjects(sc, t, st.eventIndex, st.distance_m), view);
+  // the hard floor inside the fit: a pulled-back camera raised over a roof is re-aimed
+  const fit = fitSafe(p, holdSubjects(sc, t, st.eventIndex, st.distance_m), view, (q) =>
+    applyFloor(sc.clearance, q.pos),
+  );
   const out = lerpPose(p, fit, w) as CamPose;
   applyFloor(sc.clearance, out.pos);
   return out;

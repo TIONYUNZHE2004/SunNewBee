@@ -115,7 +115,7 @@ async function show(page: Page, part: "ribbon" | "heroColour", visible: boolean)
 
 /**
  * Her silhouette is opaque at a paused beat: her silhouette is the pixels that change when her
- * body stops writing colour (depth and shadow kept); inside it, hiding the journey ribbon must
+ * body is drawn flat magenta (geometry, depth and shadow kept); inside it, hiding the journey ribbon must
  * change (almost) nothing. The gate's see-through band was the ribbon's ghost painted over her.
  */
 async function heroOpaqueAt(page: Page, box: Rect, file?: string) {
@@ -151,8 +151,12 @@ async function heroOpaqueAt(page: Page, box: Rect, file?: string) {
     );
   let her = 0;
   let through = 0;
+  // her silhouette: flat magenta in the flat frame and not magenta in the normal one (moving
+  // decorative people or cars between the shots are never magenta, so they never count)
+  const magenta = (d: Uint8ClampedArray | number[], k: number) =>
+    (d[k] as number) > 180 && (d[k + 1] as number) < 90 && (d[k + 2] as number) > 180;
   for (let k = 0; k < a.data.length; k += 4) {
-    if (diff(a.data, b.data, k) <= PIXEL_TOL) continue;
+    if (!magenta(b.data, k) || magenta(a.data, k) || diff(a.data, b.data, k) <= PIXEL_TOL) continue;
     her++;
     if (diff(a.data, c.data, k) > PIXEL_TOL) through++;
   }

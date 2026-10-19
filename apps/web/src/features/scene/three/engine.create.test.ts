@@ -894,23 +894,26 @@ describe("engine motion clock", () => {
     }
   });
 
-  it("the decor clock drives motion.uTime (a trip's t); removed, t no longer reaches it", async () => {
-    const { e } = await setup({ on: false });
+  it("the decor clock (a trip's t) drives uTime and the motion layer's time; removed, it no longer does", async () => {
+    const { e, ticks } = await setup({ on: false });
     try {
       settle();
       let t = 12.5;
       e.setDecorClock?.(() => t);
       settle();
-      expect(e.motion.uTime.value).toBe(12.5);
+      const epoch = e.motion.uTime.value - 12.5;
+      expect(epoch).toBeGreaterThanOrEqual(0);
+      expect(ticks.at(-1)).toBeCloseTo((epoch + 12.5) * 1000, 6);
       t = 40;
       e.requestRender();
       settle();
-      expect(e.motion.uTime.value).toBe(40);
+      expect(e.motion.uTime.value).toBeCloseTo(epoch + 40, 9);
+      expect(ticks.at(-1)).toBeCloseTo((epoch + 40) * 1000, 6);
       e.setDecorClock?.(null);
       t = 77;
       e.requestRender();
       settle();
-      expect(e.motion.uTime.value).not.toBe(77);
+      expect(e.motion.uTime.value).not.toBeCloseTo(epoch + 77, 3);
     } finally {
       teardown(e);
     }
