@@ -53,6 +53,10 @@ def _layer(
                 sidewalk = e.claims.get("sidewalk")
                 props["sidewalk"] = sidewalk.value if sidewalk else None
                 props["sidewalk_status"] = sidewalk.status if sidewalk else "unknown"
+            if e.type == "crossing":  # B-T7 fix round 1: zebra stripes only where marked
+                crossing = e.claims.get("crossing")
+                props["crossing"] = crossing.value if crossing else None
+                props["crossing_status"] = crossing.status if crossing else "unknown"
             if live:  # Task 46: staff-reported, shown as "Reported closure (staff)"
                 props["closed"] = True
                 props["closure_label"] = live[0].label(world.site.timezone)
