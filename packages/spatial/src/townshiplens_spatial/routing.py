@@ -13,8 +13,8 @@ from .access import LEVELS, assess_access, urban_context
 from .direction import CONDITIONAL_KEYS, allows_direction, direction_rule, direction_unknown
 from .evaluate import (
     SIDEWALK_PRESENT,
-    _is_stale,
     _needs_verification,
+    effective_claim_status,
     evaluate_edge,
     evaluate_flood,
     rest_point_state,
@@ -678,9 +678,7 @@ def route_road_sections(world: World, keys: list[str]) -> list[RoadSection]:
         if edge.type not in ROAD_TYPES:
             continue
         claim = edge.claims.get("sidewalk")
-        status = claim.status if claim else "unknown"
-        if claim and _is_stale(claim, "sidewalk", date.today()):
-            status = "stale"
+        status = effective_claim_status(claim, "sidewalk")
         sections.append(
             RoadSection(
                 element_id=key,

@@ -6,6 +6,7 @@ from townshiplens_spatial.evaluate import (
     claim_gap,
     edge_demo_gaps,
     edge_gaps,
+    effective_claim_status,
     evaluate_edge,
     is_demo,
     relevant_attributes,
@@ -74,7 +75,7 @@ def _layer(
             if e.type in ("street", "major_road"):
                 sidewalk = e.claims.get("sidewalk")
                 props["sidewalk"] = sidewalk.value if sidewalk else None
-                props["sidewalk_status"] = sidewalk.status if sidewalk else "unknown"
+                props["sidewalk_status"] = effective_claim_status(sidewalk, "sidewalk")
             if live:  # Task 46: staff-reported, shown as "Reported closure (staff)"
                 props["closed"] = True
                 props["closure_label"] = live[0].label(world.site.timezone)

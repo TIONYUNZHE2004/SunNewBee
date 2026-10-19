@@ -12,6 +12,11 @@ pnpm gen   # regenerate packages/api-client (openapi.json + schema.d.ts)
 
 With no seed data present the API falls back to the tiny test fixture.
 
+Road-section and access-layer `sidewalk_status` describe usable verification: undated or
+valueless verified claims become `unknown`, and expired claims become `stale`. Raw claims
+and evidence retain their audit status. An undated positive sidewalk cannot confirm a route;
+an undated rest stop can support only a `partly_unverified` journey that names the unchecked stop.
+
 ## Endpoints
 
 "Staff" means the `X-Staff-Token` header is required: 401 (wrong or missing token), 503 (token not configured; the default `change-me` counts as not configured).
