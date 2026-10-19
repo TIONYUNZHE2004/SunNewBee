@@ -21,3 +21,4 @@
 | 2026-10-18 13:49 | Control | spot check after PR #12 | anthropic/claude-haiku-5.5 | 3 | not measured | not updated |
 | 2026-10-18 15:48 | Local AI engineer | T-019 round 2 (10 route questions; evals/audits/2026-10-18-t017/round2-t019-openrouter.json) | anthropic/claude-haiku-5.5 | 10 | 0.0381 | 0.1276 (key usage per OpenRouter /key) |
 | 2026-10-18 16:02 | Local AI engineer | T-019 re-test rounds 3-4 (7 + 2 route questions; round3/round4-t019-openrouter.json) | anthropic/claude-haiku-5.5 | 9 | 0.0351 | 0.1627 (key usage per OpenRouter /key) |
+| 2026-10-19 01:16 | Local AI engineer | T-020 round 5 (7 likely_ok + bait questions; round5-t020-openrouter.json) | anthropic/claude-haiku-5.5 | 7 | 0.0266 | 0.1893 (key usage per OpenRouter /key) |
