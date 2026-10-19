@@ -37,6 +37,7 @@ import { createMotionClock, type MotionMode, motionModeFor } from "./motion/moti
 import type { MotionLayer } from "./motion/motionLayer";
 import type { OverlayLayer } from "./overlays/accessLayers";
 import { THREE_TIERS } from "./quality";
+import { applyClayTier, CLAY_PALETTE, clayMaterial, setClayTier } from "./shared/clayTokens";
 import { createSky } from "./sky";
 import { measure, UPLOAD_MEASURE } from "./stream/streamer";
 import { attachWheelZoom, dispatchOwnWheel } from "./zoom";
@@ -169,7 +170,6 @@ const MOVING_MS = 300;
 const LOD_INTERVAL_MS = 250;
 /** A bound on pinned shader programs (the scene uses about 32; see `pinPrograms`). */
 const MAX_PINNED_PROGRAMS = 96;
-const GROUND_COLOUR = "#d6d0c2";
 
 export interface RigView {
   camera: THREE.PerspectiveCamera;
@@ -298,6 +298,8 @@ function build(
   undo: (() => void)[],
   release: () => void,
 ): Engine {
+  // Clay materials made from here on follow this tier (B-T1; applyTier keeps it current).
+  setClayTier(tier);
   // Neutral, not AgX: AgX desaturated the stylised palette to grey (browser check, Task 7 fix 2);
   // Khronos PBR Neutral keeps base colours.
   renderer.toneMapping = THREE.NeutralToneMapping;
@@ -342,14 +344,13 @@ function build(
   let lastPreset: LightPreset | null = null;
   let fogRange = 0;
 
-  const buildingMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
-  const parksMat = groundMaterial("parks", 0.95);
-  const waterMat = groundMaterial("water", 0.95);
+  const buildingMat = clayMaterial("wall", { vertexColors: true });
+  const parksMat = groundMaterial("parks");
+  const waterMat = groundMaterial("water");
   const motion = createMotionUniforms();
   shimmerMaterial(waterMat, motion.uTime, "all");
-  const groundMat = new THREE.MeshStandardMaterial({
-    color: GROUND_COLOUR,
-    roughness: 1,
+  const groundMat = clayMaterial("ground", {
+    color: CLAY_PALETTE.ground,
     polygonOffset: true,
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
@@ -670,6 +671,9 @@ function build(
   });
   const applyTier = (t: Tier) => {
     const spec = THREE_TIERS[t];
+    // Clay (B-T1): new materials follow the tier; live physical clay drops / regains its sheen.
+    setClayTier(t);
+    applyClayTier(scene, t);
     // Low: motion off. The next frame is not live, so it rests the pose and schedules nothing.
     motionMode = motionModeFor(t);
     const pr = Math.min(globalThis.devicePixelRatio || 1, spec.maxPixelRatio);

@@ -1,4 +1,5 @@
-import * as THREE from "three";
+import type * as THREE from "three";
+import { type ClayRole, clayMaterial } from "../shared/clayTokens";
 
 /**
  * The ground stack above the base plane, lowest first. Each band has a polygonOffset and a
@@ -67,15 +68,24 @@ export function applyGroundGrade(material: THREE.Material): void {
   };
 }
 
+/** The clay token each ground band draws with (B-T1). */
+export const BAND_CLAY: Record<GroundBand, ClayRole> = {
+  landcover: "ground",
+  decor: "ground",
+  parks: "park",
+  water: "water",
+  roads: "road",
+  markings: "marking",
+};
+
 /**
- * Vertex-coloured material for one band, with its polygon offset. Every band except `water`
- * takes the night grade.
+ * Vertex-coloured clay material for one band (token `BAND_CLAY[band]`), with its polygon offset.
+ * Every band except `water` takes the night grade.
  */
-export function groundMaterial(band: GroundBand, roughness = 1): THREE.MeshStandardMaterial {
+export function groundMaterial(band: GroundBand): THREE.MeshStandardMaterial {
   const { offset } = GROUND_BANDS[band];
-  const m = new THREE.MeshStandardMaterial({
+  const m = clayMaterial(BAND_CLAY[band], {
     vertexColors: true,
-    roughness,
     polygonOffset: true,
     polygonOffsetFactor: offset,
     polygonOffsetUnits: offset,

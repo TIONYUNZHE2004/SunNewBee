@@ -1,5 +1,6 @@
 import { hash01, paletteFor, precinctGroupOf } from "./assets/fit";
 import type { Manifest } from "./assets/manifest";
+import { CLAY_PALETTE } from "./shared/clayTokens";
 
 export interface FallbackColours {
   wall: string;
@@ -8,11 +9,7 @@ export interface FallbackColours {
 }
 
 /** No manifest: a neutral warm white wall, dark roof and a slightly darker parapet. */
-export const NEUTRAL_COLOURS: FallbackColours = {
-  wall: "#ece8df",
-  roof: "#62666c",
-  trim: "#d8d3c8",
-};
+export const NEUTRAL_COLOURS: FallbackColours = { ...CLAY_PALETTE.neutral };
 
 /** The archetype whose palette stands in for a building of this OSM kind. Display only. */
 export const KIND_ARCHETYPE: Record<string, string> = {
@@ -38,7 +35,7 @@ const BLOCK_ARCHETYPES = new Set([
  * Extra pale wall tones for flat-roof blocks (A-T9): sand, sage, peach, stone. Picked by
  * hash01(id, "wall:variant") together with the palette wall. Display only; none is a water colour.
  */
-export const BLOCK_WALLS = ["#d9cdb4", "#c9d2c3", "#e8d3c0", "#d6d3cc"] as const;
+export const BLOCK_WALLS = CLAY_PALETTE.blockWalls;
 
 const hex2 = (n: number) => Math.round(n).toString(16).padStart(2, "0");
 /** The wall colour darkened by 8%: the parapet band reads as a coping, not a stripe. */

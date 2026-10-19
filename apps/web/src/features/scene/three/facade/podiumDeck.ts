@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import { area, cleanRing, distToEdges, inside, writeBox } from "./roofPlan";
 
 /**
@@ -10,8 +11,8 @@ import { area, cleanRing, distToEdges, inside, writeBox } from "./roofPlan";
 
 /** The pool plane sits this far above the podium roof (a raised basin). */
 export const POOL_LIFT_M = 1.2;
-/** Base-water colour (never the flood blue #1e6fb8). */
-export const DECK_POOL_COLOUR = "#7fb6c9";
+/** Base-water colour (never the flood blue). */
+export const DECK_POOL_COLOUR: string = CLAY_PALETTE.baseWater;
 /** Nothing within this distance of the podium edge. */
 const EDGE_CLEAR_M = 1.0;
 /** Nothing within this distance of the tower plate (and never on it). */
@@ -32,12 +33,7 @@ const ITEM_GAP_M = 1.5;
 /** Rectangles are probed along their outline at this step (m). */
 const PROBE_M = 1;
 
-const COLOUR = {
-  coping: "#d9d4c8",
-  timber: "#8a6a4f",
-  planter: "#bdb6aa",
-  green: "#6f9a5a",
-} as const;
+const COLOUR = CLAY_PALETTE.deck;
 
 type Pt = [number, number];
 

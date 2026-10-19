@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { CLAY } from "../shared/clayTokens";
 import {
   AO_FLOOR,
   AO_FLOOR_BY_ROLE,
@@ -8,6 +9,8 @@ import {
   createRoleMaterial,
   createRoleUniforms,
   type MotionUniforms,
+  ROLE_CLAY,
+  roleResponseGlsl,
 } from "./roleMaterial";
 
 function compile(
@@ -204,5 +207,54 @@ describe("createRoleMaterial window flicker", () => {
       .replace("uniform float uTime;\nuniform float uFlicker;\n", "")
       .replace(/ \* mix\(1\.0, 0\.9[^;]*uFlicker\)/, "");
     expect(strip).toBe(base.shader.fragmentShader);
+  });
+});
+
+describe("clay role material (B-T1)", () => {
+  it("High: physical clay with sheen; every shader patch lands in the physical program", () => {
+    const uniforms = createRoleUniforms();
+    const mat = createRoleMaterial({ instanced: true, uniforms, tier: "high", flicker: true });
+    expect(mat).toBeInstanceOf(THREE.MeshPhysicalMaterial);
+    expect((mat as THREE.MeshPhysicalMaterial).sheen).toBe(CLAY.wall.sheen);
+    expect(mat.roughness).toBe(CLAY.wall.roughness);
+    const shader = {
+      vertexShader: THREE.ShaderLib.physical.vertexShader,
+      fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+      uniforms: {} as Record<string, { value: unknown }>,
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: shader stub
+    (mat.onBeforeCompile as any)(shader, null);
+    expect(shader.fragmentShader).not.toContain("#include <color_fragment>");
+    expect(shader.fragmentShader).toContain(roleResponseGlsl());
+    expect(shader.fragmentShader).toContain("varying vec3 vPal0");
+    expect(shader.vertexShader).toContain("attribute vec3 iPal0");
+  });
+
+  it("Medium / Low: the standard program (no sheen)", () => {
+    for (const tier of ["medium", "low"] as const) {
+      const mat = createRoleMaterial({ instanced: true, uniforms: createRoleUniforms(), tier });
+      expect(mat).not.toBeInstanceOf(THREE.MeshPhysicalMaterial);
+    }
+  });
+
+  it("per-role response: roughness from each role's token, metalness only on role 5 (metal)", () => {
+    expect(ROLE_CLAY).toHaveLength(8);
+    const glsl = roleResponseGlsl();
+    ROLE_CLAY.forEach((role, i) => {
+      const tok = CLAY[role];
+      expect(glsl).toContain(`roughnessFactor = ${tok.roughness.toFixed(2)}`);
+      if (i !== 5) expect(tok.metalness, role).toBe(0);
+    });
+    expect(CLAY[ROLE_CLAY[5]!].metalness).toBeGreaterThan(0);
+  });
+
+  it("people and vehicles take their own clay token", () => {
+    const u = createRoleUniforms();
+    expect(
+      createRoleMaterial({ instanced: true, uniforms: u, kind: "person" }).userData.clayRole,
+    ).toBe("person");
+    expect(
+      createRoleMaterial({ instanced: true, uniforms: u, kind: "parked" }).userData.clayRole,
+    ).toBe("vehicle");
   });
 });
