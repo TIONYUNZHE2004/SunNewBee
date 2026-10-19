@@ -49,6 +49,11 @@ export const SMOOTH_LIMITS = {
   stepM: 0.9,
   /** Pitch band of the follow and hold camera (deg below the horizon): a 3/4 view at most. */
   pitchMinDeg: 8,
+  /**
+   * The closest a walking camera comes to her chest (m): the follow pose stands ~10.3 m from it
+   * (8.5 back, 4.5 aside, 4.2 up); never a close-up (the owner's 762 m frame).
+   */
+  walkDistM: 9,
   pitchMaxDeg: 45.5,
 } as const;
 
@@ -122,6 +127,8 @@ export function smoothnessOf(sc: FollowScene) {
   let step = 0;
   let stepAt = 0;
   let pitchOut = 0;
+  let walkDist = Number.POSITIVE_INFINITY;
+  let walkDistAt = 0;
   const pitchOutAt: number[] = [];
   const follow = (k: string) => k === "walk" || k === "event";
   for (let i = 1; i < tr.length; i++) {
@@ -145,6 +152,10 @@ export function smoothnessOf(sc: FollowScene) {
     if (s > step) {
       step = s;
       stepAt = b.t;
+    }
+    if (b.kind === "walk" && b.hd < walkDist) {
+      walkDist = b.hd;
+      walkDistAt = b.t;
     }
     if (b.pitch < SMOOTH_LIMITS.pitchMinDeg || b.pitch > SMOOTH_LIMITS.pitchMaxDeg) {
       pitchOut++;
@@ -190,6 +201,8 @@ export function smoothnessOf(sc: FollowScene) {
     stepAt: r(stepAt),
     pitchOut,
     pitchOutAt,
+    walkDist: r(walkDist),
+    walkDistAt: r(walkDistAt),
   };
 }
 
@@ -214,5 +227,6 @@ describe.skipIf(!existsSync(SEED))("journey camera smoothness at 60 Hz (iteratio
   });
   it("a 3/4 look-down through follow and holds (never overhead, never street level)", () => {
     expect(m.pitchOut, `at ${m.pitchOutAt.join(", ")}`).toBe(0);
+    expect(m.walkDist, `at t=${m.walkDistAt}`).toBeGreaterThanOrEqual(SMOOTH_LIMITS.walkDistM);
   });
 });

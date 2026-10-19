@@ -102,7 +102,8 @@ test.describe("journey shake (iteration 2)", () => {
       ["rest638", r638 ? (r638.t0 + r638.t1) / 2 : null],
       ["walk762", tAtM(762)],
       ["approach836", tAtM(830)],
-      ["pullEnd", total],
+      // just before the end: at the end the player hands the camera back to the orbit rig
+      ["pullEnd", total - 0.02],
     ];
     for (const [name, t] of stills) {
       if (t === null) continue;
