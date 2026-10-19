@@ -487,20 +487,24 @@ export function buildHeroModel(
       airborne[i] = seated;
     }
     if (!hasProp) return;
+    // Seated (the walker parked by the sit clips): it stands on HER ground plane (her root height,
+    // the ground under her stand point), never on the ground sampled under its own legs: that
+    // sample is the streamed ground table, which differs with what has streamed in (a play versus a
+    // reverse seek reached the same rest with different tiles loaded, ITER2 AC-D17 event 7: the
+    // parked walker sat ~20 px off). Only lifted by the mean gap to her plane, never tilted or
+    // turned, so the parked walker is a function of (clip, time, her root pose) alone.
+    const parked = !spec.seated && seatedAt(spec, dominant.clip, dominant.time);
     // prop: best-fit plane under its four contacts (the wheelchair carries her with it)
     const pts = contactPts;
     const d = contactGap;
     let worst = 0;
     for (let i = 0; i < pts.length; i++) {
       const p = (propContacts[i] as THREE.Object3D).getWorldPosition(pts[i] as THREE.Vector3);
-      d[i] = groundAt(p.x, p.z) - p.y;
+      d[i] = (parked ? rootY : groundAt(p.x, p.z)) - p.y;
       worst = Math.max(worst, Math.abs(d[i] as number));
     }
     if (worst < 1e-4) return;
-    // Seated (the walker parked by the sit clips): only lifted onto the ground (the mean gap), never
-    // tilted or turned, so its parked place is the clip's at that time and her seat's ground height
-    // alone (AC-D17 final: the parked walker differed between a play and a reverse seek).
-    if (!spec.seated && seatedAt(spec, dominant.clip, dominant.time)) {
+    if (parked) {
       let mean = 0;
       for (let i = 0; i < pts.length; i++) mean += d[i] as number;
       mean /= pts.length;
@@ -676,14 +680,50 @@ export async function preloadHeroModel(profile: string): Promise<GlbHeroModel | 
   const url = heroUrl(HERO_MANIFEST, variant);
   const spec = HERO_MANIFEST.variants[variant];
   if (!url || !spec) return null;
+  const have = spareModels.get(variant);
+  // a hero is drawing it: the caller must not move it off-screen to warm it (null: nothing to warm)
+  if (have) return spareInUse.has(have) ? null : have;
   try {
     const m = await parseHeroGlb(await fetchGlb(`${url}?v=${spec.bytes}`), variant);
     drawHeroLast(m.object3d);
     m.play("walk", 0, 1, undefined);
+    // a later preload of the same variant may have won the race: keep the first
+    const first = spareModels.get(variant);
+    if (first) {
+      m.dispose();
+      return spareInUse.has(first) ? null : first;
+    }
+    spareModels.set(variant, m);
     return m;
   } catch {
     return null;
   }
+}
+
+/**
+ * The preloaded model per variant (parsed, built, its programs compiled and drawn once off-screen by
+ * the caller of `preloadHeroModel`), kept for the session: the journey hero adopts it at once
+ * instead of fetching, parsing and building a new one in the second the answer lands (ITER2 AC-D18:
+ * a 105 ms frame at Ask+0.83 s was that build plus its first GPU upload). Returned to the pool when
+ * that hero is disposed; never disposed itself (a session holds one per variant, ~1 MB).
+ */
+const spareModels = new Map<HeroVariant, GlbHeroModel>();
+const spareInUse = new Set<GlbHeroModel>();
+
+/** Takes the preloaded model of `variant` when it is free (null otherwise). */
+function adoptSpare(variant: HeroVariant): GlbHeroModel | null {
+  const m = spareModels.get(variant);
+  if (!m || spareInUse.has(m)) return null;
+  spareInUse.add(m);
+  m.object3d.removeFromParent();
+  return m;
+}
+
+/** Gives an adopted model back to the pool (detached, no ground). */
+function releaseSpare(m: GlbHeroModel): void {
+  m.setGround(null);
+  m.object3d.removeFromParent();
+  spareInUse.delete(m);
 }
 
 export interface GlbHero extends Hero {
@@ -720,21 +760,26 @@ export function createGlbHero(
   const root = new THREE.Group();
   root.name = "journey-hero-slot";
   root.userData.journeyHero = true;
-  let current: Hero = (opts.fallback ?? createPlaceholderHero)();
-  drawHeroLast(current.object3d);
+  // The preloaded, already drawn model of this variant when it is free (the default loader only):
+  // no placeholder, no fetch, parse, build or upload now.
+  const adopted = opts.loadGlb ? null : adoptSpare(variant);
+  let current: Hero = adopted ?? (opts.fallback ?? createPlaceholderHero)();
+  if (!adopted) drawHeroLast(current.object3d);
   root.add(current.object3d);
-  let glb: GlbHeroModel | null = null;
+  let glb: GlbHeroModel | null = adopted;
   let disposed = false;
   let lastPose: [{ x: number; y: number; z: number }, number] | null = null;
   let lastPlay: [HeroClip, number, number, HeroFade | undefined] | null = null;
   let ground: ((x: number, z: number) => number | null) | null = null;
+  if (adopted) adopted.setGround(null);
 
   const url = heroUrl(HERO_MANIFEST, variant);
   const spec = HERO_MANIFEST.variants[variant];
   const load =
     opts.loadGlb ?? (import.meta.env.MODE === "test" ? null : (u: string) => fetchGlb(u));
-  const ready: Promise<boolean> =
-    !url || !spec || !load
+  const ready: Promise<boolean> = adopted
+    ? Promise.resolve(true)
+    : !url || !spec || !load
       ? Promise.resolve(false)
       : load(`${url}?v=${spec.bytes}`)
           .then((buf) => (disposed ? null : parseHeroGlb(buf, variant)))
@@ -791,7 +836,8 @@ export function createGlbHero(
     dispose() {
       if (disposed) return;
       disposed = true;
-      current.dispose();
+      if (adopted && current === adopted) releaseSpare(adopted);
+      else current.dispose();
       root.clear();
     },
   };
