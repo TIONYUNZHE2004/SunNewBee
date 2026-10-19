@@ -1,8 +1,18 @@
 /**
  * The journey hero's asset manifest (`/city/characters/manifest.json`, written by
  * `assets/blender/pack.py --heroes`). One rigged glb per prop variant, sharing one skeleton and
- * the six clip names. Coordinates are glTF (y up, she faces +z) in true metres: multiply by
- * `displayScale` (R-J3), as the runtime scales the hero object. Decorative display only.
+ * the six clip names. Coordinates are glTF (y up, she faces +z) in true metres relative to the
+ * hero root: multiply by `displayScale` (1.55, R-J3), as the runtime scales the hero object.
+ * Decorative display only.
+ *
+ * Contract (C-T3 fix round 1, ruling R1): the root never moves in any clip. `sit_down` parks the
+ * prop beside her and moves her hips back onto the bench described by `bench` (seat and back
+ * boxes); the runtime places that bench relative to the hero root, not the other way round.
+ *
+ * WARNING: do not call `skeleton.pose()` on these glbs. `gltf-transform meshopt` quantises the
+ * positions and folds the dequantisation scale into the inverse bind matrices, so `pose()`
+ * rebuilds garbage bone transforms. A freshly loaded glb is already in the bind pose; after
+ * that, let an `AnimationMixer` drive the bones.
  */
 
 export const HERO_VARIANTS = ["walker", "stroller", "wheelchair", "none"] as const;
@@ -26,9 +36,13 @@ export interface HeroVariantSpec {
   seated: boolean;
 }
 
+export interface Box {
+  min: [number, number, number];
+  max: [number, number, number];
+}
+
 export interface HeroManifest {
   version: 1;
-  as_of: string;
   displayScale: number;
   clips: HeroClip[];
   bones: {
@@ -40,9 +54,11 @@ export interface HeroManifest {
     head: string;
     prop: string;
     wheels: string;
+    /** Prop ground contacts (children of `prop`): front/rear, her left/right. */
+    contacts: [string, string, string, string];
   };
   /** Bench the sit clips are authored for: seat top height and its front edge (behind the root, -z). */
-  bench: { seatY: number; frontEdgeZ: number };
+  bench: { seatY: number; frontEdgeZ: number; seat: Box; back: Box };
   variants: Partial<Record<HeroVariant, HeroVariantSpec>>;
 }
 

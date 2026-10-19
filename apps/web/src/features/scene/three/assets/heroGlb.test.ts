@@ -4,8 +4,10 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
+  type Box,
   HERO_CLIPS,
   HERO_VARIANTS,
+  type HeroClip,
   type HeroManifest,
   type HeroVariant,
   type HeroVariantSpec,
@@ -63,6 +65,44 @@ function poseAt(g: Gltf, clip: string, t: number) {
   return mixer;
 }
 
+/** World positions of the skinned LOD0 body in the current pose. */
+function bodyPoints(g: Gltf): { pts: THREE.Vector3[]; head: THREE.Box3; all: THREE.Box3 } {
+  const body = meshes(g).find((x) => x.name === "hero__LOD0") as THREE.SkinnedMesh;
+  const headIndex = body.skeleton.bones.findIndex((b) => b.name === "head");
+  const idx = body.geometry.getAttribute("skinIndex");
+  const wgt = body.geometry.getAttribute("skinWeight");
+  const pts: THREE.Vector3[] = [];
+  const all = new THREE.Box3();
+  const head = new THREE.Box3();
+  for (let i = 0; i < idx.count; i++) {
+    const p = body.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(body.matrixWorld);
+    pts.push(p);
+    all.expandByPoint(p);
+    let best = 0;
+    let bestW = -1;
+    for (let k = 0; k < 4; k++)
+      if (wgt.getComponent(i, k) > bestW) {
+        bestW = wgt.getComponent(i, k);
+        best = idx.getComponent(i, k);
+      }
+    if (best === headIndex) head.expandByPoint(p);
+  }
+  return { pts, head, all };
+}
+
+/** How deep a point is inside a box (0 when outside). */
+function depthIn(p: THREE.Vector3, b: Box): number {
+  const d = Math.min(
+    p.x - b.min[0],
+    b.max[0] - p.x,
+    p.y - b.min[1],
+    b.max[1] - p.y,
+    p.z - b.min[2],
+    b.max[2] - p.z,
+  );
+  return Math.max(0, d);
+}
+
 const dist = (a: THREE.Object3D, b: THREE.Object3D) =>
   a.getWorldPosition(new THREE.Vector3()).distanceTo(b.getWorldPosition(new THREE.Vector3()));
 
@@ -96,12 +136,12 @@ for (const v of HERO_VARIANTS) {
     it("H1: six clips named exactly, sit_down/stand_up <= 1.5 s, durations match the manifest", () => {
       expect(g.animations.map((a) => a.name).sort()).toEqual([...HERO_CLIPS].sort());
       for (const a of g.animations) {
-        expect(a.duration, a.name).toBeCloseTo(spec().clips[a.name as never as "walk"].duration, 2);
+        expect(a.duration, a.name).toBeCloseTo(spec().clips[a.name as HeroClip].duration, 2);
       }
       for (const c of ["sit_down", "stand_up"])
         expect(THREE.AnimationClip.findByName(g.animations, c)?.duration).toBeLessThanOrEqual(1.5);
-      for (const c of ["walk", "idle", "sit_idle"])
-        expect(spec().clips[c as "walk"].loop).toBe(true);
+      for (const c of ["walk", "idle", "sit_idle"] as const)
+        expect(spec().clips[c].loop).toBe(true);
     });
 
     it("H2: <= 60 bones, 1 skinned mesh + <= 2 prop meshes per LOD, <= 3 materials, no big textures", () => {
@@ -146,30 +186,12 @@ for (const v of HERO_VARIANTS) {
       expect(bytes).toBeLessThanOrEqual(MAX_BYTES);
     });
 
-    it("H4: head group 1/2.4-1/2.8 of the height; displayed height 2.2-2.5 m", async () => {
+    it("H4: head group 1/2.4-1/2.8 of the height; displayed height 2.2-2.5 m (bind pose)", async () => {
       // a fresh load is in the bind pose (skeleton.pose() is unusable here: meshopt
       // quantisation folds a scale into the inverse bind matrices)
       const fresh = await load(v);
       fresh.scene.updateMatrixWorld(true);
-      const body = meshes(fresh).find((x) => x.name === "hero__LOD0") as THREE.SkinnedMesh;
-      const headIndex = body.skeleton.bones.findIndex((b) => b.name === "head");
-      const idx = body.geometry.getAttribute("skinIndex");
-      const wgt = body.geometry.getAttribute("skinWeight");
-      const all = new THREE.Box3();
-      const head = new THREE.Box3();
-      const p = new THREE.Vector3();
-      for (let i = 0; i < idx.count; i++) {
-        body.getVertexPosition(i, p).applyMatrix4(body.matrixWorld);
-        all.expandByPoint(p);
-        let best = 0;
-        let bestW = -1;
-        for (let k = 0; k < 4; k++)
-          if (wgt.getComponent(i, k) > bestW) {
-            bestW = wgt.getComponent(i, k);
-            best = idx.getComponent(i, k);
-          }
-        if (best === headIndex) head.expandByPoint(p);
-      }
+      const { head, all } = bodyPoints(fresh);
       const height = all.max.y - all.min.y;
       const ratio = height / (head.max.y - head.min.y);
       expect(ratio).toBeGreaterThanOrEqual(2.4);
@@ -179,10 +201,81 @@ for (const v of HERO_VARIANTS) {
       expect(height * m.displayScale).toBeLessThanOrEqual(2.5);
     });
 
+    if (v !== "wheelchair") {
+      it("H4 in the stooped idle and look poses: head ratio 2.4-2.8, displayed height 2.2-2.5 m", () => {
+        for (const [clip, t] of [
+          ["idle", 0],
+          ["idle", 0.75],
+          ["look", 1.3],
+          ["look", 2.5],
+        ] as const) {
+          poseAt(g, clip, t);
+          const { head, all } = bodyPoints(g);
+          const height = all.max.y - Math.min(0, all.min.y);
+          const ratio = height / (head.max.y - head.min.y);
+          expect(ratio, `${clip}@${t}`).toBeGreaterThanOrEqual(2.4);
+          expect(ratio, `${clip}@${t}`).toBeLessThanOrEqual(2.8);
+          expect(height * m.displayScale, `${clip}@${t}`).toBeGreaterThanOrEqual(2.2);
+          expect(height * m.displayScale, `${clip}@${t}`).toBeLessThanOrEqual(2.5);
+        }
+      });
+
+      it("no body vertex enters the reference bench by more than 1 cm (sit_down, sit_idle, stand_up)", () => {
+        let worst = 0;
+        let where = "";
+        for (const clip of ["sit_down", "sit_idle", "stand_up"] as const) {
+          const d = spec().clips[clip].duration;
+          const n = clip === "sit_idle" ? 4 : 15;
+          for (let i = 0; i <= n; i++) {
+            const t = Math.min(d - 1e-4, (d * i) / n);
+            poseAt(g, clip, t);
+            for (const p of bodyPoints(g).pts)
+              for (const b of [m.bench.seat, m.bench.back]) {
+                const e = depthIn(p, b);
+                if (e > worst) {
+                  worst = e;
+                  where = `${clip}@${t.toFixed(2)}`;
+                }
+              }
+          }
+        }
+        expect(worst, where).toBeLessThanOrEqual(0.01);
+      });
+
+      it("the kain hem stays on or above the ground through walk", () => {
+        const d = spec().walkDuration;
+        for (let i = 0; i < 12; i++) {
+          poseAt(g, "walk", (d * i) / 12);
+          expect(bodyPoints(g).all.min.y, `${i}/12`).toBeGreaterThanOrEqual(-0.005);
+        }
+      });
+    }
+
+    if (v === "walker" || v === "stroller") {
+      it("R2: in sit_idle the prop is parked beside her (right of her hips, level with her knees, clear of the bench)", () => {
+        poseAt(g, "sit_idle", 0);
+        const prop = meshes(g).find((x) => x.name === "prop__LOD0") as THREE.Mesh;
+        const box = new THREE.Box3().setFromObject(prop);
+        expect(box.max.x).toBeLessThan(-0.236); // her right is -x; baju hip half-width 0.236 m
+        const knee = bone(g, "shin_R").getWorldPosition(new THREE.Vector3());
+        expect(knee.z).toBeGreaterThanOrEqual(box.min.z);
+        expect(knee.z).toBeLessThanOrEqual(box.max.z);
+        const seat = new THREE.Box3(
+          new THREE.Vector3(...m.bench.seat.min),
+          new THREE.Vector3(...m.bench.seat.max),
+        );
+        expect(box.intersectsBox(seat)).toBe(false);
+        for (const c of m.bones.contacts)
+          expect(Math.abs(bone(g, c).getWorldPosition(new THREE.Vector3()).y), c).toBeLessThan(
+            0.002,
+          );
+      });
+    }
+
     if (v === "walker" || v === "stroller") {
       it("palms stay on the grips (<= 3 cm displayed) through walk, idle and look", () => {
-        for (const clip of ["walk", "idle", "look"]) {
-          const d = spec().clips[clip as "walk"].duration;
+        for (const clip of ["walk", "idle", "look"] as const) {
+          const d = spec().clips[clip].duration;
           for (let i = 0; i <= 12; i++) {
             poseAt(g, clip, (d * i) / 12);
             for (const s of [0, 1] as const) {
