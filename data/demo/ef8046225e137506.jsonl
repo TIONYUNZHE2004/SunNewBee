@@ -1,4 +1,4 @@
-{"meta": {"message": "Wheelchair route from Car Park B to the lakeside mall", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "8fcf9fafd9d032eaefcd102c9b099762d6f95c77ee5597e42b0270161ac18851", "model": "mock-scripted", "recorded_at": "2026-10-19T17:53:51+00:00"}}
+{"meta": {"message": "Wheelchair route from Car Park B to the lakeside mall", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "e9a383dac47c4153522a82d8c15838f7ee1cf7aa3392b44ccac4a78a086391ec", "model": "mock-scripted", "recorded_at": "2026-10-19T18:19:32+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5, "near_place": null}}
