@@ -31,6 +31,7 @@ from .route_binding import (
     has_estimate_qualifier,
     has_estimates,
 )
+from .steps import maneuver_errors
 
 FORBIDDEN = re.compile(r"(?<![\w-])safe(?:ly)?(?![\w-])|\bselamat\b|安全", re.IGNORECASE)
 DEPTH = re.compile(
@@ -498,9 +499,17 @@ ESTIMATE_WORDS = re.compile(r"\bestimat|\banggar|估计|估算|推估", re.IGNOR
 _CLAUSE = re.compile(r"[.;:!?。；：！？\n,，]")
 
 
+def _selected_route(ans: FinalAnswer, rec: TurnRecord) -> dict:
+    return rec.routes.get(ans.route_id or "") or (
+        next(iter(rec.routes.values())) if len(rec.routes) == 1 else {}
+    )
+
+
 def estimate_claim_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
-    """For a likely_ok route: no unhedged access claim ("step-free", "无障碍") in any clause."""
-    if _status_of(ans, rec) != "likely_ok":
+    """For a likely_ok route, or a route whose maneuvers include estimated or unchecked
+    stretches (T-021): no unhedged access claim ("step-free", "无障碍") in any clause."""
+    levels = {m.get("access_level") for m in _selected_route(ans, rec).get("maneuvers") or []}
+    if _status_of(ans, rec) != "likely_ok" and not levels & {"likely_ok", "unknown"}:
         return []
     text = _strip_names(" ".join([ans.summary, *ans.steps, *ans.caveats]), rec.place_names)
     bad = [
@@ -532,6 +541,10 @@ def estimate_wording_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
 def status_wording_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     """How the text names route status and crossings. Shared with `draft_errors`."""
     errs: list[str] = estimate_claim_errors(ans, rec)
+    errs += maneuver_errors(
+        _strip_names(" ".join([ans.summary, *ans.steps, *ans.caveats]), rec.place_names),
+        _selected_route(ans, rec),
+    )
     status = _status_of(ans, rec)
     if status:
         named = _named_statuses(ans.summary, ans.steps) - {status}
@@ -1635,6 +1648,8 @@ _ISSUES = (
     ("confirmed only on placeholder", "called a demo-value route plainly confirmed"),
     ("Route status contradiction", "named a different route status than the route check found"),
     ("only likely OK", "called an estimated route step-free or accessible"),
+    ("not on this route's maneuvers", "named a street the route does not use"),
+    ("No maneuver on this route turns", "gave a turn the route does not make"),
     ("likely OK only by estimate", "did not say the route is an estimate"),
     ("staff-reported closure", "did not name a staff-reported closure"),
     ("Write for residents", "used internal ids instead of readable names"),

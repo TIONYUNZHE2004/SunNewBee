@@ -44,6 +44,7 @@ from .record import TurnRecord
 from .redact import redact
 from .scope import is_greeting, outside_scope
 from .settings import AgentSettings
+from .steps import maneuver_steps
 from .template import _top_stage, greeting_answer, scope_answer, template_answer
 from .validate import PLACEHOLDER_CAVEAT
 
@@ -259,6 +260,12 @@ def _answer_events(
     lang: str = "en",
 ) -> list[ChatEvent]:
     evs: list[ChatEvent] = []
+    # T-021: steps come from the answered route's maneuvers only (never model-written turns).
+    answered = rec.routes.get(ans.route_id or "") or (
+        next(iter(rec.routes.values())) if len(rec.routes) == 1 else {}
+    )
+    if (steps := maneuver_steps(answered, lang)) and ans.answer_status != "cannot_answer":
+        ans = ans.model_copy(update={"steps": steps})
     if note := outside_note(ans, rec, ctx.world, lang):
         ans = ans.model_copy(update={"caveats": [*ans.caveats, note]})
     text = answer_text(ans, _route_status_line(ans, rec, lang), rec, lang)
