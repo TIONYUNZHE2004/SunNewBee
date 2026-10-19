@@ -11,8 +11,8 @@ pnpm gen   # regenerate packages/api-client (openapi.json + schema.d.ts)
 ```
 
 With no seed data present the API falls back to the tiny test fixture.
-An existing world with ambiguous IDs or inconsistent routing geometry fails to load; it
-does not silently switch to the tiny fixture or return a route over malformed data.
+An existing world with ambiguous IDs, invalid edge lengths or inconsistent routing geometry
+fails to load; it does not silently switch to the tiny fixture or return a route over malformed data.
 
 Road-section and access-layer `sidewalk_status` describe usable verification: undated or
 valueless verified claims become `unknown`, and expired claims become `stale`. Raw claims

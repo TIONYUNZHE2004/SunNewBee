@@ -7,7 +7,7 @@ import shutil
 import pytest
 from tests_support import TINY
 from townshiplens_spatial.routing import plan_route
-from townshiplens_spatial.world import WorldDataError, load_world
+from townshiplens_spatial.world import WorldDataError, _edge, load_world
 
 
 @pytest.fixture
@@ -142,3 +142,30 @@ def test_unusable_place_position_is_rejected(data_dir, coordinate):
     _edit(data_dir / "base/places.geojson", change)
     with pytest.raises(WorldDataError, match="finite WGS84"):
         load_world(data_dir)
+
+
+@pytest.mark.parametrize("length", [-100, -0.1, float("nan"), float("inf"), -float("inf")])
+@pytest.mark.parametrize("in_overlay", [False, True])
+def test_invalid_metric_cannot_supply_search_costs_distances_or_steps(data_dir, length, in_overlay):
+    walk = data_dir / "base/walk.geojson"
+    collection = json.loads(walk.read_text())
+    edge = next(f for f in collection["features"] if f["properties"]["id"] == "seg-ab")
+    edge["properties"]["length_m"] = length
+    if in_overlay:
+        (data_dir / "access/overlay.geojson").write_text(json.dumps({"features": [edge]}))
+    else:
+        walk.write_text(json.dumps(collection))
+    with pytest.raises(
+        WorldDataError, match="seg-ab: edge length_m must be finite and nonnegative"
+    ):
+        load_world(data_dir)
+
+
+@pytest.mark.parametrize("length", [0.0, 55.6])
+def test_valid_edge_measurement_is_preserved_without_inventing_a_replacement(length):
+    edge = json.loads((TINY / "base/walk.geojson").read_text())["features"][0]
+    edge["properties"]["length_m"] = length
+    if length == 0:
+        # A coincident-position link can legitimately have zero physical length.
+        edge["geometry"]["coordinates"][1] = edge["geometry"]["coordinates"][0]
+    assert _edge(edge).length_m == length

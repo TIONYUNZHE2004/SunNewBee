@@ -37,7 +37,8 @@ Node IDs (`n-...`) are implicit: an edge's `from`/`to` plus the first/last coord
 LineString define a node and its position. Coordinates are WGS84 `[lon, lat]`.
 
 The loader rejects duplicate IDs within one source file, overlapping edge/place IDs,
-unusable positions or line geometry, and incident edges that assign different positions
+negative or non-finite edge lengths, unusable positions or line geometry, and incident edges
+that assign different positions
 to the same node ID. An overlay may intentionally replace a base record by ID, but the
 resulting graph must remain consistent. Equal coordinates with distinct IDs do not create
 a junction. This catches malformed input; it does not establish original OSM identity for

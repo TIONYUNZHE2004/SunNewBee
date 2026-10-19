@@ -106,6 +106,8 @@ def _edge(f: dict) -> Edge:
         osm_tags=p.get("osm_tags") or {},
         claims=p.get("claims") or {},
     )
+    if not math.isfinite(edge.length_m) or edge.length_m < 0:
+        raise WorldDataError(f"{edge.id}: edge length_m must be finite and nonnegative")
     if not edge.from_node.strip() or not edge.to_node.strip():
         raise WorldDataError(f"{edge.id}: edge endpoints need nonempty node ids")
     if len(edge.coords) < 2:
