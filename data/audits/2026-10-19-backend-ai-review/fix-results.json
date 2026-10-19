@@ -1,6 +1,6 @@
 {
   "scope": "Backend and AI route correctness fixes; published AI 2aaa214 integrated after live probes.",
-  "recommendation": "Hold merge for two full-validator orientation bypasses after AI c9da379 (clockwise onto a left-turn street; follow the selected street in the opposite direction). All previous 9+13 saved cases now meet the policy. Backend loader integrity guard and CI test collection/dated-sidewalk fixture are fixed. Source-backed seed identity and legal turn relations remain blocked; destination-closure policy still needs Yunzhe.",
+  "recommendation": "Hold merge for two full-validator orientation bypasses after AI c9da379 and dropped rest-stop flood warnings in an observed mock answer. Use canonical selected-route prose preserving checked fields and engine warnings. Backend rest-availability fix 87a11ae excludes closed/flooded stops and marks uncertain ones unverified. Earlier loader and six P1 fixes stand; source identity/legal-turn data and destination-closure policy remain dependencies.",
   "fixed": {
     "AUD-001": "Exact place IDs bind route selection, measurements, follow-ups and map highlight.",
     "AUD-002": "Replay rejects stale world, claim, profile, code and expiry-day fingerprints.",
@@ -9,7 +9,8 @@
     "AUD-005": "Explicit impassable smoothness blocks wheeled modes; adverse smoothness prevents positive strict estimates. OSM definition does not prohibit pedestrian travel.",
     "AUD-006": "Layer cache and ETag expire across the day boundary.",
     "AUD-007": "Unpreviewed evacuation-centre rows respect older-adult rest gaps.",
-    "AUD-010": "Undated staff edge claims cannot establish a checked pass."
+    "AUD-010": "Undated staff edge claims cannot establish a checked pass.",
+    "Rest availability": "87a11ae: active closures and FAIL flood assessments cannot establish a rest interval; possible/unassessed scenario stops remain unverified across route search, materialization and unpreviewed centre rows."
   },
   "remaining_ranked": [
     {
@@ -212,5 +213,29 @@
     "spend_usd": 0,
     "e2e": "NOT RUN as instructed",
     "contract_acknowledgements": "AI acknowledged rest/sidewalk/flood and earlier zero/centre/chosen-gap semantic notes in T-016/T-021."
+  },
+  "followup_round5_2026_10_20": {
+    "backend_commit": "87a11ae",
+    "scope": "One shared rest-availability gate for route search, materialization and non-preview centre status; active closures and scenario FAIL exclude stops, UNKNOWN flood/coverage caps rest state at unverified. No schema change.",
+    "checks": {
+      "first_routing_verification": "101 PASS",
+      "final_spatial_api": "23 spatial + 5 API PASS",
+      "lint": "PASS",
+      "required_agent_api": "PASS: 1188 tests in 198.35 s, including current cache-body checks",
+      "golden": "23/23 mock PASS, zero fallbacks or rejected attempts",
+      "signatures": "22/22 Elmina replay loads and byte-preserved event bodies. 6feb312 also touched three Tiny headers; 6a82222 restores those three files byte-for-byte, with no final Tiny diff.",
+      "final_demo_cache": "PASS: 35 tests in 101.20 s after metadata correction"
+    },
+    "seed": "29 seating/shelter places, 28 mapped; available mapped stops no scenario/baseline 28, +1 m 19, +3 m 15, +5 m 12. Availability scan, not a bad seed-route demonstration.",
+    "real_api": "Older-adult control unchanged partly_unverified 416.4 m; walk likely_ok 416.4 m, drive likely_ok 113.3 m; 16352 access features; mock chat no error/done.",
+    "ai_handoff": "One real mock HTTP answer on crafted rest-detour fixture names unverified rest-r but omits its explicit possible-flood/partial-coverage warnings; answer.check accepts it. Owner: AI canonical route renderer.",
+    "evidence": "../2026-10-20-rest-availability/README.md",
+    "live_questions": 0,
+    "spend_usd": 0,
+    "source_calls": 0,
+    "e2e": "NOT RUN as instructed",
+    "metadata_commits": ["6feb312", "6a82222"],
+    "contract_acknowledgement": "pending new rest availability note; earlier notes acknowledged",
+    "app": "Stopped; own ports 8021/5191 verified closed"
   }
 }

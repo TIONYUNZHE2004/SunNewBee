@@ -16,3 +16,9 @@ Checks passed:
 No paid model calls. No local e2e, as instructed. AI wording/validator changes are on the AI engineer branch and were not included in these checks. Full CI and visual review remain required before control merges.
 
 Latest checkpoint: see [the world-integrity follow-up](../2026-10-20-world-integrity/README.md). AI `c9da379` is integrated. All previous 9+13 saved cases now meet the stated no-model-directions policy. The expanded 15-case probe still accepts two wrong orientation instructions: clockwise onto a left-turn street and following that street in the opposite direction. Full Python: **2,338 passed / 37 skipped**. Merge remains on hold for canonical route prose from checked structured fields and green control CI. Rest/sidewalk/flood and earlier endpoint contract notes are acknowledged.
+
+New backend rest-availability checkpoint: [rest-stop audit](../2026-10-20-rest-availability/README.md).
+Closed/flooded stops cannot satisfy the rest interval; possible/unassessed stops stay unverified.
+Required compatibility passes 1,188 tests. The AI canonical renderer must retain the explicit
+rest-stop flood warnings currently omitted by a crafted mock answer, alongside fixing the
+two earlier orientation bypasses. The new contract acknowledgement remains pending.

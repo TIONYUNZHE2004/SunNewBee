@@ -1,14 +1,15 @@
-Route answers can select the wrong endpoints or hide important gaps. This branch binds facts and highlights to the selected journey, renders deterministic maneuvers, applies mapped vehicle one-way tags, and keeps inferred zero-edge connections unverified. Linked centres and flood-island membership use mapped entrances and mode-specific road snaps. Undated rest/sidewalk claims cannot establish checked access. The importer requires original OSM node identities; the loader rejects ambiguous IDs and inconsistent geometry before routing. Ticket impact excludes unusable staff checks.
+Route answers can select the wrong endpoints or hide important gaps. This branch binds facts and highlights to the selected journey, renders deterministic maneuvers, applies mapped vehicle one-way tags, and keeps inferred zero-edge connections unverified. Linked centres and flood-island membership use mapped entrances and mode-specific road snaps. Undated rest/sidewalk claims cannot establish checked access. Active closures or scenario FAIL exclude rest stops; possible flood/unassessed coverage keeps them unverified across route search and centre summaries. The importer requires original OSM node identities; the loader rejects ambiguous IDs and inconsistent geometry before routing. Ticket impact excludes unusable staff checks.
 
-**Merge status: HOLD.** AI c9da379 closes all earlier saved 9+13 navigation cases. Two direction-reversal paraphrases still pass full validation: clockwise onto a left-turn street, and following the selected street in the opposite direction. Expanded reproduction: `data/audits/2026-10-20-zero-route/probe_remaining_navigation.py` (13 expected outcomes pass, 2 accepted bad instructions). Require canonical route prose from checked structured fields rather than more lexical exclusions, plus green control CI.
+**Merge status: HOLD.** AI c9da379 closes all earlier saved 9+13 navigation cases. Two direction-reversal paraphrases still pass full validation: clockwise onto a left-turn street, and following the selected street in the opposite direction. Expanded reproduction: `data/audits/2026-10-20-zero-route/probe_remaining_navigation.py` (13 expected outcomes pass, 2 accepted bad instructions). A real mock answer also drops the explicit flood/coverage warnings on a required rest stop; saved in data/audits/2026-10-20-rest-availability/mock-chat.json. Require canonical route prose that preserves checked structured fields and applicable engine warnings, plus the new rest-availability contract acknowledgement and green control CI.
 
 Validation:
 
+- Rest availability: 101 initial affected checks; final 23 spatial / 5 API tests PASS; required full agent/API compatibility **1,188 PASS in 198.35 s** including current cache-body checks. Real curl before/after confirms flooded/closed stops no longer satisfy the rest limit.
 - New loader/walkway/API checks: 41 PASS. The AI-reported undated walkway fixture now has a dated positive control and explicit undated/expired controls.
 - Fixed the prior duplicate API/spatial flood test filename; repository-wide collection succeeds.
 - Latest AI direction/closure checks: 72 PASS. Original nine saved cases PASS; previous thirteen expanded cases PASS before the two new orientation proofs.
-- Final whole Python suite: **2,338 PASS / 37 skipped in 315.51 s**, including all agent/API and 23 demo-cache body checks. The first run found one malformed synthetic flood fixture; `5b8af8a` gives independent samples distinct nodes without changing coordinates or flood assertions. Final 56 focused flood-build/world/API checks also PASS. Interrupted partial runs are not counted.
-- Lint PASS; golden 23/23 mock PASS, zero fallbacks or rejected attempts. `23be90e` refreshes 22/22 replay signatures with validated event bodies byte-preserved. API schemas and frontend source are unchanged this round; their earlier generation/type checks passed.
+- Previous round whole Python suite: **2,338 PASS / 37 skipped in 315.51 s**, including all agent/API and 23 demo-cache body checks. This predates rest-availability 87a11ae; its current required compatibility result follows below. The first run found one malformed synthetic flood fixture; `5b8af8a` gives independent samples distinct nodes without changing coordinates or flood assertions. Final 56 focused flood-build/world/API checks also PASS. Interrupted partial runs are not counted.
+- Lint PASS; golden 23/23 mock PASS, zero fallbacks or rejected attempts. Rest-availability metadata refresh `6feb312` / correction `6a82222`: final 22/22 Elmina replay signatures pass with event bodies byte-preserved; three Tiny-world recordings are restored byte-for-byte. Final demo/cache tests: **35 PASS in 101.20 s** after that correction. API schemas and frontend source are unchanged this round; their earlier generation/type checks passed.
 - Current real seed loads all 16,120 edges / 232 places / 11,736 consistent node positions. Real HTTP controls: walking 416.4 m, driving 113.3 m, expected place matches, 16,352 access features, drive chat with mapped-end and road-end/legal-turn caveats.
 - Previous backend checkpoints: 209 verification/routing/access/flood/tool/API checks and 141 flood/entrance/direction checks PASS; walking island totals 20/29 (+3/+5 m), drive 21/35 after consistent snaps; baseline zero and likely/possible totals unchanged.
 - No local e2e, live model calls, GitHub PR or CI run by this worker. Control opens the PR. Own app stopped; both ports checked closed.
@@ -25,6 +26,7 @@ The lists cover the whole comparison with control, including previously pushed P
 - `apps/api/tests/test_access_estimates.py`
 - `apps/api/tests/test_api_flood_entrances.py`
 - `apps/api/tests/test_api_world_integrity.py`
+- `apps/api/tests/test_api_rest_availability.py`
 - `apps/api/tests/test_core.py`
 - `apps/api/tests/test_manage.py`
 - `apps/api/tests/test_selection.py`
@@ -44,6 +46,12 @@ The lists cover the whole comparison with control, including previously pushed P
 - `data/audits/2026-10-19-backend-ai-review/report.json`
 - `data/audits/2026-10-20-driving/README.md`
 - `data/audits/2026-10-20-driving/route-comparison.json`
+- `data/audits/2026-10-20-rest-availability/README.md`
+- `data/audits/2026-10-20-rest-availability/api-before.json`
+- `data/audits/2026-10-20-rest-availability/api-after.json`
+- `data/audits/2026-10-20-rest-availability/seed-availability.json`
+- `data/audits/2026-10-20-rest-availability/seed-api-controls.json`
+- `data/audits/2026-10-20-rest-availability/mock-chat.json`
 - `data/audits/2026-10-20-overnight-pr.md`
 - `data/audits/2026-10-20-special-verification/README.md`
 - `data/audits/2026-10-20-special-verification/api-after.json`
@@ -118,6 +126,7 @@ The lists cover the whole comparison with control, including previously pushed P
 - `packages/spatial/tests/test_maneuvers.py`
 - `packages/spatial/tests/test_routing.py`
 - `packages/spatial/tests/test_special_verification.py`
+- `packages/spatial/tests/test_rest_availability.py`
 - `packages/spatial/tests/test_tools_access.py`
 - `packages/spatial/tests/test_walkways.py`
 - `packages/spatial/tests/test_world_integrity.py`
