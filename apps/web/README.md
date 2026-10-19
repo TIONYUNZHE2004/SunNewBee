@@ -359,6 +359,44 @@ after it stops.
 - The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
   `dist/city/`.
 
+#### Street dressing kit (Three.js, B-T7)
+
+`dressing/` draws the street dressing in one instanced layer (`scene/useDressing.ts`, decor slot
+`dressing`). Models are built in code (`dressingModels.ts`: bevelled boxes, low cylinders and
+spheres, clay role `dressing`, colours from `CLAY_PALETTE.prop` / `.dressing`).
+
+- **Fact props** (`planFactProps`, every tier): one zebra crossing per walk `crossing` edge whose
+  crossing claim is `marked` / `zebra` (reported or verified; the access layer's `crossing` /
+  `crossing_status`), never on an unmarked or unknown crossing or an edge without its own id, and one
+  traffic signal / bus stop / shelter / bench per `GET /layers/street_furniture` point inside the
+  outline, each instance carrying its `sourceId` (`userData.sourceIds` on the mesh). A prop whose
+  point lies on a drawn ribbon is set just past the ribbon edge. Nothing else draws these models:
+  the decorative props planner no longer places benches or bus shelters. AC-B7 is
+  `dressingPlan.test.ts` on the seed.
+- **Decorative props** (`planDecorProps`, High and Medium): kerb edging, planters and verge tufts
+  along roads, lamp posts beside park paths, flowers and tufts in parks. Seeded, never within 1 m
+  (from the footprint) of any walk line, never in a footprint or outside the outline. They keep
+  "Decorative details are illustrative." on screen (`data-dressing-decor`). Journey modules never
+  import `dressing/` (`importBoundary.test.ts`, AC-B8).
+- Drawn only inside the detail bubble (below); decorative props are re-planned when its focus
+  moves 25 m.
+
+#### Detail bubble (Three.js, B-T8)
+
+`detailBubble.ts` + `scene/useDetailBubble.ts`: street-level detail within 150 m of the focus
+point, which is the rendered hero in follow mode while a journey is loaded (`journeyHero`, the
+D-T6 seam), else the camera's orbit target; no bubble beyond a 1.5 km camera range. One bubble per
+view, on the scene bus (`bus.getState().bubble`); layers `register` with it and hear each move of
+1 m or more.
+
+- Dressing (`useDressing`): each instance fades in / out over 0.5 s at the edge (instance scale by
+  `createBubbleFader` weight; a frame advances a fade by at most 0.1 s, so a long frame gap never
+  pops; frames are requested while a fade runs).
+- Trees: the `trees` kit inside the bubble is drawn at LOD0 whatever the camera distance
+  (`CityInstances.setDetailBubble`, via `useCityAssets().setDetailBubble`). This is a plain LOD
+  swap, with no crossfade.
+- Crowd (C-T7): register with `bus.getState().bubble` to mount LOD0 inside it.
+
 #### Elmina outline and diorama slab (Three.js, A-T4)
 
 When `/site` serves `boundary.geometry` (the display-only Elmina outline, `base/boundary.geojson`),

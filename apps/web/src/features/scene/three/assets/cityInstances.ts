@@ -93,6 +93,12 @@ export interface CityInstances {
    */
   setKits(kits: Map<string, Placement[]> | null | undefined, kitLodScale?: number): void;
   /**
+   * The detail bubble (B-T8): trees (kit asset `trees`) within `r` of (x, z) are drawn at LOD0
+   * whatever the camera distance; outside it, the usual camera-distance LODs. Applied by the next
+   * `update`. Null: no bubble.
+   */
+  setDetailBubble?(b: { x: number; z: number; r: number } | null): void;
+  /**
    * `setKits` in small steps, for a time-sliced rebuild: each step builds one kit key's buckets
    * (hidden, nothing drawn); `commit` then swaps them in for the old kits in one go. `cancel`
    * releases a build that will not be committed. The result equals `setKits`.
@@ -132,9 +138,17 @@ interface Key {
   /** Missing LOD geometry resolves to the nearest available LOD (ties go finer). */
   resolve: number[];
   buckets: Bucket[];
+  /** High detail inside the detail bubble (B-T8): the trees kit. */
+  bubble: boolean;
 }
 
 const UNSET = -2;
+/** The kit asset drawn at LOD0 inside the detail bubble (B-T8 "high-detail trees"). */
+export const BUBBLE_ASSET = "trees";
+type BubbleArea = { x: number; z: number; r: number };
+/** Distance from (x, z) to a tile box. */
+const boxDist = (t: { x0: number; z0: number; x1: number; z1: number }, x: number, z: number) =>
+  Math.hypot(Math.max(t.x0 - x, 0, x - t.x1), Math.max(t.z0 - z, 0, z - t.z1));
 /** Polygon offset (factor and units) of a depth-yielding landmark; positive pushes it back. */
 export const LANDMARK_YIELD_OFFSET = 2;
 const NOOP = () => {};
@@ -258,6 +272,7 @@ export function createCityInstances(
       raw: new Int8Array(list.length).fill(UNSET),
       resolve: [],
       buckets: [],
+      bubble: asset === BUBBLE_ASSET,
     };
     vspec.lods.forEach((_l, lod) => {
       const src = lib.geometry(asset, variant, lod);
@@ -413,7 +428,12 @@ export function createCityInstances(
     for (const t of key.tiles) {
       const dxMin = Math.max(t.x0 - camera.x, 0, camera.x - t.x1);
       const dzMin = Math.max(t.z0 - camera.z, 0, camera.z - t.z1);
-      if (t.uni !== UNSET) {
+      // Tiles touching the bubble (now, or at the last update) are always visited.
+      const nearBubble =
+        key.bubble &&
+        ((bubble !== null && boxDist(t, bubble.x, bubble.z) <= bubble.r) ||
+          (bubbleSeen !== null && boxDist(t, bubbleSeen.x, bubbleSeen.z) <= bubbleSeen.r));
+      if (t.uni !== UNSET && !nearBubble) {
         const dxMax = Math.max(Math.abs(camera.x - t.x0), Math.abs(camera.x - t.x1));
         const dzMax = Math.max(Math.abs(camera.z - t.z0), Math.abs(camera.z - t.z1));
         const band = key.stay[t.uni < 0 ? key.lods.length : t.uni] as { lo: number; hi: number };
@@ -435,7 +455,10 @@ export function createCityInstances(
         const p = key.list[i] as Placement;
         const d = Math.hypot(p.x - camera.x, camera.y, p.z - camera.z);
         const rawPrev = key.raw[i] as number;
-        const raw = lodFor(d, key.lods, rawPrev === UNSET ? undefined : (rawPrev as LodBucket));
+        const raw =
+          nearBubble && bubble !== null && Math.hypot(p.x - bubble.x, p.z - bubble.z) <= bubble.r
+            ? 0
+            : lodFor(d, key.lods, rawPrev === UNSET ? undefined : (rawPrev as LodBucket));
         key.raw[i] = raw;
         if (uni === UNSET) uni = raw;
         else if (uni !== raw) mixed = true;
@@ -469,6 +492,9 @@ export function createCityInstances(
     g.dispose();
   }
 
+  /** The detail bubble, and the one the last `update` applied (its tiles are revisited once). */
+  let bubble: BubbleArea | null = null;
+  let bubbleSeen: BubbleArea | null = null;
   /** Placements looped over in the current / last `update`. */
   let visited = 0;
   let lastVisited = 0;
@@ -487,8 +513,12 @@ export function createCityInstances(
       visited = 0;
       for (const key of keys) rebuilt += updateKey(key, camera, frustum);
       for (const key of kitKeys) rebuilt += updateKey(key, camera, frustum);
+      bubbleSeen = bubble;
       lastVisited = visited;
       return rebuilt;
+    },
+    setDetailBubble(b) {
+      bubble = b ? { x: b.x, z: b.z, r: b.r } : null;
     },
     setKits(kits, kitLodScale = 1) {
       const old = kitKeys;

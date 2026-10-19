@@ -208,7 +208,7 @@ describe("planProps", () => {
     }
   });
 
-  it("places bus shelters, benches, bins and bollards by place type", () => {
+  it("places bins and bollards by place type, never a decorative bench or bus shelter (AC-B7)", () => {
     const p = plan({
       places: fc(
         point({ id: "pl1", type: "shelter", name: "x" }, 100, 20),
@@ -217,9 +217,10 @@ describe("planProps", () => {
         point({ id: "pl4", type: "clinic", name: "c", entrance_ids: ["e3"] }, 0, 100),
       ),
     });
-    expect(count(p, "furniture/bus_shelter")).toBe(1);
-    expect(count(p, "furniture/bench")).toBeGreaterThanOrEqual(2);
-    expect(count(p, "furniture/bin")).toBe(count(p, "furniture/bench"));
+    // benches and shelters are fact props (dressing kit), one per data feature
+    expect(count(p, "furniture/bus_shelter")).toBe(0);
+    expect(count(p, "furniture/bench")).toBe(0);
+    expect(count(p, "furniture/bin")).toBeGreaterThanOrEqual(2);
     expect(count(p, "furniture/bollard")).toBe(10);
   });
 

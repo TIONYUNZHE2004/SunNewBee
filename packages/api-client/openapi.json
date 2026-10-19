@@ -4379,6 +4379,40 @@
         "title": "Stage",
         "type": "object"
       },
+      "StreetFurnitureLayer": {
+        "description": "Fact-bearing street furniture for the stylised 3D city (display only, B-T6/B-T7): one Point\nper OSM traffic signal, bus stop, shelter, bench or picnic table inside the outline, plus seed\nseating / shelter places that coincide with none of them (`source: seed_place`). Each feature\ncarries its source `id` and `kind`. Routing, evaluation and answers never read it.",
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "attribution": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Attribution",
+            "type": "array"
+          },
+          "furniture": {
+            "additionalProperties": true,
+            "title": "Furniture",
+            "type": "object"
+          }
+        },
+        "required": [
+          "furniture"
+        ],
+        "title": "StreetFurnitureLayer",
+        "type": "object"
+      },
       "Suggestions": {
         "properties": {
           "candidates": {
@@ -6310,6 +6344,34 @@
           }
         },
         "summary": "Gaps Layer"
+      }
+    },
+    "/layers/street_furniture": {
+      "get": {
+        "description": "Street furniture points (display only). Declared before /layers/{lens} so it wins. 404 when\nthe world has no base/street_furniture.geojson (the client then draws no fact props).",
+        "operationId": "street_furniture_layer_layers_street_furniture_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreetFurnitureLayer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "304": {
+            "description": "Not modified"
+          },
+          "404": {
+            "description": "no street furniture seed for this world"
+          },
+          "502": {
+            "description": "the street furniture seed is unreadable"
+          }
+        },
+        "summary": "Street Furniture Layer"
       }
     },
     "/layers/{lens}": {

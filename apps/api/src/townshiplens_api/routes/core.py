@@ -277,6 +277,7 @@ _buildings_cache: dict[tuple, tuple[BuildingsLayer, str]] = {}
 
 def clear_buildings_cache() -> None:
     _buildings_cache.clear()
+    _furniture_cache.clear()
 
 
 def _mtime(path) -> int:
@@ -389,6 +390,95 @@ def buildings_layer(request: Request, response: Response):
         etag = f'"{hashlib.sha1(repr(key).encode()).hexdigest()[:20]}"'
         _buildings_cache.clear()
         hit = _buildings_cache[key] = (payload, etag)
+    payload, etag = hit
+    headers = {"ETag": etag, "Cache-Control": CACHE_CONTROL}
+    if _matches(request.headers.get("if-none-match"), etag):
+        return Response(status_code=304, headers=headers)
+    response.headers.update(headers)
+    return payload
+
+
+class StreetFurnitureLayer(BaseModel):
+    """Fact-bearing street furniture for the stylised 3D city (display only, B-T6/B-T7): one Point
+    per OSM traffic signal, bus stop, shelter, bench or picnic table inside the outline, plus seed
+    seating / shelter places that coincide with none of them (`source: seed_place`). Each feature
+    carries its source `id` and `kind`. Routing, evaluation and answers never read it."""
+
+    furniture: dict[str, Any]  # GeoJSON FeatureCollection of Points
+    as_of: str | None = None
+    attribution: list[str] = []
+
+
+FURNITURE_KINDS = frozenset({"traffic_signals", "bus_stop", "shelter", "bench", "picnic_table"})
+# (data dir, mtime_ns of street_furniture, site) -> (payload, etag)
+_furniture_cache: dict[tuple, tuple[StreetFurnitureLayer, str]] = {}
+
+
+def _finite(v: Any) -> bool:
+    return (
+        isinstance(v, int | float) and not isinstance(v, bool) and v == v and abs(v) != float("inf")
+    )
+
+
+def _sourced_points_only(fc: dict[str, Any]) -> dict[str, Any]:
+    """Honesty gate (AC-B7): a prop is drawn only for a feature with a source id, a known kind and
+    a finite Point, so the client never draws one without its source."""
+
+    def ok(f: Any) -> bool:
+        if not isinstance(f, dict):
+            return False
+        props, geom = f.get("properties"), f.get("geometry")
+        if not isinstance(props, dict) or not isinstance(geom, dict):
+            return False
+        pid = props.get("id")
+        if not isinstance(pid, str) or not pid.strip() or props.get("kind") not in FURNITURE_KINDS:
+            return False
+        c = geom.get("coordinates")
+        return (
+            geom.get("type") == "Point"
+            and isinstance(c, list)
+            and len(c) >= 2
+            and _finite(c[0])
+            and _finite(c[1])
+        )
+
+    return {"type": "FeatureCollection", "features": [f for f in fc["features"] if ok(f)]}
+
+
+@router.get(
+    "/layers/street_furniture",
+    response_model=StreetFurnitureLayer,
+    responses={
+        304: {"description": "Not modified"},
+        404: {"description": "no street furniture seed for this world"},
+        502: {"description": "the street furniture seed is unreadable"},
+    },
+)
+def street_furniture_layer(request: Request, response: Response):
+    """Street furniture points (display only). Declared before /layers/{lens} so it wins. 404 when
+    the world has no base/street_furniture.geojson (the client then draws no fact props)."""
+    data = state.data_dir()
+    f_path, site_path = data / "base" / "street_furniture.geojson", data / "site.json"
+    if not f_path.exists():
+        raise HTTPException(404, "no street furniture data for this world")
+    key = (str(data), _mtime(f_path), _mtime(site_path))
+    hit = _furniture_cache.get(key)
+    if hit is None:
+        try:
+            site = json.loads(site_path.read_text(encoding="utf-8"))
+            if not isinstance(site, dict):
+                raise ValueError("site.json is not an object")
+            payload = StreetFurnitureLayer(
+                furniture=_sourced_points_only(_read_collection(f_path)),
+                as_of=(site.get("street_furniture") or {}).get("as_of"),
+                attribution=list(site.get("attribution") or []),
+            )
+        except (OSError, ValueError, TypeError, AttributeError, RecursionError) as e:
+            log.warning("street furniture seed unreadable: %s", e)
+            raise HTTPException(502, "street furniture data is unreadable") from e
+        etag = f'"{hashlib.sha1(repr(key).encode()).hexdigest()[:20]}"'
+        _furniture_cache.clear()
+        hit = _furniture_cache[key] = (payload, etag)
     payload, etag = hit
     headers = {"ETag": etag, "Cache-Control": CACHE_CONTROL}
     if _matches(request.headers.get("if-none-match"), etag):

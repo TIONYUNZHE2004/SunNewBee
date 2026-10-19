@@ -18,6 +18,8 @@ import { useAcceptanceHook } from "./scene/useAcceptanceHook";
 import { useCameraOps } from "./scene/useCameraOps";
 import { useCityAssets } from "./scene/useCityAssets";
 import { useDecor } from "./scene/useDecor";
+import { useDetailBubble } from "./scene/useDetailBubble";
+import { useDressing } from "./scene/useDressing";
 import { useEngine } from "./scene/useEngine";
 import { useFacades } from "./scene/useFacades";
 import { useGround, useRoads } from "./scene/useGround";
@@ -196,6 +198,21 @@ export default function ThreeScene({
     bus,
     boundary,
   });
+  // Street dressing kit (B-T7): fact props (crossings, signals, bus stops, shelters, benches; one
+  // per data feature) and decorative props near the camera target.
+  // B-T8: street-level detail (dressing, LOD0 trees, the crowd's LOD0) inside the detail bubble
+  // around the hero (follow mode) or the camera target.
+  useDetailBubble({ engine, bus, setDetailBubble: city.setDetailBubble, showroom });
+  const dressing = useDressing({
+    engine,
+    frame,
+    tier,
+    walk,
+    buildings,
+    bubble: bus.getState().bubble,
+    boundary,
+    showroom,
+  });
   const { running, onScreen, agents } = useMotion({
     engine,
     tier,
@@ -224,7 +241,8 @@ export default function ThreeScene({
   useAcceptanceHook(engine, frame);
 
   // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, roofs, ground
-  // decor (verges, construction ground), stall lines, props, agents, the ground layer (land-cover
+  // decor (verges, construction ground), stall lines, props, dressing-kit decor (planters, lamp posts,
+  // kerb edging, flowers, grass tufts), agents, the ground layer (land-cover
   // tints, road surfaces) or the ambient birds and clouds.
   const decorativeShown =
     city.decorAssets ||
@@ -233,6 +251,7 @@ export default function ThreeScene({
     decorOn ||
     (!!engine && stalls.length > 0) ||
     kits.size > 0 ||
+    dressing.decor > 0 ||
     agents.length > 0 ||
     (!!engine && (roads.length > 0 || !!landcover?.getAttribute("position")?.count)) ||
     (!!engine && !!frame && !showroom && tier !== "low");
@@ -250,6 +269,8 @@ export default function ThreeScene({
       data-instances={city.instances}
       data-markers={markerCount}
       data-tiles={active.length}
+      data-dressing-facts={dressing.facts}
+      data-dressing-decor={dressing.decor}
       data-fallback={city.fallback.join(",")}
       className="relative h-full w-full"
       style={{ background: initialBackground }}

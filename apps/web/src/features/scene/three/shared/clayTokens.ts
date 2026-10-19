@@ -126,6 +126,18 @@ export const CLAY_PALETTE = {
     planter: "#d9a37a",
     flowers: ["#f2a7c3", "#f4b942", "#e8644f", "#c9a8e8", "#fff3c2"],
   },
+  /** Street dressing kit (B-T7) extras: signal head and lamps, bus-stop sign, poles, lamp globe, grass. */
+  dressing: {
+    signalHead: "#56596a",
+    signalRed: "#ee6b5e",
+    signalAmber: "#f5c04a",
+    signalGreen: "#5cc08e",
+    busSign: "#4f8fd0",
+    pole: "#c9ccd2",
+    lampGlobe: "#fff3d0",
+    grass: "#7bc561",
+    soil: "#9a6f4b",
+  },
   /** Cars (prototype CAR) and car glass. */
   vehicle: ["#e8644f", "#f4f1ea", "#3f88c5", "#f4b942", "#57b38a", "#8f9bb3"],
   vehicleGlass: "#9fc6dc",
@@ -179,7 +191,8 @@ export type ClayRole =
   | "propMetal"
   | "person"
   | "vehicle"
-  | "sign";
+  | "sign"
+  | "dressing";
 
 export interface ClayToken {
   /** The role's palette (first entry is the default colour). */
@@ -306,6 +319,23 @@ export const CLAY: Readonly<Record<ClayRole, ClayToken>> = {
   vehicle: t(P.vehicle, 0.6, 0.3),
   sign: t([EFFECT_COLOURS.signBand], 0.7, 0.1),
   // ---- Lane additions (one block per lane; see "Extending the table") ----
+  // journey/be (B-T7 street dressing kit): vertex-coloured props; colours from CLAY_PALETTE.prop,
+  // CLAY_PALETTE.dressing and the zebra marking white.
+  dressing: t(
+    [
+      P.marking,
+      P.prop.wood,
+      P.prop.iron,
+      P.prop.shelter,
+      P.prop.kerb,
+      P.prop.planter,
+      ...P.prop.flowers,
+      ...Object.values(P.dressing),
+    ],
+    0.7,
+    0.35,
+    { prop: true },
+  ),
 };
 
 /** Gate switch: draw `role` with the standard material on every tier (true), or by tier (false). */
