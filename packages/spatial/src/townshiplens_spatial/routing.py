@@ -360,7 +360,7 @@ def path_status(world, nodes, profile, scenario_id):
         keys.append(key)
         estimated |= _assessment(world, profile, scenario_id, key).level == "likely_ok"
     if profile.max_rest_free_run_m is not None:
-        rests = {n for n in nodes if _rest_node_state(world, n) == "PASS"}
+        rests = {n for n in nodes if _rest_node_state(world, n, profile, scenario_id) == "PASS"}
         if _max_rest_gap(world, nodes, keys, rests) > profile.max_rest_free_run_m:
             return "partly_unverified"
     return "likely_ok" if estimated else _caveat(profile, "confirmed")
@@ -442,19 +442,28 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
     return None, [], evals
 
 
-def _rest_places(world: World, node: str) -> list[tuple[str, object]]:
-    """(state, place) for each rest place at a node that may count: PASS or UNKNOWN, never FAIL."""
+def _rest_places(
+    world: World, node: str, profile=None, scenario_id=None
+) -> list[tuple[str, Place]]:
+    """Available rest places: seat claims cannot override a closure or scenario assessment."""
     out = []
     for p in world.places_at(node):
         st = rest_point_state(p) if p.type in REST_TYPES else None
-        if st in ("PASS", "UNKNOWN"):
-            out.append((st, p))
+        if st not in ("PASS", "UNKNOWN") or any(c.is_active() for c in p.closures):
+            continue
+        if profile is not None:
+            flood_state, _ = endpoint_flood(world, p.id, profile, scenario_id)
+            if flood_state == "FAIL":
+                continue
+            if flood_state == "UNKNOWN":
+                st = "UNKNOWN"
+        out.append((st, p))
     return out
 
 
-def _rest_node_state(world: World, node: str) -> str | None:
+def _rest_node_state(world: World, node: str, profile=None, scenario_id=None) -> str | None:
     """PASS if a verified rest point is here, UNKNOWN if only unverified ones, else None."""
-    states = {st for st, _ in _rest_places(world, node)}
+    states = {st for st, _ in _rest_places(world, node, profile, scenario_id)}
     return "PASS" if "PASS" in states else "UNKNOWN" if states else None
 
 
@@ -524,7 +533,7 @@ def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, l
                 if run > limit:
                     continue
                 if nbr not in rest:
-                    st = _rest_node_state(world, nbr)
+                    st = _rest_node_state(world, nbr, profile, scenario_id)
                     rest[nbr] = st == "PASS" or (allow_unknown and st == "UNKNOWN")
                 if len(labels) >= MAX_REST_LABELS:
                     return None, [], evals, True
@@ -612,7 +621,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
     )
     rest, seen = [], set()
     for n in nodes:
-        for st, p in _rest_places(world, n):
+        for st, p in _rest_places(world, n, profile, scenario_id):
             if p.id not in seen:
                 seen.add(p.id)
                 status_word = "verified" if st == "PASS" else "unverified"
@@ -703,7 +712,9 @@ def _max_rest_gap(world, nodes, keys, rest_nodes) -> float:
 def evidence_for_route(world: World, route: Route) -> list[Evidence]:
     out = [
         ev
-        for pid in dict.fromkeys((route.from_place, route.to_place))
+        for pid in dict.fromkeys(
+            [route.from_place, route.to_place, *(r["place_id"] for r in route.rest_points)]
+        )
         for ev in flood_evidence(world, pid, route.scenario_id)
     ]
     for s in route.segments:
@@ -830,7 +841,13 @@ def plan_route(
             )
     result.warnings.extend(
         note
-        for pid in dict.fromkeys((from_id, to_id))
+        for pid in dict.fromkeys(
+            [
+                from_id,
+                to_id,
+                *([r["place_id"] for r in result.routes[0].rest_points] if result.routes else []),
+            ]
+        )
         for note in endpoint_flood_warnings(world, pid, profile, scenario_id)
     )
     if profile.allowed_types is not None and result.routes:

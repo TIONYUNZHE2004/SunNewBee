@@ -108,6 +108,10 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
 - **Rest points are tri-state** (`evaluate.rest_point_state`, from the place's own `seating` /
   `shelter` claim):
   - verified present and fresh: counts;
+  - an active place closure or a FAIL flood assessment excludes the stop;
+  - possible flood or uncovered/partial scenario coverage caps the stop at unverified.
+    Search, returned rest lists and unpreviewed centre rows use the same availability gate;
+    retained uncertain stops carry flood warnings and evidence;
   - verified or reported absent: never counts, and is left out of `rest_points`;
   - no claim (OSM only), unknown, stale, contested or only reported present: counts only in
     the lenient pass.
