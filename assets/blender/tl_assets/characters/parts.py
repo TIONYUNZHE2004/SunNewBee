@@ -159,7 +159,7 @@ def head_parts() -> list[Part]:
         ]
         parts.append(("face", "glasses", geom.tube(lens, [0.0065] * 16, 6, closed=True)))
         rim = lens[0] if s > 0 else lens[8]
-        temple = [rim, on_face(s * 0.95, 0.07, 0.01)[0], on_face(s * 1.3, 0.08, -0.01)[0]]
+        temple = [rim, on_face(s * 0.8, 0.07, 0.006)[0], on_face(s * 1.0, 0.075, 0.0)[0]]
         parts.append(("face", "glasses", geom.tube(temple, [0.006] * 3, 6)))
     bridge = [
         on_face(-0.17, 0.06, 0.026)[0],
@@ -219,9 +219,9 @@ def body_parts() -> list[Part]:
             (0.225, 0.94),
             (0.25, 0.875),
             (0.258, 0.82),
-            (0.25, 0.79),
-            (0.225, 0.78),
-            (0.0, 0.79),
+            (0.245, 0.795),  # touch-up: the hem tucks in and up, so no dark underside slit
+            (0.205, 0.785),
+            (0.0, 0.785),
         ]
     )
     zs = [z for _r, z in cape_prof]
@@ -283,8 +283,8 @@ def body_parts() -> list[Part]:
     kain_prof = _smooth_profile(
         [
             (0.0, 0.46),
-            (0.18, 0.455),
-            (0.19, 0.36),
+            (0.205, 0.455),  # touch-up: flush under the baju hem, so no hollow under it (lap)
+            (0.213, 0.36),
             (0.195, 0.24),
             (0.205, 0.15),
             (0.222, 0.118),

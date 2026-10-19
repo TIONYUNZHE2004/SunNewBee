@@ -68,7 +68,7 @@
   "variants": {
     "walker": {
       "file": "characters/hero_walker.glb",
-      "bytes": 273228,
+      "bytes": 273436,
       "profile": "older_adult_rest",
       "lods": [
         {
@@ -119,7 +119,7 @@
     },
     "stroller": {
       "file": "characters/hero_stroller.glb",
-      "bytes": 271908,
+      "bytes": 272116,
       "profile": "stroller",
       "lods": [
         {
@@ -170,7 +170,7 @@
     },
     "wheelchair": {
       "file": "characters/hero_wheelchair.glb",
-      "bytes": 258424,
+      "bytes": 258632,
       "profile": "wheelchair",
       "lods": [
         {
@@ -221,7 +221,7 @@
     },
     "none": {
       "file": "characters/hero_none.glb",
-      "bytes": 251008,
+      "bytes": 251052,
       "profile": "walking",
       "lods": [
         {
