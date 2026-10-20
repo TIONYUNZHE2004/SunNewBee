@@ -158,7 +158,7 @@ def _entrance(m, lang):
     return f"路线{where}是离{place}最近的已绘制路径；其入口尚未绘制。"
 
 
-@rule(r"Not checked yet: (.+?) on (.+?)(?= \(x\d+\)|[.;]|$)")
+@rule(r"Not checked yet: (?!\d+ places? on the way)(.+?) on (.+?)(?= \(x\d+\)|[.;]|$)")
 def _unchecked(m, lang):
     attrs, el = _attrs(m.group(1), lang), _element(m.group(2), lang)
     return f"Belum disemak: {attrs} pada {el}" if lang == "ms" else f"尚未核实：{el}的{attrs}"
@@ -257,6 +257,44 @@ def _drive(m, lang):
             "yang berubah tidak dimodelkan; indikatif sahaja, tidak pernah disahkan."
         )
     return "驾车路线：已采用地图上的单行标记；未考虑转弯限制和方向变化；仅供参考，从不视为已确认。"
+
+
+@rule(
+    r"^No known barrier on the (.+?)(?:, with (\d+) rest stops? on the way)?"
+    r"( \(demo values, not yet surveyed\))?\.?$"
+)
+def _journey_stretch(m, lang):
+    stretch, n, demo = m.group(1), m.group(2), m.group(3)
+    stretch = {"step-free path": ("laluan tanpa anak tangga", "无台阶路径")}.get(
+        stretch, (stretch, stretch)
+    )[_I[lang]]
+    if lang == "ms":
+        out = f"Tiada halangan diketahui pada {stretch}"
+        out += f", dengan {n} tempat rehat di sepanjang jalan" if n else ""
+        return out + (" (nilai demo, belum ditinjau)" if demo else "") + "."
+    out = f"{stretch}上没有已知障碍"
+    out += f"，途中有{n}个休息点" if n else ""
+    return out + ("（演示数据，尚未实地调查）" if demo else "") + "。"
+
+
+@rule(r"^(\d+) rest stops? on the way( \(demo values, not yet surveyed\))?\.?$")
+def _journey_rests(m, lang):
+    n, demo = m.group(1), m.group(2)
+    if lang == "ms":
+        return (
+            f"{n} tempat rehat di sepanjang jalan"
+            + (" (nilai demo, belum ditinjau)" if demo else "")
+            + "."
+        )
+    return f"途中有{n}个休息点" + ("（演示数据，尚未实地调查）" if demo else "") + "。"
+
+
+@rule(r"^Not checked yet: (\d+) places? on the way, including (.+?)\.?$")
+def _journey_unchecked(m, lang):
+    n, names = m.group(1), m.group(2)
+    if lang == "ms":
+        return f"Belum disemak: {n} tempat di sepanjang jalan, termasuk {names}."
+    return f"尚未核实：途中{n}个地点，包括{names}。"
 
 
 def localize(text: str, lang: str) -> str:

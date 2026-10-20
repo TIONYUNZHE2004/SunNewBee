@@ -141,7 +141,11 @@ async def test_journey_requests_reduce_the_truncated_count(seed, tmp_path):
     ctx = tools.Ctx(world=seed, vrs=VerificationStore(str(tmp_path / "plain.db")))
     plain = tools.plan_route(ctx, HARMONI_1, CAR_PARK_B, PROFILE).data
     ctx = tools.Ctx(world=seed, vrs=VerificationStore(str(tmp_path / "vr.db")))
-    deps = Deps(ctx=ctx, rec=TurnRecord(queue=asyncio.Queue()), request=ChatRequest(message="x"))
+    deps = Deps(
+        ctx=ctx,
+        rec=TurnRecord(queue=asyncio.Queue()),
+        request=ChatRequest(message="x", profile=PROFILE),
+    )
     out = (
         await call_tool(deps, "plan_route", from_id=HARMONI_1, to_id=CAR_PARK_B, profile=PROFILE)
     )["data"]

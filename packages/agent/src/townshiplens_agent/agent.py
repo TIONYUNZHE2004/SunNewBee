@@ -406,7 +406,9 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
                 rec.journeys[r["id"]] = plan
                 r["journey"] = journey_facts(plan)  # counts the answer may state (prompt 9a)
             if i == 0 and (note := road_note(res.warnings)):
-                r["road_note"] = note  # about the first route only (prompt 5j, T-019)
+                # about the first route only (prompt 5j, T-019); "not verified" is not a
+                # demo-safe phrase, so the note uses the product's "not checked yet"
+                r["road_note"] = note.replace("is not verified", "is not checked yet")
             if i == 0:
                 rec.route_warnings[r["id"]] = list(res.warnings)
             rec.routes[r["id"]] = r
