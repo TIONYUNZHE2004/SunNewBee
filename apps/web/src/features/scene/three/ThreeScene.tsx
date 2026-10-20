@@ -11,6 +11,7 @@ import { type LonLat, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { createRoleUniforms } from "./assets/roleMaterial";
 import { DevsimSceneMount } from "./devsim/DevsimSceneMount";
+import { useDevsimSuppress } from "./devsim/suppress";
 import { createEngine } from "./engine";
 import { createFrame } from "./frame";
 import { boundaryOf } from "./ground/boundary";
@@ -181,9 +182,11 @@ export default function ThreeScene({
     roofSrc: city.roofSrc,
     boundary,
   });
+  // Devsim: the city's own construction dressing on the simulated parcel gives way to the devsim kit.
+  const suppress = useDevsimSuppress(frame, buildings?.landcover);
   const { roads, stalls } = useRoads({ engine, active, tier });
   // Verges and construction ground: one ground-decor mesh (stall lines ride the road markings).
-  const { decorOn } = useGroundDecor({ engine, active, tier });
+  const { decorOn } = useGroundDecor({ engine, active, tier, suppress });
   const { facadesOn } = useFacades({
     engine,
     active,
@@ -204,6 +207,7 @@ export default function ThreeScene({
     kitJob: city.kitJob,
     bus,
     boundary,
+    suppress,
   });
   // Street dressing kit (B-T7): fact props (crossings, signals, bus stops, shelters, benches; one
   // per data feature) and decorative props near the camera target.
