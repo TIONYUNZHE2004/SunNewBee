@@ -632,8 +632,21 @@ def draft_errors(text: str, rec: TurnRecord) -> list[str]:
     ]
 
 
+# A topic refusal ("out of scope", "outside what I can check"): never on the management panel.
+TOPIC_REFUSAL = re.compile(
+    r"out(?:side)? of (?:my |the )?scope|outside (?:what I can|my|the) (?:check|scope|remit)"
+    r"|di luar (?:skop|perkara yang boleh)|超出.{0,8}范围",
+    re.IGNORECASE,
+)
+
+
 def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs: list[str] = amenity_selection_errors(ans, rec)
+    if rec.panel == "management" and TOPIC_REFUSAL.search(" ".join([ans.summary, *ans.caveats])):
+        errs.append(
+            "The management panel refuses no topic: answer with the tools, or say "
+            '"I can\'t answer that from our data."'
+        )
     if rec.selection_error and ans.answer_status != "cannot_answer":
         errs.append(
             "Route selection is unresolved: ask which exact places or travel mode "
@@ -1575,7 +1588,7 @@ def rollout_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         errs.append("Give counts as digits from the simulation, not percentages or words.")
     labels = _label_to_stage(rec)
     # Counts must match the stage named in the same sentence (any persona), for that metric.
-    for sent in _sentences(text):
+    for sent in _sentences(_strip_names(text, rec.place_names)):
         named = {
             labels[m.group(0).lower()]
             for m in _LABEL.finditer(sent)

@@ -497,6 +497,10 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         res.data.pop("routes", None)  # geometry and per-resident rows stay out of the prompt
         res.data.pop("residents", None)
         rec.rollouts.append(res.data)
+        # start places hold digits ("Harmoni 1 @ City of Elmina Show Units"): names, not counts
+        rec.place_names |= {
+            c["origin_name"] for c in res.data.get("first_cut_off") or [] if c.get("origin_name")
+        }
     if name in ("rising_river_rollout", "river_tipping_point") and res.ok:
         # every stage was simulated: the flood disclaimer and scenario rules apply
         scs = sorted(deps.ctx.world.flood.scenarios, key=lambda sc: sc.stage_m)
@@ -712,14 +716,19 @@ def _without_closure_notes(out: Any) -> Any:
 
 
 def build_agent(
-    model: Model, escalate_to: Model | None = None, assistant_scope: str | None = None
+    model: Model,
+    escalate_to: Model | None = None,
+    assistant_scope: str | None = None,
+    panel: str = "resident",
 ) -> Agent[Deps, FinalAnswer]:
+    """`panel="management"` (T-023): every tool and no topic refusal, whatever the scope."""
+    assistant_scope = "all" if panel == "management" else assistant_scope
     assistant_scope = assistant_scope or AgentSettings().assistant_scope
     agent = Agent(
         model,
         deps_type=Deps,
         output_type=ToolOutput(FinalAnswer, name="final_answer"),
-        instructions=scoped_instructions(SYSTEM, assistant_scope),
+        instructions=scoped_instructions(SYSTEM, assistant_scope, panel),
         capabilities=[escalation(escalate_to)] if escalate_to is not None else [],
     )
 
@@ -734,7 +743,7 @@ def build_agent(
         # Only ids that exist in the world are interpolated (never free text from the request).
         return (
             f"UI context: profile={r.profile}; active_scenario={ui_scenario(ctx.deps) or 'none'}; "
-            f"assistant_scope={assistant_scope}."
+            f"assistant_scope={assistant_scope}; panel={panel}."
         )
 
     @register_tool

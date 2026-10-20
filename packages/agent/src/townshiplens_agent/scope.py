@@ -97,6 +97,19 @@ _OFFER = {
 }
 
 
+# Management panel (T-023): what staff can ask, in the resident offer's place.
+_OFFER_STAFF = {
+    "en": "I can help township staff with routes and places, flood scenarios and what they cut "
+    "off, rising-river rollouts, what-if changes, and which facts to verify first "
+    "in Elmina.",
+    "ms": "Saya boleh membantu kakitangan perbandaran dengan laluan dan tempat, senario banjir "
+    "dan kawasan yang terputus, simulasi paras sungai naik, perubahan andaian dan fakta yang "
+    "perlu disahkan dahulu di Elmina.",
+    "zh": "我可以帮助镇区工作人员查询 Elmina 的路线和地点、洪水情景及被切断的地方、河水上涨推演、"
+    "假设改动以及优先核实的事实。",
+}
+
+
 def refusal_text(question: str) -> str:
     lang = _lang(question)
     head = {
@@ -107,7 +120,7 @@ def refusal_text(question: str) -> str:
     return f"{head}{'' if lang == 'zh' else ' '}{_OFFER[lang]}"
 
 
-def greeting_text(question: str) -> str:
+def greeting_text(question: str, panel: str = "resident") -> str:
     lang = _lang(question)
     thanks = bool(_THANKS.search(question))
     head = {
@@ -121,10 +134,25 @@ def greeting_text(question: str) -> str:
         "zh": "你想去哪里？",
     }[lang]
     sep = "" if lang == "zh" else " "
+    if panel == "management":
+        return f"{head}{sep}{_OFFER_STAFF[lang]}"
     return f"{head}{sep}{_OFFER[lang]}{sep}{ask}"
 
 
-def scoped_instructions(system: str, scope: str) -> str:
+CANNOT_FROM_DATA = "I can't answer that from our data."
+MANAGEMENT = (
+    "PANEL: management (township staff). Every tool is available and no topic is refused: "
+    "what-if changes, rising-river rollouts, tipping points, fix-it searches and which facts to "
+    "verify first are all answered with tools. Never say a question is out of "
+    "scope or outside what you can check. When no tool can answer it, answer cannot_answer with "
+    f'"{CANNOT_FROM_DATA}" and, when the gap is a missing fact about a mapped place or segment, '
+    "call create_verification_request for it. This replaces rule 10 for this panel.\n\n"
+)
+
+
+def scoped_instructions(system: str, scope: str, panel: str = "resident") -> str:
+    if panel == "management":
+        return MANAGEMENT + system
     if scope == "all":
         return system
     # Preserve the common honesty/output contract; legacy feature instructions start at 13.

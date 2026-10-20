@@ -634,6 +634,15 @@
             "title": "Message",
             "type": "string"
           },
+          "panel": {
+            "default": "resident",
+            "enum": [
+              "resident",
+              "management"
+            ],
+            "title": "Panel",
+            "type": "string"
+          },
           "profile": {
             "default": "default",
             "enum": [

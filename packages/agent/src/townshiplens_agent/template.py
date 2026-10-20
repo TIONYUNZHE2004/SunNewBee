@@ -25,9 +25,9 @@ def scope_answer(question: str) -> FinalAnswer:
     return FinalAnswer(answer_status="cannot_answer", summary=refusal_text(question))
 
 
-def greeting_answer(question: str) -> FinalAnswer:
+def greeting_answer(question: str, panel: str = "resident") -> FinalAnswer:
     """Server-owned hello: what the assistant can help with; no facts, no tools, no ticket."""
-    return FinalAnswer(answer_status="cannot_answer", summary=greeting_text(question))
+    return FinalAnswer(answer_status="cannot_answer", summary=greeting_text(question, panel))
 
 
 def _cannot_summary(rec: TurnRecord, question: str) -> str:

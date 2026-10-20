@@ -1162,6 +1162,12 @@ export interface components {
             /** Message */
             message: string;
             /**
+             * Panel
+             * @default resident
+             * @enum {string}
+             */
+            panel: "resident" | "management";
+            /**
              * Profile
              * @default default
              * @enum {string}
