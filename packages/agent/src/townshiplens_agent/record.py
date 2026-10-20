@@ -60,6 +60,8 @@ class TurnRecord:
     # An earlier turn of this session ran a simulation (from memory): its numbers may not be
     # repeated unless re-simulated this turn.
     history_simulated: bool = False
+    # The screen that asked (ChatRequest.panel): management answers never refuse a topic.
+    panel: str = "resident"
     # plan_verifications results this turn (survey plans: facts, places, summary).
     plans: list[dict] = field(default_factory=list)
     # rising_river_rollout / river_tipping_point results this turn (Cycle 3).

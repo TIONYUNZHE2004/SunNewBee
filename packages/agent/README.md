@@ -39,6 +39,16 @@ values, not yet surveyed. The registry restricts MCP too; its existing verificat
 (`MCP_ALLOW_VR`) still applies, so it exposes eight tools by default and nine when writes are
 explicitly enabled.
 
+**Management panel (T-023).** `ChatRequest.panel` is `resident` (default) or `management`;
+the web client sends the screen's mode. A management turn runs with every tool and no topic
+refusal, whatever `ASSISTANT_SCOPE` says: rollouts, verify-next plans, what-if changes, tipping
+points and fix-it searches are answered with tools (`scope.MANAGEMENT` replaces prompt rule 10).
+A question no tool can answer gets "I can't answer that from our data." (plus a verification
+request only for a missing fact about a mapped place), and the validator rejects a topic refusal
+("out of scope", "outside what I can check") on this panel. A greeting gets a fixed hello that
+lists what staff can ask. Resident turns keep scope B+ unchanged. MCP still follows
+`ASSISTANT_SCOPE`.
+
 `ASSISTANT_SCOPE=all` opts into the legacy features documented below. Legacy engine/pipeline
 tests and removed-feature golden cases opt in explicitly; `tests/test_scope.py` tests the
 default separately. The existing browser hero suite opts into `all` because it includes

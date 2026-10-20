@@ -430,6 +430,8 @@ def test_derived_alias_never_equals_another_place_name():
             {"from_id": _MAHDI, "to_id": _TAQWA},
         ),
         ("from SK TAMAN BKT SUBANG to surau at takwa", {"from_id": _SK, "to_id": _TAQWA}),
+        # live round 6: "subang走到surau" was one word, so neither name was found
+        ("从SK TAMAN BKT SUBANG走到surau at takwa怎么走？", {"from_id": _SK, "to_id": _TAQWA}),
         (
             "from surau al mahdi to surau sk taman bukit subang",
             {"from_id": _MAHDI, "to_id": _SURAU_SK},
@@ -438,6 +440,14 @@ def test_derived_alias_never_equals_another_place_name():
 )
 def test_sloppy_names_bind_to_the_named_place(question, args):
     _guard(load_world(_SEED), question, args, strict=True)
+
+
+@pytest.mark.skipif(not (_SEED / "site.json").exists(), reason="Elmina seed not built")
+def test_one_loose_word_in_a_sentence_is_not_a_place_name():
+    """ "free" is one typo from "Green" (Elmina Green One Park); "kaki" from two place words."""
+    from townshiplens_agent.route_binding import fuzzy_mentions
+
+    assert fuzzy_mentions(load_world(_SEED), "Is it step-free? Boleh jalan kaki?") == (set(), [])
 
 
 @pytest.mark.skipif(not (_SEED / "site.json").exists(), reason="Elmina seed not built")

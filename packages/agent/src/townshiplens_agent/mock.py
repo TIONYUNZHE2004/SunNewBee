@@ -19,6 +19,7 @@ from .labels import (
     status_label,
     unchecked_caveats,
 )
+from .scope import CANNOT_FROM_DATA
 from .template import (
     day_answer,
     day_change_answer,
@@ -191,7 +192,7 @@ DEMO_ORIGIN = ("lakeside-mall", "Elmina Lakeside Mall")  # same start point the 
 _WHERE_NEXT = r"where (?:can|should|do) (?:i|we) go|where (?:to|should i) (?:go|evacuate)"
 _ACCESS_Q = (
     r"stroller|pram|stairs|tangga|wheelchair|kerusi roda|step|older adult|elderly|\brest\b"
-    r"|\beasy\b|\bwalk\b|get to|from .+ to "
+    r"|\beasy\b|\bwalk\b|get to|from .+ to |从.+?(?:走|步行)?到"
 )
 _PROFILE_WORDS = [
     ("wheelchair", r"wheelchair|kerusi roda"),
@@ -223,7 +224,9 @@ def _named(phrase: str) -> str | None:
 def _route_ends(q: str) -> tuple[str | None, str | None]:
     """Both endpoints must be stated; no silent demo origin. A phrase with no pinned place word
     is searched by its own words (find_place by name)."""
-    m = re.search(r"from (.+?) to (.+)", q)
+    m = re.search(r"from (.+?) to (.+)", q) or re.search(
+        r"从(.+?)(?:走|步行)?到(.+?)(?:怎么走|怎样走|可以吗|吗)?[？?。]*$", q
+    )
     if m:
         a, b = m.group(1), m.group(2)
         return _place(a, None) or _named(a), _place(b, None) or _named(b)
@@ -258,6 +261,13 @@ def _route_places(rets, ends: list[tuple[str, str | None]]):
 def _ui(info: AgentInfo, key: str) -> str | None:
     m = re.search(rf"{key}=(\w+)", info.instructions or "")
     return m.group(1) if m else None
+
+
+def _no_answer(info: AgentInfo) -> str:
+    """No tool answers the question: the management panel's words (T-023), else the resident's."""
+    if _ui(info, "panel") == "management":
+        return CANNOT_FROM_DATA
+    return "I can't answer that from the township model yet."
 
 
 def _profile(q: str, info: AgentInfo, fallback: str) -> str:
@@ -979,7 +989,9 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     if n == 1 and found and top < PLACE_MIN_SCORE and not place_q:
         # No place phrase was recognised, so the whole question was searched and only weakly
         # matched: a place may exist, so don't say it is missing or file a VR.
-        return _cannot("I can't answer that from the township model yet.")
+        return _cannot(_no_answer(info))
+    if n == 1 and not found and not place_q and _ui(info, "panel") == "management":
+        return _cannot(_no_answer(info))  # T-023: no place was named, so no place is missing
     if n == 1 and top < PLACE_MIN_SCORE:  # nothing found: the place is missing
         # PDPA: never store the user's words on a staff-visible VR.
         return _call(
@@ -1007,7 +1019,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         if isinstance(details, dict):
             return _place_answer(details, rets[-1][1].get("evidence") or [])
         return _cannot("I couldn't get the details for that place yet.")
-    return _cannot("I can't answer that from the township model yet.")  # found; no VR was filed
+    return _cannot(_no_answer(info))  # found; no VR was filed
 
 
 STREAM_CHUNK = 24  # characters of tool-call JSON per streamed delta

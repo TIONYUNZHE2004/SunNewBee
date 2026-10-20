@@ -233,9 +233,9 @@ def fuzzy_mentions(world, text):
     """Places a text names loosely: ({ids of clear matches}, [[names] of 'which one?' sets]).
     Generic place words ("taman permainan", "游乐场") are removed first: they name a kind of
     place, which the generic-destination rule resolves, never a place called that."""
-    plain = f" {normalise(text)} "
+    plain = f" {place_search.normalise(text)} "  # CJK runs are words: "subang走" -> "subang 走"
     for word in sorted(GENERIC_NAMES, key=len, reverse=True):
-        plain = plain.replace(f" {normalise(word)} ", " ")
+        plain = plain.replace(f" {place_search.normalise(word)} ", " ")
     tokens = plain.split()
     used = [False] * len(tokens)
     ids, ask = set(), []
@@ -248,6 +248,8 @@ def fuzzy_mentions(world, text):
             if phrase in GENERIC_NAMES or (size == 1 and len(phrase) < 3):
                 continue
             rows = _rows(world, phrase)
+            if size == 1 and rows and rows[0]["match"] == place_search.TYPO:
+                continue  # one loose word in a sentence ("free" ~ "green") is not a name
             decision = place_search.decide(rows)
             if decision == "use":
                 ids.add(canonical_id(world, rows[0]["id"]))

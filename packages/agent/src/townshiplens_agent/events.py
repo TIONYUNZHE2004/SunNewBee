@@ -177,3 +177,6 @@ class ChatRequest(BaseModel):
     scenario_id: str | None = Field(default=None, pattern=r"^(baseline|stage_p[1-5]m)$")
     # A random per-tab id (the web client mints it) keying short in-memory follow-up context.
     session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{8,64}$")
+    # Which screen asks (T-023): the management panel gets every tool and no topic refusal; the
+    # resident panel keeps ASSISTANT_SCOPE.
+    panel: Literal["resident", "management"] = "resident"

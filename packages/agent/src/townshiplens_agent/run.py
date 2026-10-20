@@ -608,11 +608,13 @@ async def run_turn(
     # Redact first, then enforce scope before cache/model construction or tool side effects.
     question = redact(req.message)
     # Scope B+: a bare greeting or thanks gets a fixed hello and what the assistant can do, and
-    # only clearly removed features are refused; neither reaches the model or a tool.
-    scoped = settings.assistant_scope == "access_flood"
-    greeting = scoped and is_greeting(question)
+    # only clearly removed features are refused; neither reaches the model or a tool. The
+    # management panel (T-023) has every feature, whatever ASSISTANT_SCOPE says.
+    scope = "all" if req.panel == "management" else settings.assistant_scope
+    scoped = scope == "access_flood"
+    greeting = (scoped or req.panel == "management") and is_greeting(question)
     if greeting or (scoped and outside_scope(question)):
-        ans = greeting_answer(question) if greeting else scope_answer(question)
+        ans = greeting_answer(question, req.panel) if greeting else scope_answer(question)
         memory.add_turn(req.session_id, question, ans.summary)
         yield TextDelta(delta=ans.summary)
         yield Done(
@@ -652,6 +654,7 @@ async def run_turn(
     }
     rec.queue = asyncio.Queue()
     rec.history_simulated = memory.simulated(req.session_id)
+    rec.panel = req.panel
     deps = agent_mod.Deps(ctx=ctx, rec=rec, request=req)
     msg_id = uuid.uuid4().hex[:12]
     model_name = "unknown"
@@ -668,7 +671,7 @@ async def run_turn(
             else None
         )
         agent = agent_mod.build_agent(
-            model, escalate_to=escalate_model, assistant_scope=settings.assistant_scope
+            model, escalate_to=escalate_model, assistant_scope=scope, panel=req.panel
         )
     except Exception as exc:  # misconfiguration (e.g. no key): still answer from the template
         failure = exc
