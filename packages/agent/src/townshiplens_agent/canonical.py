@@ -7,6 +7,7 @@ route, asks which place is meant, and refuses; the steps come from the maneuvers
 """
 
 from .answer import FinalAnswer
+from .journeys import PLAYABLE, journey_steps
 from .labels import (
     LIKELY_OK_CAVEAT,
     STATUS_WORDS,
@@ -109,6 +110,31 @@ def _level(world, sid: str, lang: str) -> str:
     return LEVEL[_I[lang]].format(n=n)
 
 
+def _walk_summary(world, route: dict, status: str, lang: str) -> str:
+    """The journey sentence the mock and template use (spec 2026-10-19 §6.3), per language."""
+    a = _place_name(world, route.get("from_place") or "")
+    b = _place_name(world, route.get("to_place") or "")
+    est = route.get("est_minutes") or 0
+    mins = round(est) if est >= 10 else round(est, 1)
+    dist = round(route["distance_m"])
+    if lang == "ms":
+        words = STATUS_WORDS["ms"].get(status, route_status_text(status, route))
+        return (
+            f"{a} ke {b}: laluan {words}. Ada laluan berjalan kaki yang dipetakan kira-kira "
+            f"{dist} m, kira-kira {mins:g} minit pada kadar ini termasuk rehat."
+        )
+    if lang == "zh":
+        words = STATUS_WORDS["zh"].get(status, route_status_text(status, route))
+        return (
+            f"从{a}到{b}：路线{words}。有一条已绘制的步行路线，约{dist}米，"
+            f"按此步速约{mins:g}分钟（含休息）。"
+        )
+    return (
+        f"{a} to {b}: route {route_status_text(status, route)}. There is a mapped walking route "
+        f"of about {dist} m, about {mins:g} min at this pace plus rests."
+    )
+
+
 def canonical_route_answer(
     ans: FinalAnswer, rec: TurnRecord, world, lang: str = "en"
 ) -> FinalAnswer | None:
@@ -134,9 +160,23 @@ def canonical_route_answer(
         caveats.append("Some segments are still unverified.")
     caveats += rest_caveats(route)
     caveats += [n for n in (route.get("crossing_note"), route.get("road_note")) if n]
+    # "not verified" is not a demo-safe phrase (only "not yet verified"/"unverified" are):
+    # the product's own words for an unchecked fact are "not checked yet".
+    caveats = [c.replace("access is not verified", "access is not checked yet") for c in caveats]
     caveats += closure_caveats([*rec.route_closures, *rec.asked_closures])
     caveats += inferred_caveats(rec.inferred_notes)
     caveats += [w for w in rec.route_warnings.get(rid, []) if not w.startswith(_COVERED)]
+    # The walk (journey facts, deterministic): its lines first, its sentence as the summary.
+    facts = route.get("journey")
+    walk = (
+        bool(facts)
+        and status in PLAYABLE
+        and not rec.route_closures
+        and "list_evacuation_centres" not in rec.tool_calls
+        and route.get("distance_m") is not None
+    )
+    if walk:
+        caveats = [*journey_steps(facts), *caveats]
     to = route.get("to_place") or ""
     if to.startswith("__centre__"):
         c = world.centres.get(to.removeprefix("__centre__"))
@@ -149,7 +189,9 @@ def canonical_route_answer(
         caveats.append(SCENARIO_NOTE[_I[lang]].format(level=_level(world, sid, lang)))
     return ans.model_copy(
         update={
-            "summary": _summary(world, route, status, lang, rec.route_closures),
+            "summary": _walk_summary(world, route, status, lang)
+            if walk
+            else _summary(world, route, status, lang, rec.route_closures),
             "steps": [],
             "caveats": list(dict.fromkeys(caveats)),
             "route_id": rid,

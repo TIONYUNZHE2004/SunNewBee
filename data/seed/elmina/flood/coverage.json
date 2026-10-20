@@ -280,40 +280,17 @@
   "seg-993707024-2",
   "seg-993707025-0"
  ],
- "uncovered_places": [
-  "osm-way-377999794",
-  "osm-way-691513797",
-  "osm-way-691513809"
- ],
+ "uncovered_places": [],
  "places_without_node": [
   "osm-way-1286251726",
-  "osm-way-390964557",
-  "osm-way-407859101",
-  "osm-way-691513809",
   "osm-way-907988141",
   "osm-way-910713223",
   "osm-way-910713224"
  ],
  "places_snap_warnings": [
   {
-   "id": "osm-way-1189405597",
-   "warning": "no walk node within 40 m of the OSM area; snapped to the nearest main-network walk node to its centre"
-  },
-  {
    "id": "osm-way-1286251726",
    "warning": "no walk node within 40 m of the OSM area; not snapped (no main-network walk node within 60 m of its centre)"
-  },
-  {
-   "id": "osm-way-390964557",
-   "warning": "walk nodes near the OSM area are only in small disconnected path fragments (< 50 nodes); not snapped (no main-network walk node within 60 m of its centre)"
-  },
-  {
-   "id": "osm-way-407859101",
-   "warning": "walk nodes near the OSM area are only in small disconnected path fragments (< 50 nodes); not snapped (no main-network walk node within 60 m of its centre)"
-  },
-  {
-   "id": "osm-way-691513809",
-   "warning": "walk nodes near the OSM area are only in small disconnected path fragments (< 50 nodes); not snapped (no main-network walk node within 60 m of its centre)"
   },
   {
    "id": "osm-way-907988141",
@@ -332,14 +309,6 @@
   [
    "osm-node-12041425250",
    "osm-node-12001779678"
-  ],
-  [
-   "osm-way-1184185923",
-   "osm-node-9180790727"
-  ],
-  [
-   "osm-way-1184185924",
-   "osm-node-9180790726"
   ],
   [
    "osm-way-910422251",

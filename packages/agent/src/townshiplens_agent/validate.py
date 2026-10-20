@@ -505,8 +505,14 @@ ESTIMATE_HEDGE = re.compile(
     r"\b(?:likely|estimat\w*|may|might|not (?:yet )?(?:checked|verified|confirmed)|unverified"
     r"|unchecked|recorded|on the map|map data|tagged)\b"
     r"|\b(?:mungkin|kemungkinan|anggaran|dianggarkan|belum|direkodkan|data peta)\b"
-    r"|可能|估计|估算|未核实|尚未|记录|地图数据",
+    r"|可能|估计|估算|未核实|尚未|记录|地图数据"
+    # the demo qualifier hedges a demo-value fact ("step-free path (demo values, not yet
+    # surveyed)", journey steps), as the existing demo rules already require
+    r"|demo values|not yet surveyed|nilai demo|belum ditinjau|演示数据|尚未实地调查",
     re.IGNORECASE,
+)
+DEMO_HEDGE = re.compile(
+    r"demo values|not yet surveyed|nilai demo|belum ditinjau|演示数据|尚未实地调查", re.I
 )
 ESTIMATE_WORDS = re.compile(r"\bestimat|\banggar|估计|估算|推估", re.IGNORECASE)
 _CLAUSE = re.compile(r"[.;:!?。；：！？\n,，]")
@@ -525,9 +531,15 @@ def estimate_claim_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     if _status_of(ans, rec) != "likely_ok" and not levels & {"likely_ok", "unknown"}:
         return []
     text = _strip_names(" ".join([ans.summary, *ans.steps, *ans.caveats]), rec.place_names)
+    # a comma inside brackets does not end the clause ("(demo values, not yet surveyed)")
+    text = re.sub(
+        r"[(（][^)）]*[)）]", lambda m: m.group(0).replace(",", " ").replace("，", " "), text
+    )
     bad = [
         m.group(0)
-        for clause in _CLAUSE.split(text)
+        for sentence in re.split(r"[.;!?。；！？\n]+", text)
+        if not DEMO_HEDGE.search(sentence)  # the demo qualifier covers its whole sentence
+        for clause in _CLAUSE.split(sentence)
         for m in ACCESS_CLAIM.finditer(clause)
         if not ESTIMATE_HEDGE.search(clause)
     ]

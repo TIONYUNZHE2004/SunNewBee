@@ -363,7 +363,8 @@ async def test_clear_hit_still_answers(world, tmp_path):
 
 async def test_weak_match_without_a_place_phrase_says_cannot_and_files_nothing(world, tmp_path):
     """Review #3 minor 5: a weak hit on the whole question may be a real place: no "missing" VR."""
-    evs = await _turn(world, tmp_path, "Is Qwzxv Plaza open now?", "default", None)
+    # T-022 cleanup removed "Plaza Tol Elmina", the old weak hit: "Mall" keeps one
+    evs = await _turn(world, tmp_path, "Is Qwzxv Mall open now?", "default", None)
     assert evs[-1].answer_status == "cannot_answer"
     assert not [e for e in evs if e.type == "verification.requested"]
     assert "don't have that place" not in _text(evs)

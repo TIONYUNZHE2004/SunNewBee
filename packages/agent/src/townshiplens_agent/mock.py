@@ -990,10 +990,11 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             question_summary="place asked about in chat was not found in the township model",
         )
     if top < PLACE_MIN_SCORE:
+        # T-022: none found -> "I can't find that place. Did you mean X?" (a weak match only)
+        guess = f" Did you mean {found[0]['name']}?" if found else ""
         return _final(
             answer_status="cannot_answer",
-            summary="I don't have that place in the township model yet. "
-            "I've asked the team to check.",
+            summary=f"I can't find that place.{guess} I've asked the team to check.",
         )
     if place_q:  # "Tell me about <place>": summarise what the model has, with statuses
         close = [p for p in found if top - p.get("score", 1.0) < PLACE_CLEAR_MARGIN]

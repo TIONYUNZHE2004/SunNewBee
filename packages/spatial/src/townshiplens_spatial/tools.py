@@ -13,7 +13,7 @@ import networkx as nx
 
 from . import flood as _flood
 from . import models as _m
-from . import routing
+from . import place_search, routing
 from .closure_store import ClosureStore
 from .geo import haversine_m
 from .models import Claim, Closure, Evidence, ToolResult, photo_url
@@ -122,11 +122,19 @@ def find_place(
             continue
         if origin and haversine_m(origin.coord, p.coord) > 1000:
             continue
-        score = max(_score_name(q, n.lower()) for n in [p.name, *p.aliases])
+        names = [p.name, *p.aliases]
+        kind = None if _CJK.search(q) else place_search.match(q, names)
+        if kind:
+            score = max(place_search.score(q, kind, n) for n in names)
+        else:
+            # CJK, or a weak overlap: the older scorer, never above a typo match (T-022)
+            score = max(_score_name(q, n.lower()) for n in names)
+            kind = place_search.EXACT if score == 1.0 else place_search.PARTIAL
+            score = score if kind == place_search.EXACT or _CJK.search(q) else min(score, 0.79)
         if score >= 0.6:
-            scored.append((score, p))
-    scored.sort(key=lambda t: (-t[0], len(t[1].name), t[1].id))
-    top = [p for _, p in scored[:limit]]
+            scored.append((score, kind, p))
+    scored.sort(key=lambda t: (-t[0], *place_search.rank_key(ctx.world, q, t[1], t[2])))
+    top = [p for _, _, p in scored[:limit]]
     return ToolResult(
         ok=True,
         data=[
@@ -135,9 +143,10 @@ def find_place(
                 "name": p.name,
                 "type": p.type,
                 "score": round(s, 2),
+                "match": kind,  # exact | words | typo | partial (T-022)
                 **_place_provenance(p),
             }
-            for s, p in scored[:limit]
+            for s, kind, p in scored[:limit]
         ],
         evidence=[routing.place_evidence(p) for p in top],
         warnings=_demo_place_warnings(top),

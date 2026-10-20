@@ -145,10 +145,12 @@ def test_find_place_the_park_ranks_literal_park_first(ctx):
     ctx.world.places["park"] = Place(
         id="park", type="park", name="Park", coord=[101.51, 3.18], node_id="n-a"
     )
-    ids = [d["id"] for d in tools.find_place(ctx, "the park").data]
-    assert ids[0] == "park"
-    assert ids == [d["id"] for d in tools.find_place(ctx, "the park").data]
-    assert ids[1:] == sorted(ids[1:], key=lambda i: (len(ctx.world.places[i].name), i))
+    rows = tools.find_place(ctx, "the park").data
+    ids = [d["id"] for d in rows]
+    assert ids[0] == "park" and rows[0]["match"] == "exact"
+    assert ids == [d["id"] for d in tools.find_place(ctx, "the park").data]  # deterministic
+    # T-022 rank: score first; ties by start-of-name, inside the township, shorter name, id
+    assert [d["score"] for d in rows] == sorted((d["score"] for d in rows), reverse=True)
 
 
 def test_stale_status_claim_files_stale_vr(ctx):

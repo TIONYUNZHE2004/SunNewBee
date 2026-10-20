@@ -19,6 +19,10 @@ valueless verified claims become `unknown`, and expired claims become `stale`. R
 and evidence retain their audit status. An undated positive sidewalk cannot confirm a route;
 an undated rest stop can support only a `partly_unverified` journey that names the unchecked stop.
 
+When no route meets a profile's rest limit, `/routes` recommends the route with the smallest
+longest stretch without rest, then the lowest route weight. `/journeys` uses that same route.
+The response still reports the exceeded limit and caps the route at `partly_unverified`.
+
 ## Endpoints
 
 "Staff" means the `X-Staff-Token` header is required: 401 (wrong or missing token), 503 (token not configured; the default `change-me` counts as not configured).

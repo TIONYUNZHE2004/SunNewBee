@@ -75,7 +75,11 @@ def _intents(evs):
 
 async def _planned(world, tmp_path, a, b, profile):
     ctx = tools.Ctx(world=world, vrs=VerificationStore(str(tmp_path / "vr.db")))
-    deps = Deps(ctx=ctx, rec=TurnRecord(queue=asyncio.Queue()), request=ChatRequest(message="x"))
+    deps = Deps(
+        ctx=ctx,
+        rec=TurnRecord(queue=asyncio.Queue()),
+        request=ChatRequest(message="x", profile=profile),
+    )
     out = await call_tool(deps, "plan_route", from_id=a, to_id=b, profile=profile)
     return deps.rec, out["data"]["routes"][0]
 
@@ -431,12 +435,19 @@ async def test_wording_scan_over_tiny_plans_and_template(tiny, tmp_path, a, b, p
 
 @pytest.mark.parametrize("phrase,query", [("lakesid", "lakesid"), ("my house", "house")])
 async def test_a_weak_name_match_is_not_taken_as_the_origin(tiny, tmp_path, phrase, query):
-    """Final review (3): a phrase find_place matches only weakly ("lakesid" scores 0.84 for
-    Elmina Lakeside Mall) or not at all falls back to Car Park B, as before names were searched."""
+    """Final review (3), updated for the PR #15 rules + T-022: an origin is never filled in
+    silently with the demo Car Park B. A sloppy but clear name ("lakesid", a word prefix of
+    Elmina Lakeside Mall) is used AND named in the answer; a phrase that names no place ("my
+    house") gets no route at all."""
     q = f"Can I push a stroller from {phrase} to the kiosk?"
     evs, rec, _ = await _turn(tiny, tmp_path, q, "stroller")
     calls = [e for e in evs if e.type == "tool.call"]
-    assert [c.name for c in calls] == ["find_place", "find_place", "find_place", "plan_route"]
-    assert [c.args.get("query") for c in calls[:3]] == [query, "car park b", "kiosk"]
-    assert calls[3].args["from_id"] == "park-b" and calls[3].args["to_id"] == "kiosk"
+    assert calls[0].name == "find_place" and calls[0].args.get("query") == query
+    assert all(c.args.get("query") != "car park b" for c in calls)  # no silent demo origin
+    routes = [c for c in calls if c.name == "plan_route"]
+    if phrase == "lakesid":
+        assert [r.args["from_id"] for r in routes] == ["lakeside-mall"]
+        assert "Elmina Lakeside Mall to Park kiosk" in _text(evs)  # the place taken is named
+    else:
+        assert routes == [] and evs[-1].answer_status == "cannot_answer"
     assert rec.validator_errors == []
