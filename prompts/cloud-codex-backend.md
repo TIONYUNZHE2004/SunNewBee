@@ -4,7 +4,7 @@ START
 1. Base your work on branch `claude/sweet-davinci-29v7ne` (the control branch; it equals main after PR #16). Create your own branch `codex/backend-t024-t025`.
 2. Read AGENTS.md (commands, architecture, honesty rules), packages/spatial/README.md, apps/api/README.md.
 3. Read the task files from the board branch, without checking it out: `git fetch origin yunzhe/agent-board && git show origin/yunzhe/agent-board:tasks/T-024-flood-impact-markers.md` and `.../T-025-event-closure-simulation.md`, and the "Fewer commits" section of README.md there.
-4. Setup: `pnpm install && uv sync --all-packages --all-groups` (`--all-packages` is required). Always `LLM_PROVIDER=mock`. No live model calls.
+4. Setup: `pnpm install && uv sync --all-packages --all-groups` (`--all-packages` is required). Default `LLM_PROVIDER=mock` for unit tests; live rules in STEP 0 below.
 
 TASK 1: T-024 river rise (+1/+2/+3 m only)
 - Remove `stage_p4m` and `stage_p5m` from `data/seed/elmina/flood/scenarios.json` and every place that lists scenarios (API, tools, tests, demo recordings that use them). Do not rebuild the flood data.
@@ -20,6 +20,7 @@ TASK 2: T-025 event simulation (scenario comparison, no LLM)
 - Tests on the tiny fixture: a closed segment reroutes a known trip; a cut segment gives no_route, never "blocked" for a data gap.
 
 RULES
+- Live model calls: see STEP 0. Budget for this session: at most US$1.00 (one live round of event and flood questions through the app).
 - Lanes: you own packages/spatial, apps/api, data/. Do not edit packages/agent or apps/web; if an agent test breaks because of your change, note it for the AI engineer.
 - Honesty: never "safe"/"selamat"/"安全", never a water depth, scenarios are "indicative, not a forecast".
 - Commits: one commit per finished, tested step (conventional: `feat(spatial): …`, `fix(api): …`, `data: …`). No checkpoint or log-only commits. Docs/README changes ride in the same commit as the code.

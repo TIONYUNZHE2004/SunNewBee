@@ -27,7 +27,7 @@ RULES
 - Lanes: you own packages/agent (and the one apps/web field above). Do not edit packages/spatial or apps/api beyond the ChatRequest field; ask in the PR if you need more.
 - Honesty invariants in AGENTS.md stay true. Never present demo/placeholder values as verified.
 - Re-record the Elmina demo cache with the mock when answers change: `ASSISTANT_SCOPE=all TURN_TIMEOUT_S=600 LLM_PROVIDER=mock uv run python -m townshiplens_agent.cli --record "<question>" --profile <p>`.
-- Live model calls: at most one round of 10 questions at the very end, only if OPENROUTER_API_KEY is available; report the cost.
+- Live model calls: see STEP 0. Budget for this session: at most US$2.00.
 - Commits: one commit per finished, tested step; no checkpoint or log-only commits; docs ride with code.
 - Before done, run with `set -o pipefail`: `pnpm lint`, `uv run pytest -q`, `pnpm -r --if-present typecheck`, `pnpm -r --if-present test`, `pnpm gen && git diff --exit-code packages/api-client`, `pnpm golden`.
 
