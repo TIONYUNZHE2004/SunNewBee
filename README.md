@@ -83,6 +83,10 @@ Yunzhe starts `scripts/overnight.sh` for each engineer. It resumes your latest s
 - When no item is left, print `NOTHING LEFT` as the last line. The script then stops.
 - Live model calls only within your SPEND.md limit; at most 10 questions per round.
 
+## Codex on Yunzhe's PC (git access)
+
+Start Codex from `~/hackathon`, not from inside its worktree: `cd ~/hackathon && codex`, then work in `SunNewBee-backend` with `git -C SunNewBee-backend …`. Codex's sandbox makes the top-level `.git` of the folder it starts in read-only (by design), so commits and fetches fail from inside the worktree. Remotes use SSH (`git@github.com:TIONYUNZHE2004/SunNewBee.git`); HTTPS logins do not work inside the sandbox.
+
 ## Testing without burning money
 
 - Never "run 100 questions, fix one, run 100 again".

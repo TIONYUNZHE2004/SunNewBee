@@ -40,7 +40,8 @@ while [ "$(now)" -lt "$end" ] && [ ! -f "$DIR/.overnight-stop" ] && [ "$round" -
   echo "$(stamp) round $round start" >>"$LOG"
   case "$AGENT" in
     codex)
-      codex exec resume --last -o "$last" "$ROUND_PROMPT" >>"$LOG" 2>&1
+      # Run from the parent folder: Codex keeps a writable root's own .git read-only.
+      (cd "$(dirname "$DIR")" && codex exec resume --last -o "$last" "$ROUND_PROMPT") >>"$LOG" 2>&1
       rc=$?
       ;;
     claude)
