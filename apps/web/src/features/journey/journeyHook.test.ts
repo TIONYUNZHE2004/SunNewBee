@@ -18,6 +18,7 @@ describe("window.__journey", () => {
     expect(Object.keys(h).sort()).toEqual(
       [
         "camera",
+        "grid",
         "hero",
         "pause",
         "phases",

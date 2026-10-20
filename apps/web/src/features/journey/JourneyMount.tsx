@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { loadProfile } from "../../lib/profileStore";
 import type { LonLat } from "../scene/geo";
 import { setTreeCut } from "../scene/three/assets/treeCut";
+import { VFOV_DEG } from "../scene/three/cameraRig";
 import { preloadHeroModel } from "../scene/three/characters/glbHero";
 import type { Clearance } from "../scene/three/clearance";
 import type { Engine } from "../scene/three/engine";
@@ -12,13 +13,17 @@ import {
   type FollowScene,
   HERO_CHEST_Y,
   holdSubjects,
+  type TrackMemo,
+  trackMemoFor,
+  warmTrack,
 } from "../scene/three/journey/followRig";
 import { heroPositionAt } from "../scene/three/journey/heroDriver";
 import type { ViewFit } from "../scene/three/journey/safeFrame";
-import { createFollowController, overviewFor, routeOverview } from "./followCamera";
+import { createFollowController, overviewFor, routeOverviewFit } from "./followCamera";
 import { JourneyOverlay } from "./JourneyOverlay";
 import {
   journeyCamera,
+  journeyGrid,
   journeyHero,
   journeyShow,
   journeyStateOf,
@@ -259,44 +264,95 @@ export function JourneyMount({
     const destLl = arrive?.element_id ? places?.get(arrive.element_id) : undefined;
     const destination = destLl ? frame.toLocal(destLl[0], destLl[1]) : null;
     let ov: { fit: unknown; pose: FollowScene["overview"] } | null = null;
-    // The pull-back ends on the route's own overview, not the township's (gate §9.1 F4).
-    const endPose = routeOverview(layer.path.pointAt, layer.path.planLength);
+    // The pull-back ends on the route's own overview, not the township's (gate §9.1 F4), fitted so
+    // the whole route and every marker (the start and the final one included) sit in the UI-safe
+    // area (iteration 2). Rebuilt when the view changes.
+    const markers = plan.events
+      .map((_, i) => layer.anchorOf(i))
+      .filter((a): a is [number, number, number] => !!a);
+    let end: { view: ViewFit | null; pose: FollowScene["overview"] } | null = null;
+    const endPose = (view: ViewFit | null) => {
+      if (!end || end.view !== view)
+        end = {
+          view,
+          pose: routeOverviewFit(layer.path.pointAt, layer.path.planLength, view, markers),
+        };
+      return end.pose;
+    };
     const overview = () => {
       const fit = engine.cameraFit?.() ?? null;
       if (!ov || ov.fit !== fit)
         ov = { fit, pose: overviewFor(engine, layer.path.pointAt, layer.path.planLength) };
       return ov.pose;
     };
-    // The UI-safe hold fit's view (final gate, AC-D11): the engine camera's projection and the map
-    // area no UI covers. Rebuilt only when the projection, canvas or card viewport changes.
+    // The UI-safe hold fit's view (final gate, AC-D11): the engine camera's projection at the
+    // follow camera's field of view (the dive widens the drawn one; a hold and the route overview
+    // are framed at VFOV_DEG) and the map area no UI covers. Rebuilt only when the aspect, the
+    // view offset, the canvas or the card viewport changes, so the camera track's memo keeps.
     let vf: { key: string; view: ViewFit } | null = null;
     const viewFit = (): ViewFit | null => {
       const v = engine.pickView();
       const cam = v.camera as THREE.PerspectiveCamera;
       if (!cam.isPerspectiveCamera) return null;
       const vp = viewportRef.current;
-      const key = `${cam.projectionMatrix.elements.join(",")}|${v.size.join(",")}|${vp.w},${vp.h},${vp.top ?? 0}`;
-      if (!vf || vf.key !== key) vf = { key, view: createViewFit(cam, v.size, safeRectOf(vp)) };
+      const o = cam.view;
+      const key = `${cam.aspect}|${o ? `${o.offsetX},${o.offsetY},${o.width},${o.height},${o.fullWidth},${o.fullHeight},${o.enabled}` : "-"}|${v.size[0]},${v.size[1]}|${vp.w},${vp.h},${vp.top ?? 0}`;
+      if (!vf || vf.key !== key) {
+        const follow = cam.clone();
+        follow.fov = VFOV_DEG;
+        follow.updateProjectionMatrix();
+        vf = { key, view: createViewFit(follow, v.size, safeRectOf(vp)) };
+      }
       return vf.view;
     };
+    // The camera track's memo (iteration 2): one per follow-scene inputs.
+    let memo: TrackMemo | null = null;
     const scene = (): FollowScene | null => {
       const s = useJourney.getState();
       const tl = s.timeline;
       if (!tl || s.plan !== plan) return null;
       const h = heroRef.current;
+      const clearance = engine.clearance?.() ?? null;
+      const ov = overview();
+      const view = viewFit();
+      memo = trackMemoFor(memo, [tl, clearance, ov, view, h]);
       return {
         timeline: tl,
         pointAt: layer.path.pointAt,
         seatOf: h ? (i) => h.seats.get(i) ?? null : undefined,
         destination,
-        clearance: engine.clearance?.() ?? null,
-        overview: overview(),
-        pullBackTo: endPose,
+        clearance,
+        overview: ov,
+        pullBackTo: endPose(view),
         heroAt: h ? (t) => heroPositionAt(tl, t, h.helpers) : undefined,
         markerOf: (i) => layer.anchorOf(i),
-        view: viewFit(),
+        view,
+        track: memo,
       };
     };
+    // The camera track is filled at idle moments ahead of the trip (pure values: no pose changes),
+    // so the dive's first frame and a seek do not compute a window of samples at once (AC-D18).
+    const ric = globalThis as {
+      requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    let warmId: number | undefined;
+    let warmTimer: ReturnType<typeof setTimeout> | undefined;
+    const warmSlice = () => {
+      warmId = undefined;
+      const sc = scene();
+      // warm: look again in a second (a new memo when the building grid or the view changes)
+      if (sc && warmTrack(sc, 6)) warmTimer = setTimeout(scheduleWarm, 1000);
+      else if (sc) scheduleWarm();
+      else warmTimer = setTimeout(scheduleWarm, 500);
+    };
+    const scheduleWarm = () => {
+      if (warmId !== undefined) return;
+      warmId = ric.requestIdleCallback
+        ? ric.requestIdleCallback(warmSlice, { timeout: 1000 })
+        : (setTimeout(warmSlice, 50) as unknown as number);
+    };
+    if (import.meta.env.MODE !== "test") scheduleWarm();
     const ctl = createFollowController({
       engine,
       scene,
@@ -337,6 +393,7 @@ export function JourneyMount({
         ctl.engage();
       if (s.camMode !== prev.camMode || s.playing !== prev.playing) engine.requestRender();
     });
+    journeyGrid.current = () => engine.clearance?.()?.obstacles ?? null;
     journeyCamera.current = () => {
       const v = engine.pickView();
       const st = journeyStateOf(useJourney.getState());
@@ -382,6 +439,11 @@ export function JourneyMount({
       return { ...probe, safeFit };
     };
     return () => {
+      clearTimeout(warmTimer);
+      if (warmId !== undefined) {
+        if (ric.requestIdleCallback && ric.cancelIdleCallback) ric.cancelIdleCallback(warmId);
+        else clearTimeout(warmId as unknown as ReturnType<typeof setTimeout>);
+      }
       unsub();
       clearInterval(patchTimer);
       setCut(NO_CUT);
@@ -389,6 +451,7 @@ export function JourneyMount({
       engine.setCameraDriver?.(null);
       engine.setFocusPoint?.(null);
       journeyCamera.current = null;
+      journeyGrid.current = null;
     };
   }, [engine, frame, plan, layer, places]);
 

@@ -23,13 +23,15 @@ import {
   FOLLOW,
   type FollowScene,
   followPose,
-  followPoseAt,
+  followTrackAt,
   framingFor,
   HERO_CHEST_Y,
   holdSubjects,
   journeyCameraAt,
+  landingTime,
   MIN_HERO_DIST_M,
   rawFrameAt,
+  TRACK,
 } from "./followRig";
 import { heroPositionAt, heroStateAt } from "./heroDriver";
 import { insideSafe } from "./safeFrame";
@@ -159,7 +161,8 @@ describe("damping, dive and pull-back", () => {
     const a = journeyCameraAt(sc, 0, "follow") as CamPose;
     expect(dist(a.pos, OVERVIEW.pos)).toBeLessThan(1e-6);
     const b = journeyCameraAt(sc, DIVE_S, "follow") as CamPose;
-    const f = followPoseAt(sc, DIVE_S);
+    // the dive lands on the camera track, a moment into it (iteration 2)
+    const f = followTrackAt(sc, landingTime(tl, DIVE_S));
     expect(dist(b.pos, f.pos)).toBeLessThan(1e-6);
     // the distance to the look point only shrinks during the dive
     let last = Number.POSITIVE_INFINITY;
@@ -377,13 +380,15 @@ describe.skipIf(!existsSync(SEED))("seed buildings: clearance interplay", () => 
     const bare = scene();
     let kept = 0;
     let raised = 0;
-    for (let t = DIVE_S; t < tl.total - PULL_S; t += 0.13) {
+    for (let t = DIVE_S; t < tl.total - PULL_S; t += 0.1) {
       const a = journeyCameraAt(bare, t, "follow") as CamPose;
       const b = journeyCameraAt(sc, t, "follow") as CamPose;
+      // (a lift past the pitch limit also stands the camera back: iteration 2, so a raised camera
+      // seldom keeps its x, z; count the raises over all samples)
+      if (b.pos[1] > a.pos[1] + 0.5) raised++;
       if (Math.hypot(a.pos[0] - b.pos[0], a.pos[2] - b.pos[2]) > 0.01) continue;
       kept++;
       expect(b.pos[1]).toBeGreaterThanOrEqual(a.pos[1] - 1e-9);
-      if (b.pos[1] > a.pos[1] + 0.5) raised++;
     }
     expect(kept).toBeGreaterThan(300);
     expect(raised).toBeGreaterThan(0);
@@ -470,10 +475,18 @@ describe("UI-safe hold framing (final gate AC-D11)", () => {
   it("without a view the poses are the plain follow poses; with one, walks are unchanged", () => {
     const plain = scene();
     const fitted = scene({ view, markerOf });
-    for (const p of tl.phases.filter((q) => q.kind === "walk")) {
-      const t = (p.t0 + p.t1) / 2;
+    // the hold fit reaches a walk only through the camera track's kernel (iteration 2): a walk
+    // time further than the kernel's reach from every hold is the plain pose
+    const reach = 3 * Math.max(TRACK.highAzSigmaS, TRACK.azSigmaS, TRACK.sigmaS);
+    const holds = tl.phases.filter((q) => q.kind === "event");
+    let n = 0;
+    for (let t = DIVE_S; t < tl.total - PULL_S; t += 0.5) {
+      if (stateAt(tl, t).phase.kind !== "walk") continue;
+      if (holds.some((h) => t > h.t0 - reach && t < h.t1 + reach)) continue;
+      n++;
       expect(journeyCameraAt(fitted, t, "follow")).toEqual(journeyCameraAt(plain, t, "follow"));
     }
+    expect(n).toBeGreaterThan(0);
   });
 
   it("the fitted camera is as smooth at 10 Hz as the plain one (no jump at a hold's ends)", () => {

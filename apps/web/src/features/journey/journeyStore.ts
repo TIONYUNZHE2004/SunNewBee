@@ -70,6 +70,11 @@ export const journeyHero: { current: HeroPose | null } = { current: null };
  * Test-only (`__journey.camera()`); computed when called, never per frame.
  */
 export const journeyCamera: { current: (() => CameraProbe) | null } = { current: null };
+/**
+ * The drawn-building grid's obstacles (iteration 2), registered by the 3D mount: the camera's view
+ * of the city for offline checks of the follow camera. Test-only (`__journey.grid()`).
+ */
+export const journeyGrid: { current: (() => unknown) | null } = { current: null };
 /** A drawn part the acceptance hook can switch: the ribbon, or her body's own colours (flat magenta when off). */
 export type JourneyPart = "ribbon" | "heroColour";
 /**

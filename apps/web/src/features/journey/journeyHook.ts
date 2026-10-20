@@ -5,6 +5,7 @@ import {
   type HeroProbe,
   type JourneyPart,
   journeyCamera,
+  journeyGrid,
   journeyHero,
   journeyShow,
   journeyStateOf,
@@ -39,6 +40,8 @@ export interface JourneyHook {
    * building, and the current hold's element on screen. Null without a 3D player.
    */
   camera: () => CameraProbe | null;
+  /** Acceptance diagnostics: the drawn-building grid's obstacles (local metres), or null. */
+  grid: () => unknown;
   /** Acceptance: hides (false) or shows a drawn part (`JourneyPart`); false without a 3D player. */
   show: (part: JourneyPart, visible: boolean) => boolean;
   state: () => (JourneyState & { t: number; playing: boolean; camMode: CamMode }) | null;
@@ -67,6 +70,7 @@ export function createJourneyHook(): JourneyHook {
       return opts?.contacts && probe ? { ...pose, ...probe() } : pose;
     },
     camera: () => (s().plan ? (journeyCamera.current?.() ?? null) : null),
+    grid: () => journeyGrid.current?.() ?? null,
     show: (part, visible) => {
       const f = journeyShow.current;
       if (!f) return false;

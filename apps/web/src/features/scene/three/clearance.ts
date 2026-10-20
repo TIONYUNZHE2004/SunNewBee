@@ -101,6 +101,8 @@ export interface ClearedPose {
 
 export interface Clearance {
   readonly count: number;
+  /** The obstacles the grid was built from (acceptance diagnostics: `__journey.grid()`). */
+  readonly obstacles: readonly Obstacle[];
   readonly maxTopM: number;
   readonly clearanceM: number;
   /** Top of the tallest footprint containing (x, z), or 0 when none does. */
@@ -401,6 +403,7 @@ export function createClearance(
 
   return {
     count: entries.length,
+    obstacles,
     maxTopM,
     clearanceM,
     topAt: (x, z) => maxRoofNear(x, z, 0),

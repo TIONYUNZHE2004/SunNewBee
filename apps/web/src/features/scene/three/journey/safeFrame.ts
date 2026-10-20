@@ -52,6 +52,11 @@ export const SAFE_FIT = {
   tolPx: 0.5,
   /** The camera never looks above this downward slope (dir.y / |dir|): it stays a look-down shot. */
   maxUpSlope: -0.03,
+  /**
+   * Nor steeper than this look-down (deg): a 3/4 view, never overhead (iteration 2, the owner saw
+   * a near top-down hold at the 638 m bench). Raising and tilting stop there; the fit pulls back.
+   */
+  maxDownDeg: 45,
   /** Seconds a hold's fit eases in after the hold starts and out before it ends. */
   rampS: 0.6,
   /** Screen pads: the active marker sprite (~65 px tall at 900 px), the element, her body. */
@@ -100,7 +105,14 @@ export function turnCamera(p: CamPoseLike, yaw: number, pitch: number): CamPoseL
   const rl = norm(right);
   if (rl > 1e-9) {
     const turned = rotate(dir, scale(right, 1 / rl), pitch);
-    if (turned[1] / len <= SAFE_FIT.maxUpSlope) dir = turned;
+    const minSlope = -Math.sin((SAFE_FIT.maxDownDeg * Math.PI) / 180);
+    if (turned[1] / len < minSlope) {
+      // the steepest allowed look-down instead (keep the horizontal heading)
+      const h = Math.hypot(turned[0], turned[2]) || 1e-6;
+      const y = minSlope * len;
+      const hl = Math.sqrt(Math.max(0, len * len - y * y));
+      dir = [(turned[0] / h) * hl, y, (turned[2] / h) * hl];
+    } else if (turned[1] / len <= SAFE_FIT.maxUpSlope) dir = turned;
     else {
       // the steepest allowed slope instead (keep the horizontal heading)
       const h = Math.hypot(turned[0], turned[2]) || 1e-6;
@@ -192,9 +204,12 @@ export function fitSafe(
     // Subjects too high (the marker under the top stack): first raise the camera over its look
     // point (a steeper look-down), only then tilt up. Tilting up brought the mid-distance facades
     // into the top of the frame, inside the depth-of-field band (AC-B4 beat 16, rest at 888 m).
-    if (dy > SAFE_FIT.tolPx && raised < SAFE_FIT.maxRaiseM) {
+    // (never past the steepest look-down)
+    const hd = Math.hypot(p.pos[0] - p.look[0], p.pos[2] - p.look[2]);
+    const headroom = p.look[1] + hd * Math.tan((SAFE_FIT.maxDownDeg * Math.PI) / 180) - p.pos[1];
+    if (dy > SAFE_FIT.tolPx && raised < SAFE_FIT.maxRaiseM && headroom > 0.05) {
       const dist = Math.hypot(p.pos[0] - p.look[0], p.pos[1] - p.look[1], p.pos[2] - p.look[2]);
-      const up = Math.min(SAFE_FIT.maxRaiseM - raised, Math.max(0.25, (dist * dy) / f));
+      const up = Math.min(SAFE_FIT.maxRaiseM - raised, headroom, Math.max(0.25, (dist * dy) / f));
       p = { pos: [p.pos[0], p.pos[1] + up, p.pos[2]], look: [...p.look] };
       raised += up;
       constrain?.(p);
@@ -221,4 +236,59 @@ export function holdFitWeight(t: number, t0: number, t1: number): number {
   const r = SAFE_FIT.rampS;
   const u = Math.max(0, Math.min(1, (t - t0) / r, (t1 - t) / r));
   return u * u * (3 - 2 * u);
+}
+
+/** The overview fit's limits: pull-back step and most steps, and the screen pads (px). */
+export const OVERVIEW_FIT = {
+  pullStep: 1.08,
+  iterations: 40,
+  routePadPx: 10,
+  pinPadPx: 40,
+} as const;
+
+/**
+ * An overview pose fitted to the UI-safe rectangle (gate §9.1 re-check: the pull-back's route
+ * overview cut the start and final markers at the frame's edges). The camera keeps its heading and
+ * pitch: it slides (camera and look point together) so the subjects' padded screen box is centred
+ * in the safe rectangle, and stands back along its view line while the box is larger than it or
+ * a subject is behind it. Pure and deterministic (a fixed number of steps).
+ */
+export function fitOverview(
+  pose: CamPoseLike,
+  subjects: readonly Subject[],
+  view: ViewFit,
+): CamPoseLike {
+  if (subjects.length === 0) return pose;
+  let p: CamPoseLike = { pos: [...pose.pos], look: [...pose.look] };
+  const s = view.safe;
+  const f = Math.max(1, view.focalPx);
+  for (let i = 0; i < OVERVIEW_FIT.iterations; i++) {
+    const b = screenBox(p, subjects, view);
+    if (!b || b.x1 - b.x0 > s.r - s.l || b.y1 - b.y0 > s.b - s.t) {
+      p = pullBack(p, OVERVIEW_FIT.pullStep);
+      continue;
+    }
+    const dx = (s.l + s.r) / 2 - (b.x0 + b.x1) / 2;
+    const dy = (s.t + s.b) / 2 - (b.y0 + b.y1) / 2;
+    const inside = b.x0 >= s.l && b.x1 <= s.r && b.y0 >= s.t && b.y1 <= s.b;
+    if (inside && Math.abs(dx) < 2 && Math.abs(dy) < 2) break;
+    // slide on the ground plane: screen x along the camera's right, screen y along its ground
+    // forward (a pixel at the look distance is dist / f metres; down the screen is towards it)
+    const dir = sub(p.look, p.pos);
+    const dist = norm(dir) || 1;
+    const right = cross(dir, [0, 1, 0]);
+    const rl = Math.hypot(right[0], right[2]) || 1;
+    const fwd: Vec3 = [dir[0], 0, dir[2]];
+    const fl = Math.hypot(fwd[0], fwd[2]) || 1;
+    const sinPitch = Math.max(0.2, -dir[1] / dist);
+    const mx = (-dx * dist) / f;
+    const mz = (dy * dist) / f / sinPitch;
+    const move: Vec3 = [
+      (right[0] / rl) * mx + (fwd[0] / fl) * mz,
+      0,
+      (right[2] / rl) * mx + (fwd[2] / fl) * mz,
+    ];
+    p = { pos: add(p.pos, move), look: add(p.look, move) };
+  }
+  return p;
 }
