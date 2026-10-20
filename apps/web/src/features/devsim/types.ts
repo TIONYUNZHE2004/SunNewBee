@@ -183,4 +183,6 @@ export interface Probe {
   cameraInsideBuilding: boolean;
   windowsLitFraction: number;
   fps?: number;
+  /** CSS px centre of the §4.4 camera subject, stage-relative (3D fills it; AC-C1). */
+  subject?: { x: number; y: number };
 }

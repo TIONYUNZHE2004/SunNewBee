@@ -3,6 +3,10 @@ import { create } from "zustand";
 import { useMode } from "../../app/modeStore";
 import { loadProfile, saveProfile } from "../../lib/profileStore";
 import { isDemoPreset } from "../demo/demoFlag";
+import { installDevsimHook } from "../devsim/devsimHook";
+import { useDevsim } from "../devsim/devsimStore";
+import { asDevsimIntent, beginDevsim } from "../devsim/intent";
+import type { DevelopmentPlayIntent } from "../devsim/types";
 import { useJourney } from "../journey/journeyStore";
 import type { JourneyPlan } from "../journey/timeline";
 import type { View } from "./selectView";
@@ -85,6 +89,13 @@ export interface SceneState {
    * older answer's plan; Clear route empties it).
    */
   journey: JourneyPlan | null;
+  /**
+   * The latest development.play intent (developer lens, spec 2026-10-21 §5.2). Playback lives in
+   * `useDevsim` (plan, t, status); this slice only records that the map is showing a Development
+   * Simulation, and is cleared by `stopDevsim`.
+   */
+  devsim: DevelopmentPlayIntent | null;
+  stopDevsim: () => void;
   intents: SceneIntent[];
   applyIntent: (i: SceneIntent) => void;
   requestRouteFocus: (id: string) => void;
@@ -139,6 +150,7 @@ const initial = {
   } as SceneState["day"],
   camera: null as SceneState["camera"],
   journey: null as JourneyPlan | null,
+  devsim: null as DevelopmentPlayIntent | null,
   intents: [] as SceneIntent[],
   mapStyle: "realistic" as MapStyle,
   mapStyleChosen: false,
@@ -188,8 +200,19 @@ export const useScene = create<SceneState>((set) => ({
     const dropTrip =
       i.kind === "route.highlight" && !!i.route_id && !!i.geojson && staleTrip(i.route_id);
     if (dropTrip) useJourney.getState().clear();
+    const dev = asDevsimIntent(i);
+    // one simulation at a time: a development simulation drops a shown trip, and a trip stops it
+    if (dev) useJourney.getState().clear();
+    if (i.kind === "journey.play" && i.journey && useDevsim.getState().plan) {
+      useDevsim.getState().stop();
+      set({ devsim: null });
+    }
     set((s) => {
       const next: Partial<SceneState> = { intents: [...s.intents, i] };
+      if (dev) {
+        next.devsim = dev;
+        next.journey = null;
+      }
       switch (i.kind) {
         case "route.highlight":
           if (i.route_id && i.geojson) {
@@ -278,6 +301,12 @@ export const useScene = create<SceneState>((set) => ({
       useJourney.getState().load(i.journey);
       if (isDemoPreset()) useJourney.getState().play();
     }
+    // Scripted autoplay (spec D6): plays as soon as the plan is in (fetched when not inlined).
+    if (dev) void beginDevsim(dev);
+  },
+  stopDevsim: () => {
+    useDevsim.getState().stop();
+    set({ devsim: null });
   },
   // One detail panel at a time: opening any of the four closes the others.
   selectPlace: (selectedPlaceId) => set((s) => only(s, "selectedPlaceId", selectedPlaceId)),
@@ -345,6 +374,11 @@ export const useScene = create<SceneState>((set) => ({
     ),
   reset: () => {
     useJourney.getState().clear();
+    useDevsim.getState().stop();
     set(initial);
   },
 }));
+
+// window.__devsim (dev and test builds, demo preset): seek / play / pause / probe for checks.
+if (typeof window !== "undefined")
+  installDevsimHook({ dev: import.meta.env.DEV, search: window.location.search });
