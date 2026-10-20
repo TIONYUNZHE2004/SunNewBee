@@ -228,3 +228,22 @@ def test_our_own_strings_are_clean():
     for s in (LINE, SENTENCE, BRIEF, restatement(30, 500)):
         assert not FORBIDDEN.search(s) and not DEPTH.search(s)
         assert not re.search(r"flood|safe|selamat|depth", s, re.I)
+
+
+# --- AI5: the recorded replay ----------------------------------------------------------------
+
+
+@pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
+async def test_demo_mode_replays_the_brief_with_a_plan(tmp_path):
+    from townshiplens_agent import demo
+
+    key = demo.key(ChatRequest(message=BRIEF, profile="default"))
+    path = ROOT / "data/demo" / f"{key}.jsonl"
+    assert path.exists(), "brief replay not recorded"
+    c = tools.Ctx(world=load_world(SEED), vrs=VerificationStore(str(tmp_path / "vr.db")))
+    settings = AgentSettings(_env_file=None, llm_provider="mock", demo_mode=True)
+    evs, _ = await _turn(c, BRIEF, settings)
+    assert evs[-1].model.endswith(demo.SUFFIX)
+    [it] = [e.intent for e in evs if e.type == "scene.intent"]
+    assert it.kind == "development.play" and it.plan is not None
+    assert it.plan.world == "elmina" and it.brief_text == BRIEF
