@@ -14,9 +14,10 @@ import type { LoadedAssets } from "../scene/useCityAssets";
 import { type Cast, createCast } from "./cast";
 import { devDemoRequested, startDevDemo } from "./devDemo";
 import { createDevsimLayer, type DevsimLayer } from "./devsimLayer";
-import { createSite } from "./site";
+import { createSite, nearClosed } from "./site";
 import { flowSeconds } from "./state";
 import { createTower } from "./tower";
+import { loadWorkerKit } from "./workerKit";
 
 /** The plan's closed edge from the walk layer (a feature whose id is `facts.detour.edge_id`). */
 export function closedEdgeOf(plan: DevelopmentPlan, accessData: unknown): number[][] | null {
@@ -31,7 +32,7 @@ export function closedEdgeOf(plan: DevelopmentPlan, accessData: unknown): number
   return null;
 }
 
-export interface DevsimMountProps {
+export interface DevsimSceneMountProps {
   engine: Engine | null;
   frame: LocalFrame | null;
   bus: SceneBus;
@@ -48,8 +49,8 @@ export interface DevsimMountProps {
  * store holds a plan it adds the devsim layer to the engine, poses it at the store's t, and
  * registers the scene part of `window.__devsim.probe()`. FE owns the clock and the overlays.
  */
-export function DevsimMount(props: DevsimMountProps) {
-  const { engine, frame, accessData, roleUniforms, loaded, hostRef } = props;
+export function DevsimSceneMount(props: DevsimSceneMountProps) {
+  const { engine, frame, accessData, roleUniforms, loaded, hostRef, bus } = props;
   const plan = useDevsim((s) => s.plan);
   const [layer, setLayer] = useState<{ layer: DevsimLayer; cast: Cast } | null>(null);
 
@@ -73,6 +74,30 @@ export function DevsimMount(props: DevsimMountProps) {
     };
   }, [wantKit, kit]);
   useEffect(() => () => kit?.dispose(), [kit]);
+  // The site worker model (ASSETS lane, crowd.json `worker`), when the manifest has it.
+  const [workerKit, setWorkerKit] = useState<CrowdKit | null>(null);
+  useEffect(() => {
+    if (!wantKit || workerKit || import.meta.env.MODE === "test") return;
+    const ac = new AbortController();
+    let live = true;
+    loadWorkerKit({ signal: ac.signal }).then(
+      (k) => {
+        if (live) setWorkerKit(k);
+        else k?.dispose();
+      },
+      () => {},
+    );
+    return () => {
+      live = false;
+      ac.abort();
+    };
+  }, [wantKit, workerKit]);
+  useEffect(() => () => workerKit?.dispose(), [workerKit]);
+  useEffect(() => {
+    if (!layer || !engine) return;
+    layer.cast.setWorkerKit(workerKit);
+    engine.requestRender();
+  }, [layer, workerKit, engine]);
   useEffect(() => {
     if (!layer || !engine) return;
     layer.cast.setKit(kit);
@@ -101,6 +126,7 @@ export function DevsimMount(props: DevsimMountProps) {
       closedEdge: closedEdgeOf(plan, accessData),
       clearance: () => engine.clearance?.() ?? null,
       fps: () => fps,
+      flowSamples: () => bus.getState().driver?.samples() ?? null,
     });
     l.setTower(
       createTower({ geom: l.geom, roleUniforms, lib: loaded?.lib, manifest: loaded?.manifest }),
@@ -116,9 +142,27 @@ export function DevsimMount(props: DevsimMountProps) {
     l.setT(useDevsim.getState().t);
     engine.setDevsim(l);
     setLayer({ layer: l, cast });
+    // Fast-forward flow (spec §7): the decorative people and cars run on the devsim flow clock
+    // (timeScale integrated over t, so a seek is deterministic), thinned by the flow density, and
+    // people keep off the hoarded footway while the hoarding stands.
+    const geom = l.geom;
+    const avoid = (x: number, z: number) => nearClosed(geom, x, z);
+    const applyFlow = () => {
+      const st = l.state();
+      if (!st) return;
+      bus.getState().driver?.setFlow({
+        timeScale: st.flow.timeScale,
+        peopleDensity: st.flow.peopleDensity,
+        vehicleDensity: st.flow.vehicleDensity,
+        ...(st.hoarding ? { avoid } : {}),
+      });
+    };
+    applyFlow();
+    engine.setDecorClock?.(() => flowSeconds(useDevsim.getState().t, plan));
     const unsub = useDevsim.subscribe((s, prev) => {
       if (s.t !== prev.t && s.plan === plan) {
         l.setT(s.t);
+        applyFlow();
         engine.requestRender();
       }
     });
@@ -126,12 +170,14 @@ export function DevsimMount(props: DevsimMountProps) {
     return () => {
       unsub();
       unprobe();
+      engine.setDecorClock?.(null);
+      bus.getState().driver?.setFlow(null);
       offFrame();
       stats.dispose();
       engine.setDevsim?.(null); // disposes the layer
       setLayer(null);
     };
-  }, [engine, frame, plan, accessData, roleUniforms, loaded, hostRef]);
+  }, [engine, frame, plan, accessData, roleUniforms, loaded, hostRef, bus]);
 
   return null;
 }

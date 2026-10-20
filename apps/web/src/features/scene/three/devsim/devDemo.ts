@@ -5,7 +5,7 @@ import type { DevelopmentPlan } from "../../../devsim/types";
 /**
  * TEMPORARY dev-only entry (3D lane, until FE's `useDevsimDriver` and the AI replay land): the plan
  * cannot arrive through chat yet, so `?devsim=provisional` in a dev build starts the Development
- * Simulation with the provisional fixture. When FE's driver has not installed `window.__devsim`
+ * Simulation with a fixture plan (`plan.elmina.json` when present, else the provisional one). When FE's driver has not installed `window.__devsim`
  * yet, a minimal `{seek, play, pause, total, acts, facts, probe}` and a playback loop stand in.
  * Never active in production builds or tests.
  */
@@ -17,9 +17,15 @@ export function startDevDemo(): () => void {
   let live = true;
   let raf = 0;
   let installed = false;
-  void import("../../../devsim/fixtures/plan.provisional.json").then((m) => {
+  // the Elmina build's plan when it is in the tree (BE lane), else the provisional fixture
+  const fixtures = import.meta.glob<{ default: unknown }>("../../../devsim/fixtures/plan.*.json");
+  const load =
+    fixtures["../../../devsim/fixtures/plan.elmina.json"] ??
+    fixtures["../../../devsim/fixtures/plan.provisional.json"];
+  if (!load) return () => {};
+  void load().then((m) => {
     if (!live) return;
-    const plan = (m.default ?? m) as unknown as DevelopmentPlan;
+    const plan = m.default as DevelopmentPlan;
     useDevsim.getState().start(plan, "dev: provisional fixture");
     const w = window as unknown as { __devsim?: unknown };
     if (w.__devsim) return; // FE's driver owns playback

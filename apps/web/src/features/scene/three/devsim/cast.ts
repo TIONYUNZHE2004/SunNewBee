@@ -199,6 +199,8 @@ export interface CastOpts {
  */
 export type Cast = DevsimPart & {
   setKit(kit: CrowdKit | null): void;
+  /** The ASSETS lane's one-look worker kit (`workerKit.ts`); null: hat + vest on the adult man. */
+  setWorkerKit(kit: CrowdKit | null): void;
   /** The pose of a slot now (tests). */
   poseOf(id: string): CastPose | null;
 };
@@ -306,6 +308,9 @@ export function createCast(o: CastOpts): Cast {
   let kit: CrowdKit | null = null;
   let crowd: CrowdRenderer | null = null;
   let workerHasLook = false;
+  let wkit: CrowdKit | null = null;
+  let wcrowd: CrowdRenderer | null = null;
+  const firstWorker = slots.indexOf("worker0");
   let bodies: CrowdBody[] = [];
   let poses = new Map<string, CastPose>();
   let t = 0;
@@ -346,6 +351,7 @@ export function createCast(o: CastOpts): Cast {
       if (!p) {
         pt[0] = Number.NaN;
         crowd?.hide(i);
+        if (wcrowd && firstWorker >= 0 && i >= firstWorker) wcrowd.hide(i - firstWorker);
         if (ring) ring.visible = false;
         continue;
       }
@@ -360,7 +366,18 @@ export function createCast(o: CastOpts): Cast {
         ring.scale.setScalar(k / 1.55);
       }
       _m.compose(_p.set(p.x, 0.08, p.z), _q.setFromAxisAngle(_y, p.yaw), _s.set(k, k, k));
-      if (id.startsWith("worker") && !workerHasLook) {
+      const isWorker = id.startsWith("worker");
+      if (isWorker && wcrowd && wkit) {
+        crowd?.hide(i);
+        const clip = (p.walk ? wkit.clips.adult_man.walk : wkit.clips.adult_man.idle) ?? null;
+        if (clip) {
+          const phase = (t / Math.max(0.1, clip.duration) + i * 0.137) % 1;
+          const f = framePair(phase, clip.frames);
+          wcrowd.set(i - firstWorker, d < 60 ? 0 : 1, _m, clip.row + f.f0, clip.row + f.f1, f.t);
+        }
+        continue;
+      }
+      if (isWorker && !workerHasLook) {
         hats.setMatrixAt(nh, _m);
         vests.setMatrixAt(nh, _m);
         nh++;
@@ -385,11 +402,33 @@ export function createCast(o: CastOpts): Cast {
     boxes.count = nb;
     for (const m of [hats, vests, boxes]) m.instanceMatrix.needsUpdate = true;
     crowd?.commit();
+    wcrowd?.commit();
   };
 
   return {
     group,
     poseOf: (id) => poses.get(id) ?? null,
+    setWorkerKit(k) {
+      if (wcrowd) {
+        group.remove(wcrowd.group);
+        wcrowd.dispose();
+        wcrowd = null;
+      }
+      wkit = k;
+      if (!k || firstWorker < 0) {
+        draw();
+        return;
+      }
+      wcrowd = createCrowdRenderer(
+        k,
+        Array.from({ length: WORKERS }, () => 0),
+      );
+      wcrowd.group.name = "devsim-workers";
+      for (const m of wcrowd.meshes) m.castShadow = true;
+      for (let i = 0; i < WORKERS; i++) wcrowd.hide(i);
+      group.add(wcrowd.group);
+      draw();
+    },
     setKit(k) {
       if (crowd) {
         group.remove(crowd.group);
@@ -455,6 +494,8 @@ export function createCast(o: CastOpts): Cast {
     dispose() {
       if (crowd) crowd.dispose();
       crowd = null;
+      wcrowd?.dispose();
+      wcrowd = null;
       for (const d of disposers) d();
       disposers.length = 0;
       group.clear();

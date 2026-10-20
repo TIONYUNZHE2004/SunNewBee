@@ -9,7 +9,7 @@ import { PerfOverlay, SlowBanner } from "../cesium/PerfOverlay";
 import { type LonLat, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { createRoleUniforms } from "./assets/roleMaterial";
-import { DevsimMount } from "./devsim/DevsimMount";
+import { DevsimSceneMount } from "./devsim/DevsimSceneMount";
 import { createEngine } from "./engine";
 import { createFrame } from "./frame";
 import { boundaryOf } from "./ground/boundary";
@@ -301,7 +301,10 @@ export default function ThreeScene({
         factBenches={dressing.benches}
       />
       {/* Developer lens Development Simulation: tower, kit, cast, camera (spec §5.3 Scene). */}
-      <DevsimMount
+      {/* TODO(devsim merge, FE lane request): also mount FE's overlays here, from
+          features/devsim/DevsimMount.tsx (branch devsim/fe):
+          <DevsimMount hostRef={hostRef} decorativeNote={!decorativeShown} /> */}
+      <DevsimSceneMount
         engine={engine}
         frame={frame}
         bus={bus}

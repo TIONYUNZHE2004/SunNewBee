@@ -69,6 +69,33 @@ export interface MotionLayer {
   dispose(): void;
 }
 
+/**
+ * A flow override (devsim fast-forward, spec §7): `timeScale` multiplies agent speed (on the motion
+ * clock; a pure clock already carries it, see `setFlow`), the densities (multiples of the day
+ * density, 1 = day) scale the shown share of people and of vehicles, and people inside `avoid`
+ * (e.g. a hoarded footway) are not drawn. Decorative.
+ */
+export interface MotionFlow {
+  timeScale: number;
+  peopleDensity: number;
+  vehicleDensity: number;
+  avoid?: (x: number, z: number) => boolean;
+}
+
+/** World points of the drawn agents, one entry per agent in a fixed order (NaN x: not drawn). */
+export interface FlowSamples {
+  people: readonly (readonly [number, number, number])[];
+  vehicles: readonly (readonly [number, number, number])[];
+}
+
+/** The share of the peak-density plan shown at `density` x the day density. */
+export function flowShare(density: number): number {
+  return Math.max(
+    0,
+    Math.min(1, (density * densityFor({ day: 1, dusk: 0, night: 0 })) / DENSITY_PEAK),
+  );
+}
+
 /** Agents just outside the view still get matrices, so nothing pops in at the edge while panning. */
 const FRUSTUM_MARGIN_M = 50;
 
@@ -183,7 +210,18 @@ export function createMotionLayer(
      */
     assigned?: Map<string, number>;
   } = {},
-): MotionLayer & { setDensity(w: MoodMix): void; crowd: CrowdRenderer | null } {
+): MotionLayer & {
+  setDensity(w: MoodMix): void;
+  /**
+   * The devsim flow (null: none, the default behaviour). With a flow, the motion clock runs
+   * `timeScale` times faster (re-anchored on a change, so nobody jumps); a pure tick takes its clock
+   * as given (the caller's clock is already flow time, so a seek stays deterministic).
+   */
+  setFlow(f: MotionFlow | null): void;
+  /** Positions drawn by the last tick (probe samples). */
+  samples(): FlowSamples;
+  crowd: CrowdRenderer | null;
+} {
   const yawMemory: YawMemory = opts.yaw ?? new Map();
   if (opts.yaw) {
     const ids = new Set(agents.map((a) => a.id));
@@ -324,6 +362,33 @@ export function createMotionLayer(
    * seek history).
    */
   let share = 1;
+  let flow: MotionFlow | null = null;
+  /** Re-anchored flow clock: wall seconds and flow seconds at the last timeScale change. */
+  let anchor: { wall: number; eff: number; scale: number } | null = null;
+  let lastWall = 0;
+  const shareOf = (kind: Agent["kind"]) =>
+    flow ? flowShare(kind === "person" ? flow.peopleDensity : flow.vehicleDensity) : share;
+  const flowTime = (wall: number, pure: boolean): number => {
+    lastWall = wall;
+    if (!flow || pure) return wall;
+    if (!anchor) anchor = { wall, eff: wall, scale: flow.timeScale };
+    return anchor.eff + (wall - anchor.wall) * anchor.scale;
+  };
+  // sample slots: legacy-kit people and vehicles in slot order, then the crowd's people
+  const nan = (): [number, number, number] => [Number.NaN, 0, 0];
+  const slotSample: ([number, number, number] | undefined)[] = [];
+  const peopleSamples: [number, number, number][] = [];
+  const vehicleSamples: [number, number, number][] = [];
+  for (const sl of slots) {
+    const v = nan();
+    slotSample.push(v);
+    (sl.agent.kind === "person" ? peopleSamples : vehicleSamples).push(v);
+  }
+  const crowdSample = crowdSlots.map(() => {
+    const v = nan();
+    peopleSamples.push(v);
+    return v;
+  });
   const pose: Pose2 = { x: 0, z: 0, yaw: 0 };
   /** The poses of the pure facing (`yawAt`): now and the look-back. */
   const cur: Pose2 = { x: 0, z: 0, yaw: 0 };
@@ -377,8 +442,20 @@ export function createMotionLayer(
     setDensity(w) {
       share = Math.min(1, densityFor(w) / DENSITY_PEAK);
     },
+    setFlow(f) {
+      if (f && flow && anchor && f.timeScale !== anchor.scale) {
+        // re-anchor at the last tick so the flow clock stays continuous
+        const eff = anchor.eff + (lastWall - anchor.wall) * anchor.scale;
+        anchor = { wall: lastWall, eff, scale: f.timeScale };
+      }
+      if (!f) anchor = null;
+      flow = f;
+    },
+    samples: () => ({ people: peopleSamples, vehicles: vehicleSamples }),
     tick(nowMs, camera, frustum, pure = false) {
-      const t = nowMs / 1000;
+      const t = flowTime(nowMs / 1000, pure);
+      for (const p of peopleSamples) p[0] = Number.NaN;
+      for (const v of vehicleSamples) v[0] = Number.NaN;
       const hero = heroOf();
       // Pure (trip clock): facing from the look-back chord at t; the smoothing memory follows it,
       // so the hand-back to the motion clock starts from the drawn facing.
@@ -396,10 +473,11 @@ export function createMotionLayer(
         return { yaw, dt: 0, mem };
       };
       for (const b of allBuckets) b.n = 0;
-      for (const s of slots) {
-        if (!densityShown(s.agent.id, share)) continue;
+      for (const [si, s] of slots.entries()) {
+        if (!densityShown(s.agent.id, shareOf(s.agent.kind))) continue;
         poseAt(s.agent, t, pose);
         if (!keepClear(s.agent, hero)) continue;
+        if (s.agent.kind === "person" && flow?.avoid?.(pose.x, pose.z)) continue;
         // ITER2: no decorative vehicle by her route or between the camera and her, no person at the
         // camera's feet (whole agents, never half cut), while a journey hero is shown.
         if (
@@ -422,6 +500,12 @@ export function createMotionLayer(
         const k = scaleFor(s.agent.kind, d);
         _q.setFromAxisAngle(_y, yaw);
         b.mesh.setMatrixAt(b.n, _m.compose(_p, _q, _s.set(k, k, k)));
+        const smp = slotSample[si];
+        if (smp) {
+          smp[0] = pose.x;
+          smp[1] = 1;
+          smp[2] = pose.z;
+        }
         for (let i = 0; i < 3; i++) {
           const c = s.palette[i] as THREE.Color;
           (b.pal[i] as THREE.InstancedBufferAttribute).setXYZ(b.n, c.r, c.g, c.b);
@@ -433,12 +517,15 @@ export function createMotionLayer(
       // out of the hero's way (P8).
       for (const [i, s] of crowdSlots.entries()) {
         if (!crowd) break;
-        if (!densityShown(s.agent.id, share)) {
+        if (!densityShown(s.agent.id, shareOf("person"))) {
           crowd.hide(i);
           continue;
         }
         poseAt(s.agent, t, pose);
-        const clear = keepClear(s.agent, hero) && personClear(pose.x, pose.z, hero, camera);
+        const clear =
+          keepClear(s.agent, hero) &&
+          personClear(pose.x, pose.z, hero, camera) &&
+          !flow?.avoid?.(pose.x, pose.z);
         const d = Math.hypot(pose.x - camera.x, camera.y, pose.z - camera.z);
         const raw = lodFor(d, crowdLods, s.raw);
         s.raw = raw;
@@ -462,6 +549,12 @@ export function createMotionLayer(
         const clip = mem.gait.idle ? s.idle : s.walk;
         const f = framePair(mem.gait.phase, clip.frames);
         _q.setFromAxisAngle(_y, yaw);
+        const cs = crowdSample[i];
+        if (cs) {
+          cs[0] = pose.x;
+          cs[1] = 1;
+          cs[2] = pose.z;
+        }
         crowd.set(
           i,
           raw === 0 ? 0 : 1,
