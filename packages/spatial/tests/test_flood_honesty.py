@@ -172,15 +172,12 @@ def test_real_seed_endpoint_and_coverage_reproductions():
     w = load_world(seed)
     rr = plan_route(w, "osm-way-875071785", "osm-way-866543392", "default", "stage_p1m")
     assert rr.status == "blocked" and not rr.routes
-    pid = "osm-node-11492967197"
-    assert plan_route(w, pid, pid, "default", "stage_p3m").status == "blocked"
-    row = next(
-        r
-        for r in flood.centres_reachability(w, "stage_p3m", "default", pid, top_routes=0)
-        if r.centre.place_id == pid
-    )
-    assert not row.reachable and row.route_status == "blocked"
-    assert (
-        plan_route(w, "osm-way-377999794", "osm-way-377999794", "default", "stage_p5m").status
-        == "partly_unverified"
-    )
+    # T-022 removes these out-of-township destinations. Missing places are data gaps,
+    # regardless of the old flood class, and cannot remain evacuation candidates.
+    for pid in ("osm-node-11492967197", "osm-way-377999794"):
+        assert pid not in w.places
+        assert not any(c.place_id == pid for c in w.centres.values())
+        assert all(pid not in classes for classes in w.flood.place_classes.values())
+        for scenario in ("stage_p3m", "stage_p5m"):
+            route = plan_route(w, pid, pid, "default", scenario)
+            assert route.status == "no_data" and not route.routes
