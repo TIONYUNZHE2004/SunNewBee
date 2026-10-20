@@ -1,7 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CardSourceRow } from "./CardSourceRow";
 import { journeyCardContent, withVerificationRequest } from "./cardContent";
-import { type CardPlacement, type CardViewport, placeCard, type Rect } from "./cardPlacement";
+import {
+  type CardPlacement,
+  type CardViewport,
+  cardViewportWith,
+  type PlacementLock,
+  placeCardLocked,
+  type Rect,
+} from "./cardPlacement";
 import { KIND_COLOUR } from "./kindStyle";
 import type { JourneyEvent } from "./timeline";
 
@@ -10,29 +17,10 @@ const DEFAULT_SIZE = { w: 290, h: 180 };
 
 type Anchor = { x: number; y: number } | null;
 
-/** Half the active marker sprite's box (CSS px, ~65 px tall at 900 px) the card keeps clear of. */
-export const MARKER_KEEP_CLEAR_PX = 34;
+/** Moved to `cardPlacement` (shared with the hold rule); re-exported for callers. */
+export { MARKER_KEEP_CLEAR_PX } from "./cardPlacement";
 
-/**
- * The viewport with the hero's screen box and the event marker (around its anchor) as rectangles
- * the card keeps clear of: the card never covers the marker it explains (gate AC-D11: moved off
- * her body, the card had landed on the marker).
- */
-function withHero(
-  viewport: CardViewport,
-  hero: Rect | null | undefined,
-  anchor: Anchor = null,
-): CardViewport {
-  const extra: Rect[] = [];
-  if (hero) extra.push(hero);
-  if (anchor) {
-    const r = MARKER_KEEP_CLEAR_PX;
-    extra.push({ x: anchor.x - r, y: anchor.y - r, w: 2 * r, h: 2 * r });
-  }
-  return extra.length
-    ? { ...viewport, keepClear: [...(viewport.keepClear ?? []), ...extra] }
-    : viewport;
-}
+const withHero = cardViewportWith;
 
 /** Writes a placement onto the card element (no React commit). */
 function applyPlacement(el: HTMLElement, p: CardPlacement, anchor: Anchor) {
@@ -57,6 +45,10 @@ function applyPlacement(el: HTMLElement, p: CardPlacement, anchor: Anchor) {
  * With `track`, the card follows the camera: it subscribes to rendered frames only while it is
  * mounted (one hold) and re-places itself by writing its own style, so a moving camera costs no
  * React commit (AC-D15).
+ *
+ * With `lockFor`, the card's spot follows the hold's rule (`holdCardLock`, chosen once from the
+ * hold's own geometry): it glides with the marker and her instead of switching sides of her in
+ * one frame (iteration 2), and stays a pure function of t, the viewport and her box.
  */
 export function EventCard({
   event,
@@ -66,6 +58,7 @@ export function EventCard({
   vrFiled = false,
   track,
   keepClear,
+  lockFor,
 }: {
   event: JourneyEvent;
   eventIndex?: number;
@@ -76,6 +69,8 @@ export function EventCard({
   track?: { project: () => Anchor; subscribe: (cb: () => void) => () => void };
   /** The hero's body on screen (viewport CSS px), which the card never covers when it can avoid it. */
   keepClear?: () => Rect | null;
+  /** The hold's card rule for a card size and viewport (pure; cached by the caller), or null. */
+  lockFor?: (card: { w: number; h: number }, viewport: CardViewport) => PlacementLock | null;
 }) {
   const ref = useRef<HTMLElement>(null);
   const [size, setSize] = useState(DEFAULT_SIZE);
@@ -90,8 +85,8 @@ export function EventCard({
     if (w > 0 && h > 0) setSize((s) => (s.w === w && s.h === h ? s : { w, h }));
   }, [event, vrFiled, viewport.w]);
 
-  const latest = useRef({ size, viewport, track, keepClear });
-  latest.current = { size, viewport, track, keepClear };
+  const latest = useRef({ size, viewport, track, keepClear, lockFor });
+  latest.current = { size, viewport, track, keepClear, lockFor };
   const subscribe = track?.subscribe;
   useEffect(() => {
     if (!subscribe) return;
@@ -100,12 +95,22 @@ export function EventCard({
       const l = latest.current;
       if (!el || !l.track) return;
       const a = l.track.project();
-      applyPlacement(el, placeCard(a, l.size, withHero(l.viewport, l.keepClear?.(), a)), a);
+      const lock = l.lockFor?.(l.size, l.viewport) ?? null;
+      applyPlacement(
+        el,
+        placeCardLocked(a, l.size, withHero(l.viewport, l.keepClear?.(), a), lock),
+        a,
+      );
     });
   }, [subscribe]);
 
   const c = withVerificationRequest(journeyCardContent(event), event, vrFiled);
-  const p = placeCard(anchor, size, withHero(viewport, keepClear?.(), anchor));
+  const p = placeCardLocked(
+    anchor,
+    size,
+    withHero(viewport, keepClear?.(), anchor),
+    lockFor?.(size, viewport) ?? null,
+  );
   return (
     <article
       ref={ref}
