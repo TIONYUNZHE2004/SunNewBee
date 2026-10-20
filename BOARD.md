@@ -32,6 +32,9 @@ The resident assistant covers **access** (routes, places, amenities, closures, t
 | [T-020](tasks/T-020-estimated-tier.md) | Replace "all yellow" with an honest "Likely OK (estimated)" level | assigned | P1 | Both local engineers |
 | [T-021](tasks/T-021-turn-by-turn-navigation.md) | Turn-by-turn route steps, like Waze (after the six P1 audit fixes) | assigned | P1 | Both local engineers |
 | [T-022](tasks/T-022-place-data-cleanup.md) | Clean place data: township scope, types, duplicates, prison surau as evacuation candidate | assigned | P1 | Local backend engineer |
+| [T-023](tasks/T-023-management-panel-scope.md) | Management panel answers like the resident panel | assigned | P1 | Cloud AI worker |
+| [T-024](tasks/T-024-flood-impact-markers.md) | River rise +1/+2/+3 m with flooded and cut-off markers | assigned | P1 | Cloud backend worker + shaoxian04 |
+| [T-025](tasks/T-025-event-closure-simulation.md) | Event simulation (marathon): affected routes, detours, suggestions | assigned | P1 | Cloud workers + shaoxian04 |
 
 
 ## Audit P1 fixes (control, 19 Oct 16:30 UTC)
@@ -53,6 +56,10 @@ https://github.com/TIONYUNZHE2004/SunNewBee/pull/15 holds `main` + both engineer
 - **Full local run on `2d7e534`: 69 tests fail** (list: `tasks/pr15-failing-tests.txt`). Most are `packages/agent` journey tests from `main` (shaoxian's journey simulation) that meet the new rules: no silent demo origin, exact endpoints, canonical route text, and the changed rest route. Order: (1) Codex lands the rest-gap fallback above on its branch; (2) the **AI engineer** merges `origin/claude/sweet-davinci-29v7ne` and Codex's fix into `local/ai-engineer` and makes every listed test pass, keeping both sets of rules: journey play stays, and a question with no stated origin is never answered with a demo origin (change the test question to name the origin instead). Never skip or delete a test. (3) Both log "ready for PR"; control merges into davinci and PR #15 re-runs CI.
 - **Backend ready for PR: `b1b47d7`** (rest-gap fallback + T-022 data). AI engineer: merge it now.
 - **Ruling (Yunzhe, 20 Oct): closed destination (AUD-012) = option A.** Show the route, but the first line says "Closed now" (with the closure label) and the route is never `confirmed`. Backend sets the status cap and warning; AI keeps the line first.
+
+## Workers from 20 Oct (Yunzhe)
+
+Local agents are retired; their branches are merged into davinci. New work goes to **cloud workers** (Claude Code on the web, ChatGPT Codex cloud), one branch per task, deleted after merge. Decisions 20 Oct: mosque test follows the cleaned place list (A); river scenarios +1/+2/+3 m (A); shaoxian04 builds the map markers and manager screens against our APIs (A).
 
 ## Who does what
 
