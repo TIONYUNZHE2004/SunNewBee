@@ -1,5 +1,5 @@
 import { isDemoPreset } from "../demo/demoFlag";
-import { collectProbe } from "./anchors";
+import { collectProbe, hasProbe } from "./anchors";
 import { useDevsim } from "./devsimStore";
 import { stateAt } from "./timeline";
 import type { Act, DevsimFacts, Probe, StateAt } from "./types";
@@ -37,9 +37,12 @@ export function createDevsimHook(): DevsimHook {
     probe: () => {
       const { plan, t } = s();
       const p = collectProbe(t);
-      // without a 3D part the timeline's own window state is the truth (Q4)
-      if (plan && p.windowsLitFraction === 0)
-        p.windowsLitFraction = stateAt(t, plan).windowsLitFraction;
+      if (!plan) return p;
+      const expected = stateAt(t, plan).windowsLitFraction;
+      p.expectedWindowsLitFraction = expected;
+      // Only without a 3D part is the timeline's value reported as the drawn one (List view);
+      // a registered scene part's value is never masked, so a broken render shows (Q4).
+      if (!hasProbe("scene")) p.windowsLitFraction = expected;
       return p;
     },
     state: () => {

@@ -38,6 +38,11 @@ export function registerProbe(_part: "scene", fn: ProbePart): () => void {
   return register("scene", fn);
 }
 
+/** True while a probe part is registered (e.g. the 3D scene part). */
+export function hasProbe(part: keyof typeof parts): boolean {
+  return parts[part] !== null;
+}
+
 /** The DOM overlays' part of the probe (bubble, labels, badge rects). Returns unregister. */
 export function registerDomProbe(fn: ProbePart): () => void {
   return register("dom", fn);

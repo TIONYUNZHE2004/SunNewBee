@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useJourney } from "../journey/journeyStore";
 import { useScene } from "../scene/sceneStore";
-import { collectProbe, registerDomProbe } from "./anchors";
+import { collectProbe, hasProbe, registerDomProbe, registerProbe } from "./anchors";
 import { createDevsimHook, installDevsimHook } from "./devsimHook";
 import { useDevsim } from "./devsimStore";
 import provisional from "./fixtures/plan.provisional.json";
@@ -175,5 +175,56 @@ describe("intent wiring", () => {
     } as never);
     expect(d().status).toBe("idle");
     expect(useScene.getState().devsim).toBeNull();
+  });
+});
+
+describe("probe window state (Q4)", () => {
+  it("without a 3D part the timeline value is reported; a 3D part's value is never masked", () => {
+    d().start(plan, "b");
+    const hook = createDevsimHook();
+    hook.seek(40);
+    const expected = stateAt(40, plan).windowsLitFraction;
+    expect(expected).toBeGreaterThan(0);
+    expect(hasProbe("scene")).toBe(false);
+    expect(hook.probe()).toMatchObject({
+      windowsLitFraction: expected,
+      expectedWindowsLitFraction: expected,
+    });
+    // a broken 3D tower that never lights its windows
+    const off = registerProbe("scene", () => ({ windowsLitFraction: 0 }));
+    expect(hasProbe("scene")).toBe(true);
+    expect(hook.probe()).toMatchObject({
+      windowsLitFraction: 0,
+      expectedWindowsLitFraction: expected,
+    });
+    off();
+    expect(hasProbe("scene")).toBe(false);
+  });
+});
+
+describe("journey.play while the plan is still loading", () => {
+  it("stops the pending simulation, so a late plan never plays over the trip", async () => {
+    let release: (r: Response) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      () =>
+        new Promise<Response>((r) => {
+          release = r;
+        }),
+    );
+    useScene
+      .getState()
+      .applyIntent({ kind: "development.play", brief_text: "b", plan: null } as never);
+    expect(d().status).toBe("loading");
+    useScene.getState().applyIntent({
+      kind: "journey.play",
+      journey: { route_id: "r1", start_time: "09:00", events: [], spans: [], profile: "default" },
+    } as never);
+    expect(d().status).toBe("idle");
+    expect(useScene.getState().devsim).toBeNull();
+    release(json(plan));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(d()).toMatchObject({ status: "idle", plan: null, playing: false });
+    vi.unstubAllGlobals();
   });
 });

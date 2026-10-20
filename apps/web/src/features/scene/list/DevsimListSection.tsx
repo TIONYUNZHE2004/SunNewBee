@@ -84,10 +84,12 @@ export function DevsimListSection() {
               data-speaking={q.speaking || undefined}
               className={`list-none rounded-lg border-2 px-3 py-2 ${
                 q.tone === "neg" ? "border-rose" : "border-ok"
-              } ${q.speaking ? "bg-surface" : "bg-card"} ${q.heard ? "" : "opacity-70"}`}
+              } ${q.speaking ? "bg-surface" : "bg-card"} ${q.heard ? "" : "border-dashed"}`}
             >
               <figure className="m-0">
-                <blockquote className="m-0 text-[15px] font-semibold text-fg">
+                <blockquote
+                  className={`m-0 text-[15px] text-fg ${q.heard ? "font-semibold" : "font-normal"}`}
+                >
                   “{q.text}”
                 </blockquote>
                 <figcaption className="mt-0.5 text-xs text-fg-soft">

@@ -203,7 +203,7 @@ export const useScene = create<SceneState>((set) => ({
     const dev = asDevsimIntent(i);
     // one simulation at a time: a development simulation drops a shown trip, and a trip stops it
     if (dev) useJourney.getState().clear();
-    if (i.kind === "journey.play" && i.journey && useDevsim.getState().plan) {
+    if (i.kind === "journey.play" && i.journey && useDevsim.getState().status !== "idle") {
       useDevsim.getState().stop();
       set({ devsim: null });
     }
