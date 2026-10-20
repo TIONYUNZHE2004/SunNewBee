@@ -14,6 +14,7 @@ import type { LoadedAssets } from "../scene/useCityAssets";
 import { type Cast, createCast } from "./cast";
 import { devDemoRequested, startDevDemo } from "./devDemo";
 import { createDevsimLayer, type DevsimLayer } from "./devsimLayer";
+import { devsimCamera } from "./devsimView";
 import { createSite, nearClosed } from "./site";
 import { flowSeconds } from "./state";
 import { createTower } from "./tower";
@@ -158,6 +159,12 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
       });
     };
     applyFlow();
+    // The devsim camera (§4.4 beats from StateAt.camera), clamped out of every building (Q2).
+    engine.setCameraDriver?.(() => {
+      const st = l.state();
+      if (!st) return null;
+      return devsimCamera(st, frame, l.geom, l.towerTopM(), engine.clearance?.() ?? null);
+    });
     engine.setDecorClock?.(() => flowSeconds(useDevsim.getState().t, plan));
     const unsub = useDevsim.subscribe((s, prev) => {
       if (s.t !== prev.t && s.plan === plan) {
@@ -171,6 +178,7 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
       unsub();
       unprobe();
       engine.setDecorClock?.(null);
+      engine.setCameraDriver?.(null);
       bus.getState().driver?.setFlow(null);
       offFrame();
       stats.dispose();

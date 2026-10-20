@@ -4,10 +4,10 @@ import type { DevelopmentPlan, Probe, Rect, StateAt } from "../../../devsim/type
 import type { Clearance } from "../clearance";
 import type { DevsimOverlay } from "../engine";
 import type { LocalFrame } from "../frame";
+import { dayness } from "./ease";
 import { inRing, type SiteGeom, siteGeom, TOWER_STOREY_M } from "./geom";
 import { onStage, screenRect, toScreen } from "./project";
 import { stateAt } from "./state";
-import { dayness } from "./stubStateAt";
 
 /** Everything a part needs for one frame. */
 export interface DevsimFrame {
@@ -50,6 +50,8 @@ export interface DevsimLayer extends DevsimOverlay {
   state(): StateAt | null;
   add(part: DevsimPart): void;
   setTower(part: TowerPart | null): void;
+  /** The drawn tower top now (0 without floors). */
+  towerTopM(): number;
   /** The scene part of `window.__devsim.probe()`. */
   probe(): SceneProbe;
 }
@@ -164,6 +166,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       apply();
     },
     state: () => s,
+    towerTopM: () => tower?.topM() ?? 0,
     add(part) {
       parts.push(part);
       group.add(part.group);

@@ -3,9 +3,9 @@ import type { AssetLibrary } from "../assets/library";
 import type { Manifest } from "../assets/manifest";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
+import { ease, span } from "./ease";
 import { along, distToLine, lengthOf, type SiteGeom, type XZ } from "./geom";
 import { kitMesh, kitPalettes, place } from "./kit";
-import { ease, span } from "./stubStateAt";
 
 const NOOP = () => {};
 const HOARD_M = 6;

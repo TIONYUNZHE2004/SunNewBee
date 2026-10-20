@@ -6,9 +6,9 @@ import type { CrowdKit } from "../motion/crowdBake";
 import { framePair } from "../motion/crowdGait";
 import { type CrowdRenderer, createCrowdRenderer } from "../motion/crowdRenderer";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
+import { ease, span } from "./ease";
 import { along, lengthOf, onPath, type SiteGeom, type XZ, yawOf } from "./geom";
 import { toScreen } from "./project";
-import { ease, span } from "./stubStateAt";
 
 const NOOP = () => {};
 export const MOVERS = 8;

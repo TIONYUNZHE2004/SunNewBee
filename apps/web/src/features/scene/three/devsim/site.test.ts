@@ -4,10 +4,10 @@ import plan from "../../../devsim/fixtures/plan.provisional.json";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import { createRoleUniforms } from "../assets/roleMaterial";
 import { createFrame } from "../frame";
+import { dayness } from "./ease";
 import { siteGeom } from "./geom";
 import { createSite, ribbonGeometry, yardRing } from "./site";
 import { stateAt } from "./state";
-import { dayness } from "./stubStateAt";
 
 const P = plan as DevelopmentPlan;
 const geom = siteGeom(P, createFrame([101.5076, 3.1794]));

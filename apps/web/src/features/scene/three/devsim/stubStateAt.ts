@@ -7,12 +7,9 @@
  */
 import type { Act, DevelopmentPlan, StateAt } from "../../../devsim/types";
 
+import { dayness, ease, span } from "./ease";
+
 const clamp01 = (u: number) => Math.max(0, Math.min(1, u));
-export const ease = (u: number) => {
-  const v = clamp01(u);
-  return v * v * (3 - 2 * v);
-};
-export const span = (t: number, a: number, b: number) => clamp01((t - a) / (b - a));
 
 const CON_P = 2.8;
 const PHASE0 = 0.15;
@@ -62,8 +59,6 @@ function sunRaw(t: number, tm: Pick<Times, "con" | "hand" | "day" | "handP">) {
   }
   return { e: 1.0, ph: 0.3 };
 }
-
-export const dayness = (e: number) => ease(span(e, -0.08, 0.22));
 
 function timesOf(plan: DevelopmentPlan): Times {
   const hit = timesCache.get(plan);
