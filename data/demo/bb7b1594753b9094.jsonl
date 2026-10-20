@@ -1,4 +1,4 @@
-{"meta": {"message": "At which river level does my route from the mall to an evacuation centre break?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "5efc6bae340a4c0f4e57992ceea27d21befe4a0f260158054b88b2873675d068", "model": "mock-scripted", "recorded_at": "2026-10-20T13:35:53+00:00"}}
+{"meta": {"message": "At which river level does my route from the mall to an evacuation centre break?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "cc89ae4ef00f2ddda79e9f89171459b82f4b752432be268e1b3c73a82d00ea62", "model": "mock-scripted", "recorded_at": "2026-10-20T17:01:53+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "river_tipping_point-1", "name": "river_tipping_point", "args": {"from_id": "lakeside-mall", "profile": "default", "to_id": null}}
@@ -21,18 +21,13 @@
 {"type": "text.delta", "delta": "gent, Elmina)\n4. River +3 m: likely OK ("}
 {"type": "text.delta", "delta": "estimated from map data, not checked) (n"}
 {"type": "text.delta", "delta": "earest centre: SJK (C) Ladang Regent, El"}
-{"type": "text.delta", "delta": "mina)\n5. River +4 m: likely OK (estimate"}
-{"type": "text.delta", "delta": "d from map data, not checked) (nearest c"}
-{"type": "text.delta", "delta": "entre: SJK (C) Ladang Regent, Elmina)\n6."}
-{"type": "text.delta", "delta": " River +5 m: likely OK (estimated from m"}
-{"type": "text.delta", "delta": "ap data, not checked) (nearest centre: S"}
-{"type": "text.delta", "delta": "JK (C) Ladang Regent, Elmina)\nWorth know"}
-{"type": "text.delta", "delta": "ing:\n• Indicative simulation with synthe"}
-{"type": "text.delta", "delta": "tic residents, not a forecast; follow of"}
-{"type": "text.delta", "delta": "ficial MBSA / JPS / NADMA guidance.\n• Th"}
-{"type": "text.delta", "delta": "e nearest reachable centre changes as th"}
-{"type": "text.delta", "delta": "e river rises (see each level)."}
+{"type": "text.delta", "delta": "mina)\nWorth knowing:\n• Indicative simula"}
+{"type": "text.delta", "delta": "tion with synthetic residents, not a for"}
+{"type": "text.delta", "delta": "ecast; follow official MBSA / JPS / NADM"}
+{"type": "text.delta", "delta": "A guidance.\n• The nearest reachable cent"}
+{"type": "text.delta", "delta": "re changes as the river rises (see each "}
+{"type": "text.delta", "delta": "level)."}
 {"type": "citation", "ref": 1, "evidence_id": "ev-tip-40094293b6", "element_id": "lakeside-mall", "attribute": "tipping_point", "status": "indicative", "verified_at": null, "source_type": "REM scenario (indicative)", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Indicative simulation with synthetic residents, not a forecast; follow official MBSA / JPS / NADMA guidance"}, {"element_id": "answer", "attribute": "caveat", "note": "The nearest reachable centre changes as the river rises (see each level)"}]}
-{"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
+{"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not. Flash floods from heavy rain are not shown.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
 {"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}
