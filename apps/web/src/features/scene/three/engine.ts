@@ -30,6 +30,7 @@ import {
 import type { CityGeometry } from "./cityMesh";
 import { type Clearance, createLift } from "./clearance";
 import { cullFrustum, shadowPadM } from "./cull";
+import { createEnvTexture, ENV_SIGMA, fillEnvTexture, loadEnvFile } from "./envMap";
 import { createGpuPacer } from "./gpuPacer";
 import { applyGroundGrade, GROUND_GRADE, groundMaterial, ROAD_GRADE } from "./ground/bands";
 import type { Boundary } from "./ground/boundary";
@@ -555,13 +556,36 @@ function build(
   const sky = createSky();
   scene.add(sky.mesh);
   undo.push(() => sky.dispose());
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  undo.push(() => pmrem.dispose());
-  const room = new RoomEnvironment();
-  const envRT = pmrem.fromScene(room, 0.04);
-  room.dispose();
-  undo.push(() => envRT.dispose());
-  scene.environment = envRT.texture;
+  // The environment light: baked at build time (envMap.ts), so the first frame links no PMREM
+  // programs (ITER2 AC-D18: 434-814 ms). Same size as the runtime PMREM it falls back to.
+  const envTex = createEnvTexture();
+  undo.push(() => envTex.dispose());
+  scene.environment = envTex;
+  let envFallback: THREE.WebGLRenderTarget | null = null;
+  undo.push(() => envFallback?.dispose());
+  // (unit tests: no file, no fetch; the texture stays without pixels)
+  (import.meta.env.MODE === "test" ? new Promise<Uint16Array>(() => {}) : loadEnvFile()).then(
+    (px) => {
+      if (disposed) return;
+      fillEnvTexture(envTex, px);
+      requestRender();
+    },
+    (err: unknown) => {
+      if (disposed) return;
+      console.warn(`city: baked environment unavailable, rendering it (${String(err)})`);
+      try {
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const room = new RoomEnvironment();
+        envFallback = pmrem.fromScene(room, ENV_SIGMA);
+        room.dispose();
+        pmrem.dispose();
+        scene.environment = envFallback.texture;
+        requestRender();
+      } catch (e) {
+        console.warn(`city: no environment light (${String(e)})`);
+      }
+    },
+  );
 
   const camera = new THREE.PerspectiveCamera(VFOV_DEG, 1, 2, 30000);
   const sun = new THREE.DirectionalLight();

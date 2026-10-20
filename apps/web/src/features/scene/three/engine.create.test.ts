@@ -54,6 +54,20 @@ vi.mock("three", async (orig) => {
   return { ...t, Scene: RecScene, WebGLRenderer: FakeRenderer, PMREMGenerator: FailingPmrem };
 });
 
+// The environment is a baked file (ITER2 AC-D18); its texture creation stands in for a failure
+// after the renderer exists, and no file is fetched in tests.
+vi.mock("./envMap", async (orig) => {
+  const m = await orig<typeof import("./envMap")>();
+  return {
+    ...m,
+    createEnvTexture: () => {
+      if (spy.pmremFails) throw new Error("environment failed");
+      return m.createEnvTexture();
+    },
+    loadEnvFile: () => new Promise<Uint16Array>(() => {}),
+  };
+});
+
 // The post-processing chain needs a real GL context; the fog test only needs the engine's own state.
 vi.mock("three/addons/postprocessing/EffectComposer.js", () => ({
   EffectComposer: class {
@@ -107,8 +121,7 @@ describe("createEngine", () => {
     const { createEngine } = await import("./engine");
     const canvas = document.createElement("canvas");
     const remove = vi.spyOn(canvas, "removeEventListener");
-    expect(() => createEngine(canvas, "medium")).toThrow("PMREM failed");
-    expect(spy.pmremDispose).toHaveBeenCalledTimes(1);
+    expect(() => createEngine(canvas, "medium")).toThrow("environment failed");
     expect(spy.rendererDispose).toHaveBeenCalledTimes(1);
     expect(spy.contextLoss).toHaveBeenCalledTimes(1);
     expect(remove).toHaveBeenCalledWith("webglcontextlost", expect.any(Function));
