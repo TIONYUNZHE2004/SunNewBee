@@ -22,3 +22,4 @@ One prepared event: "Elmina Marathon, Sun 7-11 am" on a named loop.
 ## Log
 - 2026-10-20 16:05 UTC · control · Created.
 - 2026-10-20 17:52 UTC · control · Backend done by cloud Codex in PR #17 (events.py, POST /events/simulate, POST /events, simulate_event tool). Lands together with the AI worker's next PR.
+- 2026-10-20 19:09 UTC · control · Backend (cloud Codex, #17) and AI (cloud AI worker) merged into davinci via PR #19 (794e9bc), CI green incl. e2e. Live round about US$0.03 (Persiaran Garcinia marathon: 7 of 63 sample trips affected, 3 newly without a route, top detour Persiaran Tamarind). Open: shaoxian04 UI (markers, manager event screen); event cap 40 segments (Persiaran Elmina has 51); demo-cache date time bomb from 21 Oct (follow-up PR by the AI worker).
