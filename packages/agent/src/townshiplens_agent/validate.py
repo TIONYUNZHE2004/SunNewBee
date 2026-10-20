@@ -629,6 +629,7 @@ def draft_errors(text: str, rec: TurnRecord) -> list[str]:
         *day_change_errors(ans, rec),
         *affected_errors(ans, rec),
         *flood_impact_errors(ans, rec),
+        *event_errors(ans, rec),
         *journey_errors(ans, rec),
     ]
 
@@ -806,6 +807,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += my_trip_errors(ans, rec)
     errs += affected_errors(ans, rec)
     errs += flood_impact_errors(ans, rec)
+    errs += event_errors(ans, rec)
     errs += measurement_errors(ans, rec)
     errs += journey_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
@@ -1508,6 +1510,71 @@ def flood_impact_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     return []
 
 
+_EVENT_TRIPS = re.compile(
+    r"(?<![\d.,])(\d+)\s+(?:of\s+(?:the\s+)?(\d+)\s+)?(?:[a-z-]+\s+){0,3}?"
+    r"(?:trips?|journeys?|perjalanan)\b|(\d+)\s*(?:趟|次|个)(?:出行|行程)",
+    re.IGNORECASE,
+)
+_JAM = re.compile(
+    r"traffic jam|\bjams?\b|congest|gridlock|\bqueues?\b|\bcrowd"
+    r"|kesesakan|\bsesak\b|拥堵|堵车|人群",
+    re.IGNORECASE,
+)
+_BEFORE_WORDS = re.compile(
+    r"before|already|data gap|sebelum|sudah|之前|原本|数据缺口", re.IGNORECASE
+)
+
+
+def _ints(x) -> set[int]:
+    if isinstance(x, bool):
+        return set()
+    if isinstance(x, int | float):
+        return {int(x)} if float(x).is_integer() else set()
+    if isinstance(x, dict):
+        # the per-trip rows hold metres, not counts; detour rows' "trips" are counts
+        return {
+            n for k, v in x.items() if not (k == "trips" and isinstance(v, list)) for n in _ints(v)
+        }
+    if isinstance(x, list):
+        return {n for v in x for n in _ints(v)} | {len(x)}
+    return set()
+
+
+def event_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """T-025 event simulations: trip counts come from the tool; trips that had no route before
+    the event are not blamed on it; no jam, queue or crowd prediction (no traffic data)."""
+    if not rec.events or ans.answer_status == "cannot_answer":
+        return []
+    text = _strip_names(" ".join([ans.summary, *ans.steps, *ans.caveats]), rec.place_names)
+    allowed = {n for e in rec.events for n in _ints(e)}
+    errs: list[str] = []
+    for sent in _sentences(text):
+        for m in _EVENT_TRIPS.finditer(sent):
+            nums = {int(g) for g in m.groups() if g}
+            if bad := sorted(nums - allowed):
+                errs.append(f"Trip counts {bad} are not in the event simulation: quote its counts.")
+            for e in rec.events:
+                every, newly = e.get("trips_no_route"), e.get("trips_newly_no_route")
+                if (
+                    every != newly
+                    and every in nums
+                    and re.search(r"no (?:mapped )?route|tiada laluan|没有.{0,4}路线", sent, re.I)
+                    and not _BEFORE_WORDS.search(sent)
+                ):
+                    errs.append(
+                        f"{every} trips include {e.get('trips_no_route_before')} that had no "
+                        f"mapped route before the event: say trips_newly_no_route ({newly}) for "
+                        "the event, and the rest as data gaps."
+                    )
+        if (
+            _JAM.search(sent)
+            and not _NOT_CLAIMED.search(sent)
+            and not re.search(r"\bno\b|without|not modelled", sent, re.I)
+        ):
+            errs.append("There is no traffic or crowd data: never predict jams, queues or crowds.")
+    return list(dict.fromkeys(errs))
+
+
 def _plan_numbers(rec: TurnRecord) -> set[int]:
     out: set[int] = set()
     for p in rec.plans:
@@ -1924,6 +1991,9 @@ _ISSUES = (
     ("do not appear in the simulation result", "used numbers the simulation did not produce"),
     ("are not place counts", "counted path segments as places"),
     ("did not return these as flooded or cut off", "called a place flooded or cut off wrongly"),
+    ("are not in the event simulation", "used trip counts the event simulation did not give"),
+    ("before the event: say trips_newly_no_route", "blamed old data gaps on the event"),
+    ("never predict jams, queues or crowds", "predicted traffic jams or crowds"),
     ("must be called a rehearsal", "did not say it is a rehearsal of synthetic residents"),
     ("A rehearsal must say it is not a forecast", "did not say the rehearsal is not a forecast"),
     ("do not appear in the rehearsal", "used numbers the rehearsal did not produce"),

@@ -171,6 +171,23 @@ def flash_flood_note(ans: FinalAnswer, rec: TurnRecord, lang: str = "en") -> str
     return FLASH_FLOOD_NOTE.get(lang, FLASH_FLOOD_NOTE["en"])
 
 
+# T-025: every event answer says what its numbers are (added after the check).
+EVENT_NOTE = {
+    "en": "Estimate from mapped roads and sample trips, not traffic counts.",
+    "ms": "Anggaran daripada jalan yang dipetakan dan perjalanan sampel, bukan kiraan trafik.",
+    "zh": "根据已绘制的道路和样本出行估算，并非交通流量统计。",
+}
+_EVENT_SAID = re.compile(r"not traffic counts|bukan kiraan trafik|并非交通流量", re.IGNORECASE)
+
+
+def event_note(ans: FinalAnswer, rec: TurnRecord, lang: str = "en") -> str | None:
+    if not rec.events or ans.answer_status == "cannot_answer":
+        return None
+    if _EVENT_SAID.search(" ".join([ans.summary, *ans.caveats])):
+        return None
+    return EVENT_NOTE.get(lang, EVENT_NOTE["en"])
+
+
 def outside_note(ans: FinalAnswer, rec: TurnRecord, world, lang: str = "en") -> str | None:
     """The caveat when the answered route (else every route this turn) or a cited place lies
     outside the access deep spot; None inside it, or when the world defines no such spot."""
@@ -303,8 +320,9 @@ def _answer_events(
     ]
     if missing:
         ans = ans.model_copy(update={"caveats": [*ans.caveats, *missing]})
-    if note := flash_flood_note(ans, rec, lang):
-        ans = ans.model_copy(update={"caveats": [*ans.caveats, note]})
+    for note in (flash_flood_note(ans, rec, lang), event_note(ans, rec, lang)):
+        if note:
+            ans = ans.model_copy(update={"caveats": [*ans.caveats, note]})
     if note := outside_note(ans, rec, ctx.world, lang):
         ans = ans.model_copy(update={"caveats": [*ans.caveats, note]})
     text = answer_text(ans, _route_status_line(ans, rec, lang), rec, lang)

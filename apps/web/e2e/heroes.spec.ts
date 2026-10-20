@@ -323,8 +323,9 @@ test("Rising river: synthetic residents per stage, labelled a simulation", async
   await page.getByRole("button", { name: "Rising river" }).click();
   const panel = page.getByRole("region", { name: "Rising river" });
   await expect(panel.getByRole("note")).toContainText(/not a forecast/);
-  await panel.getByRole("button", { name: "River +5 m" }).click();
-  await expect(panel.getByRole("list", { name: "At River +5 m" })).toContainText(
+  // T-024: river stages are +1/+2/+3 m; the top stage is +3 m
+  await panel.getByRole("button", { name: "River +3 m" }).click();
+  await expect(panel.getByRole("list", { name: "At River +3 m" })).toContainText(
     /of \d+ still reach a centre/,
   );
 });

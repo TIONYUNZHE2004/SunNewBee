@@ -49,6 +49,23 @@ request only for a missing fact about a mapped place), and the validator rejects
 lists what staff can ask. Resident turns keep scope B+ unchanged. MCP still follows
 `ASSISTANT_SCOPE`.
 
+**River rise (T-024).** Scenarios are +1/+2/+3 m (`ChatRequest.scenario_id` accepts only
+those). Flood briefings name places from `affected_places.flooded_places` ("likely flooded
+(indicative)") and `cut_off_places` ("cut off: no mapped way in or out (indicative)") and give
+`flooded_path_m`; `validate.flood_impact_errors` rejects a place called flooded or cut off that
+the tool did not return as such. The app adds "Flash floods from heavy rain are not shown."
+(EN/BM/中文, `run.flash_flood_note`) to every answer that used a river stage.
+
+**Events (T-025, management only).** `simulate_event` takes the roads as staff name them
+(`event_course.course_segments`: exact name, else one clear loose match; unknown, ambiguous or
+over-40-segment courses are asked about) and HH:MM times; the window's date is filled in after
+the tool-call event (`event_course.event_window`), so recordings stay stable. Answers quote
+`trips_affected` of `trips_total`, `trips_newly_no_route` (trips with no route before the event
+are data gaps), places cut off, detour roads and suggestions; `validate.event_errors` checks the
+trip counts and rejects jam, queue or crowd predictions, and the app adds "Estimate from mapped
+roads and sample trips, not traffic counts." Resident route answers name an event closure
+("— event (Elmina Marathon)") and take the detour.
+
 `ASSISTANT_SCOPE=all` opts into the legacy features documented below. Legacy engine/pipeline
 tests and removed-feature golden cases opt in explicitly; `tests/test_scope.py` tests the
 default separately. The existing browser hero suite opts into `all` because it includes

@@ -1,4 +1,4 @@
-{"meta": {"message": "Which facts should staff verify first so wheelchair users can reach a centre?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "ffc9c3e83a9bb1c520b1dba0be40ce82acfa94d09159914e74c8019e71315f80", "model": "mock-scripted", "recorded_at": "2026-10-20T18:09:08+00:00"}}
+{"meta": {"message": "Which facts should staff verify first so wheelchair users can reach a centre?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "9e2d88a06bf2b898591a21c3a3014d9bfeabc399c26e3819e4dab2f6335d782f", "model": "mock-scripted", "recorded_at": "2026-10-20T18:18:13+00:00"}}
 {"type": "tool.call", "id": "plan_verifications-0", "name": "plan_verifications", "args": {"profile": "wheelchair", "scope": "evacuation", "budget": 15}}
 {"type": "tool.result", "id": "plan_verifications-0", "name": "plan_verifications", "summary": "plan: 15 checks -> 0 confirmed"}
 {"type": "answer.draft", "attempt": 1, "delta": "If these 15 checks at 5 places pass, 0 of 50 sampled wheelchair journeys would have a confirmed route to an evacuation centre (today: 0)."}

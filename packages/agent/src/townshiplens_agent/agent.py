@@ -25,6 +25,7 @@ from townshiplens_spatial.routing import CENTRE_PREFIX
 from townshiplens_spatial.scenario_meta import scenario_source
 
 from .answer import FinalAnswer
+from .event_course import CourseError, course_segments, event_window
 from .events import (
     AnswerCheck,
     ChatRequest,
@@ -131,6 +132,8 @@ def _summarise(name: str, res: sp.ToolResult) -> str:
         sm = d.get("summary") or {}
         before, after, total = sm.get("reach_before"), sm.get("reach_after"), sm.get("total")
         return f"what-if: {before} -> {after} of {total} reach"
+    if name == "simulate_event" and isinstance(d, dict):
+        return f"event: {d.get('trips_affected')} of {d.get('trips_total')} sample trips affected"
     if name == "plan_verifications" and isinstance(d, dict):
         sm = d.get("summary") or {}
         return f"plan: {len(d.get('facts') or [])} checks -> {sm.get('confirmed_after')} confirmed"
@@ -289,7 +292,7 @@ async def _file_journey_vrs(deps: Deps, data: dict, summary: str) -> None:
             data["verification_requests_truncated"] -= 1
 
 
-async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
+async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
     """Run one spatial tool, record what it returned and stream its events."""
     rec = deps.rec
     rec.place_entities = entities(deps.ctx.world)
@@ -361,6 +364,14 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         # The scenario on screen applies to routing even if the model forgot to pass it.
         kwargs["scenario_id"] = ui_scenario(deps)
     await _emit(deps, ToolCall(id=call_id, name=name, args=dict(kwargs)))
+    if name == "simulate_event":  # T-025: the window is built here, so the model never dates it
+        kwargs.pop("road_names", None)
+        kwargs["starts_at"], kwargs["ends_at"] = event_window(
+            kwargs.pop("start"),
+            kwargs.pop("end"),
+            kwargs.pop("day", None),
+            deps.ctx.world.site.timezone,
+        )
     if name == "plan_route":
         # Shown to staff on the VR: describe the request, never copy the user's words (PII).
         kwargs["question_summary"] = route_summary(
@@ -472,6 +483,12 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         }
     if name == "plan_verifications" and res.ok and isinstance(res.data, dict):
         rec.plans.append(res.data)
+    if name == "simulate_event" and res.ok and isinstance(res.data, dict):
+        rec.events.append(res.data)
+        # road and place names hold digits ("Persiaran Elmina 1/1"): names, not counts
+        rec.place_names |= {r["name"] for r in res.data.get("detour_roads") or []}
+        rec.place_names |= {p["name"] for p in res.data.get("places_cut_off") or []}
+        rec.place_names |= {(res.data.get("event") or {}).get("name") or ""} - {""}
     if name == "affected_places" and res.ok and isinstance(res.data, dict):
         d = res.data
         rec.affected.append(
@@ -707,6 +724,12 @@ def _for_model(name: str, out: dict) -> dict:
         for k in _MODEL_CAP.get(name, ()):
             if isinstance(data.get(k), list):
                 data[k] = data[k][:20]
+        if name == "simulate_event":  # per-trip rows and segment ids are for the map only
+            data.pop("trips", None)
+            if isinstance(data.get("event"), dict):
+                data["event"].pop("segment_ids", None)
+            for r in data.get("detour_roads") or []:
+                r.pop("segment_ids", None)
         if name == "affected_places":  # T-024 marker rows: map positions are for the UI only
             for k in ("flooded_places", "cut_off_places"):
                 if isinstance(data.get(k), list):
@@ -1041,6 +1064,41 @@ def build_agent(
             scenario_id=scenario_id,
             budget=budget,
             proposals=proposals,
+        )
+
+    @register_tool
+    async def simulate_event(
+        ctx: RunContext[Deps],
+        name: str,
+        start: str,
+        end: str,
+        road_names: list[str] | None = None,
+        segment_ids: list[str] | None = None,
+        day: str | None = None,
+        profiles: list[str] | None = None,
+    ) -> dict:
+        """Management: an event (marathon, parade) closes roads for a time window. Pass the
+        roads as the user names them (road_names), start and end as HH:MM local time, and day
+        as YYYY-MM-DD only when the user gives a date. Compares everyday sample trips (walking,
+        wheelchair, driving) without and with the closures: trips affected, trips that newly
+        lose a route, places cut off, detour roads ranked by rerouted trips, and suggestions.
+        An estimate from mapped roads and sample trips, not traffic counts."""
+        world = ctx.deps.ctx.world
+        try:
+            segs = course_segments(world, road_names, segment_ids)
+            event_window(start, end, day, world.site.timezone)
+        except CourseError as exc:  # unknown or ambiguous road, too long a course, bad time
+            return {"ok": False, "data": None, "evidence": [], "warnings": [str(exc)]}
+        return await call_tool(
+            ctx.deps,
+            "simulate_event",
+            name=name,
+            road_names=road_names or [],
+            segment_ids=segs,
+            start=start,
+            end=end,
+            day=day,
+            profiles=profiles,
         )
 
     @agent.output_validator

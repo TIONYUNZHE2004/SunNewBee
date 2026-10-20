@@ -23,6 +23,7 @@ from .scope import CANNOT_FROM_DATA
 from .template import (
     day_answer,
     day_change_answer,
+    event_answer,
     fixit_answer,
     greeting_answer,
     my_trip_answer,
@@ -79,8 +80,8 @@ def _src(c: dict) -> str:
     return "official PPS" if c["source"] == "official_pps" else "candidate, not confirmed as a PPS"
 
 
-def _call(name: str, **args) -> ModelResponse:
-    return ModelResponse(parts=[ToolCallPart(tool_name=name, args=args)])
+def _call(tool: str, /, **args) -> ModelResponse:
+    return ModelResponse(parts=[ToolCallPart(tool_name=tool, args=args)])
 
 
 def _final(**ans) -> ModelResponse:
@@ -489,6 +490,34 @@ def _fixit(q: str, rets, info: AgentInfo) -> ModelResponse:
 
 
 _WHATIF = r"\bwhat[- ]if\b|\bimagine\b|\bif (?:we|you|staff) (?:build|add|close|verify)\b"
+# T-025: an event closing roads for a time window ("close Persiaran X for a marathon 7-11 am")
+_EVENT_KIND = r"marathon|fun run|parade|festival|\brace\b|\bevent\b"
+_EVENT = rf"\bclos\w*\b.*(?:{_EVENT_KIND})|(?:{_EVENT_KIND}).*\bclos\w*\b"
+
+
+def _event(q: str, rets, info: AgentInfo) -> ModelResponse:
+    if not rets:
+        road = re.search(r"\bclos\w*\s+(?:the\s+)?(.+?)\s+(?:for|during|from|on)\b", q)
+        when = re.search(
+            r"(\d{1,2}(?::\d\d)?)\s*(?:am|pm)?\s*(?:-|–|to|until)\s*(\d{1,2}(?::\d\d)?\s*(?:am|pm)?)",
+            q,
+        )
+        if not road or not when:
+            return _cannot("Name the road and the event's start and end times, and I can check it.")
+        kind = re.search(_EVENT_KIND, q).group(0).strip()
+        return _call(
+            "simulate_event",
+            name=kind.title(),
+            road_names=[road.group(1).title()],
+            start=when.group(1),
+            end=when.group(2).replace(" ", ""),
+        )
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):  # unknown, ambiguous or too long a course: relay the reason
+        why = " ".join(rets[-1][1].get("warnings") or []) if isinstance(rets[-1][1], dict) else ""
+        return _cannot(why or "I couldn't simulate that event on the township model.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-event-")]
+    return _final(**event_answer(d, ev))
 
 
 def _whatif(q: str, rets, info: AgentInfo) -> ModelResponse:
@@ -649,6 +678,8 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return _tipping(q, rets, info)
     if scope == "all" and re.search(_PLAN, q):
         return _plan(q, rets, info)
+    if scope == "all" and re.search(_EVENT, q):
+        return _event(q, rets, info)
     if scope == "all" and re.search(_WHATIF, q):
         return _whatif(q, rets, info)
     is_flood = bool(re.search(r"flood|river|banjir|sungai|rises|naik|水", q))
