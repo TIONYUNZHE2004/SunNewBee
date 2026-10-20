@@ -11,6 +11,7 @@ import type { SceneBus } from "../scene/sceneBus";
 import type { LoadedAssets } from "../scene/useCityAssets";
 import { devDemoRequested, startDevDemo } from "./devDemo";
 import { createDevsimLayer, type DevsimLayer } from "./devsimLayer";
+import { createTower } from "./tower";
 
 /** The plan's closed edge from the walk layer (a feature whose id is `facts.detour.edge_id`). */
 export function closedEdgeOf(plan: DevelopmentPlan, accessData: unknown): number[][] | null {
@@ -43,7 +44,7 @@ export interface DevsimMountProps {
  * registers the scene part of `window.__devsim.probe()`. FE owns the clock and the overlays.
  */
 export function DevsimMount(props: DevsimMountProps) {
-  const { engine, frame, accessData } = props;
+  const { engine, frame, accessData, roleUniforms, loaded } = props;
   const plan = useDevsim((s) => s.plan);
   const [layer, setLayer] = useState<DevsimLayer | null>(null);
 
@@ -70,6 +71,9 @@ export function DevsimMount(props: DevsimMountProps) {
       clearance: () => engine.clearance?.() ?? null,
       fps: () => fps,
     });
+    l.setTower(
+      createTower({ geom: l.geom, roleUniforms, lib: loaded?.lib, manifest: loaded?.manifest }),
+    );
     l.setT(useDevsim.getState().t);
     engine.setDevsim(l);
     setLayer(l);
@@ -88,7 +92,7 @@ export function DevsimMount(props: DevsimMountProps) {
       engine.setDevsim?.(null); // disposes the layer
       setLayer(null);
     };
-  }, [engine, frame, plan, accessData]);
+  }, [engine, frame, plan, accessData, roleUniforms, loaded]);
 
   void layer;
   return null;
