@@ -1,0 +1,1060 @@
+{
+  "world": "committed Elmina seed; availability scan, not a demonstration of a bad journey",
+  "scenarios": {
+    "none": {
+      "rows": [
+        {
+          "id": "osm-node-11606719013",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31622333_1015063154"
+        },
+        {
+          "id": "osm-node-12001736409",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31795673_1015167504"
+        },
+        {
+          "id": "osm-node-12001743124",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31792007_1015174852"
+        },
+        {
+          "id": "osm-node-12001746507",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31797955_1015159032"
+        },
+        {
+          "id": "osm-node-12001757574",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31795673_1015167504"
+        },
+        {
+          "id": "osm-node-12001769039",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31789031_1015128887"
+        },
+        {
+          "id": "osm-node-13622243176",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31591456_1015190701"
+        },
+        {
+          "id": "osm-node-13622268567",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31589354_1015192817"
+        },
+        {
+          "id": "osm-way-1286251723",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31790154_1015128167"
+        },
+        {
+          "id": "osm-way-1286251724",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31790154_1015128167"
+        },
+        {
+          "id": "osm-way-1286251725",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31791160_1015132226"
+        },
+        {
+          "id": "osm-way-1286251726",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": null,
+          "mapped_node": null
+        },
+        {
+          "id": "osm-way-1286251727",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31802040_1015146187"
+        },
+        {
+          "id": "osm-way-1286251728",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31792256_1015146226"
+        },
+        {
+          "id": "osm-way-1286251729",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31786472_1015138735"
+        },
+        {
+          "id": "osm-way-1286251730",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31780220_1015132836"
+        },
+        {
+          "id": "osm-way-1286251731",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31776852_1015127411"
+        },
+        {
+          "id": "osm-way-1286251750",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31767839_1015105715"
+        },
+        {
+          "id": "osm-way-1302974732",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-way-1302974733",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-way-1302974734",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-node-12880146160",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32395303_1014802651"
+        },
+        {
+          "id": "osm-node-13622247083",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32357610_1015254510"
+        },
+        {
+          "id": "osm-node-13622249922",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32354171_1015247673"
+        },
+        {
+          "id": "osm-way-1383528912",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32129597_1015052771"
+        },
+        {
+          "id": "osm-way-1383528913",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32137035_1015053292"
+        },
+        {
+          "id": "bench-urban-1",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31808343_1015086713"
+        },
+        {
+          "id": "bench-urban-2",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31804933_1015085014"
+        },
+        {
+          "id": "bench-urban-3",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31805474_1015098542"
+        }
+      ],
+      "claim_eligible": 29,
+      "mapped_available": 28,
+      "mapped_verified": 3,
+      "mapped_unverified": 25
+    },
+    "baseline": {
+      "rows": [
+        {
+          "id": "osm-node-11606719013",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31622333_1015063154"
+        },
+        {
+          "id": "osm-node-12001736409",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31795673_1015167504"
+        },
+        {
+          "id": "osm-node-12001743124",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31792007_1015174852"
+        },
+        {
+          "id": "osm-node-12001746507",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31797955_1015159032"
+        },
+        {
+          "id": "osm-node-12001757574",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31795673_1015167504"
+        },
+        {
+          "id": "osm-node-12001769039",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31789031_1015128887"
+        },
+        {
+          "id": "osm-node-13622243176",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31591456_1015190701"
+        },
+        {
+          "id": "osm-node-13622268567",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31589354_1015192817"
+        },
+        {
+          "id": "osm-way-1286251723",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31790154_1015128167"
+        },
+        {
+          "id": "osm-way-1286251724",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31790154_1015128167"
+        },
+        {
+          "id": "osm-way-1286251725",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31791160_1015132226"
+        },
+        {
+          "id": "osm-way-1286251726",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": null,
+          "mapped_node": null
+        },
+        {
+          "id": "osm-way-1286251727",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31802040_1015146187"
+        },
+        {
+          "id": "osm-way-1286251728",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31792256_1015146226"
+        },
+        {
+          "id": "osm-way-1286251729",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31786472_1015138735"
+        },
+        {
+          "id": "osm-way-1286251730",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31780220_1015132836"
+        },
+        {
+          "id": "osm-way-1286251731",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31776852_1015127411"
+        },
+        {
+          "id": "osm-way-1286251750",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31767839_1015105715"
+        },
+        {
+          "id": "osm-way-1302974732",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-way-1302974733",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-way-1302974734",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-node-12880146160",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32395303_1014802651"
+        },
+        {
+          "id": "osm-node-13622247083",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32357610_1015254510"
+        },
+        {
+          "id": "osm-node-13622249922",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32354171_1015247673"
+        },
+        {
+          "id": "osm-way-1383528912",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32129597_1015052771"
+        },
+        {
+          "id": "osm-way-1383528913",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32137035_1015053292"
+        },
+        {
+          "id": "bench-urban-1",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31808343_1015086713"
+        },
+        {
+          "id": "bench-urban-2",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31804933_1015085014"
+        },
+        {
+          "id": "bench-urban-3",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31805474_1015098542"
+        }
+      ],
+      "claim_eligible": 29,
+      "mapped_available": 28,
+      "mapped_verified": 3,
+      "mapped_unverified": 25
+    },
+    "stage_p1m": {
+      "rows": [
+        {
+          "id": "osm-node-11606719013",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31622333_1015063154"
+        },
+        {
+          "id": "osm-node-12001736409",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31795673_1015167504"
+        },
+        {
+          "id": "osm-node-12001743124",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31792007_1015174852"
+        },
+        {
+          "id": "osm-node-12001746507",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31797955_1015159032"
+        },
+        {
+          "id": "osm-node-12001757574",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31795673_1015167504"
+        },
+        {
+          "id": "osm-node-12001769039",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31789031_1015128887"
+        },
+        {
+          "id": "osm-node-13622243176",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31591456_1015190701"
+        },
+        {
+          "id": "osm-node-13622268567",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31589354_1015192817"
+        },
+        {
+          "id": "osm-way-1286251723",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31790154_1015128167"
+        },
+        {
+          "id": "osm-way-1286251724",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31790154_1015128167"
+        },
+        {
+          "id": "osm-way-1286251725",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31791160_1015132226"
+        },
+        {
+          "id": "osm-way-1286251726",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": null
+        },
+        {
+          "id": "osm-way-1286251727",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31802040_1015146187"
+        },
+        {
+          "id": "osm-way-1286251728",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": "possible",
+          "mapped_node": "n-31792256_1015146226"
+        },
+        {
+          "id": "osm-way-1286251729",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31786472_1015138735"
+        },
+        {
+          "id": "osm-way-1286251730",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31780220_1015132836"
+        },
+        {
+          "id": "osm-way-1286251731",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31776852_1015127411"
+        },
+        {
+          "id": "osm-way-1286251750",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31767839_1015105715"
+        },
+        {
+          "id": "osm-way-1302974732",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-way-1302974733",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-way-1302974734",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-node-12880146160",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32395303_1014802651"
+        },
+        {
+          "id": "osm-node-13622247083",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": "possible",
+          "mapped_node": "n-32357610_1015254510"
+        },
+        {
+          "id": "osm-node-13622249922",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32354171_1015247673"
+        },
+        {
+          "id": "osm-way-1383528912",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-32129597_1015052771"
+        },
+        {
+          "id": "osm-way-1383528913",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32137035_1015053292"
+        },
+        {
+          "id": "bench-urban-1",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31808343_1015086713"
+        },
+        {
+          "id": "bench-urban-2",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31804933_1015085014"
+        },
+        {
+          "id": "bench-urban-3",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31805474_1015098542"
+        }
+      ],
+      "claim_eligible": 29,
+      "mapped_available": 19,
+      "mapped_verified": 3,
+      "mapped_unverified": 16
+    },
+    "stage_p3m": {
+      "rows": [
+        {
+          "id": "osm-node-11606719013",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31622333_1015063154"
+        },
+        {
+          "id": "osm-node-12001736409",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": "possible",
+          "mapped_node": "n-31795673_1015167504"
+        },
+        {
+          "id": "osm-node-12001743124",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31792007_1015174852"
+        },
+        {
+          "id": "osm-node-12001746507",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31797955_1015159032"
+        },
+        {
+          "id": "osm-node-12001757574",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": "possible",
+          "mapped_node": "n-31795673_1015167504"
+        },
+        {
+          "id": "osm-node-12001769039",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31789031_1015128887"
+        },
+        {
+          "id": "osm-node-13622243176",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31591456_1015190701"
+        },
+        {
+          "id": "osm-node-13622268567",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31589354_1015192817"
+        },
+        {
+          "id": "osm-way-1286251723",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31790154_1015128167"
+        },
+        {
+          "id": "osm-way-1286251724",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31790154_1015128167"
+        },
+        {
+          "id": "osm-way-1286251725",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31791160_1015132226"
+        },
+        {
+          "id": "osm-way-1286251726",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": null
+        },
+        {
+          "id": "osm-way-1286251727",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31802040_1015146187"
+        },
+        {
+          "id": "osm-way-1286251728",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31792256_1015146226"
+        },
+        {
+          "id": "osm-way-1286251729",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31786472_1015138735"
+        },
+        {
+          "id": "osm-way-1286251730",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31780220_1015132836"
+        },
+        {
+          "id": "osm-way-1286251731",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31776852_1015127411"
+        },
+        {
+          "id": "osm-way-1286251750",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31767839_1015105715"
+        },
+        {
+          "id": "osm-way-1302974732",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-way-1302974733",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-way-1302974734",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-node-12880146160",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32395303_1014802651"
+        },
+        {
+          "id": "osm-node-13622247083",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-32357610_1015254510"
+        },
+        {
+          "id": "osm-node-13622249922",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32354171_1015247673"
+        },
+        {
+          "id": "osm-way-1383528912",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-32129597_1015052771"
+        },
+        {
+          "id": "osm-way-1383528913",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-32137035_1015053292"
+        },
+        {
+          "id": "bench-urban-1",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31808343_1015086713"
+        },
+        {
+          "id": "bench-urban-2",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31804933_1015085014"
+        },
+        {
+          "id": "bench-urban-3",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31805474_1015098542"
+        }
+      ],
+      "claim_eligible": 29,
+      "mapped_available": 15,
+      "mapped_verified": 3,
+      "mapped_unverified": 12
+    },
+    "stage_p5m": {
+      "rows": [
+        {
+          "id": "osm-node-11606719013",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31622333_1015063154"
+        },
+        {
+          "id": "osm-node-12001736409",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31795673_1015167504"
+        },
+        {
+          "id": "osm-node-12001743124",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31792007_1015174852"
+        },
+        {
+          "id": "osm-node-12001746507",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31797955_1015159032"
+        },
+        {
+          "id": "osm-node-12001757574",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31795673_1015167504"
+        },
+        {
+          "id": "osm-node-12001769039",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31789031_1015128887"
+        },
+        {
+          "id": "osm-node-13622243176",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31591456_1015190701"
+        },
+        {
+          "id": "osm-node-13622268567",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31589354_1015192817"
+        },
+        {
+          "id": "osm-way-1286251723",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31790154_1015128167"
+        },
+        {
+          "id": "osm-way-1286251724",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31790154_1015128167"
+        },
+        {
+          "id": "osm-way-1286251725",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31791160_1015132226"
+        },
+        {
+          "id": "osm-way-1286251726",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": null
+        },
+        {
+          "id": "osm-way-1286251727",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31802040_1015146187"
+        },
+        {
+          "id": "osm-way-1286251728",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31792256_1015146226"
+        },
+        {
+          "id": "osm-way-1286251729",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31786472_1015138735"
+        },
+        {
+          "id": "osm-way-1286251730",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31780220_1015132836"
+        },
+        {
+          "id": "osm-way-1286251731",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31776852_1015127411"
+        },
+        {
+          "id": "osm-way-1286251750",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-31767839_1015105715"
+        },
+        {
+          "id": "osm-way-1302974732",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": "possible",
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-way-1302974733",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": "possible",
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-way-1302974734",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-31876988_1015220464"
+        },
+        {
+          "id": "osm-node-12880146160",
+          "claim_state": "UNKNOWN",
+          "availability": "UNKNOWN",
+          "flood_class": null,
+          "mapped_node": "n-32395303_1014802651"
+        },
+        {
+          "id": "osm-node-13622247083",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-32357610_1015254510"
+        },
+        {
+          "id": "osm-node-13622249922",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-32354171_1015247673"
+        },
+        {
+          "id": "osm-way-1383528912",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-32129597_1015052771"
+        },
+        {
+          "id": "osm-way-1383528913",
+          "claim_state": "UNKNOWN",
+          "availability": null,
+          "flood_class": "likely_flooded",
+          "mapped_node": "n-32137035_1015053292"
+        },
+        {
+          "id": "bench-urban-1",
+          "claim_state": "PASS",
+          "availability": "PASS",
+          "flood_class": null,
+          "mapped_node": "n-31808343_1015086713"
+        },
+        {
+          "id": "bench-urban-2",
+          "claim_state": "PASS",
+          "availability": "UNKNOWN",
+          "flood_class": "possible",
+          "mapped_node": "n-31804933_1015085014"
+        },
+        {
+          "id": "bench-urban-3",
+          "claim_state": "PASS",
+          "availability": "UNKNOWN",
+          "flood_class": "possible",
+          "mapped_node": "n-31805474_1015098542"
+        }
+      ],
+      "claim_eligible": 29,
+      "mapped_available": 12,
+      "mapped_verified": 1,
+      "mapped_unverified": 11
+    }
+  }
+}

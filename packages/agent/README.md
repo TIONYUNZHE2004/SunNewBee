@@ -317,3 +317,7 @@ real spatial tools on the tiny fixture. They make no network calls.
   floods (`OPENCELLID_TOKEN` is reserved).
 - **MCP**: expose the 10 spatial tools as an MCP server so other agents can use the same
   grounded facts.
+
+Route selection is checked before a tool can choose a journey. The request supplies both endpoints, a clear follow-up uses stored server endpoint IDs, and ambiguous or missing places need clarification. The guard preserves the requested mode and river scenario, including nearby amenity searches. An evacuation destination must come from the centre search for that same origin, profile and scenario. Route distances bind to exact place IDs, and the highlighted route must match the answer's selected route. Map-derived `likely_ok` sections require an estimate caveat in English, Bahasa Melayu or Chinese; they cannot support accessibility or staff-survey claims. Demo replay requires a fingerprint of the current world, profiles, engine/agent code and expiry day.
+
+`find_place` also accepts `near_place`: this limits identity candidates to 1 km of an already resolved origin. It supplies no walking-distance fact. For a generic destination and a unique named origin, the server supplies that context before calling the tool. Multiple local matches still require clarification. Amenity replies may recommend only matching returned destinations of the requested type; they cannot widen a user-stated search radius.

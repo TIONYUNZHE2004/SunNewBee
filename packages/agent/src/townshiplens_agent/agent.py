@@ -34,9 +34,21 @@ from .events import (
 )
 from .facts import categories, merge, tool_values
 from .journeys import PLAYABLE, journey_facts, journey_vr_targets, plan_for
-from .labels import crossing_note, enrich_unknowns
+from .labels import crossing_note, enrich_unknowns, road_note
 from .mock import mock_model
 from .record import TurnRecord
+from .route_binding import (
+    RouteSelectionError,
+    canonical_id,
+    effective_profile,
+    effective_scenario,
+    entities,
+    generic_kind,
+    guard_endpoints,
+    guard_origin,
+    mentions,
+    requested_radius,
+)
 from .scope import ACCESS_FLOOD_TOOLS, scoped_instructions
 from .settings import AgentSettings
 from .validate import issue_labels, repair_answer, validate_answer
@@ -279,6 +291,67 @@ async def _file_journey_vrs(deps: Deps, data: dict, summary: str) -> None:
 async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     """Run one spatial tool, record what it returned and stream its events."""
     rec = deps.rec
+    rec.place_entities = entities(deps.ctx.world)
+    try:
+        if name == "find_place" and (kind := generic_kind(kwargs.get("query", ""))):
+            anchors = mentions(deps.request.message, rec.place_entities)
+            if len(anchors) == 1 and not kwargs.get("near_place"):
+                kwargs["near_place"] = next(iter(anchors))
+                kwargs["types"] = kwargs.get("types") or ["facility" if kind == "kiosk" else kind]
+        if name == "find_place" and kwargs.get("near_place"):
+            guard_origin(
+                deps.ctx.world,
+                deps.request.message,
+                kwargs["near_place"],
+                context=rec.context_route,
+                strict=rec.strict_selection,
+            )
+        if name in {"plan_route", "nearby_amenities", "list_evacuation_centres", "affected_places"}:
+            kwargs["profile"] = effective_profile(
+                deps.request.message, deps.request.profile, kwargs.get("profile")
+            )
+        if rec.strict_selection and name in {
+            "plan_route",
+            "list_evacuation_centres",
+            "affected_places",
+            "nearby_amenities",
+        }:
+            kwargs["scenario_id"] = effective_scenario(
+                deps.request.message, deps.ctx.world, ui_scenario(deps), kwargs.get("scenario_id")
+            )
+        if name in {"nearby_amenities", "list_evacuation_centres"}:
+            origin = kwargs.get("origin_id") or kwargs.get("near_place")
+            if origin:
+                guard_origin(
+                    deps.ctx.world,
+                    deps.request.message,
+                    origin,
+                    context=rec.context_route,
+                    strict=rec.strict_selection,
+                )
+        if (
+            name == "nearby_amenities"
+            and (limit := requested_radius(deps.request.message)) is not None
+            and kwargs.get("max_walk_m", 300) > limit
+        ):
+            raise RouteSelectionError(
+                "Keep the amenity search within the requested distance; do not widen its radius."
+            )
+        if name == "plan_route":
+            await asyncio.to_thread(
+                guard_endpoints,
+                deps.ctx.world,
+                deps.request.message,
+                kwargs,
+                context=rec.context_route,
+                strict=rec.strict_selection,
+                centre_options=rec.centre_options,
+            )
+        if name in {"plan_route", "nearby_amenities", "list_evacuation_centres", "affected_places"}:
+            rec.selection_error = None
+    except RouteSelectionError as exc:
+        rec.selection_error = str(exc)
+        raise ModelRetry(str(exc)) from exc
     call_id = f"{name}-{len(rec.tool_calls)}"
     rec.tool_calls.append(name)
     if name == "create_verification_request":
@@ -295,6 +368,17 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     # Spatial tools are sync (graph search, SQLite): keep the event loop free.
     t0 = time.perf_counter()
     res: sp.ToolResult = await asyncio.to_thread(sp.TOOLS[name], deps.ctx, **kwargs)
+    if name == "list_evacuation_centres" and res.ok and kwargs.get("near_place"):
+        rec.centre_options.extend(
+            {
+                "from_id": kwargs["near_place"],
+                "to_id": "__centre__" + row["centre"]["id"],
+                "profile": kwargs["profile"],
+                "scenario_id": kwargs.get("scenario_id"),
+            }
+            for row in res.data
+            if row.get("reachable")
+        )
     rec.tool_seconds[name] = rec.tool_seconds.get(name, 0.0) + time.perf_counter() - t0
     rec.place_names |= _place_names(name, res.data)
     if name == "plan_route" and isinstance(res.data, dict) and kwargs.get("scenario_id"):
@@ -303,13 +387,28 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     for e in res.evidence:
         rec.evidence[e.id] = e
     if name == "plan_route" and isinstance(res.data, dict):
-        for r in res.data.get("routes", []):
+        for i, r in enumerate(res.data.get("routes", [])):
+            rec.measurement_subjects.append(
+                {
+                    "place_ids": [
+                        canonical_id(deps.ctx.world, r[k]) for k in ("from_place", "to_place")
+                    ],
+                    "route_id": r["id"],
+                    "values": tool_values(
+                        {"distance_m": r["distance_m"], "est_minutes": r["est_minutes"]}
+                    ),
+                }
+            )
             enrich_unknowns(deps.ctx.world, r)  # readable element labels and notes
             if note := crossing_note(r):
                 r["crossing_note"] = note  # the model copies it word for word (prompt 5h)
             if (plan := plan_for(deps.ctx.world, r)) is not None:
                 rec.journeys[r["id"]] = plan
                 r["journey"] = journey_facts(plan)  # counts the answer may state (prompt 9a)
+            if i == 0 and (note := road_note(res.warnings)):
+                r["road_note"] = note  # about the first route only (prompt 5j, T-019)
+            if i == 0:
+                rec.route_warnings[r["id"]] = list(res.warnings)
             rec.routes[r["id"]] = r
             rec.route_status[r["id"]] = r["status"]
         for c in res.data.get("closures") or []:
@@ -486,6 +585,21 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     world = deps.ctx.world
     subject = None
     if name == "nearby_amenities":  # each row is that amenity, measured from the origin
+        if res.ok:
+            rec.amenity_searches.append(
+                {
+                    "origin_id": kwargs["origin_id"],
+                    "amenity": kwargs["amenity"],
+                    "ids": [row["id"] for row in res.data],
+                }
+            )
+            rec.measurement_subjects.extend(
+                {
+                    "place_ids": [kwargs["origin_id"], row["id"]],
+                    "values": tool_values(row),
+                }
+                for row in res.data
+            )
         subject = categories(str(kwargs.get("amenity", ""))) | place_categories(
             world, str(kwargs.get("origin_id", ""))
         )
@@ -623,10 +737,18 @@ def build_agent(
 
     @register_tool
     async def find_place(
-        ctx: RunContext[Deps], query: str, types: list[str] | None = None, limit: int = 5
+        ctx: RunContext[Deps],
+        query: str,
+        types: list[str] | None = None,
+        limit: int = 5,
+        near_place: str | None = None,
     ) -> dict:
-        """Resolve a place name (EN/BM/中文, nicknames) to candidate place ids. Never guess ids."""
-        return await call_tool(ctx.deps, "find_place", query=query, types=types, limit=limit)
+        """Resolve exact place names. For a generic destination, resolve the origin first, then
+        pass near_place=<origin id> to search only within 1 km. Multiple matches need clarification.
+        Search proximity is straight-line context, never proof of a walkable route."""
+        return await call_tool(
+            ctx.deps, "find_place", query=query, types=types, limit=limit, near_place=near_place
+        )
 
     @register_tool
     async def get_place_details(ctx: RunContext[Deps], place_id: str) -> dict:
@@ -644,7 +766,8 @@ def build_agent(
         """The only routing authority. profile: default|stroller|wheelchair|older_adult_rest|drive.
         to_id may be a place id or "__centre__<centre_id>" for an evacuation centre.
         Optional scenario_id applies a flood scenario.
-        Returns status confirmed|partly_unverified|blocked|no_data."""
+        Returns status confirmed|likely_ok|partly_unverified|blocked|no_data.
+        likely_ok is estimated from map data, not checked on site."""
         return await call_tool(
             ctx.deps,
             "plan_route",
@@ -660,7 +783,8 @@ def build_agent(
         origin_id: str,
         amenity: str,
         max_walk_m: float = 300,
-        profile: str = "default",
+        profile: str | None = None,
+        scenario_id: str | None = None,
     ) -> dict:
         """Amenities (toilet, seating, shelter, ...) within a walking distance along paths."""
         return await call_tool(
@@ -670,6 +794,7 @@ def build_agent(
             amenity=amenity,
             max_walk_m=max_walk_m,
             profile=profile,
+            scenario_id=scenario_id,
         )
 
     @register_tool
@@ -708,7 +833,7 @@ def build_agent(
 
     @register_tool
     async def affected_places(
-        ctx: RunContext[Deps], scenario_id: str, kind: str = "all", profile: str = "default"
+        ctx: RunContext[Deps], scenario_id: str, kind: str = "all", profile: str | None = None
     ) -> dict:
         """What is likely/possibly cut off under a scenario, plus isolated islands.
         Lists are capped. For counts use likely_place_count (places) and likely_path_count
@@ -722,7 +847,7 @@ def build_agent(
     async def list_evacuation_centres(
         ctx: RunContext[Deps],
         scenario_id: str | None = None,
-        profile: str = "default",
+        profile: str | None = None,
         near_place: str | None = None,
     ) -> dict:
         """Evacuation centres with source (official_pps|osm_candidate) and reachability under a

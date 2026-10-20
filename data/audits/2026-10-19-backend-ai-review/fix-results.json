@@ -1,0 +1,290 @@
+{
+  "scope": "Backend and AI route correctness fixes; published AI 2aaa214 integrated after live probes.",
+  "recommendation": "Hold merge for two full-validator orientation bypasses after AI c9da379 and dropped rest-stop flood warnings in an observed mock answer. Use canonical selected-route prose preserving checked fields and engine warnings. Backend rest-availability fix 87a11ae excludes closed/flooded stops and marks uncertain ones unverified. Earlier loader and six P1 fixes stand; source identity/legal-turn data and destination-closure policy remain dependencies.",
+  "fixed": {
+    "AUD-001": "Exact place IDs bind route selection, measurements, follow-ups and map highlight.",
+    "AUD-002": "Replay rejects stale world, claim, profile, code and expiry-day fingerprints.",
+    "AUD-003": "Nearby searches inherit request mode and scenario; origin and radius cannot silently change. Empty search cannot recommend unrelated candidates. Final answer and flood-map level must match the checked route scenario.",
+    "AUD-004": "Estimated routes carry map-estimate caveats and reject unqualified accessibility/survey assertions; AI estimate tests integrated.",
+    "AUD-005": "Explicit impassable smoothness blocks wheeled modes; adverse smoothness prevents positive strict estimates. OSM definition does not prohibit pedestrian travel.",
+    "AUD-006": "Layer cache and ETag expire across the day boundary.",
+    "AUD-007": "Unpreviewed evacuation-centre rows respect older-adult rest gaps.",
+    "AUD-010": "Undated staff edge claims cannot establish a checked pass.",
+    "Rest availability": "87a11ae: active closures and FAIL flood assessments cannot establish a rest interval; possible/unassessed scenario stops remain unverified across route search, materialization and unpreviewed centre rows.",
+    "Invalid route metrics": "fc8c284: negative/non-finite edge lengths are rejected by the loader before they can supply routing costs, distances, durations or maneuver lengths; valid nonnegative measurements retain their values."
+  },
+  "remaining_ranked": [
+    {
+      "rank": 1,
+      "issue": "T-021 AI navigation binding",
+      "status": "open: two direction-reversal instructions accepted after AI c9da379; prior 9+13 probes pass",
+      "critical_point": "The lexical direction gate still publishes arbitrary route prose. Clockwise and opposite-direction instructions pass full validation. Use canonical route text from checked structured facts instead of another word-list patch. Offline crafted proof, not a live answer or seed route."
+    },
+    {
+      "rank": 2,
+      "issue": "AUD-011",
+      "status": "partial: importer identity c0d4adc, loader topology f1fea67 and metric guard fc8c284 complete; coherent source-backed seed rebuild still blocked",
+      "critical_point": "The committed seed retains legacy coordinate-derived node IDs. New imports require original OSM identities, and the loader rejects ambiguous records/geometry. Neither guard proves existing seed junction identities; a coherent source-backed rebuild and comparison remain required."
+    },
+    {
+      "rank": 3,
+      "issue": "Driving restrictions",
+      "status": "partial: mapped one-way enforcement 752c2a1 complete; legal turn relations/changing directions remain unmodelled",
+      "critical_point": "Mapped one-way tags are now enforced; legal turn relations and changing directions remain unmodelled. Driving remains indicative, never confirmed navigation."
+    },
+    {
+      "rank": 4,
+      "issue": "AUD-008",
+      "status": "open",
+      "critical_point": "Keyword scope gate can refuse real route requests containing removed-topic words."
+    },
+    {
+      "rank": 5,
+      "issue": "AUD-009",
+      "status": "open",
+      "critical_point": "PDPA redaction still misses some parenthesized phone and spaced identity formats."
+    },
+    {
+      "rank": 6,
+      "issue": "AUD-012",
+      "status": "policy decision required",
+      "critical_point": "Closed ordinary destinations warn, while closed evacuation centres are excluded. Yunzhe must choose consistent destination closure policy."
+    }
+  ],
+  "live": {
+    "questions": 9,
+    "initial": 6,
+    "focused_retests": 3,
+    "no_more_paid_calls": true,
+    "model": "anthropic/claude-haiku-5.5",
+    "reported_shared_key_delta_upper_bound_usd": 0.029173935,
+    "key_usage_at_2026_10_19_0125_utc": 0.213742665,
+    "spend_note": "AI round 5 accounting overlapped. The shared-key delta is an upper bound, not exclusive per-generation allocation. See board SPEND.md.",
+    "results": "No incorrect route highlight. BM and Chinese reached the local playground on retest; Chinese used the checked English template. Its overly broad amenity guard was narrowed and tested offline. Wrong-distance bait and unknown clinic abstained. Final combined AI merge is checked offline; live logs predate that merge."
+  },
+  "evidence": [
+    "fix-api-smoke.json",
+    "fix-live-six.json",
+    "fix-live-retest-three.json",
+    "fix_live_round.py"
+  ],
+  "full_ci": "Not run locally. Control opens the PR; CI must run the full checks. Assigned API/web stopped.",
+  "checks": {
+    "agent_api": "PASS 1,116 tests after AI merge",
+    "final_changed_files": "PASS 259 tests; final scenario and radius guards",
+    "additional_scene_rehearsal": "PASS 332 tests",
+    "estimate_audit_controls": "PASS 118 tests",
+    "spatial": "PASS 230 targeted engine tests; 66 final access/evaluation checks; 35 tools/search checks",
+    "lint": "PASS (existing warnings remain)",
+    "typecheck": "PASS",
+    "api_client": "PASS regeneration and zero drift",
+    "golden": "PASS 23/23 mock, zero fallbacks and rejected attempts",
+    "web_starters": "PASS 2/2",
+    "real_api": "PASS curl /places, /routes, /layers/access, /chat on real seed",
+    "e2e": "NOT RUN locally per branch workflow; control CI required"
+  },
+  "followup_2026_10_20": {
+    "backend_commits": {
+      "impact": "a71164d",
+      "maneuvers": "d4649d8",
+      "original_node_guard": "c0d4adc",
+      "drive_oneway": "752c2a1"
+    },
+    "ai_integrated": "3f02d69 via 8198a7d; no handwritten agent edits by backend",
+    "checks": {
+      "before_ai_integration": "1120 agent/API passed",
+      "after_ai_integration": "1125 agent/API passed; 1 failed: test_detour_closure_is_named; cache cases checked separately",
+      "spatial_direction_routing_tools_import": "186 passed; then 72 final direction/access/import checks and 40 flood/core API checks passed",
+      "mock_recordings": "22 refreshed; 23 cache tests passed",
+      "golden": "23/23; no fallback/rejection",
+      "lint": "PASS; existing frontend warnings remain",
+      "types": "PASS after maneuver model generation",
+      "generated_client": "PASS regeneration and zero drift",
+      "e2e": "NOT RUN, as instructed"
+    },
+    "critical_ai_handoff": [
+      "A right turn elsewhere licenses a wrong right turn onto a left-turn street.",
+      "Street-name prefix matching accepts an invented suffix.",
+      "Bear-right wording bypasses the turn guard.",
+      "A distance from another maneuver can be borrowed.",
+      "A legitimate closed street absent from the detour maneuvers is rejected.",
+      "Hidden steps are claimed to appear on a nonexistent map step list.",
+      "Arrive at destination is false when driving geometry stops 123.3 m away at the road.",
+      "Real mock drive chat omits the API road-end gap and standing legal-turn warning before claiming arrival."
+    ],
+    "evidence": [
+      "../2026-10-20-t021/probe_ai_steps.py",
+      "../2026-10-20-t021/probe_ai_steps.json",
+      "../2026-10-20-t021/api-routes.json",
+      "../2026-10-20-driving/route-comparison.json",
+      "../2026-10-20-t021/drive-arrival-chat.json"
+    ],
+    "seed_identity_audit": {
+      "coordinate_derived_nodes": 11736,
+      "different_explicit_layers_with_both_ways_internal_candidates": 0,
+      "caveat": "No original OSM IDs: zero candidates is not proof of correct topology."
+    },
+    "live_model_questions": 0,
+    "spend_usd": 0,
+    "merge_status": "BLOCKED pending AI correction and green CI"
+  },
+  "followup_round2_2026_10_20": {
+    "backend_commits": {
+      "zero_edge_geometry": "aab8d18",
+      "inferred_zero_edge_connection": "f9b459d",
+      "linked_centre_entrances": "8a885f9",
+      "chosen_drive_entrance_warning": "58734d7"
+    },
+    "ai_integrated": "c8f276d / 1622461 via 19a0f09; no handwritten agent edits by backend",
+    "fixed_ai": "Original seven maneuver probes PASS; closure regression PASS; real drive chat retains road-end/legal-turn caveats and mapped-end wording.",
+    "remaining_ai": "Three full-validator wrong-direction cases accepted; four controls correct. See ../2026-10-20-zero-route/probe_remaining_navigation.py and .json, pushed 54ae483. Merge hold remains.",
+    "checks": {
+      "zero_route_and_centres": "181 affected checks PASS before selected-gap follow-up; final 74 routing checks PASS after that change",
+      "integration_before_last_small_fix": "1152 agent/API tests PASS, including 23 cache-body tests",
+      "final_integration": "PASS 1152 agent/API tests in 237.88 s, including all 23 current demo-cache body checks, after final source change",
+      "lint": "PASS",
+      "golden": "23/23 mock PASS; zero fallbacks or rejected attempts",
+      "types": "PASS",
+      "api_client": "PASS regeneration and zero drift",
+      "e2e": "NOT RUN as instructed; control owns CI and visual review",
+      "demo_signatures": "22/22 refreshed metadata signatures and replay loads verified; validated event bodies byte-preserved"
+    },
+    "real_api": "places query/details, 16352 access features, zero-route status/geometry, 416.4 m walking control and 113.3 m drive chat verified. Extra zero-route mock chat abstains; it does not establish AI zero-route wording.",
+    "source": "One official OSM way/node identity diagnostic matches seed geometry; not a seed rebuild. Overpass de HTTP406, Kumi bounded timeout. No more retries or seed writes.",
+    "spend_usd": 0,
+    "live_questions": 0,
+    "app": "Stopped; own API8021/web5191 sockets verified closed"
+  },
+  "followup_round3_2026_10_20": {
+    "backend_commits": {
+      "usable_rest_sidewalk_verification": "26df8c7",
+      "shared_flood_entrances_and_mode_snaps": "e2c53a1",
+      "api_and_ai_probe_contract_tests": "90d1b53"
+    },
+    "ai_integrated": "c586d46 / 6faef4d via ab97315; incoming AI re-recorded bodies retained for 22 metadata-only recording conflicts",
+    "checks": {
+      "changed_verification": "209 PASS, including 22 focused rest/sidewalk/API tests",
+      "flood": "141 affected PASS plus 1 API route-vs-island check PASS",
+      "ai_steps_closures": "53 PASS",
+      "compatibility_before_latest_ai": "1155 PASS after first backend fix",
+      "final_agent_api": "PASS 1163 tests in 197.21 s after all source changes and AI c586d46, including all 23 current cache-body checks",
+      "golden": "23/23 mock PASS, no fallbacks or rejected attempts",
+      "lint": "PASS",
+      "api_client": "PASS regeneration and zero client drift",
+      "demo_signatures": "22/22 final world/code/day signatures and replay loads verified, event bodies byte-preserved; fb271a6"
+    },
+    "seed_before_after": {
+      "walking_islands_p3_p5": [20, 29],
+      "drive_islands_before_p3_p5": [12, 25],
+      "drive_islands_after_p3_p5": [21, 35],
+      "baseline_islands": 0,
+      "likely_possible_totals": "unchanged",
+      "limitation": "Graph-component indicators, not proof of legal/verified/rest-constrained evacuation routes."
+    },
+    "probes": "Original 9 PASS with explicit policy-updated correct-turn expectations and two descriptive controls. Expanded probe: 9 expected results PASS, 4 wrong-turn paraphrases still accepted.",
+    "live_questions": 0,
+    "spend_usd": 0,
+    "e2e": "NOT RUN as instructed",
+    "app": "Stopped; ports 8021/5191 checked closed"
+  },
+  "followup_round4_2026_10_20": {
+    "backend_commits": {
+      "collection_module_name": "ccddf0c",
+      "loader_integrity_and_usable_fixture": "f1fea67",
+      "orientation_probes": "46da575",
+      "distinct_flood_sample_nodes": "5b8af8a",
+      "demo_signatures": "23be90e"
+    },
+    "ai_integrated": "c9da379 via 460e743; no handwritten agent-source edits by backend",
+    "checks": {
+      "loader_walkway_api": "41 PASS",
+      "ai_steps_closures": "72 PASS",
+      "full_python": "PASS: 2338 passed, 37 skipped in 315.51 s after all source and fixture changes. Earlier interrupted partial runs are not counted.",
+      "lint": "PASS",
+      "golden": "23/23 mock PASS, zero fallbacks/rejected attempts",
+      "flood_fixture_world_api": "56 PASS; independent flood raster samples now use distinct node IDs, with coordinates and assertions unchanged",
+      "first_full_python": "2337 passed, 37 skipped, 1 malformed synthetic flood-fixture failure; fixed in 5b8af8a before the final green rerun",
+      "demo_signatures": "22/22 final signature replay loads PASS; event bodies byte-preserved, metadata commit 23be90e; full Python includes all 23 cache-body checks"
+    },
+    "real_seed": "16120 edges / 232 places / 11736 nodes accepted; 0 shared-node coordinate conflicts. Walking 416.4 m, driving 113.3 m and mandatory chat caveats unchanged. This is not proof of original source node identity.",
+    "probes": "Prior 9+13 PASS; expanded 15-case probe has 13 correct outcomes and two accepted orientation reversals.",
+    "source_rebuild": "Blocked: one fresh read-only Kumi request after the interruption, connect 5 s / read 18 s / retries 1, timed out. OverpassFailed; requests 1; no seed writes. No further source retries this round.",
+    "app": "Stopped; ports 8021/5191 checked closed",
+    "live_questions": 0,
+    "spend_usd": 0,
+    "e2e": "NOT RUN as instructed",
+    "contract_acknowledgements": "AI acknowledged rest/sidewalk/flood and earlier zero/centre/chosen-gap semantic notes in T-016/T-021."
+  },
+  "followup_round5_2026_10_20": {
+    "backend_commit": "87a11ae",
+    "scope": "One shared rest-availability gate for route search, materialization and non-preview centre status; active closures and scenario FAIL exclude stops, UNKNOWN flood/coverage caps rest state at unverified. No schema change.",
+    "checks": {
+      "first_routing_verification": "101 PASS",
+      "final_spatial_api": "23 spatial + 5 API PASS",
+      "lint": "PASS",
+      "required_agent_api": "PASS: 1188 tests in 198.35 s, including current cache-body checks",
+      "golden": "23/23 mock PASS, zero fallbacks or rejected attempts",
+      "signatures": "22/22 Elmina replay loads and byte-preserved event bodies. 6feb312 also touched three Tiny headers; 6a82222 restores those three files byte-for-byte, with no final Tiny diff.",
+      "final_demo_cache": "PASS: 35 tests in 101.20 s after metadata correction"
+    },
+    "seed": "29 seating/shelter places, 28 mapped; available mapped stops no scenario/baseline 28, +1 m 19, +3 m 15, +5 m 12. Availability scan, not a bad seed-route demonstration.",
+    "real_api": "Older-adult control unchanged partly_unverified 416.4 m; walk likely_ok 416.4 m, drive likely_ok 113.3 m; 16352 access features; mock chat no error/done.",
+    "ai_handoff": "One real mock HTTP answer on crafted rest-detour fixture names unverified rest-r but omits its explicit possible-flood/partial-coverage warnings; answer.check accepts it. Owner: AI canonical route renderer.",
+    "evidence": "../2026-10-20-rest-availability/README.md",
+    "live_questions": 0,
+    "spend_usd": 0,
+    "source_calls": 0,
+    "e2e": "NOT RUN as instructed",
+    "metadata_commits": ["6feb312", "6a82222"],
+    "contract_acknowledgement": "pending new rest availability note; earlier notes acknowledged",
+    "app": "Stopped; own ports 8021/5191 verified closed"
+  },
+  "followup_round6_2026_10_20": {
+    "backend_commit": "fc8c284",
+    "finding": "Crafted tiny world with seg-ab length -100 produced a confirmed -100 m / -1.4 minute route. Not present in the real seed.",
+    "rule": "WorldDataError for negative or non-finite lengths, including overlay replacements; no fabricated replacement and no healthy field/schema change.",
+    "checks": {
+      "targeted_world_api_floodbuild": "67 PASS",
+      "lint": "PASS",
+      "current_mock_cache_bodies": "23 PASS in 104.47 s",
+      "broader_agent_api_golden": "Prior 1188/35/23 checkpoints predate this input-only guard; not repeated as current full-suite validation.",
+      "replay_signatures": "86b9951: 22/22 Elmina replay loads verified; event bodies byte-preserved; three Tiny files untouched"
+    },
+    "seed": "0 invalid / 16120 edge lengths; walk/stroller 416.4 m, drive 113.3 m; 16352 access features; mock HTTP chat no error and done.",
+    "evidence": "../2026-10-20-route-metrics/README.md",
+    "live_questions": 0,
+    "spend_usd": 0,
+    "source_calls": 0,
+    "e2e": "NOT RUN as instructed",
+    "app": "Stopped; ports 8021/5191 verified closed"
+  },
+  "followup_round7_2026_10_20": {
+    "scope": "Source cache-readiness audit only; no runtime, seed or recording changes",
+    "readiness": {
+      "required_road_queries": 15,
+      "cached_walk_queries": 3,
+      "required_walk_queries": 9,
+      "cached_major_queries": 0,
+      "required_major_queries": 6,
+      "missing_queries": 12,
+      "cached_subset_ways": 1754,
+      "cached_subset_segments": 3566,
+      "subset_identity_geometry_check": "PASS within available subset only; not proof of legacy seed topology"
+    },
+    "recovery_probe": {
+      "time_utc": "2026-10-19T22:52:36Z",
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "requests": 1,
+      "connect_timeout_s": 5,
+      "read_timeout_s": 18,
+      "elapsed_s": 18.43,
+      "result": "Read timeout / OverpassFailed; no cache or seed write; no retry loop"
+    },
+    "checks": "Audit JSON formatting and git diff --check; CI not rerun for docs-only changes under board workflow",
+    "evidence": "../2026-10-20-topology-cache/README.md",
+    "live_questions": 0,
+    "spend_usd": 0,
+    "app": "Remains stopped",
+    "next": "Wait for source recovery, then fetch missing road-query answers with a bounded request budget, validate complete node IDs/geometry, check other inputs, rebuild the full pipeline and compare routes/flood before refreshing recordings."
+  }
+}

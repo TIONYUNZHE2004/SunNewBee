@@ -1,7 +1,16 @@
 from datetime import date, datetime
 
 from . import models as _m
-from .models import Claim, Edge, EvalResult, FloodClass, Place, Profile, active_closures
+from .models import (
+    Claim,
+    ClaimStatus,
+    Edge,
+    EvalResult,
+    FloodClass,
+    Place,
+    Profile,
+    active_closures,
+)
 
 PLACEHOLDER_SOURCE = (
     "team_survey_placeholder"  # demo values, not surveyed (see Route.demo_evidence)
@@ -24,7 +33,27 @@ def _is_stale(c: Claim, attr: str, today: date) -> bool:
 def _needs_verification(c: Claim | None, attr: str, today: date) -> bool:
     """True when `c` cannot support a PASS: missing, valueless, not verified (reported, unknown,
     stale, contested) or past its TTL. `evaluate_edge` and the gap map both use this."""
-    return c is None or c.status != "verified" or c.value is None or _is_stale(c, attr, today)
+    return (
+        c is None
+        or c.status != "verified"
+        or c.value is None
+        or not c.verified_at
+        or _is_stale(c, attr, today)
+    )
+
+
+def effective_claim_status(
+    claim: Claim | None, attr: str, today: date | None = None
+) -> ClaimStatus:
+    """Status for derived assertions; preserve the original claim for the audit trail."""
+    today = today or date.today()
+    if claim is None:
+        return "unknown"
+    if _is_stale(claim, attr, today):
+        return "stale"
+    if claim.status == "verified" and _needs_verification(claim, attr, today):
+        return "unknown"
+    return claim.status
 
 
 # Edge types people can only walk along on a sidewalk or verge (Task 31).
@@ -32,6 +61,19 @@ SIDEWALK_TYPES = {"major_road"}
 # `separate` = the sidewalk is mapped as its own footway; the brief accepts the road edge too
 # (review M-5: a stricter "prefer the parallel footway" rule is a possible follow-up).
 SIDEWALK_PRESENT = {"both", "one_side", "separate"}
+
+
+def mode_access(edge: Edge, profile: Profile) -> tuple[str | None, str | None]:
+    """Most specific OSM mode permission wins; foot=yes can override generic access=no."""
+    keys = (
+        ("motorcar", "motor_vehicle", "vehicle", "access")
+        if profile.id == "drive"
+        else ("foot", "access")
+    )
+    for key in keys:
+        if key in edge.osm_tags:
+            return key, edge.osm_tags[key]
+    return None, None
 
 
 def _sidewalk_check(edge: Edge, profile: Profile, today: date) -> tuple[EvalResult, dict] | None:
@@ -50,6 +92,13 @@ def _sidewalk_check(edge: Edge, profile: Profile, today: date) -> tuple[EvalResu
     stale = c is not None and c.value is not None and _is_stale(c, "sidewalk", today)
     trusted = c is not None and c.status in ("verified", "reported") and not stale
     if trusted and c.value in SIDEWALK_PRESENT:
+        if c.status == "verified" and _needs_verification(c, "sidewalk", today):
+            return "UNKNOWN", {
+                "element_id": edge.id,
+                "attribute": "sidewalk",
+                "reason": "unknown",
+                "why": "major road; sidewalk verification is undated",
+            }
         if c.status == "verified" or not strict:
             return None
         return "UNKNOWN", {
@@ -151,6 +200,41 @@ def evaluate_edge(
                 "attribute": "type",
                 "reason": "unknown",
                 "why": f"{edge.type} edges are not usable for {profile.id}",
+            }
+        ]
+    permission_key, permission = mode_access(edge, profile)
+    wheelchair = edge.claims.get("wheelchair")
+    wheelchair_denied = profile.id == "wheelchair" and (
+        edge.osm_tags.get("wheelchair") == "no"
+        or (
+            wheelchair is not None
+            and wheelchair.status in ("verified", "reported")
+            and wheelchair.value == "no"
+        )
+    )
+    if permission == "no" or wheelchair_denied:
+        attr = "wheelchair" if wheelchair_denied else permission_key
+        return "FAIL", [
+            {
+                "element_id": edge.id,
+                "attribute": attr,
+                "reason": "unknown",
+                "why": f"{attr}=no; not usable for {profile.id}",
+            }
+        ]
+    # OSM smoothness grades wheeled travel, not whether a pedestrian can walk here.
+    # https://wiki.openstreetmap.org/wiki/Key:smoothness
+    if edge.osm_tags.get("smoothness") == "impassable" and profile.id in {
+        "wheelchair",
+        "stroller",
+        "drive",
+    }:
+        return "FAIL", [
+            {
+                "element_id": edge.id,
+                "attribute": "smoothness",
+                "reason": "unknown",
+                "why": "OSM smoothness=impassable; no positive access estimate is permitted",
             }
         ]
     flood_result, flood_why = evaluate_flood(edge.id, profile, flood_class, flood_coverage)
@@ -315,9 +399,6 @@ def rest_point_state(place: Place, today: date | None = None) -> EvalResult | No
         for a, c in claims
     ):
         return "FAIL"
-    if any(
-        c.status == "verified" and _rest_present(a, c.value) and not _is_stale(c, a, today)
-        for a, c in claims
-    ):
+    if any(_rest_present(a, c.value) and not _needs_verification(c, a, today) for a, c in claims):
         return "PASS"
     return "UNKNOWN"

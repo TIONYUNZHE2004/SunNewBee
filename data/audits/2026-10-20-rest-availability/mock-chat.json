@@ -1,0 +1,36 @@
+{
+  "world": "crafted tiny rest-detour fixture, not Elmina seed",
+  "provider": "mock",
+  "request": {
+    "message": "Can I walk from Car Park B to the playground with rest stops?",
+    "profile": "older_adult_rest",
+    "scenario_id": "stage_p3m"
+  },
+  "engine_warnings": [
+    "rest point not checked yet: Rest rest-r; this route needs it to keep every stretch within 100 m",
+    "Rest rest-r: possibly flooded in this scenario",
+    "Rest rest-r: flood assessment has partial raster coverage; unassessed data gap"
+  ],
+  "answer": "Route status: partly unverified\nCar Park B to Urban Park playground: route partly unverified, 226.2 m.\n1. Start heading east along the footway for about 226 m (not checked yet).\n2. Reach the end of the mapped route.\nWorth knowing:\n\u2022 Rest point not checked yet: Rest rest-r; this route needs it to keep every stretch within 100 m.\n\u2022 Segment facts are demo values, not yet surveyed.",
+  "answer_checks": [
+    {
+      "type": "answer.check",
+      "attempt": 1,
+      "ok": true,
+      "issues": [],
+      "repairs": 0
+    }
+  ],
+  "errors": [],
+  "done": [
+    {
+      "type": "done",
+      "message_id": "17f5eb6f9660",
+      "answer_status": "partial",
+      "model": "mock-scripted"
+    }
+  ],
+  "finding": "Answer names unverified rest-r but omits its explicit possible-flood/partial-coverage warning. Handed to AI canonical route rendering; no agent source edited.",
+  "live_questions": 0,
+  "spend_usd": 0
+}

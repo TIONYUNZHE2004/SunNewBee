@@ -9,16 +9,20 @@ from typing import Any
 
 import networkx as nx
 
+from .access import LEVELS, assess_access, urban_context
+from .direction import CONDITIONAL_KEYS, allows_direction, direction_rule, direction_unknown
 from .evaluate import (
     REST_ATTRS,
     SIDEWALK_PRESENT,
-    _is_stale,
+    _needs_verification,
+    effective_claim_status,
     evaluate_edge,
     evaluate_flood,
     rest_point_state,
 )
 from .geo import haversine_m
-from .models import Evidence, RoadSection, Route, RouteResult, RouteSegment, photo_url
+from .maneuvers import build_maneuvers
+from .models import Evidence, Place, RoadSection, Route, RouteResult, RouteSegment, photo_url
 from .scenario_meta import scenario_source, selection_error
 from .world import World
 
@@ -48,20 +52,26 @@ def _caveat(profile, status):
 SNAP_CAP_M = 150.0
 
 
+def _entrance_pts(world: World, place: Place | None) -> list[tuple[str, list[float]]]:
+    return [
+        (entrance.node_id, entrance.coord)
+        for eid in (place.entrance_ids if place else [])
+        if (entrance := world.places.get(eid)) and entrance.node_id
+    ]
+
+
 def _target_pts(world: World, place_id: str) -> list[tuple[str, list[float]]]:
     """(graph node, coordinate) for each mapped way into a place or transient centre target."""
     p = world.places.get(place_id)
     if p is None and place_id.startswith(CENTRE_PREFIX):
         # Transient evacuation-centre target: resolved from world.centres, never stored in places.
         c = world.centres.get(place_id[len(CENTRE_PREFIX) :])
+        if c and (ents := _entrance_pts(world, world.places.get(c.place_id))):
+            return ents
         return [(c.node_id, c.coord)] if c and c.node_id and c.node_id in world.graph else []
     if p is None:
         return []
-    ents = [
-        (world.places[e].node_id, world.places[e].coord)
-        for e in p.entrance_ids
-        if e in world.places and world.places[e].node_id
-    ]
+    ents = _entrance_pts(world, p)
     return ents or ([(p.node_id, p.coord)] if p.node_id and p.node_id in world.graph else [])
 
 
@@ -126,24 +136,27 @@ def _road_disconnected(comps: dict[str, int], sources, targets) -> bool:
     return not {comps.get(s) for s in sources} & {comps.get(t) for t in targets}
 
 
-def _targets(world: World, place_id: str, profile=None) -> list[str]:
-    pts = _target_pts(world, place_id)
+def _targets(world: World, place_id: str, profile=None, *, road_nodes=None) -> list[str]:
+    # A broken explicit entrance is a data gap, not permission to use the older area snap.
+    pts = [(n, xy) for n, xy in _target_pts(world, place_id) if n in world.graph]
     if profile is None or profile.allowed_types is None:
         return [n for n, _ in pts]
-    roads = _road_nodes(world, profile)
+    roads = road_nodes if road_nodes is not None else _road_nodes(world, profile)
     snapped = (_snap_to_road(world, roads, n, xy) for n, xy in pts)
     return sorted({n for n in snapped if n})
 
 
-def _snap_warning(world: World, place_id: str, profile) -> str | None:
+def _snap_warning(world: World, place_id: str, profile, routed_point) -> str | None:
     """Vehicle profiles route from the nearest mapped road node, so distance and time leave out
     the stretch between the place and that node (up to SNAP_CAP_M). Say so (Task 26 Minor 1)."""
     roads = _road_nodes(world, profile)
     best: float | None = None
     for node, xy in _target_pts(world, place_id):
-        if node in roads:
-            return None  # a mapped way in is on a road: nothing left out
         snapped = _snap_to_road(world, roads, node, xy)
+        if snapped is None or world.node_coords.get(snapped) != routed_point:
+            continue  # an unused entrance cannot describe this route's off-graph gap
+        if node in roads:
+            return None  # the chosen mapped way in is on a road: nothing left out
         if snapped is not None and snapped in world.node_coords:
             d = haversine_m(xy, world.node_coords[snapped])
             best = d if best is None else min(best, d)
@@ -300,14 +313,58 @@ def _edge_cost(world, profile, scenario_id, allow_unknown, key, evals=None) -> f
     res, why = _evaluate(world, profile, scenario_id, key)
     if evals is not None:
         evals[key] = (res, why)
-    if res == "FAIL" or (res == "UNKNOWN" and not allow_unknown):
+    assessment = _assessment(world, profile, scenario_id, key, (res, why))
+    unknown = assessment.level == "unknown" and (res == "UNKNOWN" or bool(e.osm_tags))
+    if res == "FAIL" or (unknown and not allow_unknown):
         return None
-    w = e.length_m * (UNKNOWN_WEIGHT if res == "UNKNOWN" else 1.0)
+    w = e.length_m * (
+        UNKNOWN_WEIGHT if unknown else 1.4 if assessment.level == "likely_ok" else 1.0
+    )
     if e.type == "steps":
         w *= profile.soft.get("steps_multiplier", 1.0)
     if profile.allowed_types is None and e.type in ROAD_TYPES:
         w *= WALK_ROAD_MULTIPLIER
     return w
+
+
+def _assessment(world, profile, scenario_id, key, factual=None):
+    edge = world.edges[key]
+    memo = _EVAL_MEMO.get()
+    cache_key = ("access", id(edge), profile.id, scenario_id)
+    if memo is not None and cache_key in memo:
+        return memo[cache_key]
+    value = assess_access(
+        edge,
+        profile,
+        _flood_class(world, scenario_id, key),
+        flood_coverage=world.flood.coverage_for(scenario_id, key),
+        urban=urban_context(world, edge),
+        factual=factual or _evaluate(world, profile, scenario_id, key),
+    )
+    if memo is not None:
+        memo[cache_key] = value
+    return value
+
+
+def path_status(world, nodes, profile, scenario_id):
+    """Status of a strict Dijkstra path, including estimates for non-materialised centres."""
+    estimated = False
+    keys = []
+    for u, v in zip(nodes, nodes[1:], strict=False):
+        candidates = [
+            (cost, key)
+            for key in world.graph[u][v]
+            if allows_direction(world.edges[key], profile.id, u)
+            if (cost := _edge_cost(world, profile, scenario_id, False, key)) is not None
+        ]
+        key = min(candidates)[1]
+        keys.append(key)
+        estimated |= _assessment(world, profile, scenario_id, key).level == "likely_ok"
+    if profile.max_rest_free_run_m is not None:
+        rests = {n for n in nodes if _rest_node_state(world, n, profile, scenario_id) == "PASS"}
+        if _max_rest_gap(world, nodes, keys, rests) > profile.max_rest_free_run_m:
+            return "partly_unverified"
+    return "likely_ok" if estimated else _caveat(profile, "confirmed")
 
 
 def make_weight(world, profile, scenario_id, allow_unknown, evals=None, chosen=None):
@@ -320,13 +377,26 @@ def make_weight(world, profile, scenario_id, allow_unknown, evals=None, chosen=N
     def weight(u, v, data):
         best = None
         for key in data:  # MultiGraph: data = {edge_id: attrs}
+            if not allows_direction(world.edges[key], profile.id, u):
+                if evals is not None:
+                    evals[("direction", u, v, key)] = (
+                        "FAIL",
+                        [
+                            {
+                                "element_id": key,
+                                "attribute": "oneway",
+                                "why": "mapped one-way direction forbids this traversal",
+                            }
+                        ],
+                    )
+                continue
             w = _edge_cost(world, profile, scenario_id, allow_unknown, key, evals)
             if w is None:
                 continue
             if best is None or w < best:
                 best = w
                 if chosen is not None:
-                    chosen[frozenset((u, v))] = key
+                    chosen[(u, v)] = key
         return best
 
     return weight
@@ -339,7 +409,7 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
     costs resolve by insertion order, the first source/target reached wins), without copying the
     whole graph for those two nodes on every call (about half of a seed route's time)."""
     evals: dict[str, tuple] = {}
-    chosen: dict[frozenset, str] = {}  # node pair -> edge key the search actually costed
+    chosen: dict[tuple[str, str], str] = {}  # ordered node pair -> chosen edge key
     weight = make_weight(world, profile, scenario_id, allow_unknown, evals, chosen)
     g, goal = world.graph, set(targets)
     seen: dict[str, float] = {}
@@ -360,7 +430,7 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
             while nodes[-1] in pred:
                 nodes.append(pred[nodes[-1]])
             nodes.reverse()
-            keys = [chosen[frozenset((u, w))] for u, w in zip(nodes, nodes[1:], strict=False)]
+            keys = [chosen[(u, w)] for u, w in zip(nodes, nodes[1:], strict=False)]
             return nodes, keys, evals
         for u, data in g[v].items():
             cost = weight(v, u, data)
@@ -373,19 +443,28 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
     return None, [], evals
 
 
-def _rest_places(world: World, node: str) -> list[tuple[str, object]]:
-    """(state, place) for each rest place at a node that may count: PASS or UNKNOWN, never FAIL."""
+def _rest_places(
+    world: World, node: str, profile=None, scenario_id=None
+) -> list[tuple[str, Place]]:
+    """Available rest places: seat claims cannot override a closure or scenario assessment."""
     out = []
     for p in world.places_at(node):
         st = rest_point_state(p) if p.type in REST_TYPES else None
-        if st in ("PASS", "UNKNOWN"):
-            out.append((st, p))
+        if st not in ("PASS", "UNKNOWN") or any(c.is_active() for c in p.closures):
+            continue
+        if profile is not None:
+            flood_state, _ = endpoint_flood(world, p.id, profile, scenario_id)
+            if flood_state == "FAIL":
+                continue
+            if flood_state == "UNKNOWN":
+                st = "UNKNOWN"
+        out.append((st, p))
     return out
 
 
-def _rest_node_state(world: World, node: str) -> str | None:
+def _rest_node_state(world: World, node: str, profile=None, scenario_id=None) -> str | None:
     """PASS if a verified rest point is here, UNKNOWN if only unverified ones, else None."""
-    states = {st for st, _ in _rest_places(world, node)}
+    states = {st for st, _ in _rest_places(world, node, profile, scenario_id)}
     return "PASS" if "PASS" in states else "UNKNOWN" if states else None
 
 
@@ -444,6 +523,8 @@ def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, l
             return nodes[::-1], keys[::-1], evals, False
         for nbr, data in g[node].items():
             for key in data:
+                if not allows_direction(world.edges[key], profile.id, node):
+                    continue
                 if key not in costs:
                     costs[key] = _edge_cost(world, profile, scenario_id, allow_unknown, key, evals)
                 w = costs[key]
@@ -453,7 +534,7 @@ def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, l
                 if run > limit:
                     continue
                 if nbr not in rest:
-                    st = _rest_node_state(world, nbr)
+                    st = _rest_node_state(world, nbr, profile, scenario_id)
                     rest[nbr] = st == "PASS" or (allow_unknown and st == "UNKNOWN")
                 if len(labels) >= MAX_REST_LABELS:
                     return None, [], evals, True
@@ -461,22 +542,78 @@ def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, l
     return None, [], evals, False
 
 
+def _zero_edge_entrance_gaps(world: World, from_id: str, to_id: str) -> list[dict[str, str]]:
+    """A shared graph node cannot verify an inferred connection between different places."""
+    from_id, to_id = endpoint_id(world, from_id), endpoint_id(world, to_id)
+    if from_id == to_id:
+        return []
+    gaps = []
+    for pid in dict.fromkeys((from_id, to_id)):
+        p = world.places.get(pid)
+        if p is None or not p.node_inferred:
+            continue
+        if any(
+            world.places.get(e) and world.places[e].node_id in world.graph for e in p.entrance_ids
+        ):
+            continue
+        claim = p.claims.get("access_point")
+        if (
+            not _needs_verification(claim, "access_point", date.today())
+            and claim.value == p.node_id
+            and claim.evidence_type not in {None, "team_survey_placeholder", "osm_import", "whatif"}
+            and claim.verified_by
+        ):
+            continue
+        gaps.append(
+            {
+                "element_id": pid,
+                "attribute": "access_point",
+                "why": "entrance connection is inferred; a shared graph point does not verify it",
+            }
+        )
+    return gaps
+
+
 def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, evals) -> Route:
     segs, coords, unknowns, dist = [], [], [], 0.0
+    metres = dict.fromkeys(LEVELS, 0.0)
+    estimated, uncovered = False, False
     for u, k in zip(nodes, keys, strict=False):
         e = world.edges[k]
         res, why = evals[k]
+        access = _assessment(world, profile, scenario_id, k, (res, why))
+        estimated |= access.level == "likely_ok"
+        uncovered |= access.level == "unknown" and (res == "UNKNOWN" or bool(e.osm_tags))
+        metres[access.level] += e.length_m
         segs.append(
-            RouteSegment(edge_id=k, eval=res, flood_class=_flood_class(world, scenario_id, k))
+            RouteSegment(
+                edge_id=k,
+                eval=res,
+                flood_class=_flood_class(world, scenario_id, k),
+                access_level=access.level,
+                rule_id=access.rule_id,
+                tags_used=access.tags_used,
+            )
         )
         pts = e.coords if e.from_node == u else list(reversed(e.coords))
         coords.extend(pts if not coords else pts[1:])
         dist += e.length_m
         if res == "UNKNOWN":
             unknowns.extend(why)
+    if not keys:
+        # Keep the LineString contract without inventing any off-graph connection.
+        point = world.node_coords[nodes[-1]]
+        coords = [list(point), list(point)]
+        unknowns.extend(_zero_edge_entrance_gaps(world, from_id, to_id))
     # A detour out and back along a spur repeats edges: list each unknown once (review M-1).
     unknowns = list({(u["element_id"], u["attribute"]): u for u in unknowns}.values())
-    status = _caveat(profile, "confirmed" if not unknowns else "partly_unverified")
+    status = (
+        "partly_unverified"
+        if uncovered
+        else "likely_ok"
+        if estimated
+        else _caveat(profile, "confirmed" if not unknowns else "partly_unverified")
+    )
     rid = (
         "rt-"
         + hashlib.sha1(
@@ -485,7 +622,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
     )
     rest, seen = [], set()
     for n in nodes:
-        for st, p in _rest_places(world, n):
+        for st, p in _rest_places(world, n, profile, scenario_id):
             if p.id not in seen:
                 seen.add(p.id)
                 status_word = "verified" if st == "PASS" else "unverified"
@@ -501,6 +638,8 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         distance_m=round(dist, 1),
         est_minutes=round(dist / _pace_m_per_min(profile), 1),
         segments=segs,
+        maneuvers=build_maneuvers(world, nodes, segs),
+        access_metres={level: round(length, 1) for level, length in metres.items()},
         unknowns=unknowns,
         rest_points=rest,
         geometry={"type": "LineString", "coordinates": coords},
@@ -532,7 +671,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
             route.rest_points_unverified = [
                 r["place_id"] for r in rest if r["status"] == "unverified"
             ]
-        if route.status == "confirmed" and (
+        if route.status in ("confirmed", "likely_ok") and (
             not route.rest_limit_met or route.rest_points_unverified
         ):
             route.status = "partly_unverified"
@@ -550,9 +689,7 @@ def route_road_sections(world: World, keys: list[str]) -> list[RoadSection]:
         if edge.type not in ROAD_TYPES:
             continue
         claim = edge.claims.get("sidewalk")
-        status = claim.status if claim else "unknown"
-        if claim and _is_stale(claim, "sidewalk", date.today()):
-            status = "stale"
+        status = effective_claim_status(claim, "sidewalk")
         sections.append(
             RoadSection(
                 element_id=key,
@@ -577,7 +714,9 @@ def _max_rest_gap(world, nodes, keys, rest_nodes) -> float:
 def evidence_for_route(world: World, route: Route) -> list[Evidence]:
     out = [
         ev
-        for pid in dict.fromkeys((route.from_place, route.to_place))
+        for pid in dict.fromkeys(
+            [route.from_place, route.to_place, *(r["place_id"] for r in route.rest_points)]
+        )
         for ev in flood_evidence(world, pid, route.scenario_id)
     ]
     for s in route.segments:
@@ -615,6 +754,24 @@ def evidence_for_route(world: World, route: Route) -> list[Evidence]:
         out.append(place_evidence(dest))  # the journey's arrive event cites it
     if route.rest_limit_m is not None:
         out.extend(_rest_evidence(world, route))
+    estimated = [s for s in route.segments if s.access_level == "likely_ok"]
+    if estimated:
+        out.append(
+            Evidence(
+                id=f"ev-{route.id}.access_estimate",
+                element_id=route.id,
+                attribute="route_access_estimate",
+                status="reported",
+                source_type="map-derived estimate (not checked on site)",
+                value={
+                    "access_metres": route.access_metres,
+                    "segments": [
+                        {"edge_id": s.edge_id, "rule_id": s.rule_id, "tags_used": s.tags_used}
+                        for s in estimated
+                    ],
+                },
+            )
+        )
     return out
 
 
@@ -677,6 +834,30 @@ def _rest_evidence(world: World, route: Route) -> list[Evidence]:
     return out
 
 
+def direction_evidence(world: World, edge_ids) -> list[Evidence]:
+    out = []
+    for key in dict.fromkeys(edge_ids):
+        edge = world.edges.get(key)
+        if edge is None:
+            continue
+        _, tag, value = direction_rule(edge)
+        if tag is None:
+            tag = next((k for k in CONDITIONAL_KEYS if k in edge.osm_tags), None)
+            value = edge.osm_tags.get(tag) if tag else None
+        if tag is not None:
+            out.append(
+                Evidence(
+                    id=f"ev-{edge.id}.oneway",
+                    element_id=edge.id,
+                    attribute="oneway",
+                    value={"tag": tag, "value": value},
+                    status="reported",
+                    source_type="osm_import",
+                )
+            )
+    return out
+
+
 def plan_route(
     world: World, from_id: str, to_id: str, profile_id: str, scenario_id: str | None = None
 ) -> RouteResult:
@@ -702,19 +883,42 @@ def plan_route(
     if result.routes:
         result.status = result.routes[0].status
         route = result.routes[0]
+        if not route.segments and any(u["attribute"] == "access_point" for u in route.unknowns):
+            result.warnings.append(
+                "Zero mapped metres describe a shared graph point, "
+                "not a checked entrance connection between these places"
+            )
+        if route.access_metres.get("likely_ok", 0):
+            result.warnings.append(
+                "Likely OK sections are estimated from map data, not checked on site"
+            )
         if profile.allowed_types is None and route.road_without_mapped_sidewalk_m:
             result.warnings.append(
                 f"About {route.road_without_mapped_sidewalk_m:.0f} m follows road centre lines "
                 "without a mapped sidewalk; sidewalk access is not verified"
             )
+        if profile.id == "drive" and any(
+            direction_unknown(world.edges[s.edge_id]) for s in route.segments
+        ):
+            result.warnings.append(
+                "This route includes conditional or changing one-way directions "
+                "that are not interpreted"
+            )
     result.warnings.extend(
         note
-        for pid in dict.fromkeys((from_id, to_id))
+        for pid in dict.fromkeys(
+            [
+                from_id,
+                to_id,
+                *([r["place_id"] for r in result.routes[0].rest_points] if result.routes else []),
+            ]
+        )
         for note in endpoint_flood_warnings(world, pid, profile, scenario_id)
     )
     if profile.allowed_types is not None and result.routes:
-        for pid in (from_id, to_id):
-            if note := _snap_warning(world, pid, profile):
+        coords = result.routes[0].geometry["coordinates"]
+        for pid, point in ((from_id, coords[0]), (to_id, coords[-1])):
+            if note := _snap_warning(world, pid, profile, point):
                 result.warnings.append(note)
     if profile.standing_warning and result.status != "no_data":
         result.warnings.append(profile.standing_warning)

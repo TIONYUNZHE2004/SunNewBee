@@ -1,0 +1,132 @@
+[
+  {
+    "before": {
+      "request": {
+        "from": "park-b",
+        "to": "playground",
+        "profile": "drive"
+      },
+      "status": "likely_ok",
+      "distance_m": 113.2,
+      "against_mapped_oneway": ["seg-1306543778-0"]
+    },
+    "after": {
+      "status": "likely_ok",
+      "distance_m": 113.3,
+      "against_mapped_oneway": [],
+      "segment_ids": [
+        "seg-1306543769-4",
+        "seg-1306543769-5",
+        "seg-1306543772-0",
+        "seg-1306543754-3",
+        "seg-1306543781-0"
+      ],
+      "warnings": [
+        "Likely OK sections are estimated from map data, not checked on site",
+        "Urban Park playground is about 120 m from the nearest mapped road; distance and time stop at the road",
+        "Drive routes: mapped one-way tags applied; legal turn restrictions and changing directions not modelled; indicative only, never confirmed.",
+        "Demo value \u00b7 not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+      ]
+    }
+  },
+  {
+    "before": {
+      "request": {
+        "from": "playground",
+        "to": "park-b",
+        "profile": "drive"
+      },
+      "status": "likely_ok",
+      "distance_m": 113.2,
+      "against_mapped_oneway": []
+    },
+    "after": {
+      "status": "likely_ok",
+      "distance_m": 113.2,
+      "against_mapped_oneway": [],
+      "segment_ids": [
+        "seg-1306543781-0",
+        "seg-1306543754-3",
+        "seg-1306543754-4",
+        "seg-1306543778-0",
+        "seg-1306543769-4"
+      ],
+      "warnings": [
+        "Likely OK sections are estimated from map data, not checked on site",
+        "Urban Park playground is about 120 m from the nearest mapped road; distance and time stop at the road",
+        "Drive routes: mapped one-way tags applied; legal turn restrictions and changing directions not modelled; indicative only, never confirmed.",
+        "Demo value \u00b7 not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+      ]
+    }
+  },
+  {
+    "before": {
+      "request": {
+        "from": "osm-way-910405528",
+        "to": "osm-way-910378231",
+        "profile": "drive"
+      },
+      "status": "likely_ok",
+      "distance_m": 352.0,
+      "against_mapped_oneway": []
+    },
+    "after": {
+      "status": "likely_ok",
+      "distance_m": 352.0,
+      "against_mapped_oneway": [],
+      "segment_ids": [
+        "seg-240136688-8",
+        "seg-240136688-7",
+        "seg-240136688-6",
+        "seg-240136688-5",
+        "seg-240136688-4",
+        "seg-240136688-3",
+        "seg-240136688-2",
+        "seg-240136713-1"
+      ],
+      "warnings": [
+        "Likely OK sections are estimated from map data, not checked on site",
+        "Surau At Taqwa is about 30 m from the nearest mapped road; distance and time stop at the road",
+        "Drive routes: mapped one-way tags applied; legal turn restrictions and changing directions not modelled; indicative only, never confirmed.",
+        "Route starts at the nearest mapped path to Surau Al Mahdi; its entrance is not mapped.",
+        "Route ends at the nearest mapped path to Surau At Taqwa; its entrance is not mapped."
+      ]
+    }
+  },
+  {
+    "before": {
+      "request": {
+        "from": "osm-way-910378231",
+        "to": "osm-way-910405528",
+        "profile": "drive"
+      },
+      "status": "likely_ok",
+      "distance_m": 352.0,
+      "against_mapped_oneway": []
+    },
+    "after": {
+      "status": "likely_ok",
+      "distance_m": 352.0,
+      "against_mapped_oneway": [],
+      "segment_ids": [
+        "seg-240136713-1",
+        "seg-240136688-2",
+        "seg-240136688-3",
+        "seg-240136688-4",
+        "seg-240136688-5",
+        "seg-240136688-6",
+        "seg-240136688-7",
+        "seg-240136688-8"
+      ],
+      "warnings": [
+        "Likely OK sections are estimated from map data, not checked on site",
+        "Surau At Taqwa is about 30 m from the nearest mapped road; distance and time stop at the road",
+        "Drive routes: mapped one-way tags applied; legal turn restrictions and changing directions not modelled; indicative only, never confirmed.",
+        "Route starts at the nearest mapped path to Surau At Taqwa; its entrance is not mapped.",
+        "Route ends at the nearest mapped path to Surau Al Mahdi; its entrance is not mapped."
+      ]
+    }
+  }
+]

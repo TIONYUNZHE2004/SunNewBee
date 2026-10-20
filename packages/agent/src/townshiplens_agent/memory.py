@@ -27,6 +27,7 @@ class _Turn:
     question: str
     answer: str
     simulated: bool  # the turn ran a world-model simulation (what-if or survey plan)
+    route: dict | None = None  # server-selected IDs only; no model-written endpoint facts
 
 
 @dataclass
@@ -78,15 +79,24 @@ class SessionMemory:
         s = self._get(session_id)
         return bool(s and any(t.simulated for t in s.turns))
 
+    def route_context(self, session_id: str | None) -> dict | None:
+        s = self._get(session_id)
+        return dict(s.turns[-1].route) if s and s.turns and s.turns[-1].route else None
+
     def add_turn(
-        self, session_id: str | None, question: str, answer: str, simulated: bool = False
+        self,
+        session_id: str | None,
+        question: str,
+        answer: str,
+        simulated: bool = False,
+        route: dict | None = None,
     ) -> None:
         if not session_id or not question:
             return
         now = time.monotonic()
         self._expire(now)
         s = self._s.setdefault(session_id, _Session())
-        s.turns = [*s.turns, _Turn(question[:2000], answer[:MAX_ANSWER_CHARS], simulated)]
+        s.turns = [*s.turns, _Turn(question[:2000], answer[:MAX_ANSWER_CHARS], simulated, route)]
         s.turns = s.turns[-self.max_turns :]
         while len(s.turns) > 1 and sum(len(t.question) + len(t.answer) for t in s.turns) > (
             self.max_chars

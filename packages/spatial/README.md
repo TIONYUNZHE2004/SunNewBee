@@ -36,6 +36,14 @@ changing the engine's status, selection or distance. MCP receives the same evide
 Node IDs (`n-...`) are implicit: an edge's `from`/`to` plus the first/last coordinate of its
 LineString define a node and its position. Coordinates are WGS84 `[lon, lat]`.
 
+The loader rejects duplicate IDs within one source file, overlapping edge/place IDs,
+negative or non-finite edge lengths, unusable positions or line geometry, and incident edges
+that assign different positions
+to the same node ID. An overlay may intentionally replace a base record by ID, but the
+resulting graph must remain consistent. Equal coordinates with distinct IDs do not create
+a junction. This catches malformed input; it does not establish original OSM identity for
+the legacy seed.
+
 ## Modules
 
 `world` (loader), `models` (pydantic), `profiles` (loads `config/profiles/*.yaml`), `evaluate`
@@ -86,7 +94,14 @@ Speed: rollouts run inside `routing.eval_memo()`, which evaluates each (state, p
 `config/profiles/`: `default`, `stroller`, `wheelchair`, `older_adult_rest` and `drive`.
 `drive` only uses edges whose `type` is `street`, `track` or `major_road` (`allowed_types`), assumes 30 km/h,
 treats a possibly flooded road as FAIL (walking profiles treat it as UNKNOWN), and always adds
-its standing warning (one-way and turn restrictions are not modelled; indicative only).
+its standing warning (mapped one-way tags applied; legal turn restrictions and changing
+directions remain unmodelled; indicative only). Direction is relative to the original OSM
+edge orientation: `yes/1/true` is forward, `-1` is reverse, and `no/0/false` allows both.
+Motorcar/motor-vehicle/vehicle overrides take priority; a mapped roundabout implies forward
+unless overridden. These vehicle rules do not restrict pedestrian profiles. Search choices
+are keyed by ordered nodes, so opposite parallel carriageways cannot exchange segment IDs.
+Unsupported or conditional directions remain unknown estimates with a warning.
+See [the OSM direction contract](https://wiki.openstreetmap.org/wiki/Key:oneway).
 
 `older_adult_rest` has `max_rest_free_run_m: 100`. Routing first runs a resource-constrained
 search over (node, metres since the last rest point). It is label-setting with dominance
@@ -95,6 +110,10 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
 - **Rest points are tri-state** (`evaluate.rest_point_state`, from the place's own `seating` /
   `shelter` claim):
   - verified present and fresh: counts;
+  - an active place closure or a FAIL flood assessment excludes the stop;
+  - possible flood or uncovered/partial scenario coverage caps the stop at unverified.
+    Search, returned rest lists and unpreviewed centre rows use the same availability gate;
+    retained uncertain stops carry flood warnings and evidence;
   - verified or reported absent: never counts, and is left out of `rest_points`;
   - no claim (OSM only), unknown, stale, contested or only reported present: counts only in
     the lenient pass.
@@ -126,11 +145,58 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
   equals no scenario) are critical violations. `sim.snapshot_world` gives a run one consistent
   view (claims and closures copied, closure time frozen, closure-set hash).
 
+## Access estimates (T-020)
+
+`access.assess_access` adds a map-derived level without rewriting factual
+`evaluate_edge` PASS/FAIL/UNKNOWN. `Edge.osm_tags` retains the importer inputs.
+All levels carry a stable `rule_id` and `tags_used`; urban estimates add context metadata.
+
+| Mode / basis | Level and rule |
+| --- | --- |
+| Current staff survey, all relevant facts verified, `verified_by` present, no demo/OSM/what-if source | `verified`, `staff_verified_v1` |
+| Sidewalk, crossing, pedestrian infrastructure | `likely_ok`, `pedestrian_infrastructure_v1` |
+| Strict walking: paved path / OSM wheelchair=yes | `likely_ok`, `paved_path_v1` / `osm_wheelchair_yes_v1` |
+| Strict walking: footway/ramp, every vertex within 60 m of OSM residential centreline | `likely_ok`, `urban_footway_v1` |
+| Default walking: mapped path, footway, ramp or steps | `likely_ok`, `mapped_path_walking_v1` / `mapped_steps_walking_v1` |
+| Default walking: local street | `likely_ok`, `local_road_walking_v1` |
+| Road with mapped sidewalk | `likely_ok`, `mapped_road_sidewalk_v1` |
+| Driving: street/major road, or paved track | `likely_ok`, `mapped_road_driving_v1` |
+| Driving: footway, sidewalk, crossing, path and other non-roads | `not_a_road`, `driving_nonroad_v1` |
+
+Strict modes are wheelchair, stroller and older-adult-rest. Rough/unknown rural paths,
+unpaved tracks, missing road sidewalks, ambiguous incline/width tags, stale/contested
+relevant claims and restricted permissions do not support an estimate. Explicit OSM mode
+`no`, known physical barriers, active closures and flood FAIL always block routing.
+A specific permission overrides generic access (for example `foot=yes` over `access=no`).
+Possible flood and raster gaps cap an estimate at unknown; driving treats possible flood
+as a barrier. Non-road driving map lines stay grey, including under a flood overlay.
+
+The 60 m urban rule is a **proxy assumption**, using local metre projection and source
+vertices. It does not establish a built-up boundary, sidewalk, width, slope or surveyed
+passability. Decorative buildings and renderer geometry are never inputs.
+
+Route segments expose `access_level`, `rule_id`, `tags_used` and the unchanged factual
+`eval`. `Route.access_metres` totals traversal metres for all five levels, rounded to 0.1 m.
+An estimated segment can have `eval=UNKNOWN`; those missing facts remain in `unknowns`.
+A route covered by verified facts/estimates is `likely_ok` when any segment is estimated.
+Uncovered unknowns, endpoint scenario uncertainty or unmet rest constraints make it
+`partly_unverified`. Search penalises estimates 1.4× and uncovered unknowns 5×.
+`route_access_estimate` evidence is **reported**, with source
+`map-derived estimate (not checked on site)`; it contains rules and per-level metres.
+Never describe estimates as checked, verified, safe or confirmed.
+
+Legacy worlds without raw OSM provenance retain factual routing and explicit demo flags;
+they receive no map estimate and no Verified layer label. Existing confirmed demo routes
+still require the mandatory demo-value caveat. This preserves tiny-fixture semantics.
+
+Reproduce seed counts with `uv run python data/scripts/audit_access.py`.
+The before/after report is `data/audits/2026-10-18-t020-access.json`.
+
 ## Route status
 
 | Status | Meaning |
 | --- | --- |
-| `confirmed` / `partly_unverified` | A route exists; `partly_unverified` crosses UNKNOWN edges |
+| `confirmed` / `likely_ok` / `partly_unverified` | A route exists; `likely_ok` uses map estimates; `partly_unverified` has uncovered unknowns |
 | `blocked` | The endpoints are connected in the unfiltered graph, but every path is cut by a known FAIL |
 | `no_data` | The endpoints are in different graph components (for `drive`: no connecting road, or a place with no mapped road within the snap distance), or a place or profile is unknown. A data gap, never "not reachable" |
 
@@ -331,3 +397,23 @@ with `__`.
 - Closures: `plan_route` does not say when a closure forced a detour on a route that still exists (it names closures only when they leave no route or close an endpoint place). A closed place does not block routing to or through it.
 - Staleness TTL configuration.
 - Performance caching keyed by `world.version`.
+
+Correctness audit follow-up: explicit OSM `smoothness=impassable` blocks wheeled modes before positive estimates ([OSM definition](https://wiki.openstreetmap.org/wiki/Key:smoothness)); it does not create a pedestrian prohibition. Adverse smoothness keeps strict-mode and driving estimates unknown. A staff claim without `verified_at` cannot support a checked PASS. Evacuation rows beyond the route-preview limit apply the older-adult rest-gap constraint. `nearby_amenities` accepts optional `scenario_id`; it evaluates scenario edges and destination flood classes, excludes flooded destinations, and warns about flooded origins. Its existing row shape stays unchanged.
+
+The optional `find_place(..., near_place=<place id>)` argument restricts name/type candidates to a straight-line 1 km context. An invalid origin returns `ok=false`. Proximity establishes identity context only; `plan_route` remains the authority for routes, distance, mode and river effects.
+
+Ticket impact counts a resolved staff check only while its value and verification date remain usable under the evaluation TTL. Undated, expired or valueless checks do not count as completed impact; an open ticket can still preview a fresh check. Demo and what-if evidence remain excluded.
+
+Route `maneuvers` are deterministic directions along the selected graph path. Each step has a 1-based index, action, metres to the next step, initial true-north bearing (degrees, or null for directionless geometry), exact mapped street name (or null), mapped edge type, access level/rule, ordered segment IDs and a `[longitude, latitude]` point. Distances use physical edge lengths. Turns use oriented incoming/outgoing local tangents: under 20 degrees continues, 20 to under 60 is slight, 60 through 150 is a turn, above 150 is a U-turn. Continues merge only when name, type, access level and rule match. A straight entry into a mapped crossing uses `cross`; a turning entry retains its turn action and crossing type. No crossing control or destination side is inferred. `arrive` covers zero metres and no segments; a zero-edge route has only `arrive`. Results without a route have no steps. Every real turn is returned, including on long routes; answer summaries must disclose omitted steps. Driving remains indicative because legal turn restrictions are not modelled.
+
+A zero-edge route keeps its `LineString` shape with two identical positions at the routed graph node. Distance remains zero, no segments are invented, and its only maneuver is `arrive` with a null bearing. This lets route camera framing retain the mapped point. See [RFC 7946 §3.1.4](https://www.rfc-editor.org/rfc/rfc7946#section-3.1.4) for the two-position LineString contract.
+
+Different places that share one graph node remain `partly_unverified` when a place entrance is explicitly inferred and lacks a mapped entrance or usable real staff access-point verification. Zero mapped metres do not prove that entrance connection. The gap appears in `unknowns` as `access_point`, with the normal evidence and verification-request behavior. Same-place queries, canonical centre/place aliases, explicit mapped entrances and fresh staff checks retain their existing behavior. Evacuation-centre rows use the same zero-edge rule.
+
+A centre linked by `place_id` uses that place's explicit mapped entrances, just like a route to the place itself; driving snaps from those entrance coordinates. The centre's own node remains the fallback when no entrance is mapped. An explicit entrance pointing to a missing graph node is a data gap, so routing cannot silently substitute an older area or centre snap.
+
+Driving endpoint-gap warnings describe the first returned route's actual graph endpoints. An unused entrance touching a road cannot suppress the warning for the selected off-graph entrance.
+
+Positive seating, shelter and sidewalk verifications require a value and a usable verification date, as do the hard edge constraints. An undated rest claim counts only in the lenient search; a route depending on it names the stop in `rest_points_unverified` and stays `partly_unverified`. An undated positive sidewalk cannot establish PASS. Derived road-section and access-layer `sidewalk_status` values are `unknown` for unusable verifications and `stale` after expiry; the raw claim and evidence keep their audit status. Negative rest/sidewalk barriers and the default profile's reported-sidewalk policy retain their existing treatment.
+
+Flood-island centre membership and place samples use the same explicit entrances and mode-specific road snaps as routing. Any entrance in a centre-connected component prevents a place from being sampled as isolated. Components disconnected from every centre at baseline remain data gaps. Island counts describe flood-induced graph components under ruling R5; they do not establish a legal, verified or rest-constrained route for an individual origin.

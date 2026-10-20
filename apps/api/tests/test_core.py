@@ -18,12 +18,43 @@ def test_routes_confirmed():
     assert r["status"] == "confirmed"
     # confirmed over team_survey_placeholder evidence: status unchanged, flagged as demo values
     assert r["demo_evidence"] is True and r["routes"][0]["demo_evidence"] is True
+    steps = r["routes"][0]["maneuvers"]
+    assert steps[0]["action"] == "depart" and steps[-1]["action"] == "arrive"
+    assert [eid for step in steps for eid in step["segment_ids"]] == [
+        s["edge_id"] for s in r["routes"][0]["segments"]
+    ]
+    assert steps[0]["point"] == r["routes"][0]["geometry"]["coordinates"][0]
+    assert steps[-1]["point"] == r["routes"][0]["geometry"]["coordinates"][-1]
+
+
+def test_zero_length_route_geometry_preserves_its_mapped_point():
+    response = c.post(
+        "/routes", json={"from": "park-b", "to": "park-b", "profile": "stroller"}
+    ).json()
+    route = response["routes"][0]
+    point = route["maneuvers"][0]["point"]
+    assert route["geometry"] == {"type": "LineString", "coordinates": [point, point]}
+    assert route["distance_m"] == 0 and route["segments"] == []
+
+
+def test_shared_inferred_node_is_unverified_without_creating_anonymous_tickets():
+    ctx = state.get_ctx()
+    place = ctx.world.places["kiosk"]
+    place.node_id = ctx.world.places["park-b"].node_id
+    place.node_inferred = True
+    response = c.post(
+        "/routes", json={"from": "park-b", "to": "kiosk", "profile": "stroller"}
+    ).json()
+    assert response["status"] == "partly_unverified"
+    assert response["routes"][0]["unknowns"][0]["attribute"] == "access_point"
+    assert ctx.vrs.list("all") == []
 
 
 def test_layers_access_has_status():
     fc = c.get("/layers/access", params={"profile": "stroller"}).json()
     st = {f["properties"]["id"]: f["properties"].get("status_for_profile") for f in fc["features"]}
-    assert st["seg-cf"] == "unknown" and st["seg-be"] == "blocked" and st["seg-ab"] == "ok"
+    # Demo placeholders do not establish a staff survey or an OSM estimate.
+    assert st["seg-cf"] == "unknown" and st["seg-be"] == "blocked" and st["seg-ab"] == "unknown"
     assert all(
         f["properties"]["status_for_profile"] in {"ok", "unknown", "blocked"}
         for f in fc["features"]

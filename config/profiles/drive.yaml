@@ -8,5 +8,5 @@ flood: { possible_is: FAIL, likely_is: FAIL }
 stub: false
 allowed_types: [street, track, major_road]
 speed_kmh: 30
-standing_warning: "Drive routes: one-way and turn restrictions not modelled; indicative only, never confirmed."
-note: "Roads are the walk extract's street/track/major_road edges (no motorways); no oneway-aware import yet."
+standing_warning: "Drive routes: mapped one-way tags applied; legal turn restrictions and changing directions not modelled; indicative only, never confirmed."
+note: "Roads are the walk extract's street/track/major_road edges (no motorways); source coverage and legal turns remain incomplete."

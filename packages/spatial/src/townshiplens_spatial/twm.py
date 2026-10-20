@@ -45,7 +45,7 @@ CHECKED_ATTRS = {attr for attr, _ in _CHECKS.values()} | {"sidewalk"}
 MAX_ACTIONS = 8
 MAX_JOURNEYS = 300
 NEAREST_CENTRE = "__nearest_centre__"  # Journey.to_id: the nearest reachable evacuation centre
-REACHED = ("confirmed", "partly_unverified")
+REACHED = ("confirmed", "likely_ok", "partly_unverified")
 # What-ifs cover the walking profiles (a drive what-if would be both slow and off-topic).
 WALKING = ("default", "stroller", "wheelchair", "older_adult_rest")
 

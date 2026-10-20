@@ -12,6 +12,7 @@ import { RouteSketch } from "./RouteSketch";
 /** Route status -> chip. OSM-derived "confirmed" is never called Verified (honesty rule). */
 export const ROUTE_CHIP: Record<string, { status: StatusKey; label: string }> = {
   confirmed: { status: "clear", label: "No known barrier" },
+  likely_ok: { status: "unchecked", label: "Likely OK (estimated)" },
   partly_unverified: { status: "unchecked", label: "Some parts not checked yet" },
   blocked: { status: "blocked", label: "Not passable" },
   no_data: { status: "gap", label: "No mapped connection (data gap)" },

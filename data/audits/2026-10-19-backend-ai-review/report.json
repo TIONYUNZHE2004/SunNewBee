@@ -1,0 +1,301 @@
+{
+  "reviewed_at_utc": "2026-10-18T16:58:59+00:00",
+  "backend_commit": "74a67d8 (e059295 plus control 801f986; merge changed no source files)",
+  "ai_commit": "bbc98b434dc5598fed4bbd74a59254b493920b13",
+  "ai_scope": "Latest pushed AI snapshot, tested with backend e059295. Unpushed/future T-020 fixes are outside this review.",
+  "scope": "Backend + AI review only. No fixes to product implementation. All worlds/databases/claims used by probes are in memory or temporary.",
+  "model_spend_usd": 0,
+  "live_model_calls": 0,
+  "findings": [
+    {
+      "id": "AUD-001",
+      "priority": "P1",
+      "owner": "AI",
+      "classification": "bug",
+      "title": "Wrong place can borrow another route distance",
+      "reproduction_basis": "Real Elmina seed; direct validator probe",
+      "observed": "The validator accepts 363.8 m from Surau Rentak Perdana to Surau At Taqwa. That distance belongs to Surau Al Mahdi to Surau At Taqwa.",
+      "recommended_action": "Bind each route measurement to exact endpoint IDs. Matching worship/place categories cannot establish identity.",
+      "source": [
+        "packages/agent/src/townshiplens_agent/facts.py:28",
+        "packages/agent/src/townshiplens_agent/validate.py:368"
+      ],
+      "evidence": {
+        "name": "wrong_place_same_category_distance_accepted",
+        "actual_origin": "Surau Al Mahdi",
+        "claimed_origin": "Surau Rentak Perdana",
+        "destination": "Surau At Taqwa",
+        "summary": "From Surau Rentak Perdana to Surau At Taqwa, the route is 363.8 m.",
+        "errors": []
+      }
+    },
+    {
+      "id": "AUD-002",
+      "priority": "P1",
+      "owner": "AI + Backend",
+      "classification": "bug",
+      "title": "Demo replay ignores staff corrections",
+      "reproduction_basis": "Tiny fixture; mock recording and in-memory staff claim changes",
+      "observed": "After verified width changes make all paths unusable, the engine returns blocked but replay draws a confirmed route.",
+      "recommended_action": "Invalidate recordings on claim/profile/data/rule versions and relevant time changes, or replay presentation while recomputing facts.",
+      "source": [
+        "packages/agent/src/townshiplens_agent/run.py:554",
+        "packages/agent/src/townshiplens_agent/demo.py:34"
+      ],
+      "evidence": {
+        "name": "stale_demo_after_staff_update",
+        "engine": "blocked",
+        "replay_status": ["confirmed"],
+        "model": "mock-scripted+demo-cache",
+        "world_version": 8
+      }
+    },
+    {
+      "id": "AUD-003",
+      "priority": "P1",
+      "owner": "AI",
+      "classification": "bug",
+      "title": "Amenity search can silently use walking for a wheelchair request",
+      "reproduction_basis": "Tiny fixture; direct call_tool with wheelchair UI context and omitted optional profile",
+      "observed": "Within 150 m, the default search returns a toilet at 111.2 m over steps. The wheelchair search returns no result.",
+      "recommended_action": "Default every profile-sensitive tool to the request profile. Record and validate explicit mode changes.",
+      "source": [
+        "packages/agent/src/townshiplens_agent/agent.py:243",
+        "packages/agent/src/townshiplens_agent/agent.py:619",
+        "packages/spatial/src/townshiplens_spatial/tools.py:540"
+      ],
+      "evidence": {
+        "name": "amenity_default_ignores_ui_wheelchair",
+        "omitted_profile_rows": ["toilet-1"],
+        "wheelchair_rows": []
+      }
+    },
+    {
+      "id": "AUD-004",
+      "priority": "P1",
+      "owner": "AI",
+      "classification": "known pending T-020 requirement",
+      "title": "Map estimates can pass as checked or step-free",
+      "reproduction_basis": "Real Elmina seed estimate; adversarial final-answer probes, not observed spontaneous live-model outputs",
+      "observed": "For a likely_ok wheelchair route, the validator accepts step-free, wheelchair accessible, staff checked, and no steep sections with no errors.",
+      "recommended_action": "Complete T-020 estimate wording and reject unsupported positive accessibility/survey claims in summaries, steps, claims, drafts and fallbacks.",
+      "source": [
+        "packages/agent/src/townshiplens_agent/validate.py:473",
+        "packages/agent/src/townshiplens_agent/validate.py:530"
+      ],
+      "evidence": {
+        "name": "estimated_route_validator_baits",
+        "route_status": "likely_ok",
+        "probes": {
+          "This route is step-free.": [],
+          "This route is wheelchair accessible.": [],
+          "Staff checked this whole route.": [],
+          "This route has no steep sections.": []
+        }
+      }
+    },
+    {
+      "id": "AUD-005",
+      "priority": "P1",
+      "owner": "Backend",
+      "classification": "bug",
+      "title": "Known impassable smoothness still receives an estimate",
+      "reproduction_basis": "Crafted OSM input; current seed has only good/missing smoothness, so no affected seed edge was found",
+      "observed": "A concrete sidewalk tagged smoothness=impassable receives likely_ok for a wheelchair.",
+      "recommended_action": "Evaluate explicit contradictory smoothness and other physical restriction tags before positive estimate rules. This defect is in the backend estimate code from this worker.",
+      "source": [
+        "packages/spatial/src/townshiplens_spatial/access.py:137",
+        "packages/spatial/src/townshiplens_spatial/access.py:166"
+      ],
+      "evidence": {
+        "name": "impassable_surface_estimated_ok",
+        "level": "likely_ok",
+        "rule": "pedestrian_infrastructure_v1",
+        "tags": {
+          "highway": "footway",
+          "footway": "sidewalk",
+          "surface": "concrete",
+          "smoothness": "impassable"
+        }
+      }
+    },
+    {
+      "id": "AUD-006",
+      "priority": "P1",
+      "owner": "Backend/API",
+      "classification": "bug",
+      "title": "Verified map status survives fact expiry",
+      "reproduction_basis": "Clock-controlled FastAPI requests; verified claims with zero-day TTL",
+      "observed": "On the next day, fresh evaluation says unknown. The cached layer stays verified and conditional GET returns 304 with an unchanged ETag.",
+      "recommended_action": "Include verification-expiry state in both layer-cache keys and ETags, or expire them at the next verification deadline.",
+      "source": [
+        "apps/api/src/townshiplens_api/geojson.py:147",
+        "apps/api/src/townshiplens_api/routes/core.py:84"
+      ],
+      "evidence": {
+        "day1_layer": "verified",
+        "day2_cached_layer": "verified",
+        "day2_uncached_layer": "unknown",
+        "day2_conditional_http": 304,
+        "etag_unchanged": true
+      }
+    },
+    {
+      "id": "AUD-007",
+      "priority": "P2",
+      "owner": "Backend",
+      "classification": "bug",
+      "title": "Unpreviewed centre summaries ignore rest limits",
+      "reproduction_basis": "Tiny fixture extended to four reachable centres; normal three-preview setting. A current-seed scan from park-b found no unpreviewed likely_ok counterexample.",
+      "observed": "The fourth centre says confirmed while planning its route says partly_unverified and rest_limit_met=false: a 111.2 m gap exceeds 100 m.",
+      "recommended_action": "Use identical path-level rest logic for every centre row, including rows without route previews.",
+      "source": [
+        "packages/spatial/src/townshiplens_spatial/flood.py:166",
+        "packages/spatial/src/townshiplens_spatial/flood.py:254"
+      ],
+      "evidence": {
+        "name": "default_three_preview_rest_mismatch",
+        "summary": "confirmed",
+        "route": "partly_unverified",
+        "rest_limit_met": false,
+        "max_gap_m": 111.2
+      }
+    },
+    {
+      "id": "AUD-008",
+      "priority": "P2",
+      "owner": "AI",
+      "classification": "bug",
+      "title": "Valid access questions are still keyword-blocked",
+      "reproduction_basis": "Direct tests of the pre-model scope gate used by run_turn",
+      "observed": "Routes mentioning imagine, a recycling centre, or rubbish are refused before any place lookup.",
+      "recommended_action": "Distinguish travel/access intent and place names from requests for removed features. Keep both positive and negative scope controls.",
+      "source": [
+        "packages/agent/src/townshiplens_agent/scope.py:24",
+        "packages/agent/src/townshiplens_agent/scope.py:65"
+      ],
+      "evidence": {
+        "name": "scope_refuses_valid_access_wording",
+        "probes": {
+          "I imagine walking from Car Park B to the playground. Is there a route?": true,
+          "Can I walk from the recycling centre to the mall?": true,
+          "Which wheelchair route avoids the rubbish beside the path?": true,
+          "Can I get to the mall if the path is closed?": false
+        }
+      }
+    },
+    {
+      "id": "AUD-009",
+      "priority": "P2",
+      "owner": "AI",
+      "classification": "known open T-004 gap",
+      "title": "Some phone and MyKad formats escape redaction",
+      "reproduction_basis": "Synthetic numbers only; direct redaction tests",
+      "observed": "Parenthesised Malaysian phone numbers and spaced MyKad numbers remain unchanged before the model call.",
+      "recommended_action": "Normalise or extend redaction patterns. Test varied separators and parentheses without changing unrelated map numbers.",
+      "source": ["packages/agent/src/townshiplens_agent/redact.py:11"],
+      "evidence": {
+        "name": "personal_data_redaction_formats",
+        "samples": {
+          "My phone is +60 (12) 345-6789": "My phone is +60 (12) 345-6789",
+          "My IC is 900101 14 5678": "My IC is 900101 14 5678",
+          "My phone is 012-345 6789": "My phone is [phone number removed]"
+        }
+      }
+    },
+    {
+      "id": "AUD-010",
+      "priority": "P2",
+      "owner": "Backend",
+      "classification": "bug",
+      "title": "Undated verification is treated as indefinitely fresh",
+      "reproduction_basis": "Crafted claims accepted by the canonical Claim model; no affected seed claim was demonstrated",
+      "observed": "Three staff-labelled verified claims with verified_at=null make an edge Verified, so TTL cannot be evaluated.",
+      "recommended_action": "Require valid verification time for current verified access, and reject or degrade incomplete verification records.",
+      "source": [
+        "packages/spatial/src/townshiplens_spatial/evaluate.py:17",
+        "packages/spatial/src/townshiplens_spatial/access.py:105"
+      ],
+      "evidence": {
+        "name": "undated_verified_facts_never_expire",
+        "level": "verified",
+        "rule": "staff_verified_v1",
+        "dates": [null, null, null]
+      }
+    },
+    {
+      "id": "AUD-011",
+      "priority": "P2",
+      "owner": "Backend/data",
+      "classification": "bug",
+      "title": "Coordinate-derived node identity invents graph junctions",
+      "reproduction_basis": "Crafted bridge/ground crossing; explicit distinct source node IDs keep two ways separate, omitting IDs merges them. Current seed collisions were not proven.",
+      "observed": "The importer joins two distinct ways at the same coordinate after node IDs are dropped. A bridge/ground crossing becomes a routing junction.",
+      "recommended_action": "Preserve OSM node IDs in source responses and graph building. Do not derive connectivity from coordinate equality alone.",
+      "source": ["data/scripts/import_osm.py:191", "data/scripts/import_osm.py:205"],
+      "evidence": {
+        "name": "grade_separated_ways_joined_by_coordinate",
+        "junctions": ["n-10000_10000"],
+        "source_junctions": [],
+        "segments": 4
+      }
+    },
+    {
+      "id": "AUD-012",
+      "priority": "P2",
+      "owner": "Backend + Yunzhe",
+      "classification": "policy inconsistency, not an unqualified routing bug",
+      "title": "Closed ordinary destinations remain routable",
+      "reproduction_basis": "Tiny fixture; active place closure, with a closure warning correctly returned",
+      "observed": "A closed playground still returns a confirmed route. Closed evacuation centres are excluded from reachability instead.",
+      "recommended_action": "Define whether a route ends outside a closed venue or requires admission, then align status and wording. Preserve the ability to leave a closed/flooded origin.",
+      "source": [
+        "packages/spatial/src/townshiplens_spatial/routing.py:748",
+        "packages/spatial/src/townshiplens_spatial/tools.py:388",
+        "packages/spatial/src/townshiplens_spatial/flood.py:160"
+      ],
+      "evidence": {
+        "name": "closed_destination_still_routable",
+        "status": "confirmed",
+        "routes": 1,
+        "warnings": [
+          "Reported closure (staff): Urban Park playground. Closed: works until further notice."
+        ]
+      }
+    }
+  ],
+  "judge_questions": [
+    "Can every stated route, distance and accessibility fact be traced to the exact requested places and travel mode?",
+    "Does a staff correction immediately change the route, map and assistant, including cached answers?",
+    "What field-checked answer set measures false accessible/estimated routes, rather than only reduced yellow lines?",
+    "What proves the 60 m urban proxy and accessibility rules against actual kerbs, widths, slopes and surfaces?",
+    "What flood observations validate the indicative scenarios, and how are raster gaps and uncertainty shown?",
+    "Which evacuation centres are official, currently open and actually reachable for the selected mode?",
+    "Can a driver obey the returned route when direction and turn restrictions are not modelled?",
+    "Does an unplanned wording or language change cause a wrong answer or unnecessary refusal?"
+  ],
+  "verified_seed_context": {
+    "name": "seed_survey_and_surface_census",
+    "edges": 16120,
+    "places": 232,
+    "centres": {
+      "osm_candidate": 72
+    },
+    "smoothness": {
+      "missing": 15606,
+      "good": 514
+    },
+    "verified_levels": 0
+  },
+  "disclosed_limits_not_new_bugs": [
+    "All 72 seed evacuation centres are tagged osm_candidate; there are no official_pps records.",
+    "The current seed has zero wheelchair access levels based on current staff verification.",
+    "Driving uses an undirected walk-derived road extract; one-way/turn restrictions and motorway coverage are incomplete and warnings already disclose this.",
+    "No live model round, browser alignment review, field survey or flood-model calibration was run in this review."
+  ],
+  "reproduce": [
+    "Snapshot the AI commit: mkdir -p /tmp/tl-mean-audit-ai-20261019; git archive bbc98b4 packages/agent | tar -x -C /tmp/tl-mean-audit-ai-20261019",
+    "From repository root: PYTHONPATH=/tmp/tl-mean-audit-ai-20261019/packages/agent/src LLM_PROVIDER=mock UV_CACHE_DIR=/tmp/townshiplens-uv-cache uv run python data/audits/2026-10-19-backend-ai-review/engine_ai_probes.py",
+    "From repository root: LLM_PROVIDER=mock WARM_WORLD_MODEL=false UV_CACHE_DIR=/tmp/townshiplens-uv-cache uv run python data/audits/2026-10-19-backend-ai-review/api_expiry_probe.py"
+  ]
+}

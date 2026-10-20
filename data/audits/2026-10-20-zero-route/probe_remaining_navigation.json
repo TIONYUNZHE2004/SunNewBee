@@ -1,0 +1,703 @@
+{
+  "cases": [
+    {
+      "case": "model_correct_left_rejected",
+      "text": "Turn left onto Persiaran Elmina. Continue 120.4 metres.",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "model_correct_right_rejected",
+      "text": "Turn right onto Jalan Maple. Continue 11.8 metres.",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "descriptive_left_control",
+      "text": "It runs along Persiaran Elmina for 120.4 metres.",
+      "expected_rejected": false,
+      "rejected": false,
+      "pass": true,
+      "validator_errors": [],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "descriptive_right_control",
+      "text": "It runs along Jalan Maple for 11.8 metres.",
+      "expected_rejected": false,
+      "rejected": false,
+      "pass": true,
+      "validator_errors": [],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "wrong_capitalized_control",
+      "text": "Turn right onto Persiaran Elmina.",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "wrong_lowercase",
+      "text": "Turn right onto persiaran elmina.",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "wrong_unnamed_stretch",
+      "text": "Turn right onto the footway.",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "wrong_same_street_distance",
+      "text": "Turn left onto Persiaran Elmina. Continue 11.8 metres.",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "model_correct_same_street_rejected",
+      "text": "Turn left onto Persiaran Elmina. Continue 120.4 metres.",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "take_a_right_paraphrase",
+      "text": "Take a right onto Persiaran Elmina.",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "make_a_right_turn_paraphrase",
+      "text": "Make a right turn onto Persiaran Elmina.",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "malay_simpang_paraphrase",
+      "text": "Ambil simpang kanan ke Persiaran Elmina.",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "chinese_right_turn_paraphrase",
+      "text": "\u53f3\u62d0\u8fdb\u5165Persiaran Elmina\u3002",
+      "expected_rejected": true,
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Do not write turns or headings: the app lists the steps from the route's maneuvers. Describe the route (distance, status, what is not checked) instead."
+      ],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "clockwise_wrong_turn",
+      "text": "Rotate clockwise onto Persiaran Elmina.",
+      "expected_rejected": true,
+      "rejected": false,
+      "pass": false,
+      "validator_errors": [],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    },
+    {
+      "case": "reverse_the_selected_direction",
+      "text": "Follow Persiaran Elmina in the opposite direction.",
+      "expected_rejected": true,
+      "rejected": false,
+      "pass": false,
+      "validator_errors": [],
+      "selected_route": {
+        "id": "rt-1",
+        "status": "likely_ok",
+        "distance_m": 172.2,
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 40,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "likely_ok"
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 120.4,
+            "street_name": "Persiaran Elmina",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 11.8,
+            "street_name": "Jalan Maple",
+            "edge_type": "street",
+            "access_level": "unknown"
+          },
+          {
+            "index": 4,
+            "action": "arrive",
+            "distance_m": 0,
+            "street_name": null
+          }
+        ]
+      }
+    }
+  ],
+  "live_questions": 0,
+  "cost_usd": 0
+}

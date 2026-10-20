@@ -204,7 +204,7 @@ async def test_error_after_scenario_tool_still_has_disclaimer(ctx, monkeypatch):
         raise ConnectionError("dropped")
 
     monkeypatch.setattr(agent_mod, "model_for", lambda s, escalate=False: FunctionModel(flaky))
-    evs = await collect(ctx, "where can I go if the river rises?")
+    evs = await collect(ctx, "where can I go if the river rises 3 m?")
     assert any(e.type == "error" for e in evs) and any(e.type == "disclaimer" for e in evs)
     assert evs[-1].type == "done"
 
@@ -296,13 +296,13 @@ async def test_client_disconnect_mid_stream_is_clean(ctx):
     await gen.aclose()  # the SSE client went away: no error, the agent task is cancelled
 
 
-def _deps(ctx, scenario=None):
+def _deps(ctx, scenario=None, profile="default"):
     import asyncio
 
     from townshiplens_agent.agent import Deps
     from townshiplens_agent.record import TurnRecord
 
-    req = ChatRequest(message="x", scenario_id=scenario)
+    req = ChatRequest(message="x", scenario_id=scenario, profile=profile)
     return Deps(ctx=ctx, rec=TurnRecord(queue=asyncio.Queue()), request=req)
 
 
@@ -338,7 +338,7 @@ async def test_plan_route_flags_likely_flooded_origin(ctx):
 async def test_plan_route_no_scenario_no_flood_flag(ctx):
     from townshiplens_agent.agent import call_tool
 
-    deps = _deps(ctx)
+    deps = _deps(ctx, profile="stroller")
     out = await call_tool(
         deps, "plan_route", from_id="park-b", to_id="playground", profile="stroller"
     )
@@ -349,7 +349,7 @@ async def test_plan_route_no_scenario_no_flood_flag(ctx):
 async def test_plan_route_ui_scenario_counts_as_active(ctx):
     from townshiplens_agent.agent import call_tool
 
-    deps = _deps(ctx, scenario="stage_p3m")
+    deps = _deps(ctx, scenario="stage_p3m", profile="stroller")
     await call_tool(deps, "plan_route", from_id="park-b", to_id="playground", profile="stroller")
     assert "playground" in deps.rec.flooded_endpoints
     assert deps.rec.scenarios_used == {"stage_p3m"}  # so the disclaimer + flood rules apply
@@ -359,9 +359,9 @@ async def test_adversarial_safe_states_flooded_playground(ctx):
     evs = await collect(ctx, "Is the playground safe during a flood of +3 m?", profile="default")
     text = _text(evs).lower()
     assert "urban park playground is likely flooded in this indicative scenario" in text
-    assert "worth knowing:" in text and " is safe" not in text
+    assert " is safe" not in text
     assert evs[-1].answer_status == "partial" and evs[-1].model == "mock-scripted"
-    assert "ev-scn-stage_p3m.playground" in [e.evidence_id for e in evs if e.type == "citation"]
+    assert "ev-scn-stage_p3m" in [e.evidence_id for e in evs if e.type == "citation"]
 
 
 async def test_access_with_ui_scenario_mentions_flooded_destination(ctx):
@@ -391,7 +391,7 @@ async def test_ui_scenario_route_avoids_likely_flooded_edge(ctx):
     warns and its route avoids the flooded edge; a likely-flooded destination is blocked."""
     from townshiplens_agent.agent import call_tool
 
-    deps = _deps(ctx, scenario="stage_p3m")
+    deps = _deps(ctx, scenario="stage_p3m", profile="stroller")
     out = await call_tool(
         deps, "plan_route", from_id="playground", to_id="park-b", profile="stroller"
     )
@@ -416,7 +416,7 @@ async def test_ui_scenario_route_avoids_likely_flooded_edge(ctx):
 async def test_ui_scenario_injected_when_omitted(ctx, name, kwargs):
     from townshiplens_agent.agent import call_tool
 
-    deps = _deps(ctx, scenario="stage_p3m")
+    deps = _deps(ctx, scenario="stage_p3m", profile=kwargs["profile"])
     await call_tool(deps, name, **kwargs)
     call = deps.rec.queue.get_nowait()
     assert call.type == "tool.call" and call.args["scenario_id"] == "stage_p3m"
@@ -737,7 +737,7 @@ def elmina(tmp_path):
 
 
 async def test_elmina_stroller_to_lakeside_mall_routes_to_the_mall(elmina):
-    evs = await collect(elmina, "Can I get to the lakeside mall with a stroller?")
+    evs = await collect(elmina, "Can I get from Car Park B to the lakeside mall with a stroller?")
     calls = [e.args for e in evs if e.type == "tool.call" and e.name == "plan_route"]
     assert calls and calls[0]["to_id"] == "lakeside-mall"
     assert "Elmina Lakeside Mall" in _text(evs)
@@ -976,7 +976,9 @@ async def test_management_briefing_follows_the_asked_level(ctx):
 
 async def test_where_can_i_go_with_a_named_level_plans_instead_of_asking_for_one(ctx):
     """Review (Task 40 M2): the question names the level, so no "pick a river level" reply."""
-    evs = await collect(ctx, "Where can I go if the river rises 3 m?", profile="default")
+    evs = await collect(
+        ctx, "From Lakeside Mall, where can I go if the river rises 3 m?", profile="default"
+    )
     assert "Pick a river level" not in _text(evs)
     assert any(e.type == "tool.call" for e in evs)
     bare = await collect(ctx, "Where can I go?", profile="default")

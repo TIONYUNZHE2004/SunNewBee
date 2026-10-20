@@ -535,6 +535,7 @@
               {
                 "enum": [
                   "confirmed",
+                  "likely_ok",
                   "partly_unverified",
                   "blocked",
                   "no_data"
@@ -2575,6 +2576,109 @@
         "title": "Kpis",
         "type": "object"
       },
+      "Maneuver": {
+        "properties": {
+          "access_level": {
+            "enum": [
+              "verified",
+              "likely_ok",
+              "unknown",
+              "barrier",
+              "not_a_road"
+            ],
+            "title": "Access Level",
+            "type": "string"
+          },
+          "action": {
+            "enum": [
+              "depart",
+              "continue",
+              "turn_left",
+              "turn_right",
+              "slight_left",
+              "slight_right",
+              "u_turn",
+              "cross",
+              "arrive"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "bearing_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bearing Deg"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "number"
+          },
+          "edge_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edge Type"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "point": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Point",
+            "type": "array"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Segment Ids",
+            "type": "array"
+          },
+          "street_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street Name"
+          }
+        },
+        "required": [
+          "index",
+          "action",
+          "distance_m",
+          "bearing_deg",
+          "street_name",
+          "edge_type",
+          "access_level",
+          "rule_id",
+          "segment_ids",
+          "point"
+        ],
+        "title": "Maneuver",
+        "type": "object"
+      },
       "NoJourney": {
         "description": "Why there is no journey to play: the route status and a plain message.",
         "properties": {
@@ -3055,6 +3159,22 @@
       },
       "Route": {
         "properties": {
+          "access_metres": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "verified",
+                "likely_ok",
+                "unknown",
+                "barrier",
+                "not_a_road"
+              ]
+            },
+            "title": "Access Metres",
+            "type": "object"
+          },
           "crossings": {
             "items": {
               "additionalProperties": true,
@@ -3095,6 +3215,13 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "maneuvers": {
+            "items": {
+              "$ref": "#/components/schemas/Maneuver"
+            },
+            "title": "Maneuvers",
+            "type": "array"
           },
           "max_gap_between_rest_m": {
             "anyOf": [
@@ -3198,6 +3325,7 @@
           "status": {
             "enum": [
               "confirmed",
+              "likely_ok",
               "partly_unverified",
               "blocked",
               "no_data"
@@ -3335,6 +3463,7 @@
           "status": {
             "enum": [
               "confirmed",
+              "likely_ok",
               "partly_unverified",
               "blocked",
               "no_data"
@@ -3359,6 +3488,18 @@
       },
       "RouteSegment": {
         "properties": {
+          "access_level": {
+            "default": "unknown",
+            "enum": [
+              "verified",
+              "likely_ok",
+              "unknown",
+              "barrier",
+              "not_a_road"
+            ],
+            "title": "Access Level",
+            "type": "string"
+          },
           "edge_id": {
             "title": "Edge Id",
             "type": "string"
@@ -3387,6 +3528,18 @@
               }
             ],
             "title": "Flood Class"
+          },
+          "rule_id": {
+            "default": "no_basis_v1",
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "tags_used": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Tags Used",
+            "type": "object"
           }
         },
         "required": [
@@ -3641,6 +3794,7 @@
               {
                 "enum": [
                   "confirmed",
+                  "likely_ok",
                   "partly_unverified",
                   "blocked",
                   "no_data"

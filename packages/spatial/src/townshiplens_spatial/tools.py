@@ -15,7 +15,6 @@ from . import flood as _flood
 from . import models as _m
 from . import routing
 from .closure_store import ClosureStore
-from .evaluate import evaluate_edge
 from .geo import haversine_m
 from .models import Claim, Closure, Evidence, ToolResult, photo_url
 from .scenario_meta import scenario_source, selection_error
@@ -86,15 +85,42 @@ def _score_name(q: str, name: str) -> float:
     return best
 
 
-def find_place(ctx: Ctx, query: str, types: list[str] | None = None, limit: int = 5) -> ToolResult:
+def find_place(
+    ctx: Ctx,
+    query: str,
+    types: list[str] | None = None,
+    limit: int = 5,
+    near_place: str | None = None,
+) -> ToolResult:
     q = query.strip().lower()
     if not q:
         return ToolResult(ok=True, data=[], warnings=["empty query"])
+    # Translation resolves names/types, never a route endpoint. The agent must still resolve
+    # generic destinations against the named other endpoint or ask which place is meant.
+    aliases = {
+        "b停车场": "car park b",
+        "停车场b": "car park b",
+        "tempat letak kereta b": "car park b",
+        "游乐场": "playground",
+        "遊樂場": "playground",
+        "taman permainan": "playground",
+        "厕所": "toilet",
+        "tandas": "toilet",
+    }
+    original = q
+    q = aliases.get(q, q)
+    if types is None and original in {"游乐场", "遊樂場", "taman permainan"}:
+        types = ["playground"]
+    origin = ctx.world.places.get(near_place) if near_place else None
+    if near_place and origin is None:
+        return ToolResult(ok=False, data=[], warnings=["unknown search origin"])
     scored = []
     for p in ctx.world.places.values():
         if p.id.startswith("__"):
             continue  # transient places (R12) never surface in search
         if types and p.type not in types:
+            continue
+        if origin and haversine_m(origin.coord, p.coord) > 1000:
             continue
         score = max(_score_name(q, n.lower()) for n in [p.name, *p.aliases])
         if score >= 0.6:
@@ -481,6 +507,12 @@ def plan_route(
                 )
                 vrs.append({**vr.model_dump(mode="json"), "created": created})
     evidence += _closure_notes(ctx.world, rr, from_id, to_id, profile, scenario_id)
+    if profile == "drive":
+        evidence += routing.direction_evidence(
+            ctx.world,
+            [s.edge_id for r in rr.routes for s in r.segments]
+            + [r["element_id"] for r in rr.blocked_reasons if r["attribute"] == "oneway"],
+        )
     if rr.routes or rr.status == "blocked":  # a blocked answer still rests on the snapped endpoint
         evidence += _inferred_endpoints(ctx.world, from_id, to_id, rr.warnings)
     if scenario_id:
@@ -509,13 +541,20 @@ def plan_route(
     return ToolResult(ok=True, data=data, evidence=uniq, warnings=rr.warnings)
 
 
-def _reach(w: World, src: list[str], profile, max_m: float, allow_unknown: bool) -> dict:
+def _reach(
+    w: World,
+    src: list[str],
+    profile,
+    max_m: float,
+    allow_unknown: bool,
+    scenario_id: str | None = None,
+) -> dict:
     """Walking distance (m) to every node within max_m, over edges this profile can use."""
 
     def weight(u, v, d):
         best = None
         for k in d:
-            res, _ = evaluate_edge(w.edges[k], profile)
+            res, _ = routing._evaluate(w, profile, scenario_id, k)
             if res == "FAIL" or (res == "UNKNOWN" and not allow_unknown):
                 continue
             best = w.edges[k].length_m if best is None else min(best, w.edges[k].length_m)
@@ -525,9 +564,16 @@ def _reach(w: World, src: list[str], profile, max_m: float, allow_unknown: bool)
 
 
 def nearby_amenities(
-    ctx: Ctx, origin_id: str, amenity: str, max_walk_m: float = 300, profile: str = "default"
+    ctx: Ctx,
+    origin_id: str,
+    amenity: str,
+    max_walk_m: float = 300,
+    profile: str = "default",
+    scenario_id: str | None = None,
 ) -> ToolResult:
     w = ctx.world
+    if scenario_id and not _flood.scenario(w, scenario_id):
+        return ToolResult(ok=False, warnings=[f"unknown scenario {scenario_id}"])
     prof = w.profiles.get(profile)
     if prof is None or prof.stub:
         return ToolResult(ok=True, data=[], warnings=[f"unsupported profile {profile}"])
@@ -536,12 +582,15 @@ def nearby_amenities(
         why = "place not mapped" if origin_id in w.places else "no such place"
         warn = routing._no_road_warning(w, origin_id, prof) or f"{why}: {origin_id}"
         return ToolResult(ok=True, data=[], warnings=[warn])
-    strict = _reach(w, src, prof, max_walk_m, allow_unknown=False)
-    lenient = _reach(w, src, prof, max_walk_m, allow_unknown=True)
+    strict = _reach(w, src, prof, max_walk_m, allow_unknown=False, scenario_id=scenario_id)
+    lenient = _reach(w, src, prof, max_walk_m, allow_unknown=True, scenario_id=scenario_id)
     hits = []
     closed_hits = []
     for p in w.places.values():
         if p.type != amenity or not p.node_id:
+            continue
+        dest_state, _ = routing.endpoint_flood(w, p.id, prof, scenario_id)
+        if dest_state == "FAIL":
             continue
         nodes = [p.node_id] if prof.allowed_types is None else routing._targets(w, p.id, prof)
         s_d = [strict[n] for n in nodes if n in strict]
@@ -552,7 +601,8 @@ def nearby_amenities(
                 closed_hits.append((p, live))
                 continue
         if s_d:
-            hits.append((min(s_d), p, False))
+            origin_state, _ = routing.origin_flood(w, origin_id, prof, scenario_id)
+            hits.append((min(s_d), p, dest_state == "UNKNOWN" or origin_state == "UNKNOWN"))
         elif l_d:
             hits.append((min(l_d), p, True))
     hits.sort(key=lambda t: t[0])
@@ -561,6 +611,9 @@ def nearby_amenities(
         warnings.append("default profile applies no accessibility constraints")
     if prof.standing_warning:
         warnings.append(prof.standing_warning)
+    if scenario_id:
+        warnings.extend(routing.endpoint_flood_warnings(w, origin_id, prof, scenario_id))
+        warnings.append(_flood.scenario(w, scenario_id).disclaimer)
     for p, closures in closed_hits:
         warnings.extend(
             f"{CLOSURE_SOURCE_LABEL}: {p.name}. {closure.label(ctx.world.site.timezone)}. "
@@ -584,6 +637,7 @@ def nearby_amenities(
             for d, p, unv in hits
         ],
         evidence=[routing.place_evidence(p) for _, p, _ in hits]
+        + [e for _, p, _ in hits for e in routing.flood_evidence(w, p.id, scenario_id)]
         + [_closure_ev(ctx.world, c) for _, closures in closed_hits for c in closures],
         warnings=warnings + _demo_place_warnings([p for _, p, _ in hits]),
     )

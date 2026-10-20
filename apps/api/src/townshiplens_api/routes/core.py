@@ -5,6 +5,7 @@ import logging
 import re
 import secrets
 import sqlite3
+from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
@@ -164,7 +165,10 @@ def _etag(world, lens: str, profile: str, scenario_id: str | None) -> str:
     expire on the clock), so never serialise the layer."""
     # Closures switch on and off with the clock, not only with world.version: sign the live set.
     live = ",".join(c.id for c in world.active_closures())
-    key = f"{_BOOT}|{world.site.id}|{world.version}|{lens}|{profile}|{scenario_id or ''}|{live}"
+    key = (
+        f"{_BOOT}|{world.site.id}|{world.version}|{date.today().isoformat()}|"
+        f"{lens}|{profile}|{scenario_id or ''}|{live}"
+    )
     return f'"{hashlib.sha1(key.encode()).hexdigest()[:20]}"'
 
 

@@ -1,5 +1,8 @@
 """Ticket impact (Cycle 7): value of information on one verification ticket."""
 
+from datetime import date, timedelta
+
+import pytest
 from townshiplens_spatial import impact, twm
 from townshiplens_spatial.models import Claim
 
@@ -17,7 +20,15 @@ def test_open_ticket_shows_what_pass_and_fail_would_do(world):
 
 def test_resolved_ticket_shows_what_the_check_changed(world):
     e = world.edges["seg-cf"]
-    e.claims = {**e.claims, "incline_pct": Claim(value=3, status="verified", evidence_type="staff")}
+    e.claims = {
+        **e.claims,
+        "incline_pct": Claim(
+            value=3,
+            status="verified",
+            evidence_type="staff",
+            verified_at=date.today().isoformat(),
+        ),
+    }
     r = impact.fact_impact(
         world, "seg-cf", "incline_pct", "stroller route Car Park B -> Park kiosk"
     )
@@ -97,7 +108,12 @@ def test_verified_fail_reports_the_routes_it_cut(world):
     e = world.edges["seg-cf"]
     e.claims = {
         **e.claims,
-        "incline_pct": Claim(value=30, status="verified", evidence_type="staff"),
+        "incline_pct": Claim(
+            value=30,
+            status="verified",
+            evidence_type="staff",
+            verified_at=date.today().isoformat(),
+        ),
     }
     r = impact.fact_impact(
         world,
@@ -110,3 +126,31 @@ def test_verified_fail_reports_the_routes_it_cut(world):
     assert r.own.statuses["before"] == "partly_unverified"
     assert r.own.statuses["now"] != "confirmed"
     assert r.became_confirmed == 0
+
+
+@pytest.mark.parametrize("age_days,value", [(None, 3), (366, 3), (0, None)])
+def test_resolved_ticket_cannot_count_an_unusable_verification(world, age_days, value):
+    world.edges["seg-cf"].claims["incline_pct"] = Claim(
+        value=value,
+        status="verified",
+        evidence_type="staff",
+        verified_at=(date.today() - timedelta(days=age_days)).isoformat()
+        if age_days is not None
+        else None,
+    )
+    result = impact.fact_impact(world, "seg-cf", "incline_pct", ticket_status="resolved")
+    assert result.mode == "none"
+    assert result.changed == result.became_confirmed == result.sampled == 0
+
+
+def test_open_ticket_with_undated_claim_still_shows_a_possible_check(world):
+    world.edges["seg-cf"].claims["incline_pct"] = Claim(
+        value=3, status="verified", evidence_type="staff"
+    )
+    result = impact.fact_impact(
+        world, "seg-cf", "incline_pct", "stroller route Car Park B -> Park kiosk"
+    )
+    assert result.mode == "would"
+    assert result.own.statuses["now"] == "partly_unverified"
+    assert result.own.statuses["pass"] == "confirmed"
+    assert result.own.statuses["fail"] != "confirmed"

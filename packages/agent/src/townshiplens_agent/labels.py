@@ -13,6 +13,7 @@ from townshiplens_spatial.routing import rest_gap_text
 
 STATUS_LABELS = {
     "confirmed": "confirmed",
+    "likely_ok": "likely OK (estimated from map data, not checked)",
     "partly_unverified": "partly unverified",
     "blocked": "blocked",
     "no_data": "no mapped connection (data gap)",
@@ -46,6 +47,10 @@ def status_label(status: str) -> str:
     return STATUS_LABELS.get(status, status.replace("_", " "))
 
 
+# A likely_ok route (T-020) rests on map-data estimates: one fixed caveat says how they were made.
+LIKELY_OK_CAVEAT = (
+    "Estimated from map data (OpenStreetMap path types and tags), not checked on site"
+)
 # A confirmed route whose facts include placeholder evidence is named with this qualifier.
 DEMO_CONFIRMED = "confirmed (on demo values, not yet surveyed)"
 
@@ -244,6 +249,19 @@ def crossing_note(route: dict) -> str | None:
     return f"This route uses {n} {CROSSING_WORDS}{'s' if n != 1 else ''}: {', '.join(parts)}."
 
 
+# plan_route's warning for the first route when part of it follows road centre lines with no
+# mapped sidewalk (T-014). call_tool copies it onto the route as `road_note` (T-019).
+ROAD_NOTE = re.compile(r"^About (\d+) m follows road centre lines without a mapped sidewalk")
+ROAD_WORDS = re.compile(
+    r"\broad|\bjalan|道路|马路|车道|centre line|garis tengah|中线", re.IGNORECASE
+)
+
+
+def road_note(warnings: list[str]) -> str | None:
+    """The road-without-sidewalk warning among plan_route warnings, else None."""
+    return next((w for w in warnings if ROAD_NOTE.match(w)), None)
+
+
 REST_GAP_WORDS = "without a rest point"  # every rest-gap caveat contains this (validator)
 
 
@@ -348,6 +366,7 @@ FRAME = {
 STATUS_WORDS = {
     "ms": {
         "confirmed": "disahkan",
+        "likely_ok": "kemungkinan OK (anggaran daripada data peta, belum disemak)",
         "partly_unverified": "sebahagian belum disahkan",
         "blocked": "tersekat",
         "no_data": "tiada sambungan dipetakan (jurang data)",
@@ -355,6 +374,7 @@ STATUS_WORDS = {
     },
     "zh": {
         "confirmed": "已确认",
+        "likely_ok": "可能可行（根据地图数据估计，未核实）",
         "partly_unverified": "部分未核实",
         "blocked": "受阻",
         "no_data": "无已绘制的连接（数据缺口）",

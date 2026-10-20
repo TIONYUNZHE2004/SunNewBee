@@ -35,6 +35,14 @@ class TurnRecord:
     # Names of places/centres the tools returned: stripped before the flood-wording check, so a
     # place called "Taman Selamat" can still be named in a caveat.
     place_names: set[str] = field(default_factory=set)
+    # Server-resolved entity IDs, not category words, bind measurements to the right place.
+    place_entities: dict[str, dict] = field(default_factory=dict)
+    measurement_subjects: list[dict] = field(default_factory=list)
+    centre_options: list[dict] = field(default_factory=list)
+    amenity_searches: list[dict] = field(default_factory=list)
+    selection_error: str | None = None
+    strict_selection: bool = False
+    context_route: dict | None = None
     # Staff-reported closures plan_route says affect a route (rows with element_name, impact), and
     # every closure row any tool returned this turn (id -> row).
     route_closures: list[dict] = field(default_factory=list)
@@ -44,6 +52,9 @@ class TurnRecord:
     asked_closures: list[dict] = field(default_factory=list)
     # Plan_route warnings about endpoints whose entrance is not mapped (Task 43).
     inferred_notes: list[str] = field(default_factory=list)
+    # plan_route warnings by the route they describe (the first route of each call); the
+    # answer always keeps the mandatory ones (run.MANDATORY_WARNING, T-021 review).
+    route_warnings: dict[str, list[str]] = field(default_factory=dict)
     # simulate_what_if results this turn (tool data, incl. diff_geojson and "imagined").
     what_ifs: list[dict] = field(default_factory=list)
     # An earlier turn of this session ran a simulation (from memory): its numbers may not be

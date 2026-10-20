@@ -81,7 +81,7 @@ async def test_agent_citation_retains_demo_source_for_existing_ui_badge(monkeypa
         e
         async for e in run_turn(
             ctx,
-            ChatRequest(message="Is there a toilet near the park?"),
+            ChatRequest(message="Is there a toilet near Car Park B?"),
             AgentSettings(_env_file=None, llm_provider="mock"),
             memory=SessionMemory(),
         )

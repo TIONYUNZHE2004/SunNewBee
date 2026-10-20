@@ -1,0 +1,233 @@
+{
+  "world": "committed Elmina seed, not the corrupted metric fixture",
+  "edge_count": 16120,
+  "invalid_lengths": 0,
+  "zero_lengths": 0,
+  "routes": {
+    "default": {
+      "status": "likely_ok",
+      "warnings": [
+        "Likely OK sections are estimated from map data, not checked on site",
+        "About 124 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified",
+        "Demo value \u00b7 not surveyed: Urban Park bench 1; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+      ],
+      "routes": [
+        {
+          "id": "rt-ba1d227e",
+          "status": "likely_ok",
+          "distance_m": 416.4,
+          "est_minutes": 5.9,
+          "target_node": "n-31807145_1015102486",
+          "rest_limit_met": null
+        }
+      ]
+    },
+    "stroller": {
+      "status": "partly_unverified",
+      "warnings": [
+        "About 124 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified",
+        "Demo value \u00b7 not surveyed: Urban Park bench 1; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+      ],
+      "routes": [
+        {
+          "id": "rt-c783865b",
+          "status": "partly_unverified",
+          "distance_m": 416.4,
+          "est_minutes": 5.9,
+          "target_node": "n-31807145_1015102486",
+          "rest_limit_met": null
+        }
+      ]
+    },
+    "drive": {
+      "status": "likely_ok",
+      "warnings": [
+        "Likely OK sections are estimated from map data, not checked on site",
+        "Urban Park playground is about 120 m from the nearest mapped road; distance and time stop at the road",
+        "Drive routes: mapped one-way tags applied; legal turn restrictions and changing directions not modelled; indicative only, never confirmed.",
+        "Demo value \u00b7 not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+      ],
+      "routes": [
+        {
+          "id": "rt-accd6e02",
+          "status": "likely_ok",
+          "distance_m": 113.3,
+          "est_minutes": 0.2,
+          "target_node": "n-31809935_1015094421",
+          "rest_limit_met": null
+        }
+      ]
+    }
+  },
+  "places": {
+    "ok": true,
+    "data": [
+      {
+        "id": "osm-way-1309457596",
+        "name": "Elmina Urban Park",
+        "type": "park",
+        "score": 1.0
+      },
+      {
+        "id": "playground",
+        "name": "Urban Park playground",
+        "type": "playground",
+        "score": 0.95,
+        "existence": {
+          "value": true,
+          "status": "unknown",
+          "evidence_type": "team_survey_placeholder",
+          "method": null,
+          "evidence_ids": [],
+          "verified_by": null,
+          "verified_at": null,
+          "ttl_days": null
+        },
+        "demo_place": true,
+        "source_label": "Demo value \u00b7 not surveyed"
+      },
+      {
+        "id": "osm-node-11280647693",
+        "name": "Elmina Green One Park",
+        "type": "park",
+        "score": 0.74
+      },
+      {
+        "id": "toilet-urban-park",
+        "name": "Urban Park toilet",
+        "type": "toilet",
+        "score": 0.73,
+        "existence": {
+          "value": true,
+          "status": "unknown",
+          "evidence_type": "team_survey_placeholder",
+          "method": null,
+          "evidence_ids": [],
+          "verified_by": null,
+          "verified_at": null,
+          "ttl_days": null
+        },
+        "demo_place": true,
+        "source_label": "Demo value \u00b7 not surveyed"
+      },
+      {
+        "id": "bench-urban-1",
+        "name": "Urban Park bench 1",
+        "type": "seating",
+        "score": 0.73,
+        "existence": {
+          "value": true,
+          "status": "unknown",
+          "evidence_type": "team_survey_placeholder",
+          "method": null,
+          "evidence_ids": [],
+          "verified_by": null,
+          "verified_at": null,
+          "ttl_days": null
+        },
+        "demo_place": true,
+        "source_label": "Demo value \u00b7 not surveyed"
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-place-osm-way-1309457596",
+        "element_id": "osm-way-1309457596",
+        "attribute": "name",
+        "value": "Elmina Urban Park",
+        "status": "reported",
+        "verified_at": null,
+        "source_type": "world_model",
+        "source_url": null,
+        "photo_url": null
+      },
+      {
+        "id": "ev-place-playground",
+        "element_id": "playground",
+        "attribute": "name",
+        "value": "Urban Park playground",
+        "status": "unknown",
+        "verified_at": null,
+        "source_type": "team_survey_placeholder",
+        "source_url": null,
+        "photo_url": null
+      },
+      {
+        "id": "ev-place-osm-node-11280647693",
+        "element_id": "osm-node-11280647693",
+        "attribute": "name",
+        "value": "Elmina Green One Park",
+        "status": "reported",
+        "verified_at": null,
+        "source_type": "world_model",
+        "source_url": null,
+        "photo_url": null
+      },
+      {
+        "id": "ev-place-toilet-urban-park",
+        "element_id": "toilet-urban-park",
+        "attribute": "name",
+        "value": "Urban Park toilet",
+        "status": "unknown",
+        "verified_at": null,
+        "source_type": "team_survey_placeholder",
+        "source_url": null,
+        "photo_url": null
+      },
+      {
+        "id": "ev-place-bench-urban-1",
+        "element_id": "bench-urban-1",
+        "attribute": "name",
+        "value": "Urban Park bench 1",
+        "status": "unknown",
+        "verified_at": null,
+        "source_type": "team_survey_placeholder",
+        "source_url": null,
+        "photo_url": null
+      }
+    ],
+    "warnings": [
+      "Demo value \u00b7 not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed.",
+      "Demo value \u00b7 not surveyed: Urban Park toilet; place existence uses demo values, not yet surveyed.",
+      "Demo value \u00b7 not surveyed: Urban Park bench 1; place existence uses demo values, not yet surveyed."
+    ]
+  },
+  "access_feature_count": 16352,
+  "chat": {
+    "request": {
+      "message": "Can I push a stroller from Car Park B to the playground?",
+      "profile": "stroller"
+    },
+    "text": "Route status: partly unverified\nLakeside Mall Car Park B to Urban Park playground: route partly unverified, 416.4 m.\n1. Start heading south-west along the street for about 38 m (not checked yet).\n2. Turn left onto the street. Continue about 46 m (not checked yet).\n3. Turn right onto the street. Continue about 27 m (not checked yet).\n4. Turn left onto the street. Continue about 13 m (not checked yet).\n5. Continue along the ramp for about 4 m (not checked yet).\n6. Turn left onto the footway. Continue about 75 m (not checked yet).\n7. \u2026 2 more steps are not listed here (shortened directions).\n8. Reach the end of the mapped route.\nWorth knowing:\n\u2022 Not checked yet: Incline (%) on an unnamed ramp.\n\u2022 Asked the township team to check this item.\n\u2022 About 124 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified.\n\u2022 Segment facts are demo values, not yet surveyed.",
+    "checks": [
+      {
+        "type": "answer.check",
+        "attempt": 1,
+        "ok": true,
+        "issues": [],
+        "repairs": 0
+      }
+    ],
+    "errors": [],
+    "done": [
+      {
+        "type": "done",
+        "message_id": "b6bed7cf23d5",
+        "answer_status": "partial",
+        "model": "mock-scripted"
+      }
+    ]
+  },
+  "provider": "mock",
+  "spend_usd": 0,
+  "live_questions": 0
+}

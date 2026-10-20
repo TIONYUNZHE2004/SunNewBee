@@ -194,8 +194,9 @@ def _route_model(from_id: str, to_id: str, profile: str):
         data = rets[-1].content
         r = data["data"]["routes"][0]
         caveats = [w for w in data.get("warnings", []) if "entrance is not mapped" in w]
-        if r.get("crossing_note"):
-            caveats.append(r["crossing_note"])
+        caveats += [r[k] for k in ("crossing_note", "road_note") if r.get(k)]
+        if r.get("access_metres", {}).get("likely_ok", 0) or r.get("status") == "likely_ok":
+            caveats.append("Likely OK sections are estimated from map data, not checked on site.")
         if r.get("demo_evidence"):
             caveats.append("Segment facts are demo values, not yet surveyed.")
         ans = {
@@ -231,7 +232,10 @@ async def test_outside_deep_spot_caveat_only_outside(monkeypatch, from_id, to_id
         e
         async for e in run_turn(
             ctx,
-            ChatRequest(message="How do I get there?", profile=profile),
+            ChatRequest(
+                message=f"From {ctx.world.places[from_id].name} to {ctx.world.places[to_id].name}",
+                profile=profile,
+            ),
             AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="access_flood"),
             record=rec,
             memory=SessionMemory(),

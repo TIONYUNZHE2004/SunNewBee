@@ -1147,7 +1147,7 @@ export interface components {
             /** Route Id */
             route_id?: string | null;
             /** Route Status */
-            route_status: ("confirmed" | "partly_unverified" | "blocked" | "no_data") | "closed";
+            route_status: ("confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data") | "closed";
         };
         /**
          * ChatEventDoc
@@ -1892,6 +1892,35 @@ export interface components {
             /** Open Vrs */
             open_vrs: number;
         };
+        /** Maneuver */
+        Maneuver: {
+            /**
+             * Access Level
+             * @enum {string}
+             */
+            access_level: "verified" | "likely_ok" | "unknown" | "barrier" | "not_a_road";
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "depart" | "continue" | "turn_left" | "turn_right" | "slight_left" | "slight_right" | "u_turn" | "cross" | "arrive";
+            /** Bearing Deg */
+            bearing_deg: number | null;
+            /** Distance M */
+            distance_m: number;
+            /** Edge Type */
+            edge_type: string | null;
+            /** Index */
+            index: number;
+            /** Point */
+            point: number[];
+            /** Rule Id */
+            rule_id: string;
+            /** Segment Ids */
+            segment_ids: string[];
+            /** Street Name */
+            street_name: string | null;
+        };
         /**
          * NoJourney
          * @description Why there is no journey to play: the route status and a plain message.
@@ -2088,6 +2117,10 @@ export interface components {
         };
         /** Route */
         Route: {
+            /** Access Metres */
+            access_metres?: {
+                [key: string]: number;
+            };
             /** Crossings */
             crossings?: {
                 [key: string]: unknown;
@@ -2111,6 +2144,8 @@ export interface components {
             };
             /** Id */
             id: string;
+            /** Maneuvers */
+            maneuvers?: components["schemas"]["Maneuver"][];
             /** Max Gap Between Rest M */
             max_gap_between_rest_m?: number | null;
             /**
@@ -2153,7 +2188,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "confirmed" | "partly_unverified" | "blocked" | "no_data";
+            status: "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
             /** Target Node */
             target_node: string;
             /** To Place */
@@ -2207,12 +2242,18 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "confirmed" | "partly_unverified" | "blocked" | "no_data";
+            status: "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
             /** Warnings */
             warnings?: string[];
         };
         /** RouteSegment */
         RouteSegment: {
+            /**
+             * Access Level
+             * @default unknown
+             * @enum {string}
+             */
+            access_level: "verified" | "likely_ok" | "unknown" | "barrier" | "not_a_road";
             /** Edge Id */
             edge_id: string;
             /**
@@ -2222,6 +2263,15 @@ export interface components {
             eval: "PASS" | "FAIL" | "UNKNOWN";
             /** Flood Class */
             flood_class?: ("likely_flooded" | "possible" | "unlikely") | null;
+            /**
+             * Rule Id
+             * @default no_basis_v1
+             */
+            rule_id: string;
+            /** Tags Used */
+            tags_used?: {
+                [key: string]: string;
+            };
         };
         /** Scenario */
         Scenario: {
@@ -2311,7 +2361,7 @@ export interface components {
             /** Route Id */
             route_id?: string | null;
             /** Route Status */
-            route_status?: ("confirmed" | "partly_unverified" | "blocked" | "no_data") | null;
+            route_status?: ("confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data") | null;
             /** Scenario Id */
             scenario_id?: string | null;
             /** Start Time */

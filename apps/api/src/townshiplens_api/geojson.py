@@ -1,10 +1,12 @@
 from datetime import date, datetime
 
 from townshiplens_spatial import models as spatial_models
+from townshiplens_spatial.access import assess_access, urban_context
 from townshiplens_spatial.evaluate import (
     claim_gap,
     edge_demo_gaps,
     edge_gaps,
+    effective_claim_status,
     evaluate_edge,
     is_demo,
     relevant_attributes,
@@ -36,6 +38,14 @@ def _layer(
             if lens == "flood" and fc not in _FLOOD and not coverage:
                 continue
             live = active_closures(e.closures, now)
+            access = assess_access(
+                e,
+                prof,
+                fc,
+                flood_coverage=coverage,
+                now=now,
+                urban=urban_context(world, e),
+            )
             # A reported closure is shown as Not passable even where a flood class also applies.
             status = (
                 "blocked"
@@ -43,16 +53,29 @@ def _layer(
                 else _FLOOD.get(fc or "")
                 or _MAP[evaluate_edge(e, prof, fc, flood_coverage=coverage)[0]]
             )
+            if lens == "access":
+                status = {
+                    "verified": "verified",
+                    "likely_ok": "likely_ok",
+                    "unknown": "unknown",
+                    "barrier": "blocked",
+                    "not_a_road": "not_a_road",
+                }[access.level]
+                if access.level != "not_a_road" and not live and fc in _FLOOD:
+                    status = _FLOOD[fc]
             props = {
                 "id": e.id,
                 "type": e.type,
                 "name": e.name,
                 "status_for_profile": status,
+                "access_level": access.level,
+                "rule_id": access.rule_id,
+                "tags_used": access.tags_used,
             }
             if e.type in ("street", "major_road"):
                 sidewalk = e.claims.get("sidewalk")
                 props["sidewalk"] = sidewalk.value if sidewalk else None
-                props["sidewalk_status"] = sidewalk.status if sidewalk else "unknown"
+                props["sidewalk_status"] = effective_claim_status(sidewalk, "sidewalk")
             if e.type == "crossing":  # B-T7 fix round 1: zebra stripes only where marked
                 crossing = e.claims.get("crossing")
                 props["crossing"] = crossing.value if crossing else None
@@ -132,7 +155,7 @@ def layer(
     """Memoised on (world identity, world.version, lens, profile, scenario, live closures): a
     closure starts and expires on the clock without a version bump."""
     live = tuple(c.id for c in world.active_closures())
-    key = (id(world), world.version, lens, profile, scenario_id, live)
+    key = (id(world), world.version, date.today().isoformat(), lens, profile, scenario_id, live)
     hit = _cache.get(key)
     if hit is None:
         if len(_cache) > 64:

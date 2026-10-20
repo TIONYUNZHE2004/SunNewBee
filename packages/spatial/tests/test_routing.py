@@ -43,7 +43,7 @@ def test_drive_routes_on_roads_only(world):
     ids = [s.edge_id for s in r.segments]
     assert ids == ["rd-1", "rd-2"]
     assert not {world.edges[i].type for i in ids} & {"footway", "steps", "path", "ramp"}
-    # never confirmed: one-way and turn restrictions are not modelled
+    # Never confirmed: legal turn restrictions remain unmodelled.
     assert r.status == "partly_unverified" and rr.status == "partly_unverified"
     assert any("one-way" in w for w in rr.warnings)
     # 165 m at the drive speed, not at walking speed
@@ -614,7 +614,10 @@ def test_elmina_seed_pins_the_task_31_major_road_outcomes():  # task 31 M-6
     # OSM gives no width or surface for major roads here, so none may carry such a claim
     assert not [e.id for e in roads if {"width_m", "surface"} & set(e.claims)]
     hero = plan_route(w, "park-b", "playground", "stroller")
-    assert hero.status == "confirmed" and hero.routes[0].distance_m == pytest.approx(440.6, abs=1)
+    # T-020: the demo width/slope values do not establish a mapped sidewalk on roads.
+    assert hero.status == "partly_unverified"
+    assert hero.routes[0].distance_m == pytest.approx(416.4, abs=1)
+    assert hero.routes[0].road_without_mapped_sidewalk_m > 0
     # a confirmed route never crosses a major road (no verified sidewalk anywhere on the seed)
     major = {e.id for e in roads}
     for prof in ("stroller", "wheelchair", "older_adult_rest"):
@@ -647,7 +650,7 @@ def _nx_reference_search(world, sources, targets, profile, scenario_id, allow_un
     except nx.NetworkXNoPath:
         return None, [], evals
     nodes = path[1:-1]
-    return nodes, [chosen[frozenset((u, v))] for u, v in zip(nodes, nodes[1:], strict=False)], evals
+    return nodes, [chosen[(u, v)] for u, v in zip(nodes, nodes[1:], strict=False)], evals
 
 
 def test_search_matches_the_networkx_reference_without_copying_the_graph(world):

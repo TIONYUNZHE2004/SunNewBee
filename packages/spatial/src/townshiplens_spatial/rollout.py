@@ -231,7 +231,7 @@ def tipping_point(
                     demo_evidence=st.demo_evidence and st.status == "confirmed",
                 )
             )
-    rank = {"confirmed": 0, "partly_unverified": 1}
+    rank = {"confirmed": 0, "likely_ok": 1, "partly_unverified": 2}
     base = rows[0]
     ok = not _broken(base)
 

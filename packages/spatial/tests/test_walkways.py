@@ -1,5 +1,7 @@
 """T-014: prefer mapped walking paths, and expose road geometry without verifying it."""
 
+from datetime import date, timedelta
+
 import pytest
 from townshiplens_spatial import tools
 from townshiplens_spatial.models import Claim, Edge
@@ -71,12 +73,33 @@ def test_sidewalk_composition_is_citable_and_creates_no_extra_ticket(world):
 def test_road_section_sidewalk_claims_keep_their_provenance(world, value, status, missing):
     edge = _alternative(world, length=1)
     if value is not None:
-        edge.claims["sidewalk"] = Claim(value=value, status=status, evidence_type="osm_import")
+        edge.claims["sidewalk"] = Claim(
+            value=value,
+            status=status,
+            evidence_type="osm_import",
+            verified_at=date.today().isoformat() if status == "verified" else None,
+        )
     route = plan_route(world, "park-b", "playground", "default").routes[0]
     assert route.road_without_mapped_sidewalk_m == (1 if missing else 0)
     section = route.road_sections[0]
     assert section.element_id == edge.id and section.name == "Example Road"
     assert section.sidewalk == value and section.sidewalk_status == status
+
+
+@pytest.mark.parametrize(
+    "verified_at,expected",
+    [(None, "unknown"), ((date.today() - timedelta(days=366)).isoformat(), "stale")],
+)
+def test_undated_or_expired_sidewalk_is_not_counted_as_checked_geometry(
+    world, verified_at, expected
+):
+    edge = _alternative(world, length=1)
+    edge.claims["sidewalk"] = Claim(
+        value="one_side", status="verified", evidence_type="field_survey", verified_at=verified_at
+    )
+    route = plan_route(world, "park-b", "playground", "default").routes[0]
+    assert route.road_without_mapped_sidewalk_m == 1
+    assert route.road_sections[0].sidewalk_status == expected
 
 
 def test_drive_keeps_distance_costs_and_has_no_sidewalk_warning(world):

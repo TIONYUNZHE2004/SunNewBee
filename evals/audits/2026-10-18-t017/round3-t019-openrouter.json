@@ -1,0 +1,3441 @@
+{
+  "round": 3,
+  "rows": [
+    {
+      "id": "r01",
+      "language": "en",
+      "kind": "route-road",
+      "question": "I am in Surau Al Mahdi, how can I walk to Surau At Taqwa?",
+      "profile": "default",
+      "model": "anthropic/claude-haiku-5.5",
+      "answer_status": "answered",
+      "seconds": 20.0,
+      "tools": ["find_place", "find_place", "plan_route"],
+      "checks": 1,
+      "validator_errors": [],
+      "repairs": [],
+      "input_tokens": 26401,
+      "output_tokens": 1560,
+      "requests": 3,
+      "text": "Route status: confirmed\nYes, there is a mapped walking route from Surau Al Mahdi to Surau At Taqwa, about 364 m (about 5 minutes). Almost all of it follows Jalan Metafasa U16/3 along the road, with no mapped sidewalk.\n1. Start at Surau Al Mahdi and walk to the nearest mapped path.\n2. Follow Jalan Metafasa U16/3 for about 352 m, passing one unmarked road crossing.\n3. Continue the last short stretch to Surau At Taqwa.\nWorth knowing:\n• About 352 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified.\n• This route uses 1 road crossing: 1 unmarked (map data, not checked).\n• Route starts at the nearest mapped path to Surau Al Mahdi; its entrance is not mapped.\n• Route ends at the nearest mapped path to Surau At Taqwa; its entrance is not mapped.\n• Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Surau Al Mahdi",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.call",
+          "id": "find_place-1",
+          "name": "find_place",
+          "args": {
+            "query": "Surau At Taqwa",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-1",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.call",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "args": {
+            "from_id": "osm-way-910405528",
+            "to_id": "osm-way-910378231",
+            "profile": "default",
+            "scenario_id": null
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "summary": "route confirmed"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "Yes, there is a mapped walking route from Surau Al Mahdi to Surau At Taqwa, about 364 m (about 5 minutes)."
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": " Almost all of it follows Jalan Metafasa U16/3 along the road, with no mapped sidewalk."
+        },
+        {
+          "type": "answer.check",
+          "attempt": 1,
+          "ok": true,
+          "issues": [],
+          "repairs": 0
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "route.highlight",
+            "place_id": null,
+            "route_id": "rt-b3d5b88b",
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": {
+              "type": "LineString",
+              "coordinates": [
+                [101.514733, 3.172338],
+                [101.514365, 3.172388],
+                [101.514179, 3.172417],
+                [101.514103, 3.172429],
+                [101.514048, 3.172438],
+                [101.513978, 3.172449],
+                [101.513714, 3.172534],
+                [101.513477, 3.172645],
+                [101.51345, 3.172657],
+                [101.513286, 3.172736],
+                [101.51314, 3.172808],
+                [101.512994, 3.172879],
+                [101.51288, 3.172936],
+                [101.512468, 3.173144],
+                [101.512189, 3.173265],
+                [101.512122, 3.173294],
+                [101.511969, 3.173315],
+                [101.511814, 3.173338],
+                [101.511818, 3.173392],
+                [101.511923, 3.173379]
+              ]
+            },
+            "route_status": "confirmed",
+            "distance_m": 363.8,
+            "est_minutes": 5.2,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "place.focus",
+            "place_id": "osm-way-910378231",
+            "route_id": null,
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": null,
+            "route_status": null,
+            "distance_m": null,
+            "est_minutes": null,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-rt-b3d5b88b.walkways",
+          "element_id": "rt-b3d5b88b",
+          "attribute": "route_walkways",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "mapped walk graph (not a sidewalk survey)",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-seg-1346147888-1.crossing",
+          "element_id": "seg-1346147888-1",
+          "attribute": "crossing",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_import",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 3,
+          "evidence_id": "ev-osm-way-910405528.access_point",
+          "element_id": "osm-way-910405528",
+          "attribute": "access_point",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_area_boundary_snap",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 4,
+          "evidence_id": "ev-osm-way-910378231.access_point",
+          "element_id": "osm-way-910378231",
+          "attribute": "access_point",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_area_boundary_snap",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "partial",
+          "items": [
+            {
+              "element_id": "route",
+              "attribute": "entrance",
+              "note": "Route starts at the nearest mapped path to Surau Al Mahdi; its entrance is not mapped"
+            },
+            {
+              "element_id": "route",
+              "attribute": "entrance",
+              "note": "Route ends at the nearest mapped path to Surau At Taqwa; its entrance is not mapped"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "About 352 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "This route uses 1 road crossing: 1 unmarked (map data, not checked)"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "b5a92ad101ec",
+          "answer_status": "answered",
+          "model": "anthropic/claude-haiku-5.5"
+        }
+      ]
+    },
+    {
+      "id": "r02",
+      "language": "ms",
+      "kind": "route-road",
+      "question": "Boleh nenek saya naik kerusi roda dari Surau Al Mahdi ke Surau At Taqwa?",
+      "profile": "wheelchair",
+      "model": "anthropic/claude-haiku-5.5",
+      "answer_status": "partial",
+      "seconds": 23.5,
+      "tools": ["find_place", "find_place", "plan_route"],
+      "checks": 1,
+      "validator_errors": [],
+      "repairs": [],
+      "input_tokens": 31159,
+      "output_tokens": 2974,
+      "requests": 3,
+      "text": "Status laluan: sebahagian belum disahkan\nLaluan kerusi roda dari Surau Al Mahdi ke Surau At Taqwa dipetakan sejauh kira-kira 364 m (kira-kira 5 minit berjalan), tetapi laluan ini belum sepenuhnya disahkan. Sebahagian besar jaraknya mengikut tepi jalan, dan ciri-ciri penting seperti kecuraman, lebar dan anak tangga belum ditinjau.\n1. Mulakan di Surau Al Mahdi dan pergi ke Surau At Taqwa mengikut laluan kerusi roda yang dipetakan.\n2. Sebelum bergerak, periksa sendiri kecuraman, lebar dan anak tangga di sepanjang jalan, kerana data belum disahkan.\nPerlu diketahui:\n• Belum ditinjau: Incline (%), Width (m) dan Steps pada Jalan Metafasa U16/3, sebuah jalan tanpa nama dan sebuah persimpangan tanpa nama.\n• Kira-kira 352 m mengikut garis tengah jalan tanpa laluan pejalan kaki dipetakan; akses laluan pejalan kaki belum disahkan.\n• Laluan ini menggunakan 1 lintasan jalan: 1 tidak bertanda (data peta, belum disemak).\n• Laluan bermula di laluan dipetakan terdekat dengan Surau Al Mahdi; pintu masuknya belum dipetakan.\n• Laluan berakhir di laluan dipetakan terdekat dengan Surau At Taqwa; pintu masuknya belum dipetakan.\n• Pasukan township diminta menyemak 10 daripada 27 item yang belum disemak. dan 17 item lagi belum disemak.\n• Di luar kawasan kajian terperinci (Elmina Urban Park + Lakeside Mall frontage), maklumat laluan dan tempat hanya daripada OpenStreetMap.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Surau Al Mahdi",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.call",
+          "id": "find_place-1",
+          "name": "find_place",
+          "args": {
+            "query": "Surau At Taqwa",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-1",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.call",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "args": {
+            "from_id": "osm-way-910405528",
+            "to_id": "osm-way-910378231",
+            "profile": "wheelchair",
+            "scenario_id": null
+          }
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0001",
+          "element_id": "seg-240136688-8",
+          "attribute": "step_count",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0002",
+          "element_id": "seg-240136688-8",
+          "attribute": "incline_pct",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0003",
+          "element_id": "seg-240136688-8",
+          "attribute": "width_m",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0004",
+          "element_id": "seg-240136688-7",
+          "attribute": "step_count",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0005",
+          "element_id": "seg-240136688-7",
+          "attribute": "incline_pct",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0006",
+          "element_id": "seg-240136688-7",
+          "attribute": "width_m",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0007",
+          "element_id": "seg-240136688-6",
+          "attribute": "step_count",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0008",
+          "element_id": "seg-240136688-6",
+          "attribute": "incline_pct",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0009",
+          "element_id": "seg-240136688-6",
+          "attribute": "width_m",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0010",
+          "element_id": "seg-240136688-5",
+          "attribute": "step_count",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "tool.result",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "summary": "route partly_unverified"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "Laluan kerusi roda dari Surau Al Mahdi ke Surau At Taqwa dipetakan sejauh kira-kira 364 m (kira-kira 5 minit berjalan), tetapi laluan ini belum sepenuhnya disahkan."
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": " Sebahagian besar jaraknya mengikut tepi jalan, dan ciri-ciri penting seperti kecuraman, lebar dan anak tangga belum ditinjau."
+        },
+        {
+          "type": "answer.check",
+          "attempt": 1,
+          "ok": true,
+          "issues": [],
+          "repairs": 0
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "route.highlight",
+            "place_id": null,
+            "route_id": "rt-fffd8bee",
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": {
+              "type": "LineString",
+              "coordinates": [
+                [101.514733, 3.172338],
+                [101.514365, 3.172388],
+                [101.514179, 3.172417],
+                [101.514103, 3.172429],
+                [101.514048, 3.172438],
+                [101.513978, 3.172449],
+                [101.513714, 3.172534],
+                [101.513477, 3.172645],
+                [101.51345, 3.172657],
+                [101.513286, 3.172736],
+                [101.51314, 3.172808],
+                [101.512994, 3.172879],
+                [101.51288, 3.172936],
+                [101.512468, 3.173144],
+                [101.512189, 3.173265],
+                [101.512122, 3.173294],
+                [101.511969, 3.173315],
+                [101.511814, 3.173338],
+                [101.511818, 3.173392],
+                [101.511923, 3.173379]
+              ]
+            },
+            "route_status": "partly_unverified",
+            "distance_m": 363.8,
+            "est_minutes": 5.2,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "place.focus",
+            "place_id": "osm-way-910378231",
+            "route_id": null,
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": null,
+            "route_status": null,
+            "distance_m": null,
+            "est_minutes": null,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-osm-way-910405528.access_point",
+          "element_id": "osm-way-910405528",
+          "attribute": "access_point",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_area_boundary_snap",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-osm-way-910378231.access_point",
+          "element_id": "osm-way-910378231",
+          "attribute": "access_point",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_area_boundary_snap",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 3,
+          "evidence_id": "ev-rt-fffd8bee.walkways",
+          "element_id": "rt-fffd8bee",
+          "attribute": "route_walkways",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "mapped walk graph (not a sidewalk survey)",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 4,
+          "evidence_id": "ev-seg-1346147888-1.crossing",
+          "element_id": "seg-1346147888-1",
+          "attribute": "crossing",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_import",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "partial",
+          "items": [
+            {
+              "element_id": "seg-240136688-8",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-8",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-8",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-7",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-7",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-7",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-6",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-6",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-6",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-5",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-5",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-5",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-4",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-4",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-4",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-3",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-3",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-3",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-2",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-2",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-2",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136713-1",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed street"
+            },
+            {
+              "element_id": "seg-240136713-1",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed street"
+            },
+            {
+              "element_id": "seg-240136713-1",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed street"
+            },
+            {
+              "element_id": "seg-1346147888-1",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147888-1",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147888-1",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "route",
+              "attribute": "entrance",
+              "note": "Route starts at the nearest mapped path to Surau Al Mahdi; its entrance is not mapped"
+            },
+            {
+              "element_id": "route",
+              "attribute": "entrance",
+              "note": "Route ends at the nearest mapped path to Surau At Taqwa; its entrance is not mapped"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Belum ditinjau: Incline (%), Width (m) dan Steps pada Jalan Metafasa U16/3, sebuah jalan tanpa nama dan sebuah persimpangan tanpa nama"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "About 352 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "This route uses 1 road crossing: 1 unmarked (map data, not checked)"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Di luar kawasan kajian terperinci (Elmina Urban Park + Lakeside Mall frontage), maklumat laluan dan tempat hanya daripada OpenStreetMap"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "76b83a93c12b",
+          "answer_status": "partial",
+          "model": "anthropic/claude-haiku-5.5"
+        }
+      ]
+    },
+    {
+      "id": "r03",
+      "language": "zh",
+      "kind": "route-hero",
+      "question": "推婴儿车从Lakeside Mall Car Park B去Urban Park playground方便吗？",
+      "profile": "stroller",
+      "model": "anthropic/claude-haiku-5.5",
+      "answer_status": "answered",
+      "seconds": 34.4,
+      "tools": ["find_place", "find_place", "plan_route"],
+      "checks": 2,
+      "validator_errors": [],
+      "repairs": [],
+      "input_tokens": 52900,
+      "output_tokens": 2908,
+      "requests": 4,
+      "text": "路线状态: 已确认（基于演示数据，尚未实地调查）\n系统有一条推车路线从 Lakeside Mall Car Park B 到 Urban Park playground，约 440 m，步行约 6 分钟。沿途的演示数据记录为 0 级台阶、坡度约 3%、宽约 1.5 m，但这些数值尚未实地调查。\n1. Start at Lakeside Mall Car Park B.\n2. Follow the stroller route for about 440 m (about 6 minutes).\n3. Arrive at Urban Park playground. Bench 2 and bench 3 are recorded along the way as rest points.\n注意事项：\n• About 152 m follows road centre lines without a mapped sidewalk; sidewalk access is not checked yet.\n• demo values, not yet surveyed.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Lakeside Mall Car Park B",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.call",
+          "id": "find_place-1",
+          "name": "find_place",
+          "args": {
+            "query": "Urban Park playground",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-1",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.call",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "args": {
+            "from_id": "park-b",
+            "to_id": "playground",
+            "profile": "stroller",
+            "scenario_id": null
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "summary": "route confirmed"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "系统有一条推车路线从 Lakeside Mall Car Park B 到 Urban Park playground，约 440 m，步行约 6 分钟。"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "沿途的演示数据记录为 0 级台阶、坡度约 3%、宽约 1.5 m，但这些数值尚未实地调查。"
+        },
+        {
+          "type": "answer.check",
+          "attempt": 1,
+          "ok": false,
+          "issues": ["did not fill in the answer form correctly"],
+          "repairs": 0
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 2,
+          "delta": "系统有一条推车路线从 Lakeside Mall Car Park B 到 Urban Park playground，约 440 m，步行约 6 分钟。"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 2,
+          "delta": "沿途的演示数据记录为 0 级台阶、坡度约 3%、宽约 1.5 m，但这些数值尚未实地调查。"
+        },
+        {
+          "type": "answer.check",
+          "attempt": 2,
+          "ok": true,
+          "issues": [],
+          "repairs": 0
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "route.highlight",
+            "place_id": null,
+            "route_id": "rt-76a05e57",
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": {
+              "type": "LineString",
+              "coordinates": [
+                [101.508757, 3.18131],
+                [101.50861, 3.181204],
+                [101.508479, 3.181108],
+                [101.508337, 3.181005],
+                [101.508237, 3.18094],
+                [101.508415, 3.180676],
+                [101.508383, 3.180668],
+                [101.508356, 3.180651],
+                [101.508334, 3.180624],
+                [101.508321, 3.180592],
+                [101.508319, 3.180558],
+                [101.508327, 3.180525],
+                [101.508347, 3.180496],
+                [101.508374, 3.180475],
+                [101.508406, 3.180464],
+                [101.508441, 3.180463],
+                [101.508473, 3.180473],
+                [101.508501, 3.180493],
+                [101.508769, 3.180147],
+                [101.508911, 3.179959],
+                [101.50941, 3.180232],
+                [101.509854, 3.180547],
+                [101.509999, 3.180661],
+                [101.510071, 3.180734],
+                [101.510279, 3.180944],
+                [101.510249, 3.180715]
+              ]
+            },
+            "route_status": "confirmed",
+            "distance_m": 440.6,
+            "est_minutes": 6.3,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "place.focus",
+            "place_id": "playground",
+            "route_id": null,
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": null,
+            "route_status": null,
+            "distance_m": null,
+            "est_minutes": null,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-place-park-b",
+          "element_id": "park-b",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-place-playground",
+          "element_id": "playground",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 3,
+          "evidence_id": "ev-rt-76a05e57.walkways",
+          "element_id": "rt-76a05e57",
+          "attribute": "route_walkways",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "mapped walk graph (not a sidewalk survey)",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 4,
+          "evidence_id": "ev-seg-1306543769-3.step_count",
+          "element_id": "seg-1306543769-3",
+          "attribute": "step_count",
+          "status": "verified",
+          "verified_at": "2026-10-18",
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 5,
+          "evidence_id": "ev-seg-1306543769-3.incline_pct",
+          "element_id": "seg-1306543769-3",
+          "attribute": "incline_pct",
+          "status": "verified",
+          "verified_at": "2026-10-18",
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 6,
+          "evidence_id": "ev-seg-1306543769-3.width_m",
+          "element_id": "seg-1306543769-3",
+          "attribute": "width_m",
+          "status": "verified",
+          "verified_at": "2026-10-18",
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 7,
+          "evidence_id": "ev-seg-1306543769-0.step_count",
+          "element_id": "seg-1306543769-0",
+          "attribute": "step_count",
+          "status": "verified",
+          "verified_at": "2026-10-18",
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 8,
+          "evidence_id": "ev-seg-1318133035-2.step_count",
+          "element_id": "seg-1318133035-2",
+          "attribute": "step_count",
+          "status": "verified",
+          "verified_at": "2026-10-18",
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 9,
+          "evidence_id": "ev-place-bench-urban-2",
+          "element_id": "bench-urban-2",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 10,
+          "evidence_id": "ev-place-bench-urban-3",
+          "element_id": "bench-urban-3",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "partial",
+          "items": [
+            {
+              "element_id": "route",
+              "attribute": "demo_values",
+              "note": "Some segment facts are demo values, not yet surveyed"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "About 152 m follows road centre lines without a mapped sidewalk; sidewalk access is not checked yet"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "5aa138e88508",
+          "answer_status": "answered",
+          "model": "anthropic/claude-haiku-5.5"
+        }
+      ]
+    },
+    {
+      "id": "r05",
+      "language": "ms",
+      "kind": "route-long",
+      "question": "Macam mana nak jalan kaki dari Elmina Lakeside Mall ke Anadia Clinic?",
+      "profile": "default",
+      "model": "anthropic/claude-haiku-5.5",
+      "answer_status": "answered",
+      "seconds": 27.5,
+      "tools": ["find_place", "find_place", "plan_route"],
+      "checks": 1,
+      "validator_errors": [],
+      "repairs": [],
+      "input_tokens": 38032,
+      "output_tokens": 2441,
+      "requests": 3,
+      "text": "Status laluan: sebahagian belum disahkan\nLaluan berjalan kaki yang dipetakan dari Elmina Lakeside Mall ke Anadia Clinic ialah kira-kira 3.4 km dan mengambil masa kira-kira 48 minit (profil lalai). Laluan ini sebahagiannya belum disahkan kerana beberapa bahagian jalan belum diperiksa untuk tempat pejalan kaki.\n1. Mula di Elmina Lakeside Mall dan ikut laluan yang dipetakan ke Anadia Clinic.\n2. Laluan ialah kira-kira 3.4 km dan kira-kira 48 minit berjalan kaki.\n3. Sebelum bergerak, pastikan kaki lima dan lintasan di sepanjang jalan, terutamanya di Persiaran Metafasa.\n4. Untuk maklumat terkini tentang jalan atau lintasan, semak dengan pihak Majlis atau pasukan township.\nPerlu diketahui:\n• Sebahagian laluan belum disahkan: kaki lima belum diperiksa di Persiaran Metafasa (dua bahagian), di Jalan Metafasa U16/3 bahagian tidak dinamakan, dan di beberapa bahagian jalan utama tidak dinamakan.\n• Kira-kira 2034 m mengikut garis tengah jalan tanpa laluan pejalan kaki dipetakan; akses laluan pejalan kaki belum disahkan.\n• crossing_note: Laluan ini menggunakan 8 lintasan jalan: 5 tidak bertanda (data peta, belum disemak), 3 tanpa jenis lintasan direkodkan.\n• Pasukan township diminta menyemak 7 daripada 7 item yang belum disemak.\n• Demo values, not yet surveyed: data untuk titik mula dan pengiraan laluan ini ialah nilai demo, belum ditinjau.\n• Ini bukan ramalan banjir; ia hanya untuk rujukan laluan biasa.\n• Di luar kawasan kajian terperinci (Elmina Urban Park + Lakeside Mall frontage), maklumat laluan dan tempat hanya daripada OpenStreetMap.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Elmina Lakeside Mall",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.call",
+          "id": "find_place-1",
+          "name": "find_place",
+          "args": {
+            "query": "Anadia Clinic",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-1",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.call",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "args": {
+            "from_id": "lakeside-mall",
+            "to_id": "osm-node-12001782849",
+            "profile": "default",
+            "scenario_id": null
+          }
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0001",
+          "element_id": "seg-841443290-0",
+          "attribute": "sidewalk",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0002",
+          "element_id": "seg-240136683-2",
+          "attribute": "sidewalk",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0003",
+          "element_id": "seg-240136683-0",
+          "attribute": "sidewalk",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0004",
+          "element_id": "seg-23404658-1",
+          "attribute": "sidewalk",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0005",
+          "element_id": "seg-23404658-0",
+          "attribute": "sidewalk",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0006",
+          "element_id": "seg-23404658-8",
+          "attribute": "sidewalk",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0007",
+          "element_id": "seg-23404658-7",
+          "attribute": "sidewalk",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "tool.result",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "summary": "route partly_unverified"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "Laluan berjalan kaki yang dipetakan dari Elmina Lakeside Mall ke Anadia Clinic ialah kira-kira 3.4 km dan mengambil masa kira-kira 48 minit (profil lalai)."
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": " Laluan ini sebahagiannya belum disahkan kerana beberapa bahagian jalan belum diperiksa untuk tempat pejalan kaki."
+        },
+        {
+          "type": "answer.check",
+          "attempt": 1,
+          "ok": true,
+          "issues": [],
+          "repairs": 0
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "route.highlight",
+            "place_id": null,
+            "route_id": "rt-c236d3e0",
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": {
+              "type": "LineString",
+              "coordinates": [
+                [101.510045, 3.18131],
+                [101.50979, 3.181102],
+                [101.509602, 3.180947],
+                [101.509644, 3.180769],
+                [101.508769, 3.180147],
+                [101.508911, 3.179959],
+                [101.508356, 3.179663],
+                [101.508282, 3.179498],
+                [101.508402, 3.179507],
+                [101.508477, 3.17943],
+                [101.508701, 3.179093],
+                [101.509077, 3.17862],
+                [101.509389, 3.178241],
+                [101.509557, 3.178159],
+                [101.509661, 3.17813],
+                [101.509743, 3.178119],
+                [101.509803, 3.178118],
+                [101.509903, 3.178124],
+                [101.509942, 3.178122],
+                [101.510011, 3.178105],
+                [101.510075, 3.178101],
+                [101.51016, 3.178123],
+                [101.510217, 3.17818],
+                [101.510269, 3.178102],
+                [101.510301, 3.178048],
+                [101.51038, 3.177916],
+                [101.510415, 3.177858],
+                [101.510453, 3.177793],
+                [101.510389, 3.177748],
+                [101.510345, 3.177694],
+                [101.510327, 3.177648],
+                [101.510302, 3.177567],
+                [101.510261, 3.177497],
+                [101.510218, 3.177458],
+                [101.510153, 3.177402],
+                [101.510142, 3.177351],
+                [101.510137, 3.177294],
+                [101.510158, 3.177207],
+                [101.510157, 3.177164],
+                [101.510131, 3.177103],
+                [101.510114, 3.177051],
+                [101.51013, 3.176992],
+                [101.510142, 3.176951],
+                [101.510126, 3.176885],
+                [101.510177, 3.176823],
+                [101.510212, 3.176687],
+                [101.51028, 3.176442],
+                [101.510328, 3.176206],
+                [101.510363, 3.17575],
+                [101.510375, 3.175585],
+                [101.510349, 3.17532],
+                [101.510356, 3.175256],
+                [101.510381, 3.175224],
+                [101.510375, 3.175099],
+                [101.510369, 3.174996],
+                [101.510339, 3.174961],
+                [101.510328, 3.174841],
+                [101.510266, 3.174461],
+                [101.510258, 3.174292],
+                [101.510262, 3.174107],
+                [101.510282, 3.1739],
+                [101.510287, 3.173866],
+                [101.510294, 3.173817],
+                [101.510449, 3.173199],
+                [101.510478, 3.173171],
+                [101.510519, 3.173144],
+                [101.510549, 3.173141],
+                [101.510937, 3.173245],
+                [101.511289, 3.173352],
+                [101.511515, 3.173412],
+                [101.511591, 3.173423],
+                [101.511726, 3.173404],
+                [101.511818, 3.173392],
+                [101.511814, 3.173338],
+                [101.511969, 3.173315],
+                [101.512122, 3.173294],
+                [101.512189, 3.173265],
+                [101.512468, 3.173144],
+                [101.51288, 3.172936],
+                [101.512994, 3.172879],
+                [101.51314, 3.172808],
+                [101.513286, 3.172736],
+                [101.51345, 3.172657],
+                [101.513477, 3.172645],
+                [101.513714, 3.172534],
+                [101.513978, 3.172449],
+                [101.514048, 3.172438],
+                [101.514103, 3.172429],
+                [101.514179, 3.172417],
+                [101.514365, 3.172388],
+                [101.514733, 3.172338],
+                [101.514906, 3.172314],
+                [101.514978, 3.172268],
+                [101.515026, 3.172228],
+                [101.515074, 3.17217],
+                [101.515111, 3.172109],
+                [101.51508, 3.172003],
+                [101.515025, 3.171811],
+                [101.514952, 3.171647],
+                [101.514804, 3.171409],
+                [101.514624, 3.171171],
+                [101.514574, 3.171106],
+                [101.514436, 3.170924],
+                [101.514326, 3.170779],
+                [101.514298, 3.170742],
+                [101.514171, 3.170575],
+                [101.514065, 3.170432],
+                [101.513872, 3.170173],
+                [101.513799, 3.17001],
+                [101.513759, 3.169838],
+                [101.513753, 3.169654],
+                [101.513786, 3.169429],
+                [101.513866, 3.169245],
+                [101.513983, 3.169007],
+                [101.514174, 3.168619],
+                [101.513807, 3.168449],
+                [101.513474, 3.1682],
+                [101.513137, 3.167882],
+                [101.513077, 3.167833],
+                [101.513022, 3.167788],
+                [101.512997, 3.167733],
+                [101.512995, 3.167695],
+                [101.513014, 3.167614],
+                [101.513383, 3.167022],
+                [101.513496, 3.166833],
+                [101.513479, 3.16675],
+                [101.513485, 3.1666],
+                [101.513514, 3.166468],
+                [101.513554, 3.166363],
+                [101.513764, 3.165984],
+                [101.513834, 3.165918],
+                [101.513916, 3.165878],
+                [101.514043, 3.165853],
+                [101.514635, 3.164731],
+                [101.514624, 3.164707],
+                [101.514617, 3.164681],
+                [101.514617, 3.164643],
+                [101.514627, 3.164607],
+                [101.514648, 3.164576],
+                [101.514675, 3.164552],
+                [101.514707, 3.164536],
+                [101.514743, 3.16453],
+                [101.515122, 3.16375],
+                [101.515537, 3.162881],
+                [101.515721, 3.162449],
+                [101.515705, 3.162421],
+                [101.515698, 3.16239],
+                [101.515571, 3.162297],
+                [101.515428, 3.162275],
+                [101.514703, 3.161926],
+                [101.514111, 3.161547],
+                [101.513577, 3.161051],
+                [101.513275, 3.160688]
+              ]
+            },
+            "route_status": "partly_unverified",
+            "distance_m": 3387.5,
+            "est_minutes": 48.4,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "place.focus",
+            "place_id": "osm-node-12001782849",
+            "route_id": null,
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": null,
+            "route_status": null,
+            "distance_m": null,
+            "est_minutes": null,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-rt-c236d3e0.walkways",
+          "element_id": "rt-c236d3e0",
+          "attribute": "route_walkways",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "mapped walk graph (not a sidewalk survey)",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-place-lakeside-mall",
+          "element_id": "lakeside-mall",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 3,
+          "evidence_id": "ev-seg-1346147884-0.crossing",
+          "element_id": "seg-1346147884-0",
+          "attribute": "crossing",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_import",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 4,
+          "evidence_id": "ev-seg-1346147884-1.crossing",
+          "element_id": "seg-1346147884-1",
+          "attribute": "crossing",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_import",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 5,
+          "evidence_id": "ev-seg-1346147890-0.crossing",
+          "element_id": "seg-1346147890-0",
+          "attribute": "crossing",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_import",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 6,
+          "evidence_id": "ev-seg-1346147890-1.crossing",
+          "element_id": "seg-1346147890-1",
+          "attribute": "crossing",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_import",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 7,
+          "evidence_id": "ev-seg-1346147888-0.crossing",
+          "element_id": "seg-1346147888-0",
+          "attribute": "crossing",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_import",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 8,
+          "evidence_id": "ev-seg-926275996-0.surface",
+          "element_id": "seg-926275996-0",
+          "attribute": "surface",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_import",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "partial",
+          "items": [
+            {
+              "element_id": "seg-841443290-0",
+              "attribute": "sidewalk",
+              "note": "Sidewalk: not checked yet on an unnamed major road"
+            },
+            {
+              "element_id": "seg-240136683-2",
+              "attribute": "sidewalk",
+              "note": "Sidewalk: not checked yet on Persiaran Metafasa"
+            },
+            {
+              "element_id": "seg-240136683-0",
+              "attribute": "sidewalk",
+              "note": "Sidewalk: not checked yet on Persiaran Metafasa"
+            },
+            {
+              "element_id": "seg-23404658-1",
+              "attribute": "sidewalk",
+              "note": "Sidewalk: not checked yet on an unnamed major road"
+            },
+            {
+              "element_id": "seg-23404658-0",
+              "attribute": "sidewalk",
+              "note": "Sidewalk: not checked yet on an unnamed major road"
+            },
+            {
+              "element_id": "seg-23404658-8",
+              "attribute": "sidewalk",
+              "note": "Sidewalk: not checked yet on an unnamed major road"
+            },
+            {
+              "element_id": "seg-23404658-7",
+              "attribute": "sidewalk",
+              "note": "Sidewalk: not checked yet on an unnamed major road"
+            },
+            {
+              "element_id": "route",
+              "attribute": "demo_values",
+              "note": "Some segment facts are demo values, not yet surveyed"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Sebahagian laluan belum disahkan: kaki lima belum diperiksa di Persiaran Metafasa (dua bahagian), di Jalan Metafasa U16/3 bahagian tidak dinamakan, dan di beberapa bahagian jalan utama tidak dinamakan"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "About 2034 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "crossing_note: This route uses 8 road crossings: 5 unmarked (map data, not checked), 3 with no recorded crossing type"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Ini bukan ramalan banjir; ia hanya untuk rujukan laluan biasa"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Di luar kawasan kajian terperinci (Elmina Urban Park + Lakeside Mall frontage), maklumat laluan dan tempat hanya daripada OpenStreetMap"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "75a40915d7bb",
+          "answer_status": "answered",
+          "model": "anthropic/claude-haiku-5.5"
+        }
+      ]
+    },
+    {
+      "id": "r06",
+      "language": "zh",
+      "kind": "route-outside",
+      "question": "从Anadia Clinic走路去Skyhill Clinic HQ怎么走？",
+      "profile": "default",
+      "model": "anthropic/claude-haiku-5.5",
+      "answer_status": "answered",
+      "seconds": 34.2,
+      "tools": ["find_place", "find_place", "plan_route"],
+      "checks": 2,
+      "validator_errors": [
+        [
+          "Facts ['3 minutes'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+        ]
+      ],
+      "repairs": [],
+      "input_tokens": 37728,
+      "output_tokens": 2754,
+      "requests": 4,
+      "text": "Route status: confirmed\nThere is a mapped walking route from Anadia Clinic to Skyhill Clinic HQ, about 178 m, about 2.5 minutes on foot. About 97 m of it follows road centre lines with no mapped sidewalk.\n1. Start at Anadia Clinic and head to Jalan Elektron G U16/G.\n2. Continue along Jalan Elektron F U16/F.\n3. Follow the unnamed footway / street / major road section to Skyhill Clinic HQ.\nWorth knowing:\n• About 97 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified.\n• Sidewalk status is unknown for Jalan Elektron G U16/G, Jalan Elektron F U16/F and the unnamed section on this route.\n• Route is based on OpenStreetMap-derived walkway data, not a field survey; no staff check is on record.\n• Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Anadia Clinic",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.call",
+          "id": "find_place-1",
+          "name": "find_place",
+          "args": {
+            "query": "Skyhill Clinic HQ",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-1",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.call",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "args": {
+            "from_id": "osm-node-12001782849",
+            "to_id": "osm-node-11949343485",
+            "profile": "default",
+            "scenario_id": null
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "summary": "route confirmed"
+        },
+        {
+          "type": "answer.check",
+          "attempt": 1,
+          "ok": false,
+          "issues": ["stated a number no check returned"],
+          "repairs": 0
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 2,
+          "delta": "There is a mapped walking route from Anadia Clinic to Skyhill Clinic HQ, about 178 m, about 2.5 minutes on foot."
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 2,
+          "delta": " About 97 m of it follows road centre lines with no mapped sidewalk."
+        },
+        {
+          "type": "answer.check",
+          "attempt": 2,
+          "ok": true,
+          "issues": [],
+          "repairs": 0
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "route.highlight",
+            "place_id": null,
+            "route_id": "rt-4f69f3df",
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": {
+              "type": "LineString",
+              "coordinates": [
+                [101.513275, 3.160688],
+                [101.51319, 3.160611],
+                [101.512929, 3.160832],
+                [101.512637, 3.161092],
+                [101.512938, 3.161452],
+                [101.512924, 3.161477],
+                [101.512918, 3.161505],
+                [101.51292, 3.161533],
+                [101.51293, 3.16156],
+                [101.512947, 3.161583],
+                [101.51297, 3.161601],
+                [101.512997, 3.161611],
+                [101.513026, 3.161612],
+                [101.513054, 3.161606],
+                [101.513079, 3.161593]
+              ]
+            },
+            "route_status": "confirmed",
+            "distance_m": 178.1,
+            "est_minutes": 2.5,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "place.focus",
+            "place_id": "osm-node-11949343485",
+            "route_id": null,
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": null,
+            "route_status": null,
+            "distance_m": null,
+            "est_minutes": null,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-rt-4f69f3df.walkways",
+          "element_id": "rt-4f69f3df",
+          "attribute": "route_walkways",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "mapped walk graph (not a sidewalk survey)",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-place-osm-node-12001782849",
+          "element_id": "osm-node-12001782849",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 3,
+          "evidence_id": "ev-place-osm-node-11949343485",
+          "element_id": "osm-node-11949343485",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 4,
+          "evidence_id": "ev-seg-598776392-1.surface",
+          "element_id": "seg-598776392-1",
+          "attribute": "surface",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_import",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 5,
+          "evidence_id": "ev-seg-598776392-0.surface",
+          "element_id": "seg-598776392-0",
+          "attribute": "surface",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_import",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "partial",
+          "items": [
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "About 97 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Sidewalk status is unknown for Jalan Elektron G U16/G, Jalan Elektron F U16/F and the unnamed section on this route"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Route is based on OpenStreetMap-derived walkway data, not a field survey; no staff check is on record"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "e64bad6ff398",
+          "answer_status": "answered",
+          "model": "anthropic/claude-haiku-5.5"
+        }
+      ]
+    },
+    {
+      "id": "r08",
+      "language": "en",
+      "kind": "route-mixed",
+      "question": "Stroller route from Elmina Lakeside Mall to Surau At Taqwa?",
+      "profile": "stroller",
+      "model": "anthropic/claude-haiku-5.5+template",
+      "answer_status": "partial",
+      "seconds": 60.0,
+      "tools": ["find_place", "find_place", "plan_route"],
+      "checks": 1,
+      "validator_errors": [],
+      "repairs": [],
+      "input_tokens": 40539,
+      "output_tokens": 2555,
+      "requests": 4,
+      "text": "Route status: partly unverified\nRoute of 1379.5 m.\nWorth knowing:\n• Not checked yet: Steps on an unnamed footway (x2).\n• Not checked yet: Incline (%) on an unnamed footway (x2).\n• Not checked yet: Width (m) on an unnamed footway; and 70 more unchecked items.\n• Asked the township team to check 10 of the 75 unchecked items.\n• Some segments are still unverified.\n• This route uses 9 road crossings: 6 unmarked (map data, not checked), 3 with no recorded crossing type.\n• Route ends at the nearest mapped path to Surau At Taqwa; its entrance is not mapped.\n• Some segment facts are demo values, not yet surveyed.\n• Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Elmina Lakeside Mall",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.call",
+          "id": "find_place-1",
+          "name": "find_place",
+          "args": {
+            "query": "Surau At Taqwa",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-1",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.call",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "args": {
+            "from_id": "lakeside-mall",
+            "to_id": "osm-way-910378231",
+            "profile": "stroller",
+            "scenario_id": null
+          }
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0001",
+          "element_id": "seg-1346154591-1",
+          "attribute": "step_count",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0002",
+          "element_id": "seg-1346154591-1",
+          "attribute": "incline_pct",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0003",
+          "element_id": "seg-1346154591-1",
+          "attribute": "width_m",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0004",
+          "element_id": "seg-1450679024-0",
+          "attribute": "step_count",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0005",
+          "element_id": "seg-1450679024-0",
+          "attribute": "incline_pct",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0006",
+          "element_id": "seg-1450679024-0",
+          "attribute": "width_m",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0007",
+          "element_id": "seg-1318133037-0",
+          "attribute": "step_count",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0008",
+          "element_id": "seg-1318133037-0",
+          "attribute": "incline_pct",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0009",
+          "element_id": "seg-1318133037-0",
+          "attribute": "width_m",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0010",
+          "element_id": "seg-1318133035-0",
+          "attribute": "step_count",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "tool.result",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "summary": "route partly_unverified"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "There is a mapped stroller route from Elmina Lakeside Mall to Surau At Taqwa, about 1,380 m (about 20 minutes on foot), but several of its parts are not checked yet."
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": " The route is mapped as about 932 m of sidewalk and no stretch along road centre lines."
+        },
+        {
+          "type": "answer.check",
+          "attempt": 1,
+          "ok": false,
+          "issues": ["did not fill in the answer form correctly"],
+          "repairs": 0
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 2,
+          "delta": "There is a mapped stroller route from Elmina Lakeside Mall to Surau At Taqwa, about 1,380 m (about 20 minutes on foot), but several of its parts are not checked yet."
+        },
+        {
+          "type": "error",
+          "code": "agent_timeout",
+          "message": "turn timed out after 60.0s"
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "route.highlight",
+            "place_id": null,
+            "route_id": "rt-0c0f9592",
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": {
+              "type": "LineString",
+              "coordinates": [
+                [101.510045, 3.18131],
+                [101.50979, 3.181102],
+                [101.510071, 3.180734],
+                [101.509999, 3.180661],
+                [101.509854, 3.180547],
+                [101.50941, 3.180232],
+                [101.508911, 3.179959],
+                [101.508356, 3.179663],
+                [101.508282, 3.179498],
+                [101.508402, 3.179507],
+                [101.508477, 3.17943],
+                [101.508701, 3.179093],
+                [101.509077, 3.17862],
+                [101.509389, 3.178241],
+                [101.509557, 3.178159],
+                [101.509661, 3.17813],
+                [101.509743, 3.178119],
+                [101.509803, 3.178118],
+                [101.509903, 3.178124],
+                [101.509942, 3.178122],
+                [101.510011, 3.178105],
+                [101.510075, 3.178101],
+                [101.51016, 3.178123],
+                [101.510217, 3.17818],
+                [101.510269, 3.178102],
+                [101.510301, 3.178048],
+                [101.51038, 3.177916],
+                [101.510415, 3.177858],
+                [101.510453, 3.177793],
+                [101.510389, 3.177748],
+                [101.510345, 3.177694],
+                [101.510327, 3.177648],
+                [101.510302, 3.177567],
+                [101.510261, 3.177497],
+                [101.510218, 3.177458],
+                [101.510153, 3.177402],
+                [101.510142, 3.177351],
+                [101.510137, 3.177294],
+                [101.510158, 3.177207],
+                [101.510157, 3.177164],
+                [101.510131, 3.177103],
+                [101.510114, 3.177051],
+                [101.51013, 3.176992],
+                [101.510142, 3.176951],
+                [101.510126, 3.176885],
+                [101.510177, 3.176823],
+                [101.510212, 3.176687],
+                [101.51028, 3.176442],
+                [101.510328, 3.176206],
+                [101.510363, 3.17575],
+                [101.510375, 3.175585],
+                [101.510349, 3.17532],
+                [101.510356, 3.175256],
+                [101.510381, 3.175224],
+                [101.510375, 3.175099],
+                [101.510369, 3.174996],
+                [101.510339, 3.174961],
+                [101.510328, 3.174841],
+                [101.510266, 3.174461],
+                [101.510258, 3.174292],
+                [101.510262, 3.174107],
+                [101.510282, 3.1739],
+                [101.510287, 3.173866],
+                [101.510294, 3.173817],
+                [101.510449, 3.173199],
+                [101.510478, 3.173171],
+                [101.510519, 3.173144],
+                [101.510549, 3.173141],
+                [101.510937, 3.173245],
+                [101.511289, 3.173352],
+                [101.511515, 3.173412],
+                [101.511591, 3.173423],
+                [101.511726, 3.173404],
+                [101.511818, 3.173392],
+                [101.511923, 3.173379]
+              ]
+            },
+            "route_status": "partly_unverified",
+            "distance_m": 1379.5,
+            "est_minutes": 19.7,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-place-lakeside-mall",
+          "element_id": "lakeside-mall",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-place-park-b",
+          "element_id": "park-b",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 3,
+          "evidence_id": "ev-place-osm-way-1308938138",
+          "element_id": "osm-way-1308938138",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 4,
+          "evidence_id": "ev-place-osm-node-3668314800",
+          "element_id": "osm-node-3668314800",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 5,
+          "evidence_id": "ev-place-osm-way-1308938142",
+          "element_id": "osm-way-1308938142",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 6,
+          "evidence_id": "ev-place-osm-way-910378231",
+          "element_id": "osm-way-910378231",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 7,
+          "evidence_id": "ev-place-osm-node-2478641046",
+          "element_id": "osm-node-2478641046",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 8,
+          "evidence_id": "ev-place-osm-way-907988141",
+          "element_id": "osm-way-907988141",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 9,
+          "evidence_id": "ev-place-bench-urban-3",
+          "element_id": "bench-urban-3",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "partial",
+          "items": [
+            {
+              "element_id": "seg-1346154591-1",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1346154591-1",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1346154591-1",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1450679024-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1450679024-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1450679024-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1318133037-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1318133037-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1318133037-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1318133035-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1318133035-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1318133035-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1343835668-1",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835668-1",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835668-1",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835668-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835668-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835668-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835669-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835669-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835669-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1290465379-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1290465379-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1290465379-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909875982-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909875982-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909875982-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-926275996-2",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-2",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-2",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-1",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-1",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-1",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275997-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-926275997-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-926275997-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-2",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-2",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-2",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-3",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-3",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-3",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-4",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-4",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-4",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147884-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147884-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147884-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147884-1",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147884-1",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147884-1",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147883-1",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147883-1",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147883-1",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147890-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147890-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147890-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147890-1",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147890-1",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147890-1",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147889-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147889-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147889-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147889-1",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147889-1",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147889-1",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147888-0",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147888-0",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147888-0",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147888-1",
+              "attribute": "step_count",
+              "note": "Stroller: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147888-1",
+              "attribute": "incline_pct",
+              "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147888-1",
+              "attribute": "width_m",
+              "note": "Stroller: width not checked yet (minimum 0.8 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "route",
+              "attribute": "entrance",
+              "note": "Route ends at the nearest mapped path to Surau At Taqwa; its entrance is not mapped"
+            },
+            {
+              "element_id": "route",
+              "attribute": "demo_values",
+              "note": "Some segment facts are demo values, not yet surveyed"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "This route uses 9 road crossings: 6 unmarked (map data, not checked), 3 with no recorded crossing type"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "6dc50ee7cb55",
+          "answer_status": "partial",
+          "model": "anthropic/claude-haiku-5.5+template"
+        }
+      ]
+    },
+    {
+      "id": "r10",
+      "language": "zh",
+      "kind": "route-long",
+      "question": "坐轮椅从Surau Al Mahdi去Elmina Lakeside Mall可以吗？",
+      "profile": "wheelchair",
+      "model": "anthropic/claude-haiku-5.5+template",
+      "answer_status": "partial",
+      "seconds": 60.0,
+      "tools": ["find_place", "find_place", "plan_route"],
+      "checks": 0,
+      "validator_errors": [],
+      "repairs": [],
+      "input_tokens": 44958,
+      "output_tokens": 2804,
+      "requests": 3,
+      "text": "Route status: partly unverified\nRoute of 1719.8 m.\nWorth knowing:\n• Not checked yet: Steps on Jalan Metafasa U16/3 (x2).\n• Not checked yet: Incline (%) on Jalan Metafasa U16/3 (x2).\n• Not checked yet: Width (m) on Jalan Metafasa U16/3; and 91 more unchecked items.\n• Asked the township team to check 10 of the 96 unchecked items.\n• Some segments are still unverified.\n• This route uses 8 road crossings: 5 unmarked (map data, not checked), 3 with no recorded crossing type.\n• About 352 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified.\n• Route starts at the nearest mapped path to Surau Al Mahdi; its entrance is not mapped.\n• Some segment facts are demo values, not yet surveyed.\n• Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Surau Al Mahdi",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.call",
+          "id": "find_place-1",
+          "name": "find_place",
+          "args": {
+            "query": "Elmina Lakeside Mall",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-1",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.call",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "args": {
+            "from_id": "osm-way-910405528",
+            "to_id": "lakeside-mall",
+            "profile": "wheelchair",
+            "scenario_id": null
+          }
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0001",
+          "element_id": "seg-240136688-8",
+          "attribute": "step_count",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0002",
+          "element_id": "seg-240136688-8",
+          "attribute": "incline_pct",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0003",
+          "element_id": "seg-240136688-8",
+          "attribute": "width_m",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0004",
+          "element_id": "seg-240136688-7",
+          "attribute": "step_count",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0005",
+          "element_id": "seg-240136688-7",
+          "attribute": "incline_pct",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0006",
+          "element_id": "seg-240136688-7",
+          "attribute": "width_m",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0007",
+          "element_id": "seg-240136688-6",
+          "attribute": "step_count",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0008",
+          "element_id": "seg-240136688-6",
+          "attribute": "incline_pct",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0009",
+          "element_id": "seg-240136688-6",
+          "attribute": "width_m",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0010",
+          "element_id": "seg-240136688-5",
+          "attribute": "step_count",
+          "created": true,
+          "demand": 1,
+          "reason": "unknown"
+        },
+        {
+          "type": "tool.result",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "summary": "route partly_unverified"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "目前有一条从Surau Al Mahdi到Elmina Lakeside Mall的轮椅路线记录，约1.7公里（约25分钟），但它还不能确认适合轮椅通行：大部分路段的台阶、坡度和宽度还没有检查。"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "路线中约932米有人行道记录，约352米沿马路中心线行走，没有记录的人行道。"
+        },
+        {
+          "type": "error",
+          "code": "agent_timeout",
+          "message": "turn timed out after 60.0s"
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "route.highlight",
+            "place_id": null,
+            "route_id": "rt-232aadf2",
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": {
+              "type": "LineString",
+              "coordinates": [
+                [101.514733, 3.172338],
+                [101.514365, 3.172388],
+                [101.514179, 3.172417],
+                [101.514103, 3.172429],
+                [101.514048, 3.172438],
+                [101.513978, 3.172449],
+                [101.513714, 3.172534],
+                [101.513477, 3.172645],
+                [101.51345, 3.172657],
+                [101.513286, 3.172736],
+                [101.51314, 3.172808],
+                [101.512994, 3.172879],
+                [101.51288, 3.172936],
+                [101.512468, 3.173144],
+                [101.512189, 3.173265],
+                [101.512122, 3.173294],
+                [101.511969, 3.173315],
+                [101.511814, 3.173338],
+                [101.511818, 3.173392],
+                [101.511726, 3.173404],
+                [101.511591, 3.173423],
+                [101.511515, 3.173412],
+                [101.511289, 3.173352],
+                [101.510937, 3.173245],
+                [101.510549, 3.173141],
+                [101.510519, 3.173144],
+                [101.510478, 3.173171],
+                [101.510449, 3.173199],
+                [101.510294, 3.173817],
+                [101.510287, 3.173866],
+                [101.510282, 3.1739],
+                [101.510262, 3.174107],
+                [101.510258, 3.174292],
+                [101.510266, 3.174461],
+                [101.510328, 3.174841],
+                [101.510339, 3.174961],
+                [101.510369, 3.174996],
+                [101.510375, 3.175099],
+                [101.510381, 3.175224],
+                [101.510356, 3.175256],
+                [101.510349, 3.17532],
+                [101.510375, 3.175585],
+                [101.510363, 3.17575],
+                [101.510328, 3.176206],
+                [101.51028, 3.176442],
+                [101.510212, 3.176687],
+                [101.510177, 3.176823],
+                [101.510126, 3.176885],
+                [101.510142, 3.176951],
+                [101.51013, 3.176992],
+                [101.510114, 3.177051],
+                [101.510131, 3.177103],
+                [101.510157, 3.177164],
+                [101.510158, 3.177207],
+                [101.510137, 3.177294],
+                [101.510142, 3.177351],
+                [101.510153, 3.177402],
+                [101.510218, 3.177458],
+                [101.510261, 3.177497],
+                [101.510302, 3.177567],
+                [101.510327, 3.177648],
+                [101.510345, 3.177694],
+                [101.510389, 3.177748],
+                [101.510453, 3.177793],
+                [101.510415, 3.177858],
+                [101.51038, 3.177916],
+                [101.510301, 3.178048],
+                [101.510269, 3.178102],
+                [101.510217, 3.17818],
+                [101.51016, 3.178123],
+                [101.510075, 3.178101],
+                [101.510011, 3.178105],
+                [101.509942, 3.178122],
+                [101.509903, 3.178124],
+                [101.509803, 3.178118],
+                [101.509743, 3.178119],
+                [101.509661, 3.17813],
+                [101.509557, 3.178159],
+                [101.509389, 3.178241],
+                [101.509077, 3.17862],
+                [101.508701, 3.179093],
+                [101.508477, 3.17943],
+                [101.508402, 3.179507],
+                [101.508282, 3.179498],
+                [101.508356, 3.179663],
+                [101.508911, 3.179959],
+                [101.50941, 3.180232],
+                [101.509854, 3.180547],
+                [101.509999, 3.180661],
+                [101.510071, 3.180734],
+                [101.50979, 3.181102],
+                [101.510045, 3.18131]
+              ]
+            },
+            "route_status": "partly_unverified",
+            "distance_m": 1719.8,
+            "est_minutes": 24.6,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-place-lakeside-mall",
+          "element_id": "lakeside-mall",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-place-park-b",
+          "element_id": "park-b",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 3,
+          "evidence_id": "ev-place-osm-way-1308938138",
+          "element_id": "osm-way-1308938138",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 4,
+          "evidence_id": "ev-place-osm-node-3668314800",
+          "element_id": "osm-node-3668314800",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 5,
+          "evidence_id": "ev-place-osm-way-1308938142",
+          "element_id": "osm-way-1308938142",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 6,
+          "evidence_id": "ev-place-osm-way-910405528",
+          "element_id": "osm-way-910405528",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 7,
+          "evidence_id": "ev-place-osm-node-2478641046",
+          "element_id": "osm-node-2478641046",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 8,
+          "evidence_id": "ev-place-osm-way-907988141",
+          "element_id": "osm-way-907988141",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 9,
+          "evidence_id": "ev-place-bench-urban-3",
+          "element_id": "bench-urban-3",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "partial",
+          "items": [
+            {
+              "element_id": "seg-240136688-8",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-8",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-8",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-7",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-7",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-7",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-6",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-6",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-6",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-5",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-5",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-5",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-4",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-4",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-4",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-3",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-3",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-3",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-2",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-2",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136688-2",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on Jalan Metafasa U16/3"
+            },
+            {
+              "element_id": "seg-240136713-1",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed street"
+            },
+            {
+              "element_id": "seg-240136713-1",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed street"
+            },
+            {
+              "element_id": "seg-240136713-1",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed street"
+            },
+            {
+              "element_id": "seg-1346147888-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147888-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147888-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147889-1",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147889-1",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147889-1",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147889-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147889-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147889-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147890-1",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147890-1",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147890-1",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147890-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147890-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147890-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147883-1",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147883-1",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147883-1",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1346147884-1",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147884-1",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147884-1",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147884-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147884-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-1346147884-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-909868196-4",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-4",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-4",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-3",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-3",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-3",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-2",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-2",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909868196-2",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-926275997-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-926275997-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-926275997-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-926275996-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-1",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-1",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-1",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-2",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-2",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-926275996-2",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed crossing"
+            },
+            {
+              "element_id": "seg-909875982-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909875982-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-909875982-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1290465379-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1290465379-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1290465379-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835669-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835669-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835669-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835668-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835668-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835668-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835668-1",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835668-1",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1343835668-1",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed sidewalk"
+            },
+            {
+              "element_id": "seg-1318133035-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1318133035-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1318133035-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1318133037-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1318133037-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1318133037-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1450679024-0",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1450679024-0",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1450679024-0",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1346154591-1",
+              "attribute": "step_count",
+              "note": "Wheelchair: steps not checked yet (no steps allowed) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1346154591-1",
+              "attribute": "incline_pct",
+              "note": "Wheelchair: incline not checked yet (limit 8.3%) on an unnamed footway"
+            },
+            {
+              "element_id": "seg-1346154591-1",
+              "attribute": "width_m",
+              "note": "Wheelchair: width not checked yet (minimum 0.9 m) on an unnamed footway"
+            },
+            {
+              "element_id": "route",
+              "attribute": "entrance",
+              "note": "Route starts at the nearest mapped path to Surau Al Mahdi; its entrance is not mapped"
+            },
+            {
+              "element_id": "route",
+              "attribute": "demo_values",
+              "note": "Some segment facts are demo values, not yet surveyed"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "This route uses 8 road crossings: 5 unmarked (map data, not checked), 3 with no recorded crossing type"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "About 352 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "9d629368cdc6",
+          "answer_status": "partial",
+          "model": "anthropic/claude-haiku-5.5+template"
+        }
+      ]
+    }
+  ]
+}
