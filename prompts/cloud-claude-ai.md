@@ -6,6 +6,10 @@ START
 3. Read the board tasks without checking out the branch: `git fetch origin yunzhe/agent-board && git show origin/yunzhe/agent-board:tasks/T-023-management-panel-scope.md` (and T-024, T-025), and README.md "Fewer commits".
 4. Setup: `pnpm install && uv sync --all-packages --all-groups`. Default `LLM_PROVIDER=mock`.
 
+TASK 0: finish the rescued name-search work (do this first, small)
+- Branch `rescue/ai-t022-live` (commit 920d338) holds uncommitted work of the old local AI engineer after its live round 6 (`evals/audits/2026-10-18-t017/round6-t022-openrouter.json`): a CJK spacing fix in `packages/spatial/src/townshiplens_spatial/place_search.py` ("subang走" -> "subang 走"), a guard against one loose word matching a name, ordered ids in `route_binding.fuzzy_mentions`, and an unfinished `single=` parameter on `named_places`.
+- Live round 6 still failed on: "从SK TAMAN BKT SUBANG走到surau at takwa怎么走？" (cannot_answer) and "Tell me about tmn bukit subang" (cannot_answer). Cherry-pick or re-apply the useful parts, finish them, and add one test per failing question (mock). Do not commit the 4,900-line round6 JSON; summarise it in your PR.
+
 TASK 1: T-023 management panel answers like the resident panel
 - Today `ASSISTANT_SCOPE` (settings.py, default access_flood) is global, so the management panel refuses what-if, rollout, verify-next and ticket-impact questions.
 - Add `panel: "resident" | "management"` (default resident) to ChatRequest; the API passes it; management requests get every tool and no topic refusal; resident requests keep today's scope. No tool can answer → "I can't answer that from our data" (+ a ticket for a data gap), never "out of scope".
