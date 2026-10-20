@@ -71,16 +71,13 @@ function nearestBuilding(coords: number[]) {
 const masjids = places.features.filter((f) => (f.properties.name ?? "").startsWith("Masjid"));
 
 // Mapped as a point only: there is no OSM building within 30 m. They get a marker and no model.
-const MARKERS_ONLY = [
-  "osm-way-1381608070", // Al-Falah
-  "osm-way-1185518246", // An-Nur
-  "osm-way-804547607", // Nurul Amin
-  "osm-way-1559276229", // Nurul Amin
-];
+// Empty since T-022 kept only places inside City of Elmina (+200 m): the four point-only masjids
+// (Al-Falah, An-Nur, Nurul Amin x2) and Jamiul Ehsan, Saujana Utama and Al-Hidayah lie outside.
+const MARKERS_ONLY: string[] = [];
 
 describe("mosque archetype guard (Elmina seed)", () => {
   it("finds the masjid places", () => {
-    expect(masjids.length).toBe(8);
+    expect(masjids.length).toBe(1);
   });
 
   it("every masjid with a footprint within 30 m is drawn on a mosque building", () => {
@@ -94,17 +91,15 @@ describe("mosque archetype guard (Elmina seed)", () => {
     expect(checked).toBe(masjids.length - MARKERS_ONLY.length);
   });
 
-  it.each([
-    ["Denai Alam", "osm-way-1030434016", "w1508434447"],
-    ["Jamiul Ehsan", "osm-way-1063471271", "w1063471271"],
-    ["Saujana Utama", "osm-way-1187779688", "w203237476"],
-    ["Al-Hidayah", "osm-node-7294939633", "w781364821"],
-  ])("Masjid %s sits on its mosque building %s", (_n, placeId, buildingId) => {
-    const f = masjids.find((m) => m.properties.id === placeId);
-    expect(f).toBeTruthy();
-    const b = nearestBuilding(f!.geometry.coordinates as number[]);
-    expect(b).toEqual({ id: buildingId, archetype: "mosque", d: 0 });
-  });
+  it.each([["Denai Alam", "osm-way-1030434016", "w1508434447"]])(
+    "Masjid %s sits on its mosque building %s",
+    (_n, placeId, buildingId) => {
+      const f = masjids.find((m) => m.properties.id === placeId);
+      expect(f).toBeTruthy();
+      const b = nearestBuilding(f!.geometry.coordinates as number[]);
+      expect(b).toEqual({ id: buildingId, archetype: "mosque", d: 0 });
+    },
+  );
 
   it("the known markers-only masjids have no footprint, so no model is invented for them", () => {
     for (const id of MARKERS_ONLY) {
