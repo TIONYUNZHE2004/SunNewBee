@@ -9,6 +9,7 @@ import { PerfOverlay, SlowBanner } from "../cesium/PerfOverlay";
 import { type LonLat, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { createRoleUniforms } from "./assets/roleMaterial";
+import { DevsimMount } from "./devsim/DevsimMount";
 import { createEngine } from "./engine";
 import { createFrame } from "./frame";
 import { boundaryOf } from "./ground/boundary";
@@ -298,6 +299,17 @@ export default function ThreeScene({
         places={places}
         footprints={buildings?.buildings}
         factBenches={dressing.benches}
+      />
+      {/* Developer lens Development Simulation: tower, kit, cast, camera (spec §5.3 Scene). */}
+      <DevsimMount
+        engine={engine}
+        frame={frame}
+        bus={bus}
+        roleUniforms={roleUniforms}
+        tier={tier}
+        loaded={loaded}
+        accessData={access.data}
+        hostRef={hostRef}
       />
       {showroom && (assetsState === "loading" || assetsState === "ready") && <ShowroomChip />}
     </section>
