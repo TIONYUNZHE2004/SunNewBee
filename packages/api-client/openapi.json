@@ -3,9 +3,28 @@
     "schemas": {
       "AffectedResult": {
         "properties": {
+          "cut_off_places": {
+            "items": {
+              "$ref": "#/components/schemas/FloodPlace"
+            },
+            "title": "Cut Off Places",
+            "type": "array"
+          },
           "disclaimer": {
             "title": "Disclaimer",
             "type": "string"
+          },
+          "flooded_path_m": {
+            "default": 0.0,
+            "title": "Flooded Path M",
+            "type": "number"
+          },
+          "flooded_places": {
+            "items": {
+              "$ref": "#/components/schemas/FloodPlace"
+            },
+            "title": "Flooded Places",
+            "type": "array"
           },
           "isolated_components": {
             "items": {
@@ -908,6 +927,17 @@
             ],
             "title": "Ends At"
           },
+          "event_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -1661,6 +1691,32 @@
         "title": "DeepSpot",
         "type": "object"
       },
+      "DetourRoad": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Segment Ids",
+            "type": "array"
+          },
+          "trips": {
+            "title": "Trips",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "segment_ids",
+          "trips"
+        ],
+        "title": "DetourRoad",
+        "type": "object"
+      },
       "Disclaimer": {
         "properties": {
           "lens": {
@@ -1956,6 +2012,312 @@
         "title": "EvacuationReport",
         "type": "object"
       },
+      "EventImpact": {
+        "properties": {
+          "detour_roads": {
+            "items": {
+              "$ref": "#/components/schemas/DetourRoad"
+            },
+            "title": "Detour Roads",
+            "type": "array"
+          },
+          "disclaimer": {
+            "default": "Estimate from mapped roads and sample trips, not traffic counts.",
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "event": {
+            "$ref": "#/components/schemas/EventSpec"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "extra_m_median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra M Median"
+          },
+          "extra_min_median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Min Median"
+          },
+          "per_profile": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ProfileImpact"
+            },
+            "title": "Per Profile",
+            "type": "object"
+          },
+          "places_cut_off": {
+            "items": {
+              "$ref": "#/components/schemas/EventPlace"
+            },
+            "title": "Places Cut Off",
+            "type": "array"
+          },
+          "sample_limit_per_profile": {
+            "title": "Sample Limit Per Profile",
+            "type": "integer"
+          },
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/EventSuggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          },
+          "trips": {
+            "items": {
+              "$ref": "#/components/schemas/EventTrip"
+            },
+            "title": "Trips",
+            "type": "array"
+          },
+          "trips_affected": {
+            "title": "Trips Affected",
+            "type": "integer"
+          },
+          "trips_newly_no_route": {
+            "title": "Trips Newly No Route",
+            "type": "integer"
+          },
+          "trips_no_route": {
+            "title": "Trips No Route",
+            "type": "integer"
+          },
+          "trips_no_route_before": {
+            "title": "Trips No Route Before",
+            "type": "integer"
+          },
+          "trips_total": {
+            "title": "Trips Total",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "trips_total",
+          "trips_affected",
+          "trips_no_route",
+          "trips_no_route_before",
+          "trips_newly_no_route",
+          "extra_m_median",
+          "extra_min_median",
+          "event",
+          "per_profile",
+          "places_cut_off",
+          "detour_roads",
+          "suggestions",
+          "trips",
+          "sample_limit_per_profile",
+          "evidence_id"
+        ],
+        "title": "EventImpact",
+        "type": "object"
+      },
+      "EventPlace": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "EventPlace",
+        "type": "object"
+      },
+      "EventSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Segment Ids",
+            "type": "array"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "segment_ids",
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "EventSpec",
+        "type": "object"
+      },
+      "EventSuggestion": {
+        "properties": {
+          "basis": {
+            "title": "Basis",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "marshal",
+              "crossing_point",
+              "reschedule"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "text",
+          "basis"
+        ],
+        "title": "EventSuggestion",
+        "type": "object"
+      },
+      "EventTrip": {
+        "properties": {
+          "affected": {
+            "title": "Affected",
+            "type": "boolean"
+          },
+          "after_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After M"
+          },
+          "after_status": {
+            "title": "After Status",
+            "type": "string"
+          },
+          "before_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before M"
+          },
+          "before_status": {
+            "title": "Before Status",
+            "type": "string"
+          },
+          "extra_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra M"
+          },
+          "extra_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Min"
+          },
+          "from_id": {
+            "title": "From Id",
+            "type": "string"
+          },
+          "no_route": {
+            "title": "No Route",
+            "type": "boolean"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Segment Ids",
+            "type": "array"
+          },
+          "to_id": {
+            "title": "To Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_id",
+          "to_id",
+          "profile",
+          "before_status",
+          "after_status",
+          "affected",
+          "no_route",
+          "before_m",
+          "after_m",
+          "extra_m",
+          "extra_min",
+          "segment_ids"
+        ],
+        "title": "EventTrip",
+        "type": "object"
+      },
       "Evidence": {
         "properties": {
           "attribute": {
@@ -2171,6 +2533,37 @@
           "sampled"
         ],
         "title": "FactImpact",
+        "type": "object"
+      },
+      "FloodPlace": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lonlat": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Lonlat",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "lonlat"
+        ],
+        "title": "FloodPlace",
         "type": "object"
       },
       "GapFeature": {
@@ -2792,6 +3185,63 @@
           "q"
         ],
         "title": "PlanFact",
+        "type": "object"
+      },
+      "ProfileImpact": {
+        "properties": {
+          "extra_m_median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra M Median"
+          },
+          "extra_min_median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Min Median"
+          },
+          "trips_affected": {
+            "title": "Trips Affected",
+            "type": "integer"
+          },
+          "trips_newly_no_route": {
+            "title": "Trips Newly No Route",
+            "type": "integer"
+          },
+          "trips_no_route": {
+            "title": "Trips No Route",
+            "type": "integer"
+          },
+          "trips_no_route_before": {
+            "title": "Trips No Route Before",
+            "type": "integer"
+          },
+          "trips_total": {
+            "title": "Trips Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "trips_total",
+          "trips_affected",
+          "trips_no_route",
+          "trips_no_route_before",
+          "trips_newly_no_route",
+          "extra_m_median",
+          "extra_min_median"
+        ],
+        "title": "ProfileImpact",
         "type": "object"
       },
       "ProfileInfo": {
@@ -4361,6 +4811,53 @@
         "title": "SimViolation",
         "type": "object"
       },
+      "SimulateEventBody": {
+        "additionalProperties": false,
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "profiles": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Profiles",
+            "type": "array"
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Segment Ids",
+            "type": "array"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "segment_ids",
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "SimulateEventBody",
+        "type": "object"
+      },
       "SiteBoundary": {
         "description": "The display-only Elmina outline with its geometry, for the stylised renderer's clip and\ndiorama slab. Routing, evaluation and answers never read it. `geometry` is null when the file\nis missing, unreadable or not one Polygon / MultiPolygon.",
         "properties": {
@@ -4531,6 +5028,26 @@
           "label"
         ],
         "title": "Stage",
+        "type": "object"
+      },
+      "StoredEvent": {
+        "properties": {
+          "closures": {
+            "items": {
+              "$ref": "#/components/schemas/ClosureOut"
+            },
+            "title": "Closures",
+            "type": "array"
+          },
+          "event": {
+            "$ref": "#/components/schemas/EventSpec"
+          }
+        },
+        "required": [
+          "event",
+          "closures"
+        ],
+        "title": "StoredEvent",
         "type": "object"
       },
       "StreetFurnitureLayer": {
@@ -6180,6 +6697,100 @@
           }
         },
         "summary": "Evac"
+      }
+    },
+    "/events": {
+      "post": {
+        "operationId": "create_event_events_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-staff-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Staff-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredEvent"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Event"
+      }
+    },
+    "/events/simulate": {
+      "post": {
+        "operationId": "simulate_event_events_simulate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateEventBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventImpact"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Simulate Event"
       }
     },
     "/evidence": {

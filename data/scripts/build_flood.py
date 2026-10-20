@@ -45,18 +45,19 @@ HAND_URL = (
     "https://glo-30-hand.s3.amazonaws.com/v1/2021/Copernicus_DSM_COG_10_N03_00_E101_00_HAND.tif"
 )
 AREA = (101.460, 3.150, 101.560, 3.240)  # w, s, e, n: Elmina envelope + downstream Sungai Subang
-STAGES = [1, 2, 3, 4, 5]
+STAGES = [1, 2, 3]
 MARGIN = 0.5
 DISCLAIMERS = {
     "rem": (
         "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped "
         "rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. "
         f"Only the area {AREA[0]:.2f}\u2013{AREA[2]:.2f} E, {AREA[1]:.2f}\u2013{AREA[3]:.2f} N "
-        "is assessed; paths outside it are not."
+        "is assessed; paths outside it are not. Flash floods from heavy rain are not shown."
     ),
     "hand": (
         "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, HAND), not a "
-        "forecast. Follow official MBSA / JPS / NADMA guidance."
+        "forecast. Follow official MBSA / JPS / NADMA guidance. "
+        "Flash floods from heavy rain are not shown."
     ),
 }
 DISCLAIMER = DISCLAIMERS["rem"]

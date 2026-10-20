@@ -190,9 +190,8 @@ def test_report_without_older_adults_has_no_rest_limit(world):
 # ---- Task 47: evacuation journeys (G-07) -------------------------------------------------
 
 # island-hut shares the school centre's node, so it is excluded (a 0 m journey is not a journey)
-EVAC_P5 = {
-    "reachable_partly_unverified": 2,  # playground, kiosk (origin flood is a caveat)
-    "blocked_by_flood": 2,  # park-b, lakeside-mall
+EVAC_P3 = {
+    "reachable_partly_unverified": 4,  # all mapped origins; flood/unknown paths are caveats
     "no_mapped_connection": 1,  # moon-base has no mapped path
 }
 
@@ -208,10 +207,10 @@ def test_evacuation_known_results_on_tiny(world):
     assert rep["origins_excluded_centres"] == 1 and "island-hut" not in rep["origins"]
     assert {r["profile"] for r in rep["rows"]} == set(sim.EVAC_PROFILES)
     assert {r["scenario_id"] for r in rep["rows"]} == set(sim.EVAC_SCENARIOS)
-    row = _row(rep, "stroller", "stage_p5m")
-    assert {k: v for k, v in row["counts"].items() if v} == EVAC_P5
+    row = _row(rep, "stroller", "stage_p3m")
+    assert {k: v for k, v in row["counts"].items() if v} == EVAC_P3
     assert row["total"] == 5
-    assert _row(rep, "wheelchair", "stage_p5m")["counts"] == row["counts"]
+    assert _row(rep, "wheelchair", "stage_p3m")["counts"] == row["counts"]
     base = _row(rep, "stroller", "baseline")["counts"]
     assert base["reachable_confirmed"] == 3 and base["reachable_partly_unverified"] == 1
     assert base["blocked_by_flood"] == 0 and base["no_mapped_connection"] == 1

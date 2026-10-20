@@ -42,13 +42,15 @@ The response still reports the exceeded limit and caps the route at `partly_unve
 | POST | `/journeys` | `{from_id, to_id, profile, start_time, scenario_id?}` → `JourneyPlan` (spatial `build_journey`) for the recommended route, planned per request like `/routes` (no route store; files no verification requests). Equals the plan the chat attaches to `journey.play` for the same endpoints, profile, scenario and start time (AC-D4). 422 unknown profile or bad `start_time` (`HH:MM`); 404 unknown place (not in `world.places`, nor a `__centre__<id>` target) or scenario; 409 with a bare `NoJourney` body `{route_status, message, warnings}` (top level, no `detail` wrapper) when there is no route: `no_data` → "No mapped connection (data gap)" (never "blocked"), `blocked` → a known barrier cuts every path; 500 with a named message when an event lacks route evidence (`JourneyEvidenceError`) |
 | GET | `/scenarios` | flood scenarios |
 | GET | `/scenarios/{id}` | water polygons, `surface_height_m` shifted by `site.scene.datum_offset_m`; 404 |
-| GET | `/scenarios/{id}/affected` | `?profile=`; 404 unknown scenario |
+| GET | `/scenarios/{id}/affected` | `?profile=`; existing fields plus uncapped `flooded_places` / `cut_off_places` (`id`, `name`, `type`, `lonlat`) and `flooded_path_m`; 404 unknown scenario |
 | GET | `/evacuation-centres` | `?scenario_id=&profile=&near=` |
 | GET | `/waste-points` | `?type=&near=` |
 | GET | `/briefings/flood` | `?scenario_id=&profile=`; centres measured from `lakeside-mall` or the first facility |
 | GET | `/verification-requests` | `?status=` (default `open`; `all` returns every status), `&reason=&element_id=&attribute=`; each row adds the claim's `current_value`; a resolved row's `resolution` omits the staff `note` (kept in `GET /audit`) |
 | POST | `/verification-requests` | staff; `{target_id, attribute, reason}`; sanitised with `safe_vr_args` (source `staff`), deduped against the open VR (demand + 1); 503 if the store is unavailable |
 | GET | `/closures` | public; `?active=true` (default: in force now) or `false` (ended or not started); every row is a staff report (`source_label` "Reported closure (staff)") |
+| POST | `/events/simulate` | public; `{name, segment_ids, starts_at, ends_at, profiles?}`; deterministic before/after sample trips, detour roads and numbered suggestions; no writes; 422 invalid input, 503 solver busy |
+| POST | `/events` | staff; `{name, segment_ids, starts_at, ends_at}`; 201 `{event, closures}`; atomically stores named staff course closures, audit `event:create`; 422 invalid course/window |
 | POST | `/closures` | staff; `{element_id, reason: works/event/flooding/other, starts_at?, ends_at?, note?}`; 404 unknown element, 422 end not after start; audit row `closure:create` |
 | POST | `/closures/{id}/end` | staff; ends it now; 404, 409 (already ended); audit row `closure:end` |
 | POST | `/verification-requests/{id}/resolve` | staff; `{action: verify, correct or reject, value, note, evidence_id}`; `verify` without a value confirms the current value; `evidence_id` (from `POST /evidence`) attaches a photo to the claim and is refused on `reject`; 404, 409 (already resolved), 422 (value missing, unknown or rejected `evidence_id`, type mismatch) |
@@ -131,3 +133,23 @@ Rest-stop availability uses active place closures and the selected flood scenari
 seat/shelter claims. A closed or scenario-FAIL stop cannot satisfy the rest-distance limit.
 Possible flood or missing raster coverage keeps a stop unverified, with existing rest and flood
 warnings/evidence. The route and evacuation-centre responses share this rule.
+
+River scenarios are baseline and +1/+2/+3 m only. Disclaimers state that flash floods
+from heavy rain are not shown. Impact markers distinguish likely-flooded places from
+non-flooded places with no mapped non-FAIL path to an available centre. Missing entrances
+are data gaps and omitted. Existing flood-island fields keep their flood-induced meaning.
+
+Event timestamps accept ISO offsets (naive values are UTC, like closures); the window
+is start-inclusive and end-exclusive. `POST /events` persists the event name and window
+on every segment closure. These load again after restart and resident route warnings
+name the event. Public closure rows expose `event_name`; staff notes remain private.
+Individual course closures can be ended through the existing closure endpoint.
+
+Event simulation defaults to walking, wheelchair and driving, with the same bounded
+everyday sample before and after. Responses include trip rows/statuses, per-profile
+counts, all/new no-route counts, reroute-only median extra metres/minutes, newly
+cut-off mapped places, ranked detour roads, and rule-based suggestions with numeric
+bases. The disclaimer is “Estimate from mapped roads and sample trips, not traffic
+counts.” Other closures are assessed at the start, rather than across the entire
+window. There is no traffic, crowd or queue model. The spatial README defines each
+metric and the 300-trip/40-segment request bounds.

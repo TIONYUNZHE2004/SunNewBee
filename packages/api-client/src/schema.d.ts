@@ -266,6 +266,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Event */
+        post: operations["create_event_events_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Simulate Event */
+        post: operations["simulate_event_events_simulate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/evidence": {
         parameters: {
             query?: never;
@@ -873,8 +907,17 @@ export interface components {
     schemas: {
         /** AffectedResult */
         AffectedResult: {
+            /** Cut Off Places */
+            cut_off_places?: components["schemas"]["FloodPlace"][];
             /** Disclaimer */
             disclaimer: string;
+            /**
+             * Flooded Path M
+             * @default 0
+             */
+            flooded_path_m: number;
+            /** Flooded Places */
+            flooded_places?: components["schemas"]["FloodPlace"][];
             /** Isolated Components */
             isolated_components: {
                 [key: string]: unknown;
@@ -1249,6 +1292,8 @@ export interface components {
             element_name?: string | null;
             /** Ends At */
             ends_at?: string | null;
+            /** Event Name */
+            event_name?: string | null;
             /** Id */
             id: string;
             /** Label */
@@ -1547,6 +1592,15 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** DetourRoad */
+        DetourRoad: {
+            /** Name */
+            name: string;
+            /** Segment Ids */
+            segment_ids: string[];
+            /** Trips */
+            trips: number;
+        };
         /** Disclaimer */
         Disclaimer: {
             /**
@@ -1669,6 +1723,110 @@ export interface components {
             /** Violations */
             violations: components["schemas"]["EvacViolation"][];
         };
+        /** EventImpact */
+        EventImpact: {
+            /** Detour Roads */
+            detour_roads: components["schemas"]["DetourRoad"][];
+            /**
+             * Disclaimer
+             * @default Estimate from mapped roads and sample trips, not traffic counts.
+             */
+            disclaimer: string;
+            event: components["schemas"]["EventSpec"];
+            /** Evidence Id */
+            evidence_id: string;
+            /** Extra M Median */
+            extra_m_median: number | null;
+            /** Extra Min Median */
+            extra_min_median: number | null;
+            /** Per Profile */
+            per_profile: {
+                [key: string]: components["schemas"]["ProfileImpact"];
+            };
+            /** Places Cut Off */
+            places_cut_off: components["schemas"]["EventPlace"][];
+            /** Sample Limit Per Profile */
+            sample_limit_per_profile: number;
+            /** Suggestions */
+            suggestions: components["schemas"]["EventSuggestion"][];
+            /** Trips */
+            trips: components["schemas"]["EventTrip"][];
+            /** Trips Affected */
+            trips_affected: number;
+            /** Trips Newly No Route */
+            trips_newly_no_route: number;
+            /** Trips No Route */
+            trips_no_route: number;
+            /** Trips No Route Before */
+            trips_no_route_before: number;
+            /** Trips Total */
+            trips_total: number;
+            /** Warnings */
+            warnings?: string[];
+        };
+        /** EventPlace */
+        EventPlace: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** EventSpec */
+        EventSpec: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Name */
+            name: string;
+            /** Segment Ids */
+            segment_ids: string[];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** EventSuggestion */
+        EventSuggestion: {
+            /** Basis */
+            basis: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "marshal" | "crossing_point" | "reschedule";
+            /** Text */
+            text: string;
+        };
+        /** EventTrip */
+        EventTrip: {
+            /** Affected */
+            affected: boolean;
+            /** After M */
+            after_m: number | null;
+            /** After Status */
+            after_status: string;
+            /** Before M */
+            before_m: number | null;
+            /** Before Status */
+            before_status: string;
+            /** Extra M */
+            extra_m: number | null;
+            /** Extra Min */
+            extra_min: number | null;
+            /** From Id */
+            from_id: string;
+            /** No Route */
+            no_route: boolean;
+            /** Profile */
+            profile: string;
+            /** Segment Ids */
+            segment_ids: string[];
+            /** To Id */
+            to_id: string;
+        };
         /** Evidence */
         Evidence: {
             /** Attribute */
@@ -1741,6 +1899,17 @@ export interface components {
             profile_assumed: boolean;
             /** Sampled */
             sampled: number;
+        };
+        /** FloodPlace */
+        FloodPlace: {
+            /** Id */
+            id: string;
+            /** Lonlat */
+            lonlat: number[];
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
         };
         /** GapFeature */
         GapFeature: {
@@ -1970,6 +2139,23 @@ export interface components {
             q: number;
             /** Ticket Id */
             ticket_id?: string | null;
+        };
+        /** ProfileImpact */
+        ProfileImpact: {
+            /** Extra M Median */
+            extra_m_median: number | null;
+            /** Extra Min Median */
+            extra_min_median: number | null;
+            /** Trips Affected */
+            trips_affected: number;
+            /** Trips Newly No Route */
+            trips_newly_no_route: number;
+            /** Trips No Route */
+            trips_no_route: number;
+            /** Trips No Route Before */
+            trips_no_route_before: number;
+            /** Trips Total */
+            trips_total: number;
         };
         /**
          * ProfileInfo
@@ -2561,6 +2747,25 @@ export interface components {
             /** Task Id */
             task_id: string;
         };
+        /** SimulateEventBody */
+        SimulateEventBody: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Name */
+            name: string;
+            /** Profiles */
+            profiles?: string[];
+            /** Segment Ids */
+            segment_ids: string[];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
         /**
          * SiteBoundary
          * @description The display-only Elmina outline with its geometry, for the stylised renderer's clip and
@@ -2619,6 +2824,12 @@ export interface components {
             id: string;
             /** Label */
             label: string;
+        };
+        /** StoredEvent */
+        StoredEvent: {
+            /** Closures */
+            closures: components["schemas"]["ClosureOut"][];
+            event: components["schemas"]["EventSpec"];
         };
         /**
          * StreetFurnitureLayer
@@ -3484,6 +3695,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CentreReachability"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_event_events_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-staff-token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventSpec"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredEvent"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simulate_event_events_simulate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulateEventBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventImpact"];
                 };
             };
             /** @description Validation Error */
