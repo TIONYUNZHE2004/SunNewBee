@@ -29,7 +29,11 @@ def ctx(tmp_path):
 
 
 async def _planned(ctx, a="park-b", b="kiosk", profile="older_adult_rest"):
-    deps = Deps(ctx=ctx, rec=TurnRecord(queue=asyncio.Queue()), request=ChatRequest(message="x"))
+    deps = Deps(
+        ctx=ctx,
+        rec=TurnRecord(queue=asyncio.Queue()),
+        request=ChatRequest(message="x", profile=profile),
+    )
     out = await call_tool(deps, "plan_route", from_id=a, to_id=b, profile=profile)
     return deps.rec, out["data"]["routes"][0]["id"]
 

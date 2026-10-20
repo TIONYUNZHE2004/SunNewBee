@@ -15,7 +15,9 @@ from .facts import _matches, extract_facts
 MODE_WORDS = {
     "wheelchair": r"wheelchair|kerusi\s+roda|轮椅",
     "stroller": r"stroller|pram|kereta\s+sorong|婴儿车|嬰兒車",
-    "older_adult_rest": r"older adult|elderly|rest points?|warga emas|长者|老人",
+    # a walking aid names the rest-stop mode too (journey demo: "My mum uses a walker")
+    "older_adult_rest": r"older adult|elderly|rest points?|warga emas|长者|老人"
+    r"|\bwalkers?\b|walking (?:frame|stick|aid)|zimmer|rollator|\bcane\b|tongkat|助行器|拐杖",
     "drive": r"\bdriv(?:e|ing)\b|\bby car\b|\bmemandu\b|\bpandu\b"
     r"|\b(?:naik|dengan) kereta(?!\s+sorong)\b|\bberkereta\b|驾车|开车|乘车|坐车",
     "default": r"\bwalk(?:ing)?\b|\bon foot\b|\b(?:ber)?jalan kaki\b|步行|走路",
