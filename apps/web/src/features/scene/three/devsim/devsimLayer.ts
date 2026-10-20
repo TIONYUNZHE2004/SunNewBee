@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { useDevsimAnchors } from "../../../devsim/anchors";
 import type { DevelopmentPlan, Probe, Rect, StateAt } from "../../../devsim/types";
+import { setTreeCut } from "../assets/treeCut";
 import type { Clearance } from "../clearance";
 import type { DevsimOverlay } from "../engine";
 import type { LocalFrame } from "../frame";
@@ -77,8 +78,30 @@ export interface DevsimLayerOpts {
 /** The scene part of the probe. */
 export type SceneProbe = Partial<Probe>;
 
-/** Max points per kind in a probe sample. */
-const PROBE_MAX = 400;
+/** Max points per kind in a probe sample (far above the slots; only a runaway guard). */
+const PROBE_MAX = 20000;
+/** The decorative occluder cut runs for speakers within this camera distance. */
+const CUT_RANGE_M = 260;
+/** It stops this far short of the speaker's chest (cut radius 1.8 m, so ~1 m clear of them). */
+const CUT_STOP_M = 2.8;
+/** The hypothetical label's box (FE `HypotheticalLabel`, about 300 x 52 px) and a margin. */
+const LABEL_W = 300;
+const LABEL_H = 52;
+const LABEL_MARGIN = 8;
+
+/**
+ * True when the label (hung above `p`, bottom centre) fits inside the stage; otherwise the anchor
+ * is withheld and the overlay places the label itself (AC-H3: on stage whenever the tower is).
+ */
+export function labelFits(p: [number, number] | null, size: readonly [number, number]): boolean {
+  return (
+    !!p &&
+    p[1] >= LABEL_H + LABEL_MARGIN &&
+    p[1] <= size[1] - LABEL_MARGIN &&
+    p[0] >= LABEL_W / 2 + LABEL_MARGIN &&
+    p[0] <= size[0] - LABEL_W / 2 - LABEL_MARGIN
+  );
+}
 
 /**
  * The Development Simulation scene (spec §5.3 Scene): a group in the main scene holding the tower,
@@ -95,7 +118,45 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
   let tower: TowerPart | null = null;
   let s: StateAt | null = null;
   let t = 0;
-  let last: SceneProbe = {};
+  // this frame's view for the on-demand probe
+  const view = new THREE.PerspectiveCamera();
+  const viewSize: [number, number] = [1, 1];
+  let seen = false;
+  let lastTower: Rect | null = null;
+  let lastSpeaker: Rect | null = null;
+  // the footprint's corners at the ground and the top (tops updated in place)
+  const corners: [number, number, number][] = geom.ring.flatMap(
+    ([x, z]): [number, number, number][] => [
+      [x, 0, z],
+      [x, 1, z],
+    ],
+  );
+  const box: [number, number, number][] = [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+  ];
+  let cutOn = false;
+  /** Decorative occluders between the camera and a speaker are cut (null: off). */
+  const cutTo = (cam: THREE.Vector3, chest: [number, number, number] | null) => {
+    const dx = chest ? cam.x - chest[0] : 0;
+    const dy = chest ? cam.y - chest[1] : 0;
+    const dz = chest ? cam.z - chest[2] : 0;
+    const d = Math.hypot(dx, dy, dz);
+    if (!chest || d > CUT_RANGE_M || d < CUT_STOP_M + 1) {
+      if (cutOn) setTreeCut(null);
+      cutOn = false;
+      return;
+    }
+    // stop short of the speaker so the cut never takes the speaker (the cast is decorative crowd)
+    const k = CUT_STOP_M / d;
+    setTreeCut({
+      a: [cam.x, cam.y, cam.z],
+      b: [chest[0] + dx * k, chest[1] + dy * k, chest[2] + dz * k],
+    });
+    cutOn = true;
+  };
   let disposed = false;
 
   const apply = () => {
@@ -111,12 +172,6 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
     return top > 0 && cam.y < top && inRing(geom.ring, cam.x, cam.z);
   };
 
-  const towerPts = (top: number) => {
-    const pts: [number, number, number][] = [];
-    for (const [x, z] of geom.ring) pts.push([x, 0, z], [x, top, z]);
-    return pts;
-  };
-
   const speakerOf = (st: StateAt) => st.bubbles[0]?.who ?? null;
 
   const personAt = (id: string): [number, number, number] | null => {
@@ -128,14 +183,15 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
   };
   /**
    * The world centre of the spec §4.4 subject of the camera beat at t (QA lane request: probe
-   * `subject`): site, yard, tower, Halim, Farid, entrance, junction, park + Zainab, mall + Arjun,
+   * `subject`): site, yard, tower, Halim, Farid, entrance, Mei Ling at the junction, Zainab, Arjun,
    * and the tower again for the wide shots.
    */
   const subjectWorld = (tt: number): [number, number, number] | null => {
     const top = Math.max(tower?.topM() ?? 0, TOWER_STOREY_M);
     const towerMid: [number, number, number] = [geom.centre[0], top / 2, geom.centre[1]];
     if (tt < 3.6) return [geom.centre[0], 0, geom.centre[1]];
-    if (tt < 10.4) return [geom.yard[0], 2, geom.yard[1]];
+    // the yard's work area: the crew between the stacks (30 m behind the tower) and its foot
+    if (tt < 10.4) return [geom.centre[0] - geom.out[0] * 18, 3, geom.centre[1] - geom.out[1] * 18];
     if (tt < 17.2) return towerMid;
     if (tt < 22.8) return personAt("halim") ?? towerMid;
     if (tt < 28) return personAt("farid") ?? [geom.farid[0], 1, geom.farid[1]];
@@ -145,11 +201,13 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       return [geom.door[0] + geom.out[0] * d, 1.5, geom.door[1] + geom.out[1] * d];
     }
     if (tt < 52.8)
-      return [
-        geom.node[0] + (geom.junction[0] - geom.node[0]) * 0.45,
-        1,
-        geom.node[1] + (geom.junction[1] - geom.node[1]) * 0.45,
-      ];
+      return (
+        personAt("meiling") ?? [
+          geom.node[0] + (geom.junction[0] - geom.node[0]) * 0.45,
+          1,
+          geom.node[1] + (geom.junction[1] - geom.node[1]) * 0.45,
+        ]
+      );
     if (tt < 58) return personAt("zainab") ?? [geom.park[0], 1, geom.park[1]];
     if (tt < 63.6) return personAt("arjun") ?? [geom.mall[0], 1, geom.mall[1]];
     return towerMid;
@@ -186,27 +244,32 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       if (disposed || !s) return;
       for (const p of parts) p.project?.(camera, size);
       const top = tower?.topM() ?? 0;
-      const towerRect: Rect | null = top > 0 ? screenRect(camera, size, towerPts(top)) : null;
+      if (top > 0) for (const c of corners) if (c[1] !== 0) c[1] = top;
+      const towerRect: Rect | null = top > 0 ? screenRect(camera, size, corners) : null;
       const topPt =
         top > 0 ? toScreen(camera, size, geom.centre[0], top + 6, geom.centre[1]) : null;
       const who = speakerOf(s);
       let speaker: Rect | null = null;
       let head: [number, number] | null = null;
+      let chest: [number, number, number] | null = null;
       if (who) {
         for (const p of parts) {
           const b = p.personBox?.(who);
           if (!b) continue;
           const r = 0.5;
-          speaker = screenRect(camera, size, [
-            [b.x - r, 0, b.z - r],
-            [b.x + r, 0, b.z + r],
-            [b.x - r, b.h, b.z + r],
-            [b.x + r, b.h, b.z - r],
-          ]);
+          box[0] = [b.x - r, 0, b.z - r];
+          box[1] = [b.x + r, 0, b.z + r];
+          box[2] = [b.x - r, b.h, b.z + r];
+          box[3] = [b.x + r, b.h, b.z - r];
+          speaker = screenRect(camera, size, box);
           head = toScreen(camera, size, b.x, b.h + 0.3, b.z);
+          chest = [b.x, b.h * 0.6, b.z];
           break;
         }
       }
+      // The speaker is never hidden by a decorative street tree, car or prop: the shared decorative
+      // occluder cut (journey cutaway, `treeCut.ts`) from the camera to just short of them.
+      cutTo(camera.position, chest);
       const shownTop = onStage(topPt, size) ? topPt : null;
       if (o.anchors !== false)
         useDevsimAnchors.getState().set({
@@ -214,10 +277,22 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
           towerTop: shownTop,
           speaker,
           speakerHead: speaker ? head : null,
-          labelPoint: shownTop,
+          labelPoint: labelFits(topPt, size) ? topPt : null,
         });
-      // Probe sample: one entry per agent in a stable order (index i is the same agent in every
-      // frame); an agent not drawn now, or behind the camera, is [-1, -1] (QA lane request).
+      // the probe is computed on demand from this frame's camera (`probe()`)
+      view.matrixWorldInverse.copy(camera.matrixWorldInverse);
+      view.projectionMatrix.copy(camera.projectionMatrix);
+      view.position.copy(camera.position);
+      viewSize[0] = size[0];
+      viewSize[1] = size[1];
+      seen = true;
+      lastTower = towerRect;
+      lastSpeaker = speaker;
+    },
+    probe() {
+      if (!seen || !s) return {};
+      // One entry per agent in a stable order (index i is the same agent in every frame); an agent
+      // not drawn now, or behind the camera, is [-1, -1] (QA lane request). No cap below the slots.
       const people: [number, number][] = [];
       const vehicles: [number, number][] = [];
       const push = (
@@ -227,7 +302,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
         if (!pts) return;
         for (const p of pts) {
           if (out.length >= PROBE_MAX) return;
-          const q = Number.isFinite(p[0]) ? toScreen(camera, size, p[0], p[1], p[2]) : null;
+          const q = Number.isFinite(p[0]) ? toScreen(view, viewSize, p[0], p[1], p[2]) : null;
           out.push(q ? [Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10] : [-1, -1]);
         }
       };
@@ -239,22 +314,21 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       push(people, flow?.people);
       push(vehicles, flow?.vehicles);
       const sw = subjectWorld(t);
-      const sp = sw ? toScreen(camera, size, sw[0], sw[1], sw[2]) : null;
+      const sp = sw ? toScreen(view, viewSize, sw[0], sw[1], sw[2]) : null;
       const rects: Probe["rects"] = {};
-      if (towerRect) rects.tower = towerRect;
-      if (speaker) rects.speaker = speaker;
+      if (lastTower) rects.tower = lastTower;
+      if (lastSpeaker) rects.speaker = lastSpeaker;
       const fps = o.fps?.();
-      last = {
+      return {
         rects,
         people,
         vehicles,
-        cameraInsideBuilding: insideBuilding(camera.position),
+        cameraInsideBuilding: insideBuilding(view.position),
         windowsLitFraction: tower?.litFraction() ?? 0,
         ...(sp ? { subject: { x: sp[0], y: sp[1] } } : {}),
         ...(fps !== undefined ? { fps } : {}),
       };
     },
-    probe: () => last,
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -263,6 +337,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       tower = null;
       group.clear();
       if (o.anchors !== false) useDevsimAnchors.getState().clear();
+      if (cutOn) setTreeCut(null);
     },
   };
 }

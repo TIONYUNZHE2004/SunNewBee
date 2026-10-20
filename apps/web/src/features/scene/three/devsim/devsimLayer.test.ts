@@ -4,7 +4,7 @@ import { useDevsimAnchors } from "../../../devsim/anchors";
 import plan from "../../../devsim/fixtures/plan.provisional.json";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import { createFrame } from "../frame";
-import { createDevsimLayer, type DevsimPart, type TowerPart } from "./devsimLayer";
+import { createDevsimLayer, type DevsimPart, labelFits, type TowerPart } from "./devsimLayer";
 import { stateAt } from "./state";
 
 const P = plan as DevelopmentPlan;
@@ -113,6 +113,28 @@ describe("createDevsimLayer", () => {
     expect(s).toBeDefined();
     expect(s?.x).toBeGreaterThan(0);
     expect(s?.x).toBeLessThan(1440);
+    l.dispose();
+  });
+
+  it("the label anchor is given only where the whole label fits on the stage (AC-H3)", () => {
+    const size: [number, number] = [920, 830];
+    expect(labelFits([460, 400], size)).toBe(true);
+    expect(labelFits([460, 20], size)).toBe(false); // would hang above the top edge
+    expect(labelFits([60, 400], size)).toBe(false); // half off the left
+    expect(labelFits([900, 400], size)).toBe(false);
+    expect(labelFits(null, size)).toBe(false);
+  });
+
+  it("the probe is computed on demand from the last rendered view", () => {
+    const l = createDevsimLayer({ plan: P, frame });
+    l.setTower(fakeTower(60));
+    l.setT(20);
+    expect(l.probe()).toEqual({});
+    const [cx, cz] = l.geom.centre;
+    l.beforeRender(cameraAt([cx - 150, 120, cz + 200], [cx, 30, cz]), [1440, 900], 0);
+    const a = l.probe();
+    expect(a.rects?.tower).toBeDefined();
+    expect(l.probe()).toEqual(a);
     l.dispose();
   });
 });

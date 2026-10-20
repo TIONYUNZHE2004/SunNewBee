@@ -223,8 +223,10 @@ export const CAM_KEYS: readonly CamKey[] = [
   },
   { t: 10.4, targetAnchor: "site", h: 26, offset: [-130, -180, 95] },
   { t: 15.4, targetAnchor: "site", h: 34, offset: [-145, -200, 105] },
-  { t: 17.2, targetAnchor: { lerp: ["site", "halimMid", 0.55] }, h: 12, offset: [-10, -175, 95] },
-  { t: 21.6, targetAnchor: { lerp: ["site", "halimMid", 0.6] }, h: 10, offset: [0, -150, 82] },
+  // 3D integration: aimed further along Halim's walk than the prototype (0.55 / 0.6) so he stays
+  // inside the frame on the Elmina plan (AC-C1: he sits right of centre, as in the prototype)
+  { t: 17.2, targetAnchor: { lerp: ["site", "halimMid", 0.72] }, h: 12, offset: [-10, -175, 95] },
+  { t: 21.6, targetAnchor: { lerp: ["site", "halimMid", 0.76] }, h: 10, offset: [0, -150, 82] },
   { t: 22.8, targetAnchor: "farid", h: 6, offset: [-18, 48, 20] },
   { t: 26.4, targetAnchor: "farid", h: 7, offset: [-14, 42, 18] },
   { t: 28, targetAnchor: "site", h: 45, offset: [-150, -240, 130] },
@@ -234,22 +236,26 @@ export const CAM_KEYS: readonly CamKey[] = [
   { t: 44, targetAnchor: { path: 6 }, h: 2.6, offset: { entrance: [22, 24, 13] } },
   {
     t: 47,
-    targetAnchor: { lerp: ["node", "junction", 0.45] },
-    h: 2,
+    // 3D integration: on the Elmina plan the junction anchor is the entrance node itself, so the
+    // prototype's node-to-junction blend gives no lead; aim just past the node and tilted up so
+    // Mei Ling sits right of centre at the queue, as the prototype frames her (AC-C1)
+    targetAnchor: { lerp: ["node", "door", -0.05] },
+    h: -1.5,
     offset: { entrance: [-26, 22, 24] },
   },
   {
     t: 51.6,
-    targetAnchor: { lerp: ["node", "junction", 0.45] },
-    h: 2,
+    targetAnchor: { lerp: ["node", "door", -0.05] },
+    h: -1.5,
     offset: { entrance: [-22, 19, 21] },
   },
   { t: 52.8, targetAnchor: "park", h: 2, offset: [-44, -48, 30] },
   { t: 57, targetAnchor: "park", h: 2, offset: [-38, -42, 26] },
   { t: 58, targetAnchor: "mall", h: 3, offset: [-50, -40, 30] },
   { t: 62.4, targetAnchor: "mall", h: 3, offset: [-44, -34, 26] },
-  { t: 63.6, targetAnchor: { lerp: ["site", "mall", 0.9] }, h: 20, offset: [-120, -470, 300] },
-  { t: 66, targetAnchor: { lerp: ["site", "mall", 0.9] }, h: 20, offset: [-130, -490, 310] },
+  // 3D integration: 0.72 (prototype 0.9) keeps the tower where the prototype frames it (left third)
+  { t: 63.6, targetAnchor: { lerp: ["site", "mall", 0.72] }, h: 20, offset: [-120, -470, 300] },
+  { t: 66, targetAnchor: { lerp: ["site", "mall", 0.72] }, h: 20, offset: [-130, -490, 310] },
 ];
 
 const KY = 110574;
@@ -271,6 +277,32 @@ export interface CamFrame {
   tn: [number, number];
   /** Unit vector from the tower to the yard. */
   ydir: [number, number];
+}
+
+/** The nearest point of the footprint ring to p (the plan's door can sit a few metres off it). */
+function onFootprint(p: LL, fp: readonly (readonly number[])[]): LL {
+  if (fp.length < 2) return p;
+  const k = kx(p[1]);
+  const m = (q: readonly number[]): [number, number] => [
+    ((q[0] ?? 0) - p[0]) * k,
+    ((q[1] ?? 0) - p[1]) * KY,
+  ];
+  let best: [number, number] = [0, 0];
+  let bd = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < fp.length; i++) {
+    const a = m(fp[i] as number[]);
+    const b = m(fp[(i + 1) % fp.length] as number[]);
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const u = Math.max(0, Math.min(1, -(a[0] * dx + a[1] * dz) / (dx * dx + dz * dz || 1)));
+    const q: [number, number] = [a[0] + dx * u, a[1] + dz * u];
+    const d = Math.hypot(q[0], q[1]);
+    if (d < bd) {
+      bd = d;
+      best = q;
+    }
+  }
+  return [p[0] + best[0] / k, p[1] + best[1] / KY];
 }
 
 /** Resolves the plan's named camera anchors (memoised per plan). */
@@ -301,7 +333,8 @@ export function camFrame(plan: DevelopmentPlan): CamFrame {
       yard: offsetLL(site, ydir[0] * 30, ydir[1] * 30),
       halimMid: ll(hp[Math.floor(hp.length * 0.5)] ?? site),
       farid: ll(plan.anchors.farid),
-      door: ll(plan.site.entrance.door),
+      // the door as the 3D scene draws it: on the facade (nearest footprint point)
+      door: onFootprint(ll(plan.site.entrance.door), fp),
       node: ll(path[path.length - 1] ?? plan.site.entrance.door),
       junction: ll(plan.anchors.junction),
       park: ll(plan.anchors.park),
