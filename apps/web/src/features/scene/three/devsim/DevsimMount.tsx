@@ -7,11 +7,15 @@ import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { createFrameStats } from "../frameStats";
+import type { CrowdKit } from "../motion/crowdBake";
+import { CROWD_LOAD_TIMEOUT_MS, loadCrowdKit } from "../motion/crowdKit";
 import type { SceneBus } from "../scene/sceneBus";
 import type { LoadedAssets } from "../scene/useCityAssets";
+import { type Cast, createCast } from "./cast";
 import { devDemoRequested, startDevDemo } from "./devDemo";
 import { createDevsimLayer, type DevsimLayer } from "./devsimLayer";
 import { createSite } from "./site";
+import { flowSeconds } from "./state";
 import { createTower } from "./tower";
 
 /** The plan's closed edge from the walk layer (a feature whose id is `facts.detour.edge_id`). */
@@ -45,9 +49,35 @@ export interface DevsimMountProps {
  * registers the scene part of `window.__devsim.probe()`. FE owns the clock and the overlays.
  */
 export function DevsimMount(props: DevsimMountProps) {
-  const { engine, frame, accessData, roleUniforms, loaded } = props;
+  const { engine, frame, accessData, roleUniforms, loaded, hostRef } = props;
   const plan = useDevsim((s) => s.plan);
-  const [layer, setLayer] = useState<DevsimLayer | null>(null);
+  const [layer, setLayer] = useState<{ layer: DevsimLayer; cast: Cast } | null>(null);
+
+  // The crowd kit for the cast (loaded once a plan is shown; kept for the session's mount).
+  const [kit, setKit] = useState<CrowdKit | null>(null);
+  const wantKit = !!plan && !!engine;
+  useEffect(() => {
+    if (!wantKit || kit || import.meta.env.MODE === "test") return;
+    const ac = new AbortController();
+    let live = true;
+    loadCrowdKit({ signal: ac.signal, timeoutMs: CROWD_LOAD_TIMEOUT_MS }).then(
+      (k) => {
+        if (live) setKit(k);
+        else k.dispose();
+      },
+      () => {},
+    );
+    return () => {
+      live = false;
+      ac.abort();
+    };
+  }, [wantKit, kit]);
+  useEffect(() => () => kit?.dispose(), [kit]);
+  useEffect(() => {
+    if (!layer || !engine) return;
+    layer.cast.setKit(kit);
+    engine.requestRender();
+  }, [layer, kit, engine]);
 
   // dev-only: `?devsim=provisional` starts the provisional plan (see devDemo.ts)
   useEffect(() => {
@@ -76,9 +106,16 @@ export function DevsimMount(props: DevsimMountProps) {
       createTower({ geom: l.geom, roleUniforms, lib: loaded?.lib, manifest: loaded?.manifest }),
     );
     l.add(createSite({ geom: l.geom, roleUniforms, lib: loaded?.lib, manifest: loaded?.manifest }));
+    const cast = createCast({
+      plan,
+      geom: l.geom,
+      tagHost: hostRef.current,
+      flowT: (t) => flowSeconds(t, plan),
+    });
+    l.add(cast);
     l.setT(useDevsim.getState().t);
     engine.setDevsim(l);
-    setLayer(l);
+    setLayer({ layer: l, cast });
     const unsub = useDevsim.subscribe((s, prev) => {
       if (s.t !== prev.t && s.plan === plan) {
         l.setT(s.t);
@@ -94,8 +131,7 @@ export function DevsimMount(props: DevsimMountProps) {
       engine.setDevsim?.(null); // disposes the layer
       setLayer(null);
     };
-  }, [engine, frame, plan, accessData, roleUniforms, loaded]);
+  }, [engine, frame, plan, accessData, roleUniforms, loaded, hostRef]);
 
-  void layer;
   return null;
 }
