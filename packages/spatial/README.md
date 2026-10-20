@@ -2,7 +2,7 @@
 
 The world model and the deterministic engines behind TownshipLens. It loads a township data
 directory into an in-memory `World` (walk graph, places, claims, flood scenarios, evacuation
-centres, waste points, accessibility profiles) and exposes 10 tools that the AI agent and the API
+centres, waste points, accessibility profiles) and exposes 20 tools that the AI agent and the API
 call by name through `townshiplens_spatial.tools.TOOLS`. All answers come from these engines;
 the LLM never computes routes or flood extents.
 
@@ -363,7 +363,27 @@ A time-stepped rehearsal of 5,000 synthetic residents on the world model. It is 
 
 Calibration against official open data for Petaling district (DOSM, MOE): `data/scripts/calibrate_day.py` and `docs/03-product/calibration-report-2026-10.md`.
 
-## The tools (10 lookups + 6 world-model tools + 3 Elmina Day tools)
+## Development Simulation (`devsim.py`, developer lens)
+
+A Hypothetical Development (about 30 storeys, 500 homes, not an SDP project; ADR 0014) near Lakeside Mall. `devsim_models.py` holds the plan shapes. Every number is computed by the routing engine (default profile); the residents' lines are simulated reactions.
+
+- `place_tower(world, brief)`: puts the tower on the north-east corner of OSM `way/1564861412`, inside the lot and at least 200 m from the Kanopi lot.
+- `compute_facts(world, site)`: the closed frontage edge and the detour for an existing nearby home to Car Park B, plus the walks from the entrance to Urban Park and to Lakeside Mall.
+- `build_development_plan(world, brief)`: facts, cast, timeline, bubbles, end card and anchors as a `DevelopmentPlan`. It takes about 4 s; the API caches it per world version.
+- `check_plan(plan)`: the honesty gate. Digits in any text must be the fact values for that slot, and the copy must avoid banned words (safe, selamat, depth, flood). `build_development_plan` raises `DevsimCheckError` if it fails.
+- `DevsimUnavailable`: the world cannot host the simulation (no parcel, places or streets, as in the tiny fixture). The API returns 404 and the tool returns `available: false`.
+- Dump a plan: `python -m townshiplens_spatial.devsim --dump <path>` from the repo root (`--world` picks the data directory).
+
+Computed facts on the Elmina seed (the web copy is built from these):
+
+| Fact | Value |
+| --- | --- |
+| Detour home / closed edge | `w909852736` / `seg-910300105-0` |
+| Walk to Car Park B, before to after | 2,684 m to 2,923 m, +3 min |
+| Tower to Urban Park | 659 m · 9 min |
+| Tower to Lakeside Mall | 712 m · 10 min |
+
+## The tools (10 lookups + 6 world-model tools + 3 Elmina Day tools + `simulate_development`)
 
 | Tool | Purpose |
 | --- | --- |
