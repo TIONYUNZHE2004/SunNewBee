@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { createPlaceholderHero } from "../scene/three/characters/placeholderHero";
-import { placeCard, type Rect } from "./cardPlacement";
+import { placeCard, placeCardLocked, placementLock, type Rect } from "./cardPlacement";
 import { BONE_PAD_M, boxOnScreen, heroBodyBox, heroScreenRect } from "./three/heroScreen";
 
 const card = { w: 290, h: 180 };
@@ -168,5 +168,77 @@ describe("AC-D17: card placement is a pure function of anchor, size, viewport an
     placeCard({ x: 700, y: 600 }, size, { ...vp, keepClear: [hero] });
     placeCard(null, size, vp);
     expect(placeCard(a, size, { ...vp, keepClear: [hero, marker] })).toEqual(first);
+  });
+});
+
+describe("a hold's locked card rule (iteration 2: no side switch in one frame)", () => {
+  const card = { w: 290, h: 180 };
+  const vp = { w: 1040, h: 830, top: 96 };
+  const mini: Rect = { x: 820, y: 16, w: 200, h: 150 };
+  const hit = (p: ReturnType<typeof placeCard>, r: Rect) => {
+    const k = p.scale ?? 1;
+    return (
+      p.left < r.x + r.w &&
+      p.left + card.w * k > r.x &&
+      p.top < r.y + r.h &&
+      p.top + card.h * k > r.y
+    );
+  };
+
+  it("keeps the card beside her as she drifts across a near tie (placeCard flips sides)", () => {
+    // her box under the anchor, the free spots left and right of her about as near
+    const at = (dx: number) => ({
+      anchor: { x: 520, y: 330 },
+      vp: { ...vp, keepClear: [{ x: 450 + dx, y: 280, w: 140, h: 260 }] },
+    });
+    const lock = placementLock(at(0).anchor, card, at(0).vp);
+    let flips = 0;
+    let prev: ReturnType<typeof placeCard> | null = null;
+    let prevFree: ReturnType<typeof placeCard> | null = null;
+    for (let dx = -12; dx <= 12; dx += 0.5) {
+      const g = at(dx);
+      const p = placeCardLocked(g.anchor, card, g.vp, lock);
+      const free = placeCard(g.anchor, card, g.vp);
+      if (prevFree && Math.abs(free.left - prevFree.left) > 50) flips++;
+      if (prev) expect(Math.abs(p.left - prev.left)).toBeLessThanOrEqual(0.5 + 1e-9);
+      expect(hit(p, g.vp.keepClear[0] as Rect)).toBe(false);
+      prev = p;
+      prevFree = free;
+    }
+    expect(flips).toBeGreaterThan(0);
+  });
+
+  it("never covers her or the mini-map, whatever geometry its rule was made from", () => {
+    let seed = 7;
+    const rnd = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 2 ** 32;
+    };
+    const geo = () => {
+      const hero: Rect = {
+        x: 100 + rnd() * 700,
+        y: 150 + rnd() * 450,
+        w: 40 + rnd() * 160,
+        h: 80 + rnd() * 260,
+      };
+      const anchor = { x: rnd() * vp.w, y: rnd() * vp.h };
+      return { anchor, v: { ...vp, avoid: [mini], keepClear: [hero] } };
+    };
+    for (let i = 0; i < 2000; i++) {
+      const a = geo();
+      const b = geo();
+      const lock = placementLock(a.anchor, card, a.v);
+      const p = placeCardLocked(b.anchor, card, b.v, lock);
+      const free = placeCard(b.anchor, card, b.v);
+      // as safe as the free search: clear of her whenever the free search is
+      if (!hit(free, b.v.keepClear[0] as Rect))
+        expect(hit(p, b.v.keepClear[0] as Rect)).toBe(false);
+      if (!hit(free, mini)) expect(hit(p, mini)).toBe(false);
+      const k = p.scale ?? 1;
+      expect(p.left).toBeGreaterThanOrEqual(0);
+      expect(p.top).toBeGreaterThanOrEqual(0);
+      expect(p.left + card.w * k).toBeLessThanOrEqual(vp.w);
+      expect(p.top + card.h * k).toBeLessThanOrEqual(vp.h);
+    }
   });
 });

@@ -19,6 +19,8 @@ import {
 } from "../scene/three/journey/followRig";
 import { heroPositionAt } from "../scene/three/journey/heroDriver";
 import type { ViewFit } from "../scene/three/journey/safeFrame";
+import type { CardViewport, PlacementLock } from "./cardPlacement";
+import { holdCardLock } from "./cardTrack";
 import { createFollowController, overviewFor, routeOverviewFit } from "./followCamera";
 import { JourneyOverlay } from "./JourneyOverlay";
 import {
@@ -80,6 +82,8 @@ export function JourneyMount({
   );
   const layer = layerState && layerState.plan === plan ? layerState.layer : null;
   const heroRef = useRef<HeroLayer | null>(null);
+  // The follow scene (pure camera inputs) while the camera effect runs: the event card's hold rule.
+  const sceneRef = useRef<(() => FollowScene | null) | null>(null);
 
   useEffect(() => {
     if (!engine || !frame || !plan) return;
@@ -393,6 +397,7 @@ export function JourneyMount({
         ctl.engage();
       if (s.camMode !== prev.camMode || s.playing !== prev.playing) engine.requestRender();
     });
+    sceneRef.current = scene;
     journeyGrid.current = () => engine.clearance?.()?.obstacles ?? null;
     journeyCamera.current = () => {
       const v = engine.pickView();
@@ -451,6 +456,7 @@ export function JourneyMount({
       engine.setCameraDriver?.(null);
       engine.setFocusPoint?.(null);
       journeyCamera.current = null;
+      if (sceneRef.current === scene) sceneRef.current = null;
       journeyGrid.current = null;
     };
   }, [engine, frame, plan, layer, places]);
@@ -495,6 +501,25 @@ export function JourneyMount({
     return heroScreenRect(heroRef.current?.hero.object3d, v.camera, v.size);
   }, [engine]);
 
+  // The event card's hold rule (iteration 2: no side switch within a hold), from the pure journey
+  // camera; recomputed only when the hold, the card size, the viewport, the mode or the scene's
+  // camera inputs change.
+  const lockCache = useRef<{ key: unknown[]; lock: PlacementLock | null } | null>(null);
+  const cardLock = useCallback(
+    (i: number, card: { w: number; h: number }, vp: CardViewport): PlacementLock | null => {
+      const sc = sceneRef.current?.();
+      if (!sc) return null;
+      const mode = useJourney.getState().camMode;
+      const key = [i, card.w, card.h, vp, mode, sc.timeline, sc.view, sc.track, sc.clearance];
+      const c = lockCache.current;
+      if (c && c.key.length === key.length && c.key.every((v, k) => v === key[k])) return c.lock;
+      const lock = holdCardLock(sc, i, mode, card, vp);
+      lockCache.current = { key, lock };
+      return lock;
+    },
+    [],
+  );
+
   if (!plan || !engine) return null;
   return (
     <JourneyOverlay
@@ -503,6 +528,7 @@ export function JourneyMount({
       subscribeFrame={subscribeFrame}
       miniMapRef={miniMapRef}
       heroRect={heroRect}
+      cardLock={cardLock}
     />
   );
 }
