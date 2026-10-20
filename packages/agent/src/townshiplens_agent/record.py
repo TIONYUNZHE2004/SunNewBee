@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 
 from pydantic_ai.usage import RunUsage
+from townshiplens_spatial.devsim_models import DevelopmentPlan
 from townshiplens_spatial.models import Evidence, JourneyPlan
 
 
@@ -71,6 +72,10 @@ class TurnRecord:
     day_stages: set[str] = field(default_factory=set)  # river stages a rehearsal chose
     day_changes: list[dict] = field(default_factory=list)  # imagined changes tested on a day
     my_trips: list[dict] = field(default_factory=list)  # residents' own rehearsed trips
+    # simulate_development results this turn (developer lens): the tool's data without the plan
+    # (brief numbers, facts, "available"), and the plan itself for the development.play intent.
+    developments: list[dict] = field(default_factory=list)
+    development_plan: DevelopmentPlan | None = None
     # affected_places counts this turn: places and path segments apart (Cycles 5-6 review B1).
     affected: list[dict] = field(default_factory=list)
     # Diagnostics (never shown to users, never stored): the validator's errors for each rejected

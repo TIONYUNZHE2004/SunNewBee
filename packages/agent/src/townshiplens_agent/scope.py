@@ -13,6 +13,7 @@ ACCESS_FLOOD_TOOLS = frozenset(
         "list_flood_scenarios",
         "affected_places",
         "list_evacuation_centres",
+        "simulate_development",  # the developer-lens brief (ADR 0014); answered only by the mock
     }
 )
 

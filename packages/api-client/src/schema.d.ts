@@ -2534,6 +2534,8 @@ export interface components {
          * @description A scene intent on the wire (SSE `scene.intent`).
          */
         SceneIntent: {
+            /** Brief Text */
+            brief_text?: string | null;
             /** Center */
             center?: number[] | null;
             /** Day */
@@ -2551,11 +2553,12 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip" | "journey.play";
+            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip" | "journey.play" | "development.play";
             /** Lens */
             lens?: ("access" | "flood" | "waste") | null;
             /** Place Id */
             place_id?: string | null;
+            plan?: components["schemas"]["DevelopmentPlan"] | null;
             /** Range M */
             range_m?: number | null;
             /** Route Id */
