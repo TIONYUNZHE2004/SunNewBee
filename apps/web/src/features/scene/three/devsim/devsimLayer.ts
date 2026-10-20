@@ -74,8 +74,8 @@ export interface DevsimLayerOpts {
   anchors?: boolean;
 }
 
-/** The scene probe part; `subject` is FE's pending optional Probe field (QA lane request). */
-export type SceneProbe = Partial<Probe> & { subject?: { x: number; y: number } };
+/** The scene part of the probe. */
+export type SceneProbe = Partial<Probe>;
 
 /** Max points per kind in a probe sample. */
 const PROBE_MAX = 400;

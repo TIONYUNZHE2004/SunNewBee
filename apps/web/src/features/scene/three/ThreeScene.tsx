@@ -1,5 +1,6 @@
 import { useMemo, useRef } from "react";
 import { useBuildings, useLayer, useSite } from "../../../lib/api";
+import { DevsimMount } from "../../devsim/DevsimMount";
 import { JourneyMount } from "../../journey/JourneyMount";
 import { InSlot } from "../../map-ui/mapSlots";
 import { CameraControls, handleMapKey } from "../cesium/controls/CameraControls";
@@ -301,9 +302,6 @@ export default function ThreeScene({
         factBenches={dressing.benches}
       />
       {/* Developer lens Development Simulation: tower, kit, cast, camera (spec §5.3 Scene). */}
-      {/* TODO(devsim merge, FE lane request): also mount FE's overlays here, from
-          features/devsim/DevsimMount.tsx (branch devsim/fe):
-          <DevsimMount hostRef={hostRef} decorativeNote={!decorativeShown} /> */}
       <DevsimSceneMount
         engine={engine}
         frame={frame}
@@ -314,6 +312,8 @@ export default function ThreeScene({
         accessData={access.data}
         hostRef={hostRef}
       />
+      {/* Development Simulation overlays (FE): HUD, bubbles, labels, end card, playback bar. */}
+      <DevsimMount hostRef={hostRef} decorativeNote={!decorativeShown} />
       {showroom && (assetsState === "loading" || assetsState === "ready") && <ShowroomChip />}
     </section>
   );
