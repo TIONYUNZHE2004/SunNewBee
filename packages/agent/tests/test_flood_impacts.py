@@ -4,7 +4,7 @@ import pytest
 from townshiplens_agent.answer import Claim, FinalAnswer
 from townshiplens_agent.record import TurnRecord
 from townshiplens_agent.run import FLASH_FLOOD_NOTE, flash_flood_note
-from townshiplens_agent.validate import flood_impact_errors
+from townshiplens_agent.validate import flood_impact_errors, flood_naming_errors
 
 PLACES = {
     "playground": {"name": "Urban Park playground", "aliases": [], "type": "playground"},
@@ -61,6 +61,13 @@ def test_returned_places_may_be_called_flooded_or_cut_off(summary):
 def test_a_flooded_or_cut_off_claim_the_tool_did_not_return_is_rejected(summary):
     errs = flood_impact_errors(_ans(summary), _rec())
     assert errs and "did not return these as flooded or cut off" in errs[0]
+
+
+def test_counted_cut_off_places_must_be_named():
+    errs = flood_naming_errors(_ans("1 place is cut off in this scenario."), _rec())
+    assert errs and "Name the cut-off places" in errs[0]
+    named = "1 place is cut off in this scenario: Urban Park bench 3."
+    assert flood_naming_errors(_ans(named), _rec()) == []
 
 
 def test_flash_flood_line_follows_language_and_is_not_repeated():

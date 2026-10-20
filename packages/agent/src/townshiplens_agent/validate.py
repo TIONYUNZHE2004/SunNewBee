@@ -808,6 +808,8 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += affected_errors(ans, rec)
     errs += flood_impact_errors(ans, rec)
     errs += event_errors(ans, rec)
+    errs += event_coverage_errors(ans, rec)
+    errs += flood_naming_errors(ans, rec)
     errs += measurement_errors(ans, rec)
     errs += journey_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
@@ -1510,6 +1512,27 @@ def flood_impact_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     return []
 
 
+def flood_naming_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """T-024, whole answers only (a draft may not have reached the names yet): counted flooded
+    or cut-off places are also named."""
+    if not rec.affected or ans.answer_status == "cannot_answer":
+        return []
+    text = " ".join([ans.summary, *ans.steps, *ans.caveats]).lower()
+    for key, words in (("cut_off", _CUT_OFF_WORDS), ("flooded", _FLOODED_WORDS)):
+        listed = {n.lower() for a in rec.affected for n in a.get(key, {}).values()}
+        counted = re.search(
+            rf"\d+\s+(?:\w+\s+){{0,3}}?(?:places?|tempat).{{0,60}}(?:{words.pattern})", text
+        )
+        if listed and counted and not any(n in text for n in listed):
+            src = "cut_off_places" if key == "cut_off" else "flooded_places"
+            what = "cut-off" if key == "cut_off" else "flooded"
+            return [
+                f"Name the {what} places from {src} (up to 3, then 'and N more'), not only "
+                "their number."
+            ]
+    return []
+
+
 _EVENT_TRIPS = re.compile(
     r"(?<![\d.,])(\d+)\s+(?:of\s+(?:the\s+)?(\d+)\s+)?(?:[a-z-]+\s+){0,3}?"
     r"(?:trips?|journeys?|perjalanan)\b|(\d+)\s*(?:趟|次|个)(?:出行|行程)",
@@ -1573,6 +1596,25 @@ def event_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         ):
             errs.append("There is no traffic or crowd data: never predict jams, queues or crowds.")
     return list(dict.fromkeys(errs))
+
+
+def event_coverage_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """T-025, whole answers only: the top detour road and the suggestions are reported."""
+    if not rec.events or ans.answer_status == "cannot_answer":
+        return []
+    errs: list[str] = []
+    full = " ".join([ans.summary, *ans.steps, *ans.caveats]).lower()
+    last = rec.events[-1]
+    top = [r["name"] for r in last.get("detour_roads") or []][:1]
+    if top and top[0].lower() not in full:
+        errs.append(
+            f"Name the top detour road ({top[0]}) with its number of rerouted sample trips."
+        )
+    if last.get("suggestions") and not re.search(
+        r"suggest|marshal|sign|crossing point|reschedul|shift the start|cadang|penjaga|建议", full
+    ):
+        errs.append("Give the simulation's suggestions, each with the number it comes from.")
+    return errs
 
 
 def _plan_numbers(rec: TurnRecord) -> set[int]:
@@ -1994,6 +2036,10 @@ _ISSUES = (
     ("are not in the event simulation", "used trip counts the event simulation did not give"),
     ("before the event: say trips_newly_no_route", "blamed old data gaps on the event"),
     ("never predict jams, queues or crowds", "predicted traffic jams or crowds"),
+    ("Name the top detour road", "left out the detour roads"),
+    ("Give the simulation's suggestions", "left out the suggestions"),
+    ("places from cut_off_places", "counted cut-off places without naming them"),
+    ("places from flooded_places", "counted flooded places without naming them"),
     ("must be called a rehearsal", "did not say it is a rehearsal of synthetic residents"),
     ("A rehearsal must say it is not a forecast", "did not say the rehearsal is not a forecast"),
     ("do not appear in the rehearsal", "used numbers the rehearsal did not produce"),

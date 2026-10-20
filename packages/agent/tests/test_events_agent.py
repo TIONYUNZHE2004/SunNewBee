@@ -8,7 +8,7 @@ from townshiplens_agent.memory import SessionMemory
 from townshiplens_agent.record import TurnRecord
 from townshiplens_agent.run import run_turn
 from townshiplens_agent.settings import ROOT, AgentSettings
-from townshiplens_agent.validate import event_errors
+from townshiplens_agent.validate import event_coverage_errors, event_errors
 from townshiplens_spatial import tools
 from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
@@ -91,7 +91,28 @@ def _check(summary: str) -> list[str]:
     ],
 )
 def test_event_answer_numbers_from_the_tool_pass(summary):
-    assert _check(summary) == []
+    assert _check(f"{summary} 4 sample trips reroute onto Persiaran Tamarind.") == []
+
+
+def test_event_answer_names_the_top_detour_and_gives_the_suggestions():
+    ans = FinalAnswer(
+        answer_status="answered",
+        summary="7 of 63 sample trips change route.",
+        claims=[Claim(text="Marathon", status="indicative", evidence_ids=["ev-event-x"])],
+    )
+    assert any(
+        "top detour road" in e for e in event_coverage_errors(ans, TurnRecord(events=[EVENT]))
+    )
+    with_tip = {**EVENT, "suggestions": [{"kind": "marshal", "text": "x", "basis": "y"}]}
+    rec = TurnRecord(events=[with_tip], place_names={"Persiaran Tamarind"})
+    ans = FinalAnswer(
+        answer_status="answered",
+        summary="4 sample trips reroute onto Persiaran Tamarind.",
+        claims=[Claim(text="Marathon", status="indicative", evidence_ids=["ev-event-x"])],
+    )
+    assert any("suggestions" in e for e in event_coverage_errors(ans, rec))
+    ans.steps = ["Suggestion: marshals on Persiaran Tamarind (4 sample trips)."]
+    assert event_coverage_errors(ans, rec) == [] and event_errors(ans, rec) == []
 
 
 @pytest.mark.parametrize(
