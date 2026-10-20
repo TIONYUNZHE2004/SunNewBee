@@ -30,8 +30,11 @@ import {
   journeyCameraAt,
   landingTime,
   MIN_HERO_DIST_M,
+  narrowTrackAt,
   rawFrameAt,
   TRACK,
+  WIDEN,
+  widenPose,
 } from "./followRig";
 import { heroPositionAt, heroStateAt } from "./heroDriver";
 import { insideSafe } from "./safeFrame";
@@ -106,7 +109,7 @@ const isFollowPhase = (t: number) => {
 };
 
 describe("follow pose (spec §6.4)", () => {
-  it("stands 8.5 m back, 4.5 m to the side, 4.2 m up and looks 4 m ahead", () => {
+  it("stands 8.5 m back, 4.5 m to the side, 4.2 m up and looks 4 m ahead (spec pose)", () => {
     const p = followPose([10, 20], [1, 0]);
     // facing east (+x): back is -x, the right side is +z (south)
     expect(p.pos).toEqual([10 - 8.5, 4.2, 20 + 4.5]);
@@ -115,6 +118,52 @@ describe("follow pose (spec §6.4)", () => {
     const m = followPose([0, 0], [0, -1], -1); // facing north, mirrored side (west)
     expect(m.pos[0]).toBeCloseTo(-4.5);
     expect(m.pos[2]).toBeCloseTo(8.5);
+  });
+
+  it("widens a pose about her chest: the camera stands k x out, the view direction is kept", () => {
+    const p = followPose([10, 20], [1, 0]);
+    const w = widenPose(p, [10, 20], WIDEN);
+    const off = (v: readonly number[]) => [
+      (v[0] as number) - 10,
+      (v[1] as number) - HERO_CHEST_Y,
+      (v[2] as number) - 20,
+    ];
+    for (let i = 0; i < 3; i++)
+      expect(off(w.pos)[i]).toBeCloseTo((off(p.pos)[i] as number) * WIDEN, 9);
+    const dir = (q: CamPose) => {
+      const v = [q.look[0] - q.pos[0], q.look[1] - q.pos[1], q.look[2] - q.pos[2]];
+      const n = Math.hypot(v[0] as number, v[1] as number, v[2] as number);
+      return v.map((x) => x / n);
+    };
+    for (let i = 0; i < 3; i++) expect(dir(w)[i]).toBeCloseTo(dir(p)[i] as number, 9);
+    const same = widenPose(p, [10, 20], 1);
+    for (let i = 0; i < 3; i++) expect(same.pos[i]).toBeCloseTo(p.pos[i] as number, 9);
+  });
+
+  it("she fills about a quarter of the map height on a walk (owner ruling 20 Oct: wider)", () => {
+    // owner ruling (20 Oct 2026, "Wider"): supersedes the spec §6.4 pose 8.5 / 4.5 / 4.2 m, where
+    // she filled 43% of the map height
+    expect(WIDEN).toBeGreaterThanOrEqual(1.6);
+    for (const aspect of [VIEW.w / VIEW.h, 16 / 9, 1.1]) {
+      // her figure, feet to the top of her head (not the box with the walker and the ring)
+      const at = (p: CamPose) => {
+        const cam = cameraFor(p, aspect);
+        const sy = (y: number) => (1 - new THREE.Vector3(0, y, 0).project(cam).y) / 2;
+        return sy(HERO_BOX.y0) - sy(HERO_BOX.y1);
+      };
+      const spec = at(followPose([0, 0], [0.6, 0.8]));
+      expect(spec).toBeGreaterThan(0.4);
+      const frac = at(widenPose(followPose([0, 0], [0.6, 0.8]), [0, 0], WIDEN));
+      expect(frac).toBeGreaterThanOrEqual(0.22);
+      expect(frac).toBeLessThanOrEqual(0.28);
+    }
+  });
+
+  it("frames her whole box inside the frame with a 10% margin, widened", () => {
+    for (const aspect of [VIEW.w / VIEW.h, 16 / 9, 1.1]) {
+      const cam = cameraFor(widenPose(followPose([0, 0], [0.6, 0.8]), [0, 0], WIDEN), aspect);
+      expect(inMargin(heroScreenBox(cam, 0, 0))).toBe(true);
+    }
   });
 
   it("frames her whole box inside the frame with a 10% margin", () => {
@@ -134,7 +183,7 @@ describe("follow pose (spec §6.4)", () => {
 });
 
 describe("damping, dive and pull-back", () => {
-  it("is the exact follow pose mid-way along a straight walk (offsets constant)", () => {
+  it("is the exact (widened) follow pose mid-way along a straight walk (offsets constant)", () => {
     const straight = {
       ...plan,
       events: [],
@@ -149,7 +198,8 @@ describe("damping, dive and pull-back", () => {
     const t = DIVE_S + (tl2.total - DIVE_S - PULL_S) / 2;
     const p = journeyCameraAt(sc, t, "follow") as CamPose;
     const m = stateAt(tl2, t).distance_m;
-    const want = followPose([m, 0], [1, 0]);
+    // the spec pose, stood WIDEN x out about her (owner ruling 20 Oct 2026)
+    const want = widenPose(followPose([m, 0], [1, 0]), [m, 0], WIDEN);
     for (let i = 0; i < 3; i++) {
       expect(p.pos[i]).toBeCloseTo(want.pos[i] as number, 6);
       expect(p.look[i]).toBeCloseTo(want.look[i] as number, 6);
@@ -380,9 +430,11 @@ describe.skipIf(!existsSync(SEED))("seed buildings: clearance interplay", () => 
     const bare = scene();
     let kept = 0;
     let raised = 0;
+    // on the spec-distance track: the widen channel (owner ruling 20 Oct 2026) then only moves the
+    // camera along her view line (tested below), in where a building would hide her
     for (let t = DIVE_S; t < tl.total - PULL_S; t += 0.1) {
-      const a = journeyCameraAt(bare, t, "follow") as CamPose;
-      const b = journeyCameraAt(sc, t, "follow") as CamPose;
+      const a = narrowTrackAt(bare, landingTime(tl, t));
+      const b = narrowTrackAt(sc, landingTime(tl, t));
       // (a lift past the pitch limit also stands the camera back: iteration 2, so a raised camera
       // seldom keeps its x, z; count the raises over all samples)
       if (b.pos[1] > a.pos[1] + 0.5) raised++;
@@ -391,6 +443,41 @@ describe.skipIf(!existsSync(SEED))("seed buildings: clearance interplay", () => 
       expect(b.pos[1]).toBeGreaterThanOrEqual(a.pos[1] - 1e-9);
     }
     expect(kept).toBeGreaterThan(300);
+    expect(raised).toBeGreaterThan(0);
+  });
+
+  it("the widen channel stands back (and up) round her, keeping the heading and the 45 deg cap", () => {
+    let n = 0;
+    let turned = 0;
+    let wide = 0;
+    let raised = 0;
+    for (let t = DIVE_S; t < tl.total - PULL_S; t += 0.1) {
+      const tt = landingTime(tl, t);
+      const a = narrowTrackAt(sc, tt);
+      const b = followTrackAt(sc, tt);
+      const h = heroPositionAt(tl, tt, helpers);
+      const chest = [h[0], HERO_CHEST_Y, h[1]];
+      const da = dist(a.pos, chest);
+      const db = dist(b.pos, chest);
+      // never closer than the spec track, never further than WIDEN x it
+      expect(db).toBeGreaterThanOrEqual(da - 0.05);
+      expect(db).toBeLessThanOrEqual(da * WIDEN + 1);
+      if (db > da * 1.6) wide++;
+      const yaw = (q: CamPose) => Math.atan2(q.look[0] - q.pos[0], q.look[2] - q.pos[2]);
+      const pitch = (q: CamPose) =>
+        Math.atan2(q.pos[1] - q.look[1], Math.hypot(q.look[0] - q.pos[0], q.look[2] - q.pos[2])) *
+        (180 / Math.PI);
+      const dy = Math.abs(((yaw(b) - yaw(a) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
+      // (a raise turns about her, so an off-centre look point swings a little: count unraised only)
+      if (pitch(b) > pitch(a) + 0.5) raised++;
+      else if (dy > (0.5 * Math.PI) / 180) turned++;
+      expect(pitch(b)).toBeLessThanOrEqual(TRACK.maxPitchDeg + 0.5);
+      n++;
+    }
+    // the heading is the spec track's
+    expect(turned / n).toBeLessThanOrEqual(0.02);
+    // most of the trip is the full wide framing; where it is not, the camera rose round her
+    expect(wide / n).toBeGreaterThan(0.75);
     expect(raised).toBeGreaterThan(0);
   });
 
