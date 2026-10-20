@@ -10,6 +10,15 @@ BOARD.md         index of every task and its status; only the control session ed
 tasks/T-NNN-<slug>.md   one file per task: header, goal, acceptance, log
 ```
 
+## Fewer commits (Yunzhe, 20 Oct)
+
+`main` has 1,212 commits; 131 of the last 566 were board logs from our agents. Rules:
+1. **Board: one commit per round** (status + log lines together), at the round end. No "checkpoint", "start" or "idle" commits.
+2. **Code: one commit per finished, tested step.** Docs, README and audit notes ride in the same commit as the code they describe.
+3. **No evidence dumps in git** (probe JSON, live logs) unless the task asks for them; summarise in the task log.
+4. **Our PRs into `main` use "Squash and merge"**: one commit per PR. Control then resets davinci to `main`.
+5. Report to Yunzhe only at the end of a task, or when blocked.
+
 ## Talking to Yunzhe
 
 Every reply and log entry follows "How to talk to Yunzhe" in `docs/05-team/yunzhe-branch-workflow.md`: answer first, short, about 70% ASD-STE100, one recommended option with its reason, label what is not verified.
