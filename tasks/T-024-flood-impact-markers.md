@@ -16,3 +16,4 @@ Scenarios are **+1 m, +2 m and +3 m** above normal. +4 and +5 m are removed (ext
 
 ## Log
 - 2026-10-20 16:05 UTC · control · Created from Yunzhe's decision (A).
+- 2026-10-20 17:52 UTC · control · Backend done by cloud Codex in PR #17 (flooded_places, cut_off_places, flooded_path_m; +1/+2/+3 m only; disclaimer line). CI red on 9 agent tests (old +5 m wording, removed stages, simulate_event allowlist); the AI worker merges #17 and fixes them in its next PR.

@@ -17,3 +17,4 @@ Management: "What happens to residents as the river rises?", "Which facts should
 
 ## Log
 - 2026-10-20 16:05 UTC · control · Created.
+- 2026-10-20 17:52 UTC · control · Done by cloud AI worker, PR #18 merged into davinci (56950f8). `panel` field on chat requests (web sends the mode store value); management gets every tool and "I can't answer that from our data" instead of a refusal. STEP 0 key check PASS; live round 10 questions, about US$0.047. Note: the panel field is not authenticated, so anyone can ask management-style questions; the tools are read-only or file tickets, so the risk is low.

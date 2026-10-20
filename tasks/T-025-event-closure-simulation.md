@@ -21,3 +21,4 @@ One prepared event: "Elmina Marathon, Sun 7-11 am" on a named loop.
 
 ## Log
 - 2026-10-20 16:05 UTC · control · Created.
+- 2026-10-20 17:52 UTC · control · Backend done by cloud Codex in PR #17 (events.py, POST /events/simulate, POST /events, simulate_event tool). Lands together with the AI worker's next PR.
