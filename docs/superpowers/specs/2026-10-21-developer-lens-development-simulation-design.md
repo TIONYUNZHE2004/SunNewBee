@@ -20,6 +20,7 @@ This spec is written for a fresh Claude Code session that runs the build **overn
   4. ADR 0014;
   5. the GLOSSARY sections named above.
 - **The prototype is the acceptance baseline** for flow, camera, composition, overlays and copy. The product changes the art (§4.1) and must reach at least the prototype's quality.
+- **Execute from the plan:** [plans/2026-10-21-developer-lens-devsim.md](../plans/2026-10-21-developer-lens-devsim.md). It has the fine-grained tasks, the parallel lanes, file ownership and the merge points. Log to [overnight-log-devsim.md](../overnight-log-devsim.md), not the general `overnight-log.md`.
 - File paths below were checked on 21 Oct 2026. Verify an API before relying on it: teammates pushed changes to place scoping on the same day (`b1b47d77`, `2f7941aa`).
 
 ## 1. Goal and audience
@@ -294,6 +295,8 @@ Status per AC is recorded in the ledger as PASS / FAIL / BLOCKED / NOT RUN, with
 
 ## 12. Execution plan (overnight, unattended)
 
+> **Superseded in detail by the parallel plan** [plans/2026-10-21-developer-lens-devsim.md](../plans/2026-10-21-developer-lens-devsim.md). That plan has a T0 contract, then parallel lanes BE / AI / FE / 3D / ASSETS / QA, then merge points M1–M3 with Gate 1 and Gate 2. The phase table below is the sequential view of the same work, kept for budgeting. Progress goes to `docs/superpowers/overnight-log-devsim.md`.
+
 ### 12.1 Phases and time budget (about 20 h)
 
 | Phase | Budget | Output | Gate |
@@ -323,11 +326,11 @@ If a phase overruns by more than 50%, cut scope following §8's fallbacks, log a
 ### 12.4 Rulings and logs
 
 - **Rulings:** every decision this spec doesn't cover goes in the plan's ledger as "Ruling: what — why — cost if wrong".
-- **Progress log:** `docs/superpowers/overnight-log.md`, with real `date` timestamps at each phase start and end and at every gate result.
+- **Progress log:** `docs/superpowers/overnight-log-devsim.md`, with real `date` timestamps at each phase start and end and at every gate result.
 
 ### 12.5 Final report (morning)
 
-Put it at the end of `overnight-log.md` and also in the final message:
+Put it at the end of `overnight-log-devsim.md` and also in the final message:
 - the AC/Q table with PASS / FAIL / BLOCKED / NOT RUN and evidence links, marked mock-backed where it is;
 - the CI checklist results;
 - the computed facts (detour, park, mall) and the home and edge used;
