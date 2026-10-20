@@ -446,17 +446,28 @@ def test_sloppy_names_bind_to_the_named_place(question, args):
     [
         ("from sk taman to surau at takwa", {"from_id": _SK, "to_id": _MAHDI}),  # wrong place
         (
-            "from Surau Al Mahdi to klinik siti",
-            {"from_id": _MAHDI, "to_id": "osm-node-11949343474"},
-        ),
-        (
             "Dari Lakeside Mall Car Park B ke taman permainan",
             {"from_id": "park-b", "to_id": "osm-way-781364799"},
         ),
     ],
 )
 def test_wrong_ambiguous_or_generic_names_are_not_taken(question, args):
-    """A different place, two places called 'Klinik Siti' (ask which one), and the generic
-    'taman permainan' (playground near the start) never bind to the typed words."""
+    """A different place, and the generic 'taman permainan' (playground near the start), never
+    bind to the typed words."""
     with pytest.raises(_RSE):
         _guard(load_world(_SEED), question, args, strict=True)
+
+
+@pytest.mark.skipif(not (_SEED / "site.json").exists(), reason="Elmina seed not built")
+def test_two_places_with_one_name_make_the_guard_ask_which_one():
+    """T-022 rule 5 with a same-name twin (the cleanup removed the real second Klinik Siti)."""
+    from townshiplens_spatial.models import Place
+
+    world = load_world(_SEED)
+    one = next(p for p in world.places.values() if p.name == "Klinik Siti")
+    twin = Place(id="klinik-siti-2", type="clinic", name="Klinik Siti", coord=[101.474, 3.207])
+    twin.node_id = one.node_id
+    world.places[twin.id] = twin
+    args = {"from_id": _MAHDI, "to_id": one.id}
+    with pytest.raises(_RSE, match="Klinik Siti"):
+        _guard(world, "from Surau Al Mahdi to klinik siti", args, strict=True)

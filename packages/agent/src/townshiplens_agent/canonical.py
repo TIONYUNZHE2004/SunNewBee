@@ -160,6 +160,9 @@ def canonical_route_answer(
         caveats.append("Some segments are still unverified.")
     caveats += rest_caveats(route)
     caveats += [n for n in (route.get("crossing_note"), route.get("road_note")) if n]
+    # "not verified" is not a demo-safe phrase (only "not yet verified"/"unverified" are):
+    # the product's own words for an unchecked fact are "not checked yet".
+    caveats = [c.replace("access is not verified", "access is not checked yet") for c in caveats]
     caveats += closure_caveats([*rec.route_closures, *rec.asked_closures])
     caveats += inferred_caveats(rec.inferred_notes)
     caveats += [w for w in rec.route_warnings.get(rid, []) if not w.startswith(_COVERED)]

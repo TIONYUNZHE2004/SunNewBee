@@ -177,7 +177,8 @@ async def test_cli_record_uses_a_fresh_vr_store(tmp_path, monkeypatch, capsys):
     from townshiplens_agent import cli
 
     st = AgentSettings(_env_file=None, llm_provider="mock", demo_dir=tmp_path)
-    q = "Can I get to the lakeside mall with a stroller?"  # files requests on seed and tiny
+    # names its origin (PR #15: no silent demo origin); files requests on seed and tiny
+    q = "Can I get from Car Park B to the lakeside mall with a stroller?"
     for _ in range(2):
         await cli.main(q, "stroller", record=True, settings=st)
         (path,) = tmp_path.glob("*.jsonl")

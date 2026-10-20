@@ -59,7 +59,8 @@ async def test_journey_play_gets_the_server_built_plan(ctx):
     assert play.kind == "journey.play" and play.route_id == rid and play.start_time == "15:20"
     route = plan_route(ctx.world, "park-b", "kiosk", "older_adult_rest").routes[0]
     assert play.journey == build_journey(ctx.world, route, "older_adult_rest", "15:20")
-    assert [e.kind for e in play.journey.events] == ["verified", "rest", "gap", "arrive"]
+    # after the backend's rest-gap fallback (611c0f9) the route passes the ramp: 166.8 m
+    assert [e.kind for e in play.journey.events] == ["verified", "gap", "unknown", "rest", "arrive"]
 
 
 async def test_journey_play_needs_a_route_returned_this_turn_and_a_start_time(ctx, caplog):

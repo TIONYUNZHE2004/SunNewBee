@@ -76,9 +76,30 @@ def test_rank_prefers_the_name_that_starts_with_the_words(ctx):
 
 
 # 5. Decide: use / ask which one / did you mean
-def test_two_places_with_one_name_ask_which_one(ctx):
+def _second_klinik_siti(world):
+    """T-022 cleanup removed the second Klinik Siti (outside the township); the rule is still
+    tested with a same-name twin in a fresh world."""
+    from townshiplens_spatial.models import Place
+
+    one = next(p for p in world.places.values() if p.name == "Klinik Siti")
+    twin = Place(
+        id="klinik-siti-2", type="clinic", name="Klinik Siti", coord=[101.474078, 3.207046]
+    )
+    twin.node_id = one.node_id
+    world.places[twin.id] = twin
+    return one.id, twin.id
+
+
+def test_two_places_with_one_name_ask_which_one():
+    ctx = tools.Ctx(world=load_world(SEED), vrs=VerificationStore(":memory:"))
+    _second_klinik_siti(ctx.world)
     rows, d = find(ctx, "klinik siti")
     assert d == "ask" and [r["name"] for r in rows[:2]] == ["Klinik Siti", "Klinik Siti"]
+
+
+def test_one_klinik_siti_is_used(ctx):
+    rows, d = find(ctx, "klinik siti")
+    assert d == "use" and rows[0]["name"] == "Klinik Siti"
 
 
 def test_no_match_gives_did_you_mean(ctx):
