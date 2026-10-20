@@ -1,19 +1,31 @@
-{"meta": {"message": "Which routes to the lakeside mall are cut off if the water rises 3 m?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "world_fingerprint": "cc89ae4ef00f2ddda79e9f89171459b82f4b752432be268e1b3c73a82d00ea62", "model": "mock-scripted", "recorded_at": "2026-10-20T17:02:09+00:00"}}
+{"meta": {"message": "Which routes to the lakeside mall are cut off if the water rises 3 m?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "world_fingerprint": "ffc9c3e83a9bb1c520b1dba0be40ce82acfa94d09159914e74c8019e71315f80", "model": "mock-scripted", "recorded_at": "2026-10-20T18:10:24+00:00"}}
 {"type": "tool.call", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "args": {}}
 {"type": "tool.result", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "summary": "4 result(s)"}
 {"type": "tool.call", "id": "affected_places-1", "name": "affected_places", "args": {"scenario_id": "stage_p3m", "kind": "all", "profile": "default"}}
 {"type": "tool.result", "id": "affected_places-1", "name": "affected_places", "summary": "19 places and 1360 paths likely, 6 places and 464 paths possible"}
 {"type": "answer.draft", "attempt": 1, "delta": "In the River +3 m indicative scenario, 19 places and 1360 path segments are likely flooded, and 6 places and 464 path segments possibly."}
+{"type": "answer.draft", "attempt": 1, "delta": " About 141599 m of mapped paths are likely flooded."}
+{"type": "answer.draft", "attempt": 1, "delta": " Likely flooded (indicative): Seating (unnamed, OSM), Waste Basket (unnamed, OSM), Shelter (unnamed, OSM) and 5 more."}
+{"type": "answer.draft", "attempt": 1, "delta": " Cut off, no mapped way in or out (indicative): Urban Park bench 3, Waste Basket (unnamed, OSM), Shelter (unnamed, OSM) and 5 more."}
 {"type": "answer.draft", "attempt": 1, "delta": " This is not a forecast; follow official MBSA / JPS / NADMA guidance."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "In the River +3 m indicative scenario, 1"}
 {"type": "text.delta", "delta": "9 places and 1360 path segments are like"}
 {"type": "text.delta", "delta": "ly flooded, and 6 places and 464 path se"}
-{"type": "text.delta", "delta": "gments possibly. This is not a forecast;"}
-{"type": "text.delta", "delta": " follow official MBSA / JPS / NADMA guid"}
-{"type": "text.delta", "delta": "ance."}
+{"type": "text.delta", "delta": "gments possibly. About 141599 m of mappe"}
+{"type": "text.delta", "delta": "d paths are likely flooded. Likely flood"}
+{"type": "text.delta", "delta": "ed (indicative): Seating (unnamed, OSM),"}
+{"type": "text.delta", "delta": " Waste Basket (unnamed, OSM), Shelter (u"}
+{"type": "text.delta", "delta": "nnamed, OSM) and 5 more. Cut off, no map"}
+{"type": "text.delta", "delta": "ped way in or out (indicative): Urban Pa"}
+{"type": "text.delta", "delta": "rk bench 3, Waste Basket (unnamed, OSM),"}
+{"type": "text.delta", "delta": " Shelter (unnamed, OSM) and 5 more. This"}
+{"type": "text.delta", "delta": " is not a forecast; follow official MBSA"}
+{"type": "text.delta", "delta": " / JPS / NADMA guidance.\nWorth knowing:\n"}
+{"type": "text.delta", "delta": "• Flash floods from heavy rain are not s"}
+{"type": "text.delta", "delta": "hown."}
 {"type": "scene.intent", "intent": {"kind": "flood.set_level", "place_id": null, "route_id": null, "scenario_id": "stage_p3m", "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null, "route_status": null, "distance_m": null, "est_minutes": null, "day": null, "t_min": null, "start_time": null, "journey": null}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-scn-stage_p3m", "element_id": "stage_p3m", "attribute": "scenario", "status": "indicative", "verified_at": null, "source_type": "REM scenario (indicative)", "photo_url": null}
-{"type": "uncertainty", "level": "none", "items": []}
+{"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Flash floods from heavy rain are not shown"}]}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not. Flash floods from heavy rain are not shown.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
 {"type": "done", "message_id": "demo", "answer_status": "answered", "model": "mock-scripted"}

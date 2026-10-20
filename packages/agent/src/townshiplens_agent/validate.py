@@ -628,6 +628,7 @@ def draft_errors(text: str, rec: TurnRecord) -> list[str]:
         *day_errors(ans, rec),
         *day_change_errors(ans, rec),
         *affected_errors(ans, rec),
+        *flood_impact_errors(ans, rec),
         *journey_errors(ans, rec),
     ]
 
@@ -804,6 +805,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += day_change_errors(ans, rec)
     errs += my_trip_errors(ans, rec)
     errs += affected_errors(ans, rec)
+    errs += flood_impact_errors(ans, rec)
     errs += measurement_errors(ans, rec)
     errs += journey_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
@@ -1461,6 +1463,51 @@ def affected_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     return []
 
 
+_CUT_OFF_WORDS = re.compile(
+    r"cut off|no mapped way (?:in|out)|terputus|被切断|切断|无法进出", re.IGNORECASE
+)
+_FLOODED_WORDS = re.compile(r"flooded|dinaiki air|banjir|被淹|淹没", re.IGNORECASE)
+_NOT_CLAIMED = re.compile(r"\bnot\b|n't\b|\btidak\b|\bbukan\b|未被|没有被|不会", re.IGNORECASE)
+
+
+def flood_impact_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """T-024: a place called flooded or cut off must be one affected_places returned as such
+    (flooded_places, the possible list, cut_off_places) or a flooded route endpoint."""
+    if not rec.affected or ans.answer_status == "cannot_answer":
+        return []
+    flooded = {
+        n for a in rec.affected for k in ("flooded", "possible") for n in a.get(k, {}).values()
+    }
+    flooded |= {e.get("name") or "" for e in rec.flooded_endpoints.values()}
+    cut_off = {n for a in rec.affected for n in a.get("cut_off", {}).values()}
+    names = sorted(
+        {n for p in rec.place_entities.values() for n in [p["name"], *p["aliases"]] if len(n) >= 4},
+        key=len,
+        reverse=True,
+    )
+    low_allowed = {"flooded": {n.lower() for n in flooded}, "cut": {n.lower() for n in cut_off}}
+    bad: list[str] = []
+    for sent in _sentences(" ".join([ans.summary, *ans.caveats])):
+        cut, flood = bool(_CUT_OFF_WORDS.search(sent)), bool(_FLOODED_WORDS.search(sent))
+        if not (cut or flood) or _NOT_CLAIMED.search(sent):
+            continue
+        rest, said = sent.lower(), []
+        for n in names:
+            if n.lower() in rest:
+                said.append(n)
+                rest = rest.replace(n.lower(), " ")
+        allowed = (low_allowed["cut"] if cut else set()) | (
+            low_allowed["flooded"] if flood else set()
+        )
+        bad += [n for n in said if n.lower() not in allowed]
+    if bad:
+        return [
+            f"{', '.join(dict.fromkeys(bad))}: affected_places did not return these as flooded or "
+            "cut off in this scenario. Name only places from flooded_places / cut_off_places."
+        ]
+    return []
+
+
 def _plan_numbers(rec: TurnRecord) -> set[int]:
     out: set[int] = set()
     for p in rec.plans:
@@ -1876,6 +1923,7 @@ _ISSUES = (
     ("do not appear in the what-if result", "used numbers the simulation did not produce"),
     ("do not appear in the simulation result", "used numbers the simulation did not produce"),
     ("are not place counts", "counted path segments as places"),
+    ("did not return these as flooded or cut off", "called a place flooded or cut off wrongly"),
     ("must be called a rehearsal", "did not say it is a rehearsal of synthetic residents"),
     ("A rehearsal must say it is not a forecast", "did not say the rehearsal is not a forecast"),
     ("do not appear in the rehearsal", "used numbers the rehearsal did not produce"),

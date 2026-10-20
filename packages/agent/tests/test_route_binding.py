@@ -190,8 +190,10 @@ def test_active_flood_cannot_be_overridden_by_a_model_baseline():
         == "baseline"
     )
     assert (
-        effective_scenario("If the river rises 5 m", world, "stage_p3m", "stage_p5m") == "stage_p5m"
+        effective_scenario("If the river rises 2 m", world, "stage_p3m", "stage_p2m") == "stage_p2m"
     )
+    with pytest.raises(RouteSelectionError, match="No scenario exists"):  # T-024: +1..+3 m only
+        effective_scenario("If the river rises 5 m", world, "stage_p3m", "stage_p3m")
 
 
 def test_negated_driving_does_not_override_selected_wheelchair_mode():

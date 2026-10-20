@@ -677,7 +677,7 @@
           "scenario_id": {
             "anyOf": [
               {
-                "pattern": "^(baseline|stage_p[1-5]m)$",
+                "pattern": "^(baseline|stage_p[1-3]m)$",
                 "type": "string"
               },
               {

@@ -1,4 +1,4 @@
-{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "cc89ae4ef00f2ddda79e9f89171459b82f4b752432be268e1b3c73a82d00ea62", "model": "mock-scripted", "recorded_at": "2026-10-20T17:01:10+00:00"}}
+{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "ffc9c3e83a9bb1c520b1dba0be40ce82acfa94d09159914e74c8019e71315f80", "model": "mock-scripted", "recorded_at": "2026-10-20T18:09:14+00:00"}}
 {"type": "answer.draft", "attempt": 1, "delta": "Please name your starting place before I select an evacuation route."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Please name your starting place before I"}

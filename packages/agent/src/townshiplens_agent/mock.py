@@ -263,6 +263,14 @@ def _ui(info: AgentInfo, key: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _few(rows, n: int = 3) -> str:
+    """ "A, B, C and 4 more" from marker rows, distinct names in tool order."""
+    names = list(dict.fromkeys(r["name"] for r in rows or [] if r.get("name")))
+    more = len(rows or []) - len([r for r in rows or [] if r.get("name") in names[:n]])
+    shown = ", ".join(names[:n])
+    return f"{shown} and {more} more" if more > 0 and shown else shown
+
+
 def _no_answer(info: AgentInfo) -> str:
     """No tool answers the question: the management panel's words (T-023), else the resident's."""
     if _ui(info, "panel") == "management":
@@ -656,8 +664,8 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     sid = ui_sid or "stage_p3m"
     if m := re.search(r"(\d+(?:\.\d+)?)\s*m\b", q) if is_flood else None:
         metres = float(m.group(1))
-        if metres != int(metres) or not 1 <= metres <= 5:
-            return _cannot("Scenarios exist for river levels +1 m to +5 m only.")
+        if metres != int(metres) or not 1 <= metres <= 3:  # T-024: +1/+2/+3 m only
+            return _cannot("Scenarios exist for river levels +1 m to +3 m only.")
         sid = f"stage_p{int(metres)}m"
     level = f"River +{sid.removeprefix('stage_p').removesuffix('m')} m"
     scn = {"scenario_id": sid}
@@ -688,11 +696,19 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         ev = [i for i in _ev_ids(rets) if i == f"ev-scn-{sid}"]
         if not ev:
             return _cannot()
+        # T-024: the marker lists, by name, and the metres of likely flooded paths
+        named = ""
+        if (metres := a.get("flooded_path_m")) is not None:
+            named += f" About {round(metres)} m of mapped paths are likely flooded."
+        if flooded := _few(a.get("flooded_places")):
+            named += f" Likely flooded (indicative): {flooded}."
+        if cut := _few(a.get("cut_off_places")):
+            named += f" Cut off, no mapped way in or out (indicative): {cut}."
         return _final(
             answer_status="answered",
             summary=(
                 f"In the {level} indicative scenario, {likely} are likely flooded, "
-                f"and {possible} possibly. {_FLOOD_NOTE}"
+                f"and {possible} possibly.{named} {_FLOOD_NOTE}"
             ),
             claims=[{"text": f"Scenario {level}", "status": "indicative", "evidence_ids": ev}],
             scenario_id=sid,

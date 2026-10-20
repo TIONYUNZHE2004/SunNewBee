@@ -150,6 +150,27 @@ OUTSIDE_NOTE = {
 }
 
 
+# T-024: every river-rise answer says what the scenarios leave out (added after the check).
+FLASH_FLOOD_NOTE = {
+    "en": "Flash floods from heavy rain are not shown.",
+    "ms": "Banjir kilat akibat hujan lebat tidak ditunjukkan.",
+    "zh": "未显示暴雨引起的突发洪水。",
+}
+_FLASH_SAID = re.compile(r"flash flood|banjir kilat|突发洪水", re.IGNORECASE)
+
+
+def flash_flood_note(ans: FinalAnswer, rec: TurnRecord, lang: str = "en") -> str | None:
+    """The flash-flood line for an answer that used a river stage, unless it already says so
+    (a question back to the resident, cannot_answer, states no flood facts)."""
+    if ans.answer_status == "cannot_answer" or not any(
+        s.startswith("stage_") for s in rec.scenarios_used | {ans.scenario_id or ""}
+    ):
+        return None
+    if _FLASH_SAID.search(" ".join([ans.summary, *ans.caveats])):
+        return None
+    return FLASH_FLOOD_NOTE.get(lang, FLASH_FLOOD_NOTE["en"])
+
+
 def outside_note(ans: FinalAnswer, rec: TurnRecord, world, lang: str = "en") -> str | None:
     """The caveat when the answered route (else every route this turn) or a cited place lies
     outside the access deep spot; None inside it, or when the world defines no such spot."""
@@ -282,6 +303,8 @@ def _answer_events(
     ]
     if missing:
         ans = ans.model_copy(update={"caveats": [*ans.caveats, *missing]})
+    if note := flash_flood_note(ans, rec, lang):
+        ans = ans.model_copy(update={"caveats": [*ans.caveats, note]})
     if note := outside_note(ans, rec, ctx.world, lang):
         ans = ans.model_copy(update={"caveats": [*ans.caveats, note]})
     text = answer_text(ans, _route_status_line(ans, rec, lang), rec, lang)
@@ -648,7 +671,7 @@ async def run_turn(
     rec = record or TurnRecord()
     rec.strict_selection = True
     rec.context_route = memory.route_context(req.session_id)
-    # Stages the resident named, and the stages the world has scenarios for ("+1 m to +5 m").
+    # Stages the resident named, and the stages the world has scenarios for ("+1 m to +3 m").
     rec.asked_stages = {f.value for f in extract_facts(question) if f.kind == "stage"} | {
         float(s.stage_m) for s in ctx.world.flood.scenarios if s.stage_m is not None
     }
