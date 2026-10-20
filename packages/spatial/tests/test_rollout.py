@@ -48,7 +48,7 @@ def test_tipping_point_for_one_journey(world):
     t = rollout.tipping_point(world, "park-b", "default", to_id="playground")
     assert (t.stages[0].stage, t.stages[0].status) == ("baseline", "confirmed")
     # at +3 m the playground itself is likely flooded: a flooded destination is blocked (T-016)
-    p3 = t.stages[2]
+    p3 = next(stage for stage in t.stages if stage.stage == "stage_p3m")
     assert (p3.stage, p3.status, p3.end_flood) == ("stage_p3m", "blocked", "likely_flooded")
     assert t.reached_at_normal and t.breaks_at == "stage_p3m"
     assert t.labels["stage_p3m"] == "River +3 m"

@@ -277,8 +277,6 @@ Drainage covers 1,508 cells (1.3% of the window).
 | stage_p1m | 71 | 3.24 | 445 | 345 | 15 |
 | stage_p2m | 129 | 6.15 | 790 | 563 | 18 |
 | stage_p3m | 140 | 10.25 | 1,353 | 396 | 23 |
-| stage_p4m | 152 | 14.95 | 1,749 | 719 | 29 |
-| stage_p5m | 133 | 19.06 | 2,468 | 567 | 35 |
 
 `flood/*.geojson` total 0.5 MB. Edge and place classes are monotonic (checked), and the water nests.
 
@@ -462,3 +460,11 @@ pipeline preserves these tags through the demo overlay.
 compares legacy factual counts against the new map-derived levels. It uses no network or
 model calls. The stored report compares identical geometry and claims, removing raw tags
 only for the legacy evaluator. See `packages/spatial/README.md` for the rule contract.
+
+### T-024 scenario selection
+
+The served bundle contains baseline and river +1/+2/+3 m only. +4/+5 m water files and
+class tables were removed; retained +1/+2/+3 m classes and polygons were not rebuilt.
+The builder defaults to these three stages on future runs. Every current scenario
+disclaimer says “Flash floods from heavy rain are not shown.” Earlier measurements
+above describe historical builds.

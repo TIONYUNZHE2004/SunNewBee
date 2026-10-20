@@ -176,7 +176,7 @@ def test_tiny_engine_and_tool_share_maneuvers(world, tmp_path):
 
 def test_no_data_and_flood_blocked_routes_cannot_emit_steps(world):
     assert plan_route(world, "park-b", "island-hut", "stroller").routes == []
-    assert plan_route(world, "park-b", "playground", "stroller", "stage_p5m").routes == []
+    assert plan_route(world, "park-b", "playground", "stroller", "stage_p3m").routes == []
 
 
 def test_same_node_route_only_arrives(world):

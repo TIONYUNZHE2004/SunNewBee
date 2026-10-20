@@ -107,7 +107,7 @@ def test_river_stage_only_adds_fail_or_unknown(world):
         for t in ("kiosk", "playground", "toilet-1", "lakeside-mall")
         for p in ("default", "stroller", "wheelchair")
     ]
-    for sid in ("stage_p1m", "stage_p3m", "stage_p5m"):
+    for sid in ("stage_p1m", "stage_p2m", "stage_p3m"):
         res = twm.compare(world, [twm.SetRiverStage(scenario_id=sid)], journeys)
         for j in res.journeys:
             assert rank[j.after.status] >= rank[j.before.status], (sid, j.journey)
@@ -146,7 +146,7 @@ def test_evacuation_scope_reaches_the_nearest_centre_and_stage_never_helps(world
     assert journeys and all(j.to_id == twm.NEAREST_CENTRE for j in journeys)
     base = twm.compare(world, [], journeys)
     assert all(o.before.target_name for o in base.journeys if o.before.status != "no_data")
-    flood = twm.compare(world, [twm.SetRiverStage(scenario_id="stage_p5m")], journeys)
+    flood = twm.compare(world, [twm.SetRiverStage(scenario_id="stage_p3m")], journeys)
     rank = {"confirmed": 0, "partly_unverified": 1, "blocked": 2, "no_data": 2}
     for o in flood.journeys:
         assert rank[o.after.status] >= rank[o.before.status]

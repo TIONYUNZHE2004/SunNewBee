@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import networkx as nx
 
-from .models import AffectedResult, CentreReachability, Scenario
+from .models import AffectedResult, CentreReachability, FloodPlace, Scenario
 from .routing import (
     CENTRE_PREFIX,
     _caveat,
@@ -77,6 +77,47 @@ def _centre_connected(g: nx.Graph, centre_nodes: set[str]) -> set[str]:
         if comp & centre_nodes:
             out |= comp
     return out
+
+
+def place_marker(place) -> FloodPlace:
+    return FloodPlace(id=place.id, name=place.name, type=place.type, lonlat=place.coord)
+
+
+def cut_off_places(
+    world: World, profile_id: str, scenario_id: str | None = None
+) -> list[FloodPlace]:
+    """Mapped places with no non-FAIL way to any available centre; UNKNOWN stays usable.
+
+    Reverse the routing weight, including vehicle direction, to find all origins in one
+    search. Missing entrances/road snaps are data gaps, not proof of isolation. Unlike the
+    older flood-island field this also includes mapped components isolated at baseline.
+    """
+    profile = world.profiles[profile_id]
+    roads = _road_nodes(world, profile) if profile.allowed_types is not None else None
+    centres = {
+        node
+        for c in world.centres.values()
+        if centre_closure(world, c) is None
+        and endpoint_flood(world, f"{CENTRE_PREFIX}{c.id}", profile, scenario_id)[0] != "FAIL"
+        for node in _targets(world, f"{CENTRE_PREFIX}{c.id}", profile, road_nodes=roads)
+    }
+    weight = make_weight(world, profile, scenario_id, True)
+    connected = (
+        nx.multi_source_dijkstra_path_length(
+            world.graph, centres, weight=lambda u, v, data: weight(v, u, data)
+        )
+        if centres
+        else {}
+    )
+    flooded = world.flood.place_classes.get(scenario_id, {})
+    return [
+        place_marker(p)
+        for p in sorted(world.places.values(), key=lambda p: p.id)
+        if not p.id.startswith("__")
+        and flooded.get(p.id) != "likely_flooded"
+        and (targets := _targets(world, p.id, profile, road_nodes=roads))
+        and not any(node in connected for node in targets)
+    ]
 
 
 def affected(
@@ -158,6 +199,20 @@ def affected(
         possible_place_ids=pp,
         likely_edge_ids=le,
         possible_edge_ids=pe,
+        flooded_places=[
+            place_marker(world.places[pid])
+            for pid in sorted(pc)
+            if pc[pid] == "likely_flooded" and pid in world.places
+        ],
+        cut_off_places=cut_off_places(world, profile_id, scenario_id),
+        flooded_path_m=round(
+            sum(
+                world.edges[eid].length_m
+                for eid in ec
+                if ec[eid] == "likely_flooded" and eid in world.edges
+            ),
+            3,
+        ),
         warnings=warnings,
     )
 
