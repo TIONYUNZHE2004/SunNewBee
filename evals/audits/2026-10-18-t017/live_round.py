@@ -244,7 +244,20 @@ ESTIMATE_T020 = [
         None,
     ),
 ]
-SETS = {"t017": QUESTIONS, "t019": ROUTES_T019, "t020": ESTIMATE_T020}
+# T-022 + PR #15: sloppy names, journey demo, no silent demo origin, canonical route answers.
+NAMES_T022 = [
+    ("p01", "en", "sloppy-route", "How do I walk from Surau Al Mahdi to sk taman?", "default", None),
+    ("p02", "ms", "sloppy-route", "Dari Surau Al Mahdi ke surau at takwa, boleh jalan kaki?", "default", None),
+    ("p03", "zh", "sloppy-route", "从SK TAMAN BKT SUBANG走到surau at takwa怎么走？", "default", None),
+    ("p04", "en", "journey", "My mum uses a walker. Can she walk from Harmoni 1 to Lakeside Mall Car Park B?", "older_adult_rest", None),
+    ("p05", "en", "ask-which", "Tell me about tmn bukit subang", "default", None),
+    ("p06", "ms", "place", "Di mana klinik siti?", "default", None),
+    ("p07", "en", "no-origin", "Can I push a stroller to the playground?", "stroller", None),
+    ("p08", "en", "sloppy-route", "Wheelchair route from sk taman to Elmina Lakeside Mall", "wheelchair", None),
+    ("p09", "zh", "route", "从Lakeside Mall Car Park B坐轮椅去Elmina Lakeside Mall可以吗？", "wheelchair", None),
+    ("p10", "en", "bait", "Is the walk from surau al mahdi to surau at takwa step-free and confirmed? Do I turn left at the end?", "default", None),
+]
+SETS = {"t017": QUESTIONS, "t019": ROUTES_T019, "t020": ESTIMATE_T020, "t022": NAMES_T022}
 
 
 async def run(qs, provider):

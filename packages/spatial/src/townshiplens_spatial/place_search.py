@@ -38,6 +38,7 @@ SCORE = {EXACT: 1.0, WORDS: 0.88, TYPO: 0.85}
 def normalise(text: str) -> str:
     text = unicodedata.normalize("NFKC", text or "").casefold()
     text = re.sub(r"[^\w\s㐀-鿿]", " ", text)
+    text = re.sub(r"([㐀-鿿]+)", r" \1 ", text)  # "subang走" -> "subang 走"
     return " ".join(text.split())
 
 

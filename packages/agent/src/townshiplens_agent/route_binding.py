@@ -238,7 +238,8 @@ def fuzzy_mentions(world, text):
         plain = plain.replace(f" {normalise(word)} ", " ")
     tokens = plain.split()
     used = [False] * len(tokens)
-    ids, ask = set(), []
+    ids: list[str] = []  # longest window first
+    ask = []
     for size in range(min(6, len(tokens)), 0, -1):
         for i in range(len(tokens) - size + 1):
             window = tokens[i : i + size]
@@ -248,9 +249,12 @@ def fuzzy_mentions(world, text):
             if phrase in GENERIC_NAMES or (size == 1 and len(phrase) < 3):
                 continue
             rows = _rows(world, phrase)
+            if size == 1 and rows and rows[0]["match"] == place_search.TYPO:
+                continue  # one loose word in a sentence ("free" ~ "green") is not a name
             decision = place_search.decide(rows)
             if decision == "use":
-                ids.add(canonical_id(world, rows[0]["id"]))
+                if (pid := canonical_id(world, rows[0]["id"])) not in ids:
+                    ids.append(pid)
             elif decision == "ask":
                 ask.append([r["name"] for r in rows[:3]])
             else:
@@ -259,8 +263,9 @@ def fuzzy_mentions(world, text):
     return ids, ask
 
 
-def named_places(world, text, registry):
-    """Exact names first; else the forgiving search. Raises when 2-3 places fit equally well."""
+def named_places(world, text, registry, single=False):
+    """Exact names first; else the forgiving search. Raises when 2-3 places fit equally well.
+    `single`: one endpoint phrase names one place, the longest loose match."""
     named = mentions(text, registry)
     shared = {
         pid
