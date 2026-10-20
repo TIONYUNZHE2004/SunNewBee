@@ -28,10 +28,15 @@ The 3D map draws buildings within 3.5 km of the centre (`site.json` buildings.ra
 2. Fix the 6 wrong types and drop the toll plaza; merge the node + area duplicates listed above (same name, under 150 m).
 3. Re-record the demo cache with the mock. Check that place ids used in tests and golden still exist; if a test place is now outside, tell control.
 
-**AI engineer (names):**
-1. A partial name that starts exactly one place name is that place: "SK Taman" → "SK Taman Bukit Subang". If several places start with it, ask "Which one: A or B?" and do not refuse.
-2. Bug: `route_binding.entities()` strips "Surau " and adds "SK Taman Bukit Subang" as an alias of "Surau SK Taman Bukit Subang", which collides with the school's own name. Never add an alias that equals another place's name.
-3. Tests for both, in EN/BM.
+**AI engineer (names): "type it sloppy, still found" (Yunzhe, 20 Oct).** People do not type exact names; Google says 1 in 10 search queries is misspelled. Simple version of what search engines do, in `find_place` + route binding:
+
+1. **Normalise:** lowercase, drop punctuation, collapse spaces. Expand a short list of Malaysian short forms both ways: sk = sekolah kebangsaan, smk = sekolah menengah kebangsaan, sjk, sra, tmn = taman, jln = jalan, kg = kampung, sek = sekolah.
+2. **Word prefixes, any order** (typeahead style): every typed word is the start of some word in the name. "sk tam" and "bukit subang sk" both match "SK Taman Bukit Subang".
+3. **Small typos** (Algolia defaults): 1 wrong letter in a word of 4+ letters, 2 in 8+. "surau at takwa" matches "Surau At Taqwa".
+4. **Rank:** exact > all words match > match with typos. Ties: name starts with the typed words; inside City of Elmina (like Google's location bias); shorter name.
+5. **Decide:** one clear winner → use it, and the answer names it ("I took 'SK Taman' as SK Taman Bukit Subang"). 2–3 close → ask "Which one: A or B?". None → "I can't find that place. Did you mean X?". Never refuse because of wording, never use a place without naming it.
+6. Bug: never add a derived alias that equals another place's name ("Surau SK Taman Bukit Subang" → alias "SK Taman Bukit Subang" collides with the school).
+7. Tests, one per rule, EN and BM, including: "sk taman", "SK TAMAN BKT SUBANG", "tmn bukit subang", "surau at takwa", "klinik siti" (2 places → asks which one).
 
 ## Log
 
