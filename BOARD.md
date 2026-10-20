@@ -31,6 +31,7 @@ The resident assistant covers **access** (routes, places, amenities, closures, t
 | [T-019](tasks/T-019-answer-path-wording.md) | Audit route answers against the path data; fix overclaiming wording | assigned | P1 | Local AI engineer |
 | [T-020](tasks/T-020-estimated-tier.md) | Replace "all yellow" with an honest "Likely OK (estimated)" level | assigned | P1 | Both local engineers |
 | [T-021](tasks/T-021-turn-by-turn-navigation.md) | Turn-by-turn route steps, like Waze (after the six P1 audit fixes) | assigned | P1 | Both local engineers |
+| [T-022](tasks/T-022-place-data-cleanup.md) | Clean place data: township scope, types, duplicates, prison surau as evacuation candidate | assigned | P1 | Local backend engineer |
 
 
 ## Audit P1 fixes (control, 19 Oct 16:30 UTC)
