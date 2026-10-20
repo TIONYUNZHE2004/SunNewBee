@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { Tier } from "../../shared/quality";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { MoodMix } from "./agents";
-import type { MotionLayer } from "./motionLayer";
+import type { FlowSamples, MotionFlow, MotionLayer } from "./motionLayer";
 
 /**
  * The 30 fps cadence: the P3 rate, and since P4 the fallback when display-rate motion is too slow
@@ -160,6 +160,9 @@ export function decorativeOpacity(prev: number, target: 0 | 1, dtMs: number): nu
 /** The agent layer plus the mood-driven density hook the driver needs. */
 export interface AgentLayer extends MotionLayer {
   setDensity(w: MoodMix): void;
+  /** The devsim flow (`motionLayer.ts` MotionFlow); optional so older doubles need not provide it. */
+  setFlow?(f: MotionFlow | null): void;
+  samples?(): FlowSamples;
 }
 
 /**
@@ -178,6 +181,13 @@ export interface MotionDriver extends MotionLayer {
   setAgents(l: AgentLayer | null): void;
   /** Motion stopped: static pose (no flicker), a running fade snaps to its target. The caller then asks for one final render. */
   rest(): void;
+  /**
+   * The devsim fast-forward flow (spec §7) for the current and every later agent layer; null
+   * restores the mood density and the plain clock.
+   */
+  setFlow(f: MotionFlow | null): void;
+  /** The agent layer's last drawn positions (devsim probe), or null without a layer. */
+  samples(): FlowSamples | null;
 }
 
 export function createMotionDriver(opts: {
@@ -193,6 +203,7 @@ export function createMotionDriver(opts: {
   let target: 0 | 1 = 1;
   let weights: MoodMix = { day: 1, dusk: 0, night: 0 };
   let last: number | null = null;
+  let flow: MotionFlow | null = null;
 
   const flicker = () => {
     opts.role.uFlicker.value = opts.running() && weights.night > FLICKER_NIGHT ? 1 : 0;
@@ -245,10 +256,16 @@ export function createMotionDriver(opts: {
       agents = l;
       if (l) {
         l.setDensity(weights);
+        l.setFlow?.(flow);
         l.setOpacity(opacity);
         group.add(l.group);
       }
     },
+    setFlow(f) {
+      flow = f;
+      agents?.setFlow?.(f);
+    },
+    samples: () => agents?.samples?.() ?? null,
     rest() {
       opts.role.uFlicker.value = 0;
       if (opacity !== target) show(target);

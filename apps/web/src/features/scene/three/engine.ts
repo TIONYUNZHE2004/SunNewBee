@@ -98,6 +98,22 @@ export interface JourneyOverlay {
   dispose(): void;
 }
 
+/**
+ * The developer-lens Development Simulation layer as the engine sees it
+ * (`scene/three/devsim/devsimLayer.ts`): its group joins the main scene, and `beforeRender` runs
+ * every frame once the camera is final (driver, rig, clearance), just before the render, so its
+ * objects and its projected screen anchors match the drawn frame. Decorative.
+ */
+export interface DevsimOverlay {
+  group: THREE.Object3D;
+  beforeRender(
+    camera: THREE.PerspectiveCamera,
+    size: readonly [number, number],
+    nowMs: number,
+  ): void;
+  dispose(): void;
+}
+
 export interface Engine {
   readonly frames: number;
   /**
@@ -223,6 +239,11 @@ export interface Engine {
    * removes it.
    */
   setJourney(j: JourneyOverlay | null): void;
+  /**
+   * The Development Simulation layer (see `DevsimOverlay`); replaces and disposes the previous one;
+   * null removes it. Optional so test doubles need not provide it.
+   */
+  setDevsim?(l: DevsimOverlay | null): void;
   setLighting(p: LightPreset, keyDir: [number, number, number]): void;
   /** Camera range in metres: fog distances scale with it so the township view is never fogged out. */
   setFogRange(rangeM: number): void;
@@ -678,7 +699,16 @@ function build(
     renderer.render(journey.markers, camera);
     renderer.autoClear = autoClear;
   };
+  /** The Development Simulation layer (main scene), see setDevsim. */
+  let devsim: DevsimOverlay | null = null;
+  const dropDevsim = () => {
+    if (!devsim) return;
+    scene.remove(devsim.group);
+    devsim.dispose();
+    devsim = null;
+  };
   undo.push(() => {
+    dropDevsim();
     pendingOverlays?.dispose();
     pendingOverlays = null;
     pendingJourney?.dispose();
@@ -1600,6 +1630,7 @@ function build(
         (2 * dist * Math.tan((camera.fov * RAD) / 2)) / Math.max(1, size[1]),
       );
     }
+    devsim?.beforeRender(camera, size, now);
     aimBokeh();
     const tRender = performance.now();
     // The scene pass always draws into the same target (ITER2 AC-D18). The composer ping-pongs its
@@ -2010,6 +2041,21 @@ function build(
         // the markers draw in their own scene (no fog, no lights), straight to the canvas
         compileRoot(j.markers, null, false, j.markers),
       ]).then(attach, attach);
+    },
+    setDevsim(l) {
+      if (disposed) {
+        l?.dispose();
+        return;
+      }
+      if (l === devsim) return;
+      dropDevsim();
+      if (l) {
+        runPatches(l.group);
+        devsim = l;
+        scene.add(l.group);
+        swapped = true;
+      }
+      requestRender();
     },
     setDecorClock(c) {
       if (disposed) return;
