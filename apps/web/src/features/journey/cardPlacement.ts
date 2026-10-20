@@ -169,3 +169,206 @@ function keepClearOf(
   }
   return fallback ?? { left, top, scale: 1 };
 }
+
+/** Half the active marker sprite's box (CSS px, ~65 px tall at 900 px) the card keeps clear of. */
+export const MARKER_KEEP_CLEAR_PX = 34;
+
+/**
+ * The viewport with the hero's screen box and the event marker (around its anchor) as rectangles
+ * the card keeps clear of: the card never covers the marker it explains (gate AC-D11: moved off
+ * her body, the card had landed on the marker).
+ */
+export function cardViewportWith(
+  viewport: CardViewport,
+  hero: Rect | null | undefined,
+  anchor: { x: number; y: number } | null = null,
+): CardViewport {
+  const extra: Rect[] = [];
+  if (hero) extra.push(hero);
+  if (anchor) {
+    const r = MARKER_KEEP_CLEAR_PX;
+    extra.push({ x: anchor.x - r, y: anchor.y - r, w: 2 * r, h: 2 * r });
+  }
+  return extra.length
+    ? { ...viewport, keepClear: [...(viewport.keepClear ?? []), ...extra] }
+    : viewport;
+}
+
+/** One coordinate of a locked spot: an offset from the anchor, or a side of a blocker rectangle. */
+type Ref = { k: "anchor"; d: number } | { k: "lo" | "hi"; i: number; gap: number };
+
+/**
+ * A hold's card spot as a rule (iteration 2: the card switched sides of her within a hold in one
+ * frame, 150-190 px, which read as the picture shaking): which way of the anchor or of which
+ * blocker (her body, the marker, the mini-map) the card sits, at what scale, under the top band or
+ * not. Chosen once per hold from the hold's own geometry (`placementLock`); every frame evaluates
+ * it on the live geometry (`placeCardLocked`), so the card glides with her and the marker instead
+ * of re-deciding its side.
+ */
+export interface PlacementLock {
+  x: Ref;
+  y: Ref;
+  scale: number;
+  band: boolean;
+  side: CardPlacement["side"];
+  /** Blockers (keepClear + avoid) the rule was made with: a different set voids the rule. */
+  n: number;
+}
+
+const blockersOf = (viewport: CardViewport) => [
+  ...(viewport.keepClear ?? []),
+  ...(viewport.avoid ?? []),
+];
+
+/**
+ * The rule that reproduces `placeCard`'s spot for this geometry (see `PlacementLock`), or null
+ * without an anchor. Blocker sides are preferred over an anchor offset, so a card set beside her
+ * stays beside her.
+ */
+export function placementLock(
+  anchor: { x: number; y: number } | null,
+  card: { w: number; h: number },
+  viewport: CardViewport,
+  margin = 12,
+): PlacementLock | null {
+  if (!anchor || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) return null;
+  const p = placeCard(anchor, card, viewport, margin);
+  const scale = p.scale ?? 1;
+  const w = card.w * scale;
+  const h = card.h * scale;
+  const b = boundsFor({ w, h }, viewport, margin);
+  const blockers = blockersOf(viewport);
+  const pick = (v: number, axis: "x" | "y"): Ref => {
+    const gaps = [KEEP_CLEAR_GAP_PX, axis === "x" ? b.mx : b.my];
+    for (let i = 0; i < blockers.length; i++) {
+      const r = blockers[i] as Rect;
+      for (const gap of gaps) {
+        const lo = axis === "x" ? r.x - w - gap : r.y - h - gap;
+        const hi = axis === "x" ? r.x + r.w + gap : r.y + r.h + gap;
+        if (Math.abs(v - lo) < 0.5) return { k: "lo", i, gap };
+        if (Math.abs(v - hi) < 0.5) return { k: "hi", i, gap };
+      }
+    }
+    return { k: "anchor", d: v - (axis === "x" ? anchor.x : anchor.y) };
+  };
+  return {
+    x: pick(p.left, "x"),
+    y: pick(p.top, "y"),
+    scale,
+    band: p.top >= b.minTop - 1e-6,
+    side: p.side,
+    n: blockers.length,
+  };
+}
+
+/** Where a locked rule puts the card on this geometry (clamped inside the viewport), or null. */
+function ruleSpot(
+  anchor: { x: number; y: number },
+  card: { w: number; h: number },
+  viewport: CardViewport,
+  lock: PlacementLock,
+  margin: number,
+  scale = lock.scale,
+): { left: number; top: number; w: number; h: number; scale: number } | null {
+  const blockers = blockersOf(viewport);
+  if (lock.n !== blockers.length) return null;
+  const w = card.w * scale;
+  const h = card.h * scale;
+  const b = boundsFor({ w, h }, viewport, margin);
+  const at = (ref: Ref, axis: "x" | "y"): number | null => {
+    if (ref.k === "anchor") return (axis === "x" ? anchor.x : anchor.y) + ref.d;
+    const r = blockers[ref.i];
+    if (!r) return null;
+    if (axis === "x") return ref.k === "lo" ? r.x - w - ref.gap : r.x + r.w + ref.gap;
+    return ref.k === "lo" ? r.y - h - ref.gap : r.y + r.h + ref.gap;
+  };
+  const x = at(lock.x, "x");
+  const y = at(lock.y, "y");
+  if (x === null || y === null) return null;
+  const left = Math.max(b.mx, Math.min(b.maxLeft, x));
+  const top = Math.max(lock.band ? b.minTop : b.my, Math.min(b.maxTop, y));
+  return { left, top, w, h, scale };
+}
+
+const hitsAny = (
+  s: { left: number; top: number; w: number; h: number },
+  blockers: readonly Rect[],
+) =>
+  blockers.some(
+    (r) => s.left < r.x + r.w && s.left + s.w > r.x && s.top < r.y + r.h && s.top + s.h > r.y,
+  );
+
+const finite = (a: { x: number; y: number } | null): a is { x: number; y: number } =>
+  !!a && Number.isFinite(a.x) && Number.isFinite(a.y);
+
+/**
+ * The spot of a hold's locked rule (`placementLock`) on this geometry, clamped inside the viewport,
+ * or null when it would cover a blocker (or the rule does not fit this blocker set).
+ */
+export function lockedSpot(
+  anchor: { x: number; y: number } | null,
+  card: { w: number; h: number },
+  viewport: CardViewport,
+  lock: PlacementLock,
+  margin = 12,
+): CardPlacement | null {
+  if (!finite(anchor)) return null;
+  const s = ruleSpot(anchor, card, viewport, lock, margin);
+  if (!s) return null;
+  const hit = hitsAny(s, blockersOf(viewport));
+  return hit
+    ? null
+    : { left: s.left, top: s.top, side: lock.side, anchored: true, ...scaled(lock.scale) };
+}
+
+/**
+ * `placeCard` with a hold's locked rule (`placementLock`): the rule's spot on the live geometry
+ * when it covers no blocker (`lockedSpot`). When it does (her box or the marker pressed against
+ * the viewport edge, mostly while the hold fit eases the camera in), the card first shrinks at the
+ * same spot just as much as it needs, down to the smallest KEEP_CLEAR_SCALES (a squeeze that
+ * changes with the geometry, never a jump); only then the nearest free spot to it. Without a
+ * rule, `placeCard`. Continuous in the anchor and the blockers while the rule holds.
+ */
+export function placeCardLocked(
+  anchor: { x: number; y: number } | null,
+  card: { w: number; h: number },
+  viewport: CardViewport,
+  lock: PlacementLock | null,
+  margin = 12,
+): CardPlacement {
+  if (lock && finite(anchor)) {
+    const blockers = blockersOf(viewport);
+    const clearAt = (k: number) => {
+      const r = ruleSpot(anchor, card, viewport, lock, margin, k);
+      return r && !hitsAny(r, blockers) ? r : null;
+    };
+    const full = ruleSpot(anchor, card, viewport, lock, margin);
+    if (full) {
+      let spot = hitsAny(full, blockers) ? null : full;
+      const least = Math.min(lock.scale, KEEP_CLEAR_SCALES.at(-1) ?? lock.scale);
+      if (!spot && clearAt(least)) {
+        // the largest clear scale: clear at lo, not at hi
+        let lo = least;
+        let hi = lock.scale;
+        for (let i = 0; i < 16; i++) {
+          const mid = (lo + hi) / 2;
+          if (clearAt(mid)) lo = mid;
+          else hi = mid;
+        }
+        spot = clearAt(lo);
+      }
+      if (spot)
+        return {
+          left: spot.left,
+          top: spot.top,
+          side: lock.side,
+          anchored: true,
+          ...scaled(spot.scale),
+        };
+      // the full-size card's top-left at the rule's spot (keepClearOf scales from its top-left)
+      const k = keepClearOf(full.left, full.top, card, viewport, margin);
+      return { left: k.left, top: k.top, side: lock.side, anchored: true, ...scaled(k.scale) };
+    }
+  }
+  return placeCard(anchor, card, viewport, margin);
+}
