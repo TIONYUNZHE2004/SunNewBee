@@ -61,6 +61,28 @@ The committed seed still contains legacy coordinate-derived IDs; this importer g
 does not prove or repair its topology. Rebuild import → overlay → flood → waste together,
 then audit changed components/routes and regenerate mock recordings before committing data.
 
+## Offline place cleanup (T-022, 2026-10-20)
+
+After a seed rebuild, run `uv run python -m data.scripts.cleanup_places`.
+This uses existing files only. It keeps places and evacuation candidates within the owner's
+`base/boundary.geojson` plus 200 m, excludes the prison surau and toll plaza, and merges named
+duplicates less than 150 m apart. The connected record wins, then the lowest stable ID.
+Unnamed OSM placeholders stay separate. Canonical coordinates, snapped nodes and claims stay
+together; removed place IDs also leave flood place classes and coverage diagnostics.
+Walk edges, overlay facts, flood edge classes and scenario polygons are preserved.
+
+Six type corrections: Tadika Fasa B8 → `kindergarten`; Pusat Tuition Denai Alam Utama →
+`tuition_centre`; Pangsapuri Cendana → `residential`; Padang Bola → `pitch`; Taman Permainan →
+`playground`; NakNak Elmina → `restaurant`. The first five follow the task's name-based ruling,
+not a field survey. NakNak's `amenity=restaurant` is in the existing OSM cache. Other generic
+building types remain as data gaps. Corrected kindergartens and tuition centres leave the
+school evacuation-candidate set. Existing official-source metadata is preserved.
+
+The cleanup is idempotent. Use `--data-dir <path>` for a copied seed and `--report <path.json>`
+to keep the before/after counts and every removed or merged ID. The initial cleanup report
+is in `data/audits/2026-10-20-place-cleanup/cleanup.json`. Demo re-recording belongs to the AI
+engineer after merging this change.
+
 ## Import (2026-10-15)
 
 Envelope bbox (s,w,n,e) = 3.150, 101.460, 3.240, 101.530.
