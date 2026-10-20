@@ -86,6 +86,7 @@ class Closure(BaseModel):
     starts_at: datetime
     ends_at: datetime | None = None  # None = until further notice
     note: str | None = None
+    event_name: str | None = None  # public name of a staff event; staff notes stay private
     created_by: Literal["staff", "whatif"] = "staff"
     # "whatif": imagined by the township world model (twm.ClosePath); never stored or shown as
     # a staff report.
@@ -103,7 +104,8 @@ class Closure(BaseModel):
         if self.source == "whatif":
             return "Closed in this what-if (not a real closure)"
         until = fmt_day(self.ends_at, tz) if self.ends_at else "further notice"
-        return f"Closed: {self.reason} until {until}"
+        reason = f"event ({self.event_name})" if self.event_name else self.reason
+        return f"Closed: {reason} until {until}"
 
 
 def fmt_day(d: datetime, tz: str | None = None) -> str:
@@ -191,7 +193,7 @@ class Site(BaseModel):
 
 
 class Scenario(BaseModel):
-    id: str  # baseline | stage_p1m..stage_p5m
+    id: str  # baseline | stage_p1m..stage_p3m
     label: str
     stage_m: float
     method: str = "HAND"
@@ -373,6 +375,13 @@ class VerificationRequest(BaseModel):
     resolution: dict[str, Any] | None = None
 
 
+class FloodPlace(BaseModel):
+    id: str
+    name: str
+    type: str
+    lonlat: LonLat
+
+
 class AffectedResult(BaseModel):
     scenario_id: str
     # Briefing items, capped: places {id, name, kind}; paths grouped by name {name, kind, count}
@@ -392,6 +401,9 @@ class AffectedResult(BaseModel):
     possible_place_ids: list[str] = Field(default_factory=list)
     likely_edge_ids: list[str] = Field(default_factory=list)
     possible_edge_ids: list[str] = Field(default_factory=list)
+    flooded_places: list[FloodPlace] = Field(default_factory=list)
+    cut_off_places: list[FloodPlace] = Field(default_factory=list)
+    flooded_path_m: float = 0.0
     warnings: list[str] = Field(default_factory=list)
 
 

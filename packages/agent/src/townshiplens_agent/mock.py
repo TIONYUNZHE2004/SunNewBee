@@ -23,6 +23,7 @@ from .scope import CANNOT_FROM_DATA
 from .template import (
     day_answer,
     day_change_answer,
+    event_answer,
     fixit_answer,
     greeting_answer,
     my_trip_answer,
@@ -79,8 +80,8 @@ def _src(c: dict) -> str:
     return "official PPS" if c["source"] == "official_pps" else "candidate, not confirmed as a PPS"
 
 
-def _call(name: str, **args) -> ModelResponse:
-    return ModelResponse(parts=[ToolCallPart(tool_name=name, args=args)])
+def _call(tool: str, /, **args) -> ModelResponse:
+    return ModelResponse(parts=[ToolCallPart(tool_name=tool, args=args)])
 
 
 def _final(**ans) -> ModelResponse:
@@ -261,6 +262,14 @@ def _route_places(rets, ends: list[tuple[str, str | None]]):
 def _ui(info: AgentInfo, key: str) -> str | None:
     m = re.search(rf"{key}=(\w+)", info.instructions or "")
     return m.group(1) if m else None
+
+
+def _few(rows, n: int = 3) -> str:
+    """ "A, B, C and 4 more" from marker rows, distinct names in tool order."""
+    names = list(dict.fromkeys(r["name"] for r in rows or [] if r.get("name")))
+    more = len(rows or []) - len([r for r in rows or [] if r.get("name") in names[:n]])
+    shown = ", ".join(names[:n])
+    return f"{shown} and {more} more" if more > 0 and shown else shown
 
 
 def _no_answer(info: AgentInfo) -> str:
@@ -481,6 +490,34 @@ def _fixit(q: str, rets, info: AgentInfo) -> ModelResponse:
 
 
 _WHATIF = r"\bwhat[- ]if\b|\bimagine\b|\bif (?:we|you|staff) (?:build|add|close|verify)\b"
+# T-025: an event closing roads for a time window ("close Persiaran X for a marathon 7-11 am")
+_EVENT_KIND = r"marathon|fun run|parade|festival|\brace\b|\bevent\b"
+_EVENT = rf"\bclos\w*\b.*(?:{_EVENT_KIND})|(?:{_EVENT_KIND}).*\bclos\w*\b"
+
+
+def _event(q: str, rets, info: AgentInfo) -> ModelResponse:
+    if not rets:
+        road = re.search(r"\bclos\w*\s+(?:the\s+)?(.+?)\s+(?:for|during|from|on)\b", q)
+        when = re.search(
+            r"(\d{1,2}(?::\d\d)?)\s*(?:am|pm)?\s*(?:-|–|to|until)\s*(\d{1,2}(?::\d\d)?\s*(?:am|pm)?)",
+            q,
+        )
+        if not road or not when:
+            return _cannot("Name the road and the event's start and end times, and I can check it.")
+        kind = re.search(_EVENT_KIND, q).group(0).strip()
+        return _call(
+            "simulate_event",
+            name=kind.title(),
+            road_names=[road.group(1).title()],
+            start=when.group(1),
+            end=when.group(2).replace(" ", ""),
+        )
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):  # unknown, ambiguous or too long a course: relay the reason
+        why = " ".join(rets[-1][1].get("warnings") or []) if isinstance(rets[-1][1], dict) else ""
+        return _cannot(why or "I couldn't simulate that event on the township model.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-event-")]
+    return _final(**event_answer(d, ev))
 
 
 def _whatif(q: str, rets, info: AgentInfo) -> ModelResponse:
@@ -641,6 +678,8 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return _tipping(q, rets, info)
     if scope == "all" and re.search(_PLAN, q):
         return _plan(q, rets, info)
+    if scope == "all" and re.search(_EVENT, q):
+        return _event(q, rets, info)
     if scope == "all" and re.search(_WHATIF, q):
         return _whatif(q, rets, info)
     is_flood = bool(re.search(r"flood|river|banjir|sungai|rises|naik|水", q))
@@ -656,8 +695,8 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     sid = ui_sid or "stage_p3m"
     if m := re.search(r"(\d+(?:\.\d+)?)\s*m\b", q) if is_flood else None:
         metres = float(m.group(1))
-        if metres != int(metres) or not 1 <= metres <= 5:
-            return _cannot("Scenarios exist for river levels +1 m to +5 m only.")
+        if metres != int(metres) or not 1 <= metres <= 3:  # T-024: +1/+2/+3 m only
+            return _cannot("Scenarios exist for river levels +1 m to +3 m only.")
         sid = f"stage_p{int(metres)}m"
     level = f"River +{sid.removeprefix('stage_p').removesuffix('m')} m"
     scn = {"scenario_id": sid}
@@ -688,11 +727,19 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         ev = [i for i in _ev_ids(rets) if i == f"ev-scn-{sid}"]
         if not ev:
             return _cannot()
+        # T-024: the marker lists, by name, and the metres of likely flooded paths
+        named = ""
+        if (metres := a.get("flooded_path_m")) is not None:
+            named += f" About {round(metres)} m of mapped paths are likely flooded."
+        if flooded := _few(a.get("flooded_places")):
+            named += f" Likely flooded (indicative): {flooded}."
+        if cut := _few(a.get("cut_off_places")):
+            named += f" Cut off, no mapped way in or out (indicative): {cut}."
         return _final(
             answer_status="answered",
             summary=(
                 f"In the {level} indicative scenario, {likely} are likely flooded, "
-                f"and {possible} possibly. {_FLOOD_NOTE}"
+                f"and {possible} possibly.{named} {_FLOOD_NOTE}"
             ),
             claims=[{"text": f"Scenario {level}", "status": "indicative", "evidence_ids": ev}],
             scenario_id=sid,

@@ -25,6 +25,7 @@ from townshiplens_spatial.routing import CENTRE_PREFIX
 from townshiplens_spatial.scenario_meta import scenario_source
 
 from .answer import FinalAnswer
+from .event_course import CourseError, course_segments, event_window
 from .events import (
     AnswerCheck,
     ChatRequest,
@@ -131,6 +132,8 @@ def _summarise(name: str, res: sp.ToolResult) -> str:
         sm = d.get("summary") or {}
         before, after, total = sm.get("reach_before"), sm.get("reach_after"), sm.get("total")
         return f"what-if: {before} -> {after} of {total} reach"
+    if name == "simulate_event" and isinstance(d, dict):
+        return f"event: {d.get('trips_affected')} of {d.get('trips_total')} sample trips affected"
     if name == "plan_verifications" and isinstance(d, dict):
         sm = d.get("summary") or {}
         return f"plan: {len(d.get('facts') or [])} checks -> {sm.get('confirmed_after')} confirmed"
@@ -229,7 +232,8 @@ def _place_names(name: str, data: Any) -> set[str]:
     out: set[str] = set()
     items = data if isinstance(data, list) else [data] if isinstance(data, dict) else []
     if name == "affected_places" and isinstance(data, dict):
-        items = [*(data.get("likely") or []), *(data.get("possible") or [])]
+        keys = ("likely", "possible", "flooded_places", "cut_off_places")
+        items = [row for k in keys for row in data.get(k) or []]
     for it in items:
         if not isinstance(it, dict):
             continue
@@ -288,7 +292,7 @@ async def _file_journey_vrs(deps: Deps, data: dict, summary: str) -> None:
             data["verification_requests_truncated"] -= 1
 
 
-async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
+async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
     """Run one spatial tool, record what it returned and stream its events."""
     rec = deps.rec
     rec.place_entities = entities(deps.ctx.world)
@@ -360,6 +364,14 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         # The scenario on screen applies to routing even if the model forgot to pass it.
         kwargs["scenario_id"] = ui_scenario(deps)
     await _emit(deps, ToolCall(id=call_id, name=name, args=dict(kwargs)))
+    if name == "simulate_event":  # T-025: the window is built here, so the model never dates it
+        kwargs.pop("road_names", None)
+        kwargs["starts_at"], kwargs["ends_at"] = event_window(
+            kwargs.pop("start"),
+            kwargs.pop("end"),
+            kwargs.pop("day", None),
+            deps.ctx.world.site.timezone,
+        )
     if name == "plan_route":
         # Shown to staff on the VR: describe the request, never copy the user's words (PII).
         kwargs["question_summary"] = route_summary(
@@ -471,6 +483,12 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         }
     if name == "plan_verifications" and res.ok and isinstance(res.data, dict):
         rec.plans.append(res.data)
+    if name == "simulate_event" and res.ok and isinstance(res.data, dict):
+        rec.events.append(res.data)
+        # road and place names hold digits ("Persiaran Elmina 1/1"): names, not counts
+        rec.place_names |= {r["name"] for r in res.data.get("detour_roads") or []}
+        rec.place_names |= {p["name"] for p in res.data.get("places_cut_off") or []}
+        rec.place_names |= {(res.data.get("event") or {}).get("name") or ""} - {""}
     if name == "affected_places" and res.ok and isinstance(res.data, dict):
         d = res.data
         rec.affected.append(
@@ -491,6 +509,12 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
                 "isolated_place_count": sum(
                     int(c.get("place_count") or 0) for c in d.get("isolated_components") or []
                 ),
+                # T-024: the places the validator lets an answer call flooded or cut off
+                "flooded": {p["id"]: p["name"] for p in d.get("flooded_places") or []},
+                "possible": {
+                    i["id"]: i["name"] for i in d.get("possible") or [] if i.get("kind") != "path"
+                },
+                "cut_off": {p["id"]: p["name"] for p in d.get("cut_off_places") or []},
             }
         )
     if name == "rising_river_rollout" and res.ok and isinstance(res.data, dict):
@@ -630,7 +654,7 @@ def place_categories(world, place_id: str) -> set[str]:
     return categories(f"{p.type} {p.name} {' '.join(p.aliases)}") if p else set()
 
 
-# Id lists the model never needs: on the Elmina seed affected_places at +5 m lists 2,468 edge ids
+# Id lists the model never needs: on the Elmina seed affected_places at +3 m lists 2,468 edge ids
 # (825 KB), which pushed a live turn past its timeout (eval, Cycle 5). Totals stay.
 _MODEL_DROP = {
     "affected_places": ("likely_edge_ids", "possible_edge_ids"),
@@ -700,6 +724,16 @@ def _for_model(name: str, out: dict) -> dict:
         for k in _MODEL_CAP.get(name, ()):
             if isinstance(data.get(k), list):
                 data[k] = data[k][:20]
+        if name == "simulate_event":  # per-trip rows and segment ids are for the map only
+            data.pop("trips", None)
+            if isinstance(data.get("event"), dict):
+                data["event"].pop("segment_ids", None)
+            for r in data.get("detour_roads") or []:
+                r.pop("segment_ids", None)
+        if name == "affected_places":  # T-024 marker rows: map positions are for the UI only
+            for k in ("flooded_places", "cut_off_places"):
+                if isinstance(data.get(k), list):
+                    data[k] = [{f: p.get(f) for f in ("id", "name", "type")} for p in data[k]]
     return out
 
 
@@ -846,10 +880,13 @@ def build_agent(
     async def affected_places(
         ctx: RunContext[Deps], scenario_id: str, kind: str = "all", profile: str | None = None
     ) -> dict:
-        """What is likely/possibly cut off under a scenario, plus isolated islands.
+        """What is likely/possibly flooded under a scenario, plus isolated islands.
         Lists are capped. For counts use likely_place_count (places) and likely_path_count
         (path segments), and the possible_* pair: say "N places and M path segments", never
-        likely_total as a number of places (it adds both)."""
+        likely_total as a number of places (it adds both). flooded_places are places likely
+        flooded themselves; cut_off_places are not flooded but have no mapped way in or out;
+        flooded_path_m is metres of likely flooded paths. Call a place flooded or cut off only
+        when it is in that list."""
         return await call_tool(
             ctx.deps, "affected_places", scenario_id=scenario_id, kind=kind, profile=profile
         )
@@ -1027,6 +1064,41 @@ def build_agent(
             scenario_id=scenario_id,
             budget=budget,
             proposals=proposals,
+        )
+
+    @register_tool
+    async def simulate_event(
+        ctx: RunContext[Deps],
+        name: str,
+        start: str,
+        end: str,
+        road_names: list[str] | None = None,
+        segment_ids: list[str] | None = None,
+        day: str | None = None,
+        profiles: list[str] | None = None,
+    ) -> dict:
+        """Management: an event (marathon, parade) closes roads for a time window. Pass the
+        roads as the user names them (road_names), start and end as HH:MM local time, and day
+        as YYYY-MM-DD only when the user gives a date. Compares everyday sample trips (walking,
+        wheelchair, driving) without and with the closures: trips affected, trips that newly
+        lose a route, places cut off, detour roads ranked by rerouted trips, and suggestions.
+        An estimate from mapped roads and sample trips, not traffic counts."""
+        world = ctx.deps.ctx.world
+        try:
+            segs = course_segments(world, road_names, segment_ids)
+            event_window(start, end, day, world.site.timezone)
+        except CourseError as exc:  # unknown or ambiguous road, too long a course, bad time
+            return {"ok": False, "data": None, "evidence": [], "warnings": [str(exc)]}
+        return await call_tool(
+            ctx.deps,
+            "simulate_event",
+            name=name,
+            road_names=road_names or [],
+            segment_ids=segs,
+            start=start,
+            end=end,
+            day=day,
+            profiles=profiles,
         )
 
     @agent.output_validator

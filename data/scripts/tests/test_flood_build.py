@@ -74,7 +74,7 @@ def test_stage_classes_are_monotonic_and_omit_unlikely():
         assert set(a) <= set(b)
         assert all(rank[b[k]] >= rank[v] for k, v in a.items())
     assert out["stage_p1m"] == {"a": "likely_flooded", "b": "possible"}
-    assert "e" not in out["stage_p5m"] and "f" not in out["stage_p5m"]
+    assert "e" not in out["stage_p3m"] and "f" not in out["stage_p3m"]
     assert "unlikely" not in {c for d in out.values() for c in d.values()}
 
 

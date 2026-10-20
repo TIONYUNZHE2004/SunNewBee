@@ -543,6 +543,46 @@ def _top_stage(stages: list[str]) -> str | None:
     return best
 
 
+def event_answer(d: dict, evidence_ids: list[str]) -> dict:
+    """T-025: an event simulation in words, every number from the tool. Trips that had no mapped
+    route before the event are said apart from those the event cuts (data gaps, not the event)."""
+    name = (d.get("event") or {}).get("name") or "the event"
+    total, hit = d.get("trips_total", 0), d.get("trips_affected", 0)
+    newly, before = d.get("trips_newly_no_route", 0), d.get("trips_no_route_before", 0)
+    summary = (
+        f"With the {name} closures, {hit} of {total} sample trips (walking, wheelchair and "
+        f"driving) change route"
+    )
+    summary += f", and {newly} newly have no mapped route." if newly else "."
+    if (extra := d.get("extra_m_median")) is not None:
+        summary += f" Rerouted trips go about {extra:g} m further (median)."
+    steps = [
+        f"{r['trips']} sample {'trip reroutes' if r['trips'] == 1 else 'trips reroute'} onto "
+        f"{r['name']}."
+        for r in (d.get("detour_roads") or [])[:3]
+    ]
+    if cut := d.get("places_cut_off"):
+        names = ", ".join(dict.fromkeys(p["name"] for p in cut[:3]))
+        more = f" and {len(cut) - 3} more" if len(cut) > 3 else ""
+        steps.append(f"Cut off during the event (no mapped route to a centre): {names}{more}.")
+    steps += [f"Suggestion: {s['text']}" for s in d.get("suggestions") or []]
+    caveats = []
+    if before:
+        caveats.append(
+            f"{before} of the {total} sample trips had no mapped route before the event "
+            "(data gaps, not the event)."
+        )
+    return {
+        "answer_status": "answered",
+        "summary": summary,
+        "steps": steps,
+        "claims": [
+            {"text": f"{name} simulation", "status": "indicative", "evidence_ids": evidence_ids}
+        ],
+        "caveats": caveats,
+    }
+
+
 def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     if rec.selection_error:
         return FinalAnswer(
@@ -595,6 +635,11 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
                 "Answer generated from data without AI wording.",
             ]
             return FinalAnswer(**fields)
+    if rec.events and not rec.routes:
+        ev = [i for i in rec.evidence if i.startswith("ev-event-")][-1:]
+        fields = event_answer(rec.events[-1], ev)
+        fields["caveats"] = [*fields["caveats"], "Answer generated from data without AI wording."]
+        return FinalAnswer(**fields)
     if rec.plans and not rec.routes:
         ev = [i for i in rec.evidence if i.startswith("ev-plan-")][-1:]
         fields = plan_answer(rec.plans[-1], ev)

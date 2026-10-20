@@ -3,13 +3,55 @@ from hypothesis import strategies as st
 from townshiplens_spatial import flood
 from townshiplens_spatial.routing import plan_route
 
-ORDER = ["baseline", "stage_p1m", "stage_p3m", "stage_p5m"]
+ORDER = ["baseline", "stage_p1m", "stage_p2m", "stage_p3m"]
 
 
 def test_affected_lists_playground(world):
     a = flood.affected(world, "stage_p3m")
     assert any(x["id"] == "playground" for x in a.likely)
     assert "not a forecast" in a.disclaimer
+
+
+def test_impact_markers_distinguish_flooded_cut_off_and_unmapped(world):
+    # The place itself floods at D; cutting B-C strands A/B without flooding them.
+    world.flood.edge_classes["stage_p3m"]["seg-bc"] = "likely_flooded"
+    result = flood.affected(world, "stage_p3m", "stroller")
+    assert [p.model_dump() for p in result.flooded_places] == [
+        {
+            "id": "playground",
+            "name": world.places["playground"].name,
+            "type": "playground",
+            "lonlat": world.places["playground"].coord,
+        }
+    ]
+    cut_off = {p.id: p for p in result.cut_off_places}
+    assert "park-b" in cut_off and "lakeside-mall" in cut_off
+    assert cut_off["park-b"].lonlat == world.places["park-b"].coord
+    assert "playground" not in cut_off and "moon-base" not in cut_off
+    assert result.flooded_path_m == sum(world.edges[e].length_m for e in ("seg-bc", "seg-cd"))
+
+
+def test_impact_markers_use_every_entrance_and_unknown_edges(world):
+    world.flood.edge_classes["stage_p3m"]["seg-bc"] = "likely_flooded"
+    world.places["park-b"].entrance_ids = ["lakeside-mall", "bench-1"]
+    result = flood.affected(world, "stage_p3m", "stroller", kind="path")
+    assert "park-b" not in {p.id for p in result.cut_off_places}
+    # New map fields are complete even when the older briefing lists filter to paths.
+    assert [p.id for p in result.flooded_places] == ["playground"]
+    assert result.likely_place_ids == []
+
+
+def test_impact_markers_include_mapped_isolation_without_claiming_a_flood_cause(world):
+    from townshiplens_spatial.models import Place
+
+    world.graph.add_node("n-isolated")
+    world.places["isolated"] = Place(
+        id="isolated", type="facility", name="Isolated", coord=[101.52, 3.18], node_id="n-isolated"
+    )
+    result = flood.affected(world, "baseline")
+    assert "isolated" in {p.id for p in result.cut_off_places}
+    assert result.isolated_components == []  # legacy field remains flood-induced only
+    assert result.flooded_path_m == 0 and result.flooded_places == []
 
 
 def test_monotonic_flooded_sets(world):
@@ -60,8 +102,9 @@ def test_centres_unknown_origin_or_profile_no_crash(world):
 
 
 def test_islands_reported(world):
+    world.flood.edge_classes["stage_p3m"]["seg-bc"] = "likely_flooded"
     # island = connected component of the passable (non-FAIL) graph containing no centre (R5)
-    a = flood.affected(world, "stage_p5m", "stroller")
+    a = flood.affected(world, "stage_p3m", "stroller")
     centre_nodes = {c.node_id for c in world.centres.values()}
     assert any("n-a" in c["sample_node_ids"] for c in a.isolated_components)
     assert all(not (set(c["sample_node_ids"]) & centre_nodes) for c in a.isolated_components)
@@ -98,12 +141,14 @@ def test_at_most_three_route_ids(world):
 def test_islands_only_flood_induced(world):
     assert flood.affected(world, "baseline", "stroller").isolated_components == []
     assert flood.affected(world, "stage_p3m", "stroller").isolated_components == []
-    a = flood.affected(world, "stage_p5m", "stroller")
+    world.flood.edge_classes["stage_p3m"]["seg-bc"] = "likely_flooded"
+    a = flood.affected(world, "stage_p3m", "stroller")
     assert a.isolated_total == len(a.isolated_components) >= 1
     assert all(c["sample_place_ids"] for c in a.isolated_components)
 
 
 def test_islands_ignore_never_connected_components(world):
+    world.flood.edge_classes["stage_p3m"]["seg-bc"] = "likely_flooded"
     from townshiplens_spatial.models import Edge
 
     world.edges["seg-far"] = Edge(
@@ -115,7 +160,7 @@ def test_islands_ignore_never_connected_components(world):
         length_m=10,
     )
     world.graph.add_edge("n-x", "n-y", key="seg-far", edge_id="seg-far")
-    a = flood.affected(world, "stage_p5m", "stroller")
+    a = flood.affected(world, "stage_p3m", "stroller")
     assert not any("n-x" in c["sample_node_ids"] for c in a.isolated_components)
 
 

@@ -178,6 +178,6 @@ def test_real_seed_endpoint_and_coverage_reproductions():
         assert pid not in w.places
         assert not any(c.place_id == pid for c in w.centres.values())
         assert all(pid not in classes for classes in w.flood.place_classes.values())
-        for scenario in ("stage_p3m", "stage_p5m"):
+        for scenario in ("stage_p2m", "stage_p3m"):
             route = plan_route(w, pid, pid, "default", scenario)
             assert route.status == "no_data" and not route.routes

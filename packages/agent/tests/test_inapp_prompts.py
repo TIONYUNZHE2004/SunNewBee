@@ -214,7 +214,7 @@ async def test_asked_river_level_selects_that_scenario(world, tmp_path, level, s
     assert f"River +{level}" in _text(evs)
 
 
-@pytest.mark.parametrize("level", ["10 m", "3.5 m", "0 m", "6 m"])
+@pytest.mark.parametrize("level", ["10 m", "3.5 m", "0 m", "6 m", "4 m", "5 m"])
 async def test_unsupported_river_level_abstains(world, tmp_path, level):
     msg = (
         "From Elmina Lakeside Mall, where is the nearest evacuation centre "
@@ -222,7 +222,7 @@ async def test_unsupported_river_level_abstains(world, tmp_path, level):
     )
     evs = await _turn(world, tmp_path, msg, "default", None)
     assert evs[-1].answer_status == "cannot_answer"
-    assert "Scenarios exist for river levels +1 m to +5 m only." in _text(evs)
+    assert "Scenarios exist for river levels +1 m to +3 m only." in _text(evs)
     assert not [e for e in evs if e.type == "tool.call" and e.name == "plan_route"]
 
 

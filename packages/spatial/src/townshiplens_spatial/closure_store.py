@@ -11,7 +11,7 @@ from .models import Closure
 SCHEMA = """CREATE TABLE IF NOT EXISTS closures (
   id TEXT PRIMARY KEY, element_id TEXT NOT NULL, reason TEXT NOT NULL, starts_at TEXT NOT NULL,
   ends_at TEXT, note TEXT, created_by TEXT NOT NULL, source TEXT NOT NULL,
-  created_at TEXT NOT NULL)"""
+  created_at TEXT NOT NULL, event_name TEXT)"""
 
 
 class ClosureStore:
@@ -25,6 +25,9 @@ class ClosureStore:
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA busy_timeout=5000")
         self.db.execute(SCHEMA)
+        if "event_name" not in {r[1] for r in self.db.execute("PRAGMA table_info(closures)")}:
+            self.db.execute("ALTER TABLE closures ADD COLUMN event_name TEXT")
+        self.db.commit()
         self._lock = threading.RLock()
 
     @staticmethod
@@ -39,8 +42,34 @@ class ClosureStore:
         starts_at: datetime,
         ends_at: datetime | None,
         note: str | None,
+        event_name: str | None = None,
     ) -> Closure:
-        """Raises ValueError when ends_at is not after starts_at."""
+        return self.create_many(
+            element_ids=[element_id],
+            reason=reason,
+            starts_at=starts_at,
+            ends_at=ends_at,
+            note=note,
+            event_name=event_name,
+        )[0]
+
+    def create_many(
+        self,
+        *,
+        element_ids: list[str],
+        reason: str,
+        starts_at: datetime,
+        ends_at: datetime | None,
+        note: str | None,
+        event_name: str | None = None,
+    ) -> list[Closure]:
+        """Store a whole course atomically; reject an end not after its start.
+
+        A failed insert leaves no partial event.
+        """
+        if not element_ids:
+            raise ValueError("at least one element is required")
+        element_id = element_ids[0]
         probe = Closure(id="-", element_id=element_id, reason=reason, starts_at=starts_at)
         end = Closure(
             id="-", element_id=element_id, reason=reason, starts_at=starts_at, ends_at=ends_at
@@ -54,24 +83,29 @@ class ClosureStore:
                 ).fetchone()[0]
                 + 1
             )
-            cid = f"cl-{n:04d}"
-            self.db.execute(
-                "INSERT INTO closures VALUES (?,?,?,?,?,?,?,?,?)",
-                (
-                    cid,
-                    element_id,
-                    reason,
-                    probe.starts_at.isoformat(),
-                    end.isoformat() if end else None,
-                    note,
-                    "staff",
-                    "staff_report",
-                    _m.utcnow().isoformat(),
-                ),
-            )
-        got = self.get(cid)
-        assert got is not None
-        return got
+            ids = []
+            for i, element_id in enumerate(dict.fromkeys(element_ids)):
+                cid = f"cl-{n + i:04d}"
+                ids.append(cid)
+                self.db.execute(
+                    "INSERT INTO closures "
+                    "(id,element_id,reason,starts_at,ends_at,note,created_by,source,"
+                    "created_at,event_name) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        cid,
+                        element_id,
+                        reason,
+                        probe.starts_at.isoformat(),
+                        end.isoformat() if end else None,
+                        note,
+                        "staff",
+                        "staff_report",
+                        _m.utcnow().isoformat(),
+                        event_name,
+                    ),
+                )
+            return [self.get(cid) for cid in ids]
 
     def get(self, closure_id: str) -> Closure | None:
         with self._lock:
