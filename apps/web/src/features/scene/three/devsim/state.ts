@@ -3,8 +3,13 @@ import { stateAt as stateAtImpl } from "../../../devsim/timeline";
 import type { DevelopmentPlan, StateAt } from "../../../devsim/types";
 
 /** The devsim frame state at screen time t: the only way the 3D lane reads the timeline. */
+let memo: { plan: DevelopmentPlan; t: number; s: StateAt } | null = null;
 export function stateAt(t: number, plan: DevelopmentPlan): StateAt {
-  return stateAtImpl(t, plan);
+  // the layer and the mood loop read the same (t, plan) each frame: computed once
+  if (memo && memo.plan === plan && memo.t === t) return memo.s;
+  const s = stateAtImpl(t, plan);
+  memo = { plan, t, s };
+  return s;
 }
 
 const FLOW_STEP_S = 0.05;

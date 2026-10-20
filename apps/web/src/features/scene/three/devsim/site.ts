@@ -100,6 +100,9 @@ export function mastFoot(g: THREE.BufferGeometry): [number, number] {
   return n > 0 ? [x / n, z / n] : [0, 0];
 }
 
+const HEAD_OFF = new THREE.Color("#5a5f68");
+const HEAD_ON = new THREE.Color("#fff6d8");
+
 /** The construction yard ring: a box in the (out, side) frame round the tower and its yard. */
 export function yardRing(g: SiteGeom): XZ[] {
   const R = g.radius;
@@ -121,7 +124,7 @@ export interface SiteOpts {
  * The construction site and street scene (spec §5.3 Construction kit, closed edge and detour, P4
  * scope 5-6): the kit's tower crane (slews by day, a blinking beacon at night) on a mast extension
  * that keeps its jib above the rising tower, hoarding along the yard and the closed frontage edge,
- * material stacks, a cement mixer (drum spins by day), a site cabin and floodlights (emissive pools
+ * material stacks, the kit's cement mixer, a site cabin and floodlights (emissive pools
  * on the yard at night, no scene light, so nothing tints the tower). The closed edge is a red strip,
  * the detour a dashed blue strip (polygonOffset over the ground). At Handover the kit fades, three
  * lorries park where the entrance path meets the street, and in Daily Life the school-run queue
@@ -250,48 +253,19 @@ export function createSite(o: SiteOpts): DevsimPart {
   beacon.position.y = CRANE_TOP_M + 0.8;
   craneHead.add(beacon);
 
-  // cement mixer (drawn here so its drum can spin)
-  const mixer = new THREE.Group();
-  mixer.name = "devsim-mixer";
+  // cement mixer: the construction kit's model (one LOD node, no separable drum, so it stays
+  // static; ruling R21: the kit model wins over the drum spin)
+  const mixer = kit("cement_mixer", 1, [2.5, 3.6, 8.5]);
+  mixer.mesh.name = "devsim-mixer";
   {
-    const white = own(new THREE.MeshStandardMaterial({ color: "#f4f1ea", roughness: 0.7 }));
-    const red = own(new THREE.MeshStandardMaterial({ color: "#e8644f", roughness: 0.7 }));
-    const tyre = own(new THREE.MeshStandardMaterial({ color: "#2b2b2b", roughness: 0.9 }));
-    const add = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number) => {
-      const me = new THREE.Mesh(own(geo), m);
-      me.position.set(x, y, z);
-      me.castShadow = true;
-      mixer.add(me);
-      return me;
-    };
-    add(new THREE.BoxGeometry(7, 1.2, 2.4), white, 0, 1.0, 0);
-    add(new THREE.BoxGeometry(2, 1.6, 2.3), red, 3, 2.3, 0);
-    for (const x of [-2.4, 2.6])
-      for (const z of [-1, 1])
-        add(new THREE.CylinderGeometry(0.45, 0.45, 0.3, 12).rotateX(Math.PI / 2), tyre, x, 0.45, z);
-    const drumMat = own(new THREE.MeshStandardMaterial({ color: "#f0b86a", roughness: 0.6 }));
-    const stripeMat = own(new THREE.MeshStandardMaterial({ color: "#c66a3a", roughness: 0.6 }));
-    const drum = new THREE.Group();
-    drum.position.set(-1, 2.6, 0);
-    drum.rotation.z = Math.PI / 2 - 0.25;
-    const spin = new THREE.Group();
-    drum.add(spin);
-    const body = new THREE.Mesh(own(new THREE.CylinderGeometry(1.1, 0.8, 4, 14)), drumMat);
-    body.castShadow = true;
-    spin.add(body);
-    const stripe = new THREE.Mesh(own(new THREE.BoxGeometry(0.25, 3.6, 0.1)), stripeMat);
-    stripe.position.set(0, 0, 1.0);
-    spin.add(stripe);
-    mixer.add(drum);
-    mixer.userData.drum = spin;
     const p: XZ = [
       g.yard[0] + g.side[0] * -(g.radius + 4) + g.out[0] * 6,
       g.yard[1] + g.side[1] * -(g.radius + 4) + g.out[1] * 6,
     ];
-    mixer.position.set(p[0], 0.05, p[1]);
-    mixer.rotation.y = yawX(g.side);
+    mixer.set(0, place(_m, p[0], 0.05, p[1], yawZ(g.side)));
+    mixer.setCount(1);
   }
-  yard.add(mixer);
+  yard.add(mixer.mesh);
 
   // floodlights: masts at the yard corners, heads glow and pools light the yard at night
   const flood = new THREE.Group();
@@ -420,7 +394,6 @@ export function createSite(o: SiteOpts): DevsimPart {
     v[1] = y;
     v[2] = z;
   };
-  const poolGlow = new THREE.Color();
 
   return {
     group,
@@ -430,7 +403,6 @@ export function createSite(o: SiteOpts): DevsimPart {
       const fade = ease(span(t, 31.6, 32.4)); // the kit sinks away as Handover begins
       yard.visible = s.hoarding && fade < 1;
       yard.position.y = -3 * fade;
-      yard.scale.setScalar(1);
       hoardGroup.visible = s.hoarding;
       // hoarding sinks over the first 1.6 s of Handover (a quick fade)
       hoardGroup.position.y = -2.8 * ease(span(t, 32, 33.6));
@@ -442,13 +414,13 @@ export function createSite(o: SiteOpts): DevsimPart {
       craneHead.position.y = lift;
       craneHead.rotation.y = s.crane.slewRad;
       beacon.visible = s.crane.beaconOn;
-      // mixer drum turns while the crew works
-      (mixer.userData.drum as THREE.Object3D).rotation.y = s.workersActive ? t * 6 : 0;
-      mixer.visible = cons;
+      // the crane sinks by its own height over the same 0.8 s, so it reads as a quick fade
+      craneGroup.position.y = -(CRANE_TOP_M + craneHead.position.y + 2) * fade;
+      mixer.mesh.visible = cons;
       // floodlights: on at night while building
       const lit = cons ? night : 0;
       poolMat.opacity = 0.42 * lit;
-      headMat.color.set("#5a5f68").lerp(poolGlow.set("#fff6d8"), lit);
+      headMat.color.copy(HEAD_OFF).lerp(HEAD_ON, lit);
       const routesOn = t >= 6 && s.act === "Construction";
       if (closedMesh) closedMesh.visible = routesOn;
       if (detourMesh) detourMesh.visible = t >= 6.5 && s.act === "Construction";

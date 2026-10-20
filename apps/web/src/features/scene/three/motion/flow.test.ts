@@ -8,7 +8,7 @@ import { createMotionUniforms, createRoleUniforms } from "../assets/roleMaterial
 import { stateAt } from "../devsim/state";
 import { type Agent, poseAt } from "./agents";
 import { createMotionDriver } from "./motionClock";
-import { createMotionLayer, flowShare } from "./motionLayer";
+import { avoidRoute, createMotionLayer, flowShare } from "./motionLayer";
 
 /** Devsim fast-forward flow (spec §7, 3D5): speed multiplier and density curve on the motion layer. */
 
@@ -145,7 +145,7 @@ describe("motion flow input", () => {
     l.dispose();
   });
 
-  it("people inside the avoid zone (the hoarded footway) are not drawn; vehicles are", () => {
+  it("people wholly inside the avoid zone are not drawn; vehicles are", () => {
     const l = layerOf([road("p", "person"), road("v", "vehicle", 1)]);
     l.setFlow({ timeScale: 1, peopleDensity: 2, vehicleDensity: 2, avoid: () => true });
     l.tick(1000, camera, undefined, true);
@@ -175,5 +175,29 @@ describe("motion flow input", () => {
     expect(got).toBeNull();
     expect(d.samples()?.vehicles).toHaveLength(1);
     d.dispose();
+  });
+
+  it("people whose path crosses the avoid zone turn before it, never walk through or vanish", () => {
+    const a = road("p", "person");
+    // the hoarded footway: x 100..140 on this 2 km street
+    const zone = (x: number) => x > 100 && x < 140;
+    const r = avoidRoute(a, zone);
+    expect(r).not.toBeNull();
+    expect(r?.length).toBeGreaterThan(1000); // the longer side (140..2000)
+    const l = layerOf([a]);
+    l.setFlow({ timeScale: 8, peopleDensity: 2, vehicleDensity: 2, avoid: zone });
+    let drawn = 0;
+    for (let ms = 0; ms < 600_000; ms += 5_000) {
+      l.tick(ms, camera, undefined, true);
+      const x = l.samples().people[0]?.[0] as number;
+      if (Number.isFinite(x)) {
+        drawn++;
+        expect(zone(x)).toBe(false);
+      }
+    }
+    expect(drawn).toBeGreaterThan(100);
+    expect(avoidRoute(a, () => false)).toBe(a);
+    expect(avoidRoute(a, () => true)).toBeNull();
+    l.dispose();
   });
 });

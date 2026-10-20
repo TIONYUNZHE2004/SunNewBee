@@ -74,4 +74,14 @@ describe("devsim cast script", () => {
     expect(tagTextColour("#5c6bc0")).toBe("#ffffff");
     expect(tagTextColour("#f4f1ea")).toBe("#1b1b1b");
   });
+
+  it("no hat or vest floats alone while the crowd kit is not loaded", () => {
+    const c = createCast({ plan: P, geom: g });
+    let t = 4;
+    while (!stateAt(t, P).workersActive) t += 0.25;
+    c.update({ s: stateAt(t, P), t, night: 0 });
+    const hats = c.group.getObjectByName("devsim-worker-hats") as import("three").InstancedMesh;
+    expect(hats.count).toBe(0);
+    c.dispose();
+  });
 });

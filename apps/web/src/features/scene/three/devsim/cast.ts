@@ -84,6 +84,17 @@ function workerLoops(g: SiteGeom): XZ[][] {
   });
 }
 
+const loopCache = new WeakMap<SiteGeom, XZ[][]>();
+/** `workerLoops`, once per site geometry. */
+function workerLoopsOf(g: SiteGeom): XZ[][] {
+  let l = loopCache.get(g);
+  if (!l) {
+    l = workerLoops(g);
+    loopCache.set(g, l);
+  }
+  return l;
+}
+
 /**
  * Where each cast member is at screen time t (pure; null = off stage). Ported from the prototype's
  * `castAt`, with the brief's beats: Halim walks the detour (17.2-21.6 s), Farid by the hoarding,
@@ -114,7 +125,7 @@ export function castAt(
   if (t >= 22.4 && t < 27.5) put("farid", g.farid, toward(g.farid, g.centre), false);
   // workers by day
   if (opts.workersActive) {
-    const loops = workerLoops(g);
+    const loops = workerLoopsOf(g);
     const ft = opts.flowT ?? t;
     loops.forEach((pts, i) => {
       const L = lengthOf(pts);
@@ -297,6 +308,9 @@ export function createCast(o: CastOpts): Cast {
       MOVERS,
     ),
   );
+  hats.name = "devsim-worker-hats";
+  vests.name = "devsim-worker-vests";
+  boxes.name = "devsim-mover-boxes";
   for (const m of [hats, vests, boxes]) {
     m.count = 0;
     m.frustumCulled = false;
@@ -377,7 +391,8 @@ export function createCast(o: CastOpts): Cast {
         }
         continue;
       }
-      if (isWorker && !workerHasLook) {
+      // hat and vest only on a drawn worker body (never floating alone while the kit loads)
+      if (isWorker && !workerHasLook && crowd && kit) {
         hats.setMatrixAt(nh, _m);
         vests.setMatrixAt(nh, _m);
         nh++;

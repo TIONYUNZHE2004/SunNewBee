@@ -88,6 +88,62 @@ export interface FlowSamples {
   vehicles: readonly (readonly [number, number, number])[];
 }
 
+/** Sampling step (m) when clipping a path out of an avoid zone. */
+const AVOID_STEP_M = 1;
+/** A clipped route shorter than this is not walked (the person is not drawn). */
+const AVOID_MIN_M = 4;
+
+/**
+ * The agent's path without the avoid zone (devsim: the hoarded footway): the longest run of the
+ * path outside it, walked as an open path (the person turns round at its ends, `poseAt`), so people
+ * stop and turn before the hoarding instead of walking through it or vanishing. The agent itself
+ * when the path never enters the zone; null when less than AVOID_MIN_M of it is outside. Pure.
+ */
+export function avoidRoute(a: Agent, avoid: (x: number, z: number) => boolean): Agent | null {
+  const p = a.path;
+  const n = p.length / 2;
+  if (n < 2) return avoid(p[0] ?? 0, p[1] ?? 0) ? null : a;
+  let best: number[] = [];
+  let bestL = 0;
+  let run: number[] = [];
+  let runL = 0;
+  let entered = false;
+  const close = () => {
+    if (runL > bestL) {
+      best = run;
+      bestL = runL;
+    }
+    run = [];
+    runL = 0;
+  };
+  const push = (x: number, z: number) => {
+    const k = run.length;
+    if (k >= 2) runL += Math.hypot(x - (run[k - 2] as number), z - (run[k - 1] as number));
+    run.push(x, z);
+  };
+  for (let i = 0; i < n - 1; i++) {
+    const ax = p[i * 2] as number;
+    const az = p[i * 2 + 1] as number;
+    const bx = p[i * 2 + 2] as number;
+    const bz = p[i * 2 + 3] as number;
+    const L = Math.hypot(bx - ax, bz - az);
+    const steps = Math.max(1, Math.ceil(L / AVOID_STEP_M));
+    for (let k = i === 0 ? 0 : 1; k <= steps; k++) {
+      const u = k / steps;
+      const x = ax + (bx - ax) * u;
+      const z = az + (bz - az) * u;
+      if (avoid(x, z)) {
+        entered = true;
+        close();
+      } else push(x, z);
+    }
+  }
+  close();
+  if (!entered) return a;
+  if (bestL < AVOID_MIN_M) return null;
+  return { ...a, path: new Float32Array(best), length: bestL, offset: a.offset % bestL };
+}
+
 /** The share of the peak-density plan shown at `density` x the day density. */
 export function flowShare(density: number): number {
   return Math.max(
@@ -368,6 +424,23 @@ export function createMotionLayer(
   let lastWall = 0;
   const shareOf = (kind: Agent["kind"]) =>
     flow ? flowShare(kind === "person" ? flow.peopleDensity : flow.vehicleDensity) : share;
+  /** Person routes clipped out of the flow's avoid zone, by agent (reset when the zone changes). */
+  let routes = new WeakMap<Agent, Agent | null>();
+  let routesFor: MotionFlow["avoid"] | null = null;
+  const routeOf = (a: Agent): Agent | null => {
+    const avoid = flow?.avoid;
+    if (!avoid || a.kind !== "person") return a;
+    if (routesFor !== avoid) {
+      routes = new WeakMap();
+      routesFor = avoid;
+    }
+    let r = routes.get(a);
+    if (r === undefined) {
+      r = avoidRoute(a, avoid);
+      routes.set(a, r);
+    }
+    return r;
+  };
   const flowTime = (wall: number, pure: boolean): number => {
     lastWall = wall;
     if (!flow || pure) return wall;
@@ -475,9 +548,11 @@ export function createMotionLayer(
       for (const b of allBuckets) b.n = 0;
       for (const [si, s] of slots.entries()) {
         if (!densityShown(s.agent.id, shareOf(s.agent.kind))) continue;
-        poseAt(s.agent, t, pose);
-        if (!keepClear(s.agent, hero)) continue;
-        if (s.agent.kind === "person" && flow?.avoid?.(pose.x, pose.z)) continue;
+        // a person whose path crosses the avoid zone walks the part before it (turning there)
+        const ag = routeOf(s.agent);
+        if (!ag) continue;
+        poseAt(ag, t, pose);
+        if (!keepClear(ag, hero)) continue;
         // ITER2: no decorative vehicle by her route or between the camera and her, no person at the
         // camera's feet (whole agents, never half cut), while a journey hero is shown.
         if (
@@ -495,7 +570,7 @@ export function createMotionLayer(
         _p.set(pose.x, AGENT_LIFT_M, pose.z);
         // Smooth the tangent yaw before the frustum test, so an agent panning into view has
         // already turned. A long gap (hidden, out of range) settles at once (k -> 1).
-        const { yaw } = facing(s.agent);
+        const { yaw } = facing(ag);
         if (frustum && !frustum.intersectsSphere(_sphere.set(_p, FRUSTUM_MARGIN_M))) continue;
         const k = scaleFor(s.agent.kind, d);
         _q.setFromAxisAngle(_y, yaw);
@@ -521,11 +596,13 @@ export function createMotionLayer(
           crowd.hide(i);
           continue;
         }
-        poseAt(s.agent, t, pose);
-        const clear =
-          keepClear(s.agent, hero) &&
-          personClear(pose.x, pose.z, hero, camera) &&
-          !flow?.avoid?.(pose.x, pose.z);
+        const ag = routeOf(s.agent);
+        if (!ag) {
+          crowd.hide(i);
+          continue;
+        }
+        poseAt(ag, t, pose);
+        const clear = keepClear(ag, hero) && personClear(pose.x, pose.z, hero, camera);
         const d = Math.hypot(pose.x - camera.x, camera.y, pose.z - camera.z);
         const raw = lodFor(d, crowdLods, s.raw);
         s.raw = raw;
@@ -535,10 +612,10 @@ export function createMotionLayer(
           continue;
         }
         _p.set(pose.x, AGENT_LIFT_M, pose.z);
-        const { yaw, dt, mem } = facing(s.agent);
+        const { yaw, dt, mem } = facing(ag);
         const k = peopleScale(d);
-        const dist = easedDistance(s.agent, t);
-        if (pure) mem.gait = gaitAt(s.agent.id, dist, s.agent.speed, t, k, s.walk, s.idle);
+        const dist = easedDistance(ag, t);
+        if (pure) mem.gait = gaitAt(ag.id, dist, ag.speed, t, k, s.walk, s.idle);
         else if (!mem.gait)
           mem.gait = { phase: gaitStartPhase(s.agent.id, dist, s.walk, k), dist, idle: false };
         else advanceGait(mem.gait, dist, dt, k, s.walk, s.idle);
