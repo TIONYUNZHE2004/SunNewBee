@@ -50,10 +50,11 @@ export const SMOOTH_LIMITS = {
   /** Pitch band of the follow and hold camera (deg below the horizon): a 3/4 view at most. */
   pitchMinDeg: 8,
   /**
-   * The closest a walking camera comes to her chest (m): the follow pose stands ~10.3 m from it
-   * (8.5 back, 4.5 aside, 4.2 up); never a close-up (the owner's 762 m frame).
+   * The closest a walking camera comes to her chest (m): the spec follow pose stands ~10.3 m from
+   * it (8.5 back, 4.5 aside, 4.2 up), the owner's wider camera (ruling 20 Oct 2026) 1.75 x that,
+   * ~18 m; never a close-up (the owner's 762 m frame).
    */
-  walkDistM: 9,
+  walkDistM: 15,
   pitchMaxDeg: 45.5,
 } as const;
 
@@ -123,6 +124,8 @@ export function smoothnessOf(sc: FollowScene) {
   let angVel = 0;
   let angVelAt = 0;
   let angAcc = 0;
+  let angAccAt = 0;
+  let jerkAt = 0;
   let jerk = 0;
   let step = 0;
   let stepAt = 0;
@@ -169,6 +172,7 @@ export function smoothnessOf(sc: FollowScene) {
           Math.abs(wrap(b.yaw - a.yaw) - wrap(a.yaw - z.yaw)),
           Math.abs(b.pitch - 2 * a.pitch + z.pitch),
         );
+        if (acc / (dt * dt) > angAcc) angAccAt = b.t;
         angAcc = Math.max(angAcc, acc / (dt * dt));
         let j = 0;
         for (let k = 0; k < 3; k++)
@@ -181,6 +185,7 @@ export function smoothnessOf(sc: FollowScene) {
                 (y.pos[k] as number),
             ),
           );
+        if (j / dt ** 3 > jerk) jerkAt = b.t;
         jerk = Math.max(jerk, j / dt ** 3);
       }
     }
@@ -196,7 +201,9 @@ export function smoothnessOf(sc: FollowScene) {
     angVel: r(angVel),
     angVelAt: r(angVelAt),
     angAcc: r(angAcc),
+    angAccAt: r(angAccAt),
     jerk: r(jerk),
+    jerkAt: r(jerkAt),
     step: Math.round(step * 1000) / 1000,
     stepAt: r(stepAt),
     pitchOut,
@@ -219,11 +226,11 @@ describe.skipIf(!existsSync(SEED))("journey camera smoothness at 60 Hz (iteratio
   });
   it("heading and pitch turn at most ~60 deg/s, with bounded angular acceleration", () => {
     expect(m.angVel, `at t=${m.angVelAt}`).toBeLessThanOrEqual(SMOOTH_LIMITS.angVelDeg);
-    expect(m.angAcc).toBeLessThanOrEqual(SMOOTH_LIMITS.angAccDeg);
+    expect(m.angAcc, `at t=${m.angAccAt}`).toBeLessThanOrEqual(SMOOTH_LIMITS.angAccDeg);
   });
   it("no jump and bounded jerk (no cuts)", () => {
     expect(m.step, `at t=${m.stepAt}`).toBeLessThanOrEqual(SMOOTH_LIMITS.stepM);
-    expect(m.jerk).toBeLessThanOrEqual(SMOOTH_LIMITS.jerkM);
+    expect(m.jerk, `at t=${m.jerkAt}`).toBeLessThanOrEqual(SMOOTH_LIMITS.jerkM);
   });
   it("a 3/4 look-down through follow and holds (never overhead, never street level)", () => {
     expect(m.pitchOut, `at ${m.pitchOutAt.join(", ")}`).toBe(0);

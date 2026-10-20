@@ -8,7 +8,8 @@
  * range, and it is applied through the engine's camera driver (`Engine.setCameraDriver`).
  *
  * - **Follow** (walks and verified / covered / gap holds): the prototype's pose, 8.5 m back along the
- *   route tangent, 4.5 m to the side, 4.2 m up, looking 4 m ahead of her.
+ *   route tangent, 4.5 m to the side, 4.2 m up, looking 4 m ahead of her; the track then stands
+ *   WIDEN x further out about her (owner ruling 20 Oct 2026, "Wider"; see `WIDEN`).
  * - **Framing per event kind** (the prototype's ramp shot lost the ramp behind the mall podium):
  *   rest: a side view of the bench (her route point and the seat both in frame); unknown: the
  *   element (the route point at `at_m`) in frame from the side with the clearer view; arrive: from
@@ -55,6 +56,39 @@ export const FOLLOW = {
   lookSideM: 1.5,
   /** Half-width of the central difference for the route tangent (prototype `tangentAt(d, 10)`). */
   tangentM: 10,
+} as const;
+
+/**
+ * Owner ruling (20 Oct 2026, "Wider"): the follow camera stands this many times further from her
+ * than the spec / prototype poses (spec §6.4's 8.5 m back, 4.5 m side, 4.2 m up, and every hold
+ * framing), so she fills about a quarter of the map height on a walk (was about half) and more of
+ * the street ahead shows. Applied last, to the finished track, as a uniform scale about her chest:
+ * the view direction (heading and pitch, so the 45 deg cap and the smoothness of iteration 2) is
+ * unchanged, and so is her place in the frame and every subject's side of her. Where the wide
+ * camera would lose her behind a building or stand in one, it comes back in, down to the spec
+ * distance (`widenAt`), eased in time like a lift. Supersedes spec §6.4's pose.
+ */
+export const WIDEN = 1.75;
+/**
+ * The widen channel: a camera up to `fullM` from her (every walk and hold framing) stands WIDEN x
+ * out; one already further (a lift over a tower, a long arrive) only out to WIDEN x fullM, so she
+ * never shrinks to a speck and a high camera does not swing round at 1.75x the radius. Search step,
+ * low-pass width (s), dilation (flat for holdS, gone by reachS); joins of the cap are soft.
+ */
+export const WIDEN_TRACK = {
+  fullM: 22,
+  step: 0.05,
+  sigmaS: 0.4,
+  holdS: 0.6,
+  reachS: 1.6,
+  softK: 0.1,
+  /** Raise round her where the wide camera would be hidden: step (deg), margin under the cap. */
+  elevStepDeg: 3,
+  pitchMarginDeg: 1,
+  /** Room (m) the widened camera keeps over the floor ramp (> TRACK.floorSoftM). */
+  floorMarginM: 2.5,
+  /** Width (rad) of the soft minimum that keeps a raise under the look-down cap at t. */
+  softElevRad: 0.03,
 } as const;
 
 /** Damping kernel over timeline time (s). */
@@ -806,7 +840,12 @@ export interface TrackMemo {
   clearTurns: Map<number, number>;
   dilatedTurns: Map<number, number>;
   /** `warmTrack`'s cursors: the next grid sample and the next grid need to compute. */
-  warm?: { sample: number; need: number };
+  warm?: { sample: number; need: number; widen: number };
+  /** The widen factor per grid time (`widenAt`) and dilated (`dilatedWidenAt`). */
+  widens: Map<number, [number, number]>;
+  /** The spec-distance track and its widen target per grid time (`narrowGridAt`). */
+  narrows: Map<number, { pose: CamPose; target: number }>;
+  dilatedWidens: Map<number, [number, number]>;
 }
 
 /**
@@ -828,6 +867,9 @@ const newMemo = (deps: readonly unknown[]): TrackMemo => ({
   turns: new Map(),
   clearTurns: new Map(),
   dilatedTurns: new Map(),
+  widens: new Map(),
+  narrows: new Map(),
+  dilatedWidens: new Map(),
 });
 
 const ownMemo = new WeakMap<FollowScene, TrackMemo>();
@@ -1257,7 +1299,7 @@ export function warmTrack(sc: FollowScene, budgetMs: number): boolean {
   const [a, b] = followSpan(sc.timeline);
   const i0 = Math.ceil(a / h - 1e-9);
   const i1 = Math.floor(b / h + 1e-9);
-  const w = memo.warm ?? { sample: i0, need: i0 };
+  const w = memo.warm ?? { sample: i0, need: i0, widen: i0 };
   memo.warm = w;
   const end = performance.now() + budgetMs;
   while (w.sample <= i1) {
@@ -1268,13 +1310,204 @@ export function warmTrack(sc: FollowScene, budgetMs: number): boolean {
     dilatedNeedAt(sc, memo, w.need++);
     if (performance.now() >= end) return false;
   }
+  while (sc.clearance && w.widen <= i1) {
+    dilatedWidenAt(sc, memo, w.widen++);
+    if (performance.now() >= end) return false;
+  }
   return true;
 }
 
-/** The follow camera track at trip time t (see TRACK): smooth and pure in t. */
+/**
+ * The follow camera track at trip time t (see TRACK), stood WIDEN x out about her and, where a
+ * building would hide her from there, raised round her (`widenAt`): smooth and pure in t.
+ */
 export function followTrackAt(sc: FollowScene, t: number): CamPose {
   const memo = memoOf(sc);
   const tc = Number.isFinite(t) ? t : 0;
+  const p = narrowPoseAt(sc, memo, tc);
+  const [k, e0] = widenEnvelope(sc, memo, tc);
+  // never past the 45 deg look-down (the raise is the most over its window; her pitch here may be
+  // steeper): a soft minimum with the room left at t
+  const room = Math.max(0, ((TRACK.maxPitchDeg - 0.5) * Math.PI) / 180 - pitchOf(p));
+  const e = e0 > 0 ? -softMax(-e0, -room, WIDEN_TRACK.softElevRad) : 0;
+  const out = widenPose(p, anchorAt(sc, tc), k, Math.max(0, e));
+  const c = sc.clearance;
+  softFloor(c, out.pos);
+  keepOffHero(out.pos, trackSubject(sc, tc));
+  applyFloor(c, out.pos);
+  return out;
+}
+
+/**
+ * A pose turned up round her chest above `c` by `elevRad` (about the horizontal axis across the
+ * camera's azimuth: she keeps her place in the frame, the view pitches down by elevRad), then
+ * scaled by `k` about her chest (the camera stands k x as far; the view direction is kept). Pure.
+ */
+export function widenPose(p: CamPose, c: [number, number], k: number, elevRad = 0): CamPose {
+  const ox = p.pos[0] - c[0];
+  const oz = p.pos[2] - c[1];
+  const h = Math.hypot(ox, oz);
+  const ux = h > 1e-9 ? ox / h : 1;
+  const uz = h > 1e-9 ? oz / h : 0;
+  const cs = Math.cos(elevRad);
+  const sn = Math.sin(elevRad);
+  const m = (v: Vec3): Vec3 => {
+    const dx = v[0] - c[0];
+    const dy = v[1] - HERO_CHEST_Y;
+    const dz = v[2] - c[1];
+    // components along the camera's azimuth (u), up (y) and across it (w, unchanged)
+    const du = dx * ux + dz * uz;
+    const wx = dx - du * ux;
+    const wz = dz - du * uz;
+    const ru = du * cs - dy * sn;
+    const ry = du * sn + dy * cs;
+    return [c[0] + (ru * ux + wx) * k, HERO_CHEST_Y + ry * k, c[1] + (ru * uz + wz) * k];
+  };
+  return { pos: m(p.pos), look: m(p.look) };
+}
+
+/** The look-down (rad) of a pose's view direction. */
+function pitchOf(p: CamPose): number {
+  const dx = p.look[0] - p.pos[0];
+  const dy = p.look[1] - p.pos[1];
+  const dz = p.look[2] - p.pos[2];
+  return Math.atan2(-dy, Math.hypot(dx, dz));
+}
+
+/**
+ * The widen factor a pose asks for before any building: WIDEN, less for a camera already more
+ * than WIDEN_TRACK.fullM from her chest (soft joins, never below 1).
+ */
+export function widenTarget(p: CamPose, subject: Vec3): number {
+  const d = Math.hypot(p.pos[0] - subject[0], p.pos[1] - subject[1], p.pos[2] - subject[2]);
+  const k = (WIDEN * WIDEN_TRACK.fullM) / Math.max(1e-6, d);
+  const e = WIDEN_TRACK.softK;
+  return softMax(-softMax(-k, -WIDEN, e), 1, e);
+}
+
+/** The spec-distance track at grid time i and its widen target, memoised. */
+function narrowGridAt(sc: FollowScene, memo: TrackMemo, i: number) {
+  const hit = memo.narrows.get(i);
+  if (hit) return hit;
+  const t = i * TRACK.stepS;
+  const pose = narrowPoseAt(sc, memo, t);
+  const out = { pose, target: widenTarget(pose, trackSubject(sc, t)) };
+  memo.narrows.set(i, out);
+  return out;
+}
+
+/** The widen target at grid time i (`widenTarget` of the spec track there). */
+function targetAt(sc: FollowScene, memo: TrackMemo, i: number): number {
+  return narrowGridAt(sc, memo, i).target;
+}
+
+/**
+ * The widen channel at grid time i, memoised as [factor, raise (rad)]: the widest factor (its
+ * target down to 1, in WIDEN_TRACK.step) whose camera sees her chest past every building and
+ * stands clear of every roof, with the least raise round her (0 up to the 45 deg look-down, in
+ * WIDEN_TRACK.elevStepDeg) that does it. Where even the spec track cannot see her (she is inside
+ * a footprint the route crosses) the factor stays at its target and nothing is raised.
+ */
+function widenAt(sc: FollowScene, memo: TrackMemo, i: number): [number, number] {
+  const hit = memo.widens.get(i);
+  if (hit !== undefined) return hit;
+  const c = sc.clearance;
+  const t = i * TRACK.stepS;
+  const top = targetAt(sc, memo, i);
+  let out: [number, number] = [top, 0];
+  if (c) {
+    const p = narrowGridAt(sc, memo, i).pose;
+    const subject = trackSubject(sc, t);
+    const a = anchorAt(sc, t);
+    const clear = (k: number, e: number) => {
+      const q = widenPose(p, a, k, e).pos;
+      // above the floor's ramp with room to spare (`softFloor`'s soft max never engages)
+      const floor = c.floorAt(q[0], q[2], LIFT_SKIRT_M) + WIDEN_TRACK.floorMarginM;
+      return floor <= q[1] && !c.segmentHitsBuilding(q, subject);
+    };
+    if (!clear(top, 0) && clear(1, 0)) {
+      const room = ((TRACK.maxPitchDeg - WIDEN_TRACK.pitchMarginDeg) * Math.PI) / 180 - pitchOf(p);
+      const de = (WIDEN_TRACK.elevStepDeg * Math.PI) / 180;
+      const ne = Math.max(0, Math.floor(room / de + 1e-9));
+      const nk = Math.floor((top - 1) / WIDEN_TRACK.step - 1e-9);
+      out = [1, 0];
+      // the target first, then down in steps; at each factor the least raise
+      search: for (let j = -1; j < nk; j++) {
+        const k = j < 0 ? top : 1 + (nk - j) * WIDEN_TRACK.step;
+        for (let n = 0; n <= ne; n++)
+          if (clear(k, n * de)) {
+            out = [k, n * de];
+            break search;
+          }
+      }
+    }
+  }
+  memo.widens.set(i, out);
+  return out;
+}
+
+/** The widen channel's dilation taper: flat for `holdS`, cos² down to 0 at `reachS`. */
+function widenTaper(dtS: number): number {
+  const u = (Math.abs(dtS) - WIDEN_TRACK.holdS) / (WIDEN_TRACK.reachS - WIDEN_TRACK.holdS);
+  if (u <= 0) return 1;
+  if (u >= 1) return 0;
+  const c = Math.cos((Math.PI / 2) * u);
+  return c * c;
+}
+
+/**
+ * The widen channel dilated in time (memoised): the deepest come-in below the target and the
+ * largest raise within the taper, so the camera comes in (or up) before a building arrives and
+ * holds it after, as a lift does. The target itself is not dilated.
+ */
+function dilatedWidenAt(sc: FollowScene, memo: TrackMemo, i: number): [number, number] {
+  const hit = memo.dilatedWidens.get(i);
+  if (hit !== undefined) return hit;
+  const n = Math.ceil(WIDEN_TRACK.reachS / TRACK.stepS);
+  let dk = 0;
+  let de = 0;
+  const [g0, g1] = gridSpan(sc);
+  for (let j = Math.max(g0, i - n); j <= Math.min(g1, i + n); j++) {
+    const w = widenTaper((j - i) * TRACK.stepS);
+    if (w <= 0) continue;
+    const [k, e] = widenAt(sc, memo, j);
+    dk = Math.max(dk, (targetAt(sc, memo, j) - k) * w);
+    de = Math.max(de, e * w);
+  }
+  const out: [number, number] = [Math.max(1, targetAt(sc, memo, i) - dk), de];
+  memo.dilatedWidens.set(i, out);
+  return out;
+}
+
+/** The widen channel at t: the dilated grid values low-passed in t (smooth, pure in t). */
+function widenEnvelope(sc: FollowScene, memo: TrackMemo, tc: number): [number, number] {
+  const h = TRACK.stepS;
+  const sg = WIDEN_TRACK.sigmaS;
+  const [g0, g1] = gridSpan(sc);
+  const i0 = Math.max(g0, Math.ceil((tc - 3 * sg) / h));
+  const i1 = Math.min(g1, Math.floor((tc + 3 * sg) / h));
+  let w = 0;
+  let k = 0;
+  let e = 0;
+  for (let i = i0; i <= i1; i++) {
+    const g = gauss(i * h - tc, sg);
+    const [gk, ge] = dilatedWidenAt(sc, memo, i);
+    w += g;
+    k += g * gk;
+    e += g * ge;
+  }
+  return w > 0 ? [k / w, e / w] : [WIDEN, 0];
+}
+
+/**
+ * The track at the spec distance (iteration 2's camera, before the owner's widen): kernel pass,
+ * clear turn, lift, floor. Pure in t.
+ */
+export function narrowTrackAt(sc: FollowScene, t: number): CamPose {
+  return narrowPoseAt(sc, memoOf(sc), Number.isFinite(t) ? t : 0);
+}
+
+function narrowPoseAt(sc: FollowScene, memo: TrackMemo, tc: number): CamPose {
   const { pos, look } = clearPoseAt(sc, memo, tc);
   const subject = trackSubject(sc, tc);
   const up = liftEnvelope(sc, memo, tc);
