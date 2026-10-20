@@ -103,9 +103,33 @@ def pack_crowd(out: Path) -> int:
         sizes[b] = dest.stat().st_size
         print(f"packed crowd {b}: {sizes[b]} bytes -> {dest}")
     m = crowd_looks.build_manifest(stats, sizes)
+    if (raw / "crowd_worker.glb").exists():  # keep the devsim worker across a crowd repack
+        m["worker"] = pack_worker(out)
     path = out / "characters" / "crowd.json"
     path.write_text(json.dumps(m, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {path} ({len(m['looks'])} looks, {sum(sizes.values())} bytes)")
+    return 0
+
+
+def pack_worker(out: Path) -> dict:
+    """Pack crowd_worker.glb (AS1) and return its manifest entry (`crowd.json` key `worker`)."""
+    from tl_assets.characters import crowd_looks
+
+    raw = RAW / "characters"
+    dest = out / "characters" / "crowd_worker.glb"
+    pack_one(raw / "crowd_worker.glb", dest)
+    stats = json.loads((raw / "crowd_worker.json").read_text(encoding="utf-8"))
+    stats["meshes"] = {n: i.tris for n, i in read_glb(dest).nodes.items() if "__LOD" in n}
+    print(f"packed worker: {dest.stat().st_size} bytes -> {dest}")
+    return crowd_looks.worker_entry(stats, dest.stat().st_size)
+
+
+def pack_worker_only(out: Path) -> int:
+    path = out / "characters" / "crowd.json"
+    m = json.loads(path.read_text(encoding="utf-8"))
+    m["worker"] = pack_worker(out)
+    path.write_text(json.dumps(m, indent=2) + "\n", encoding="utf-8", newline="\n")
+    print(f"wrote {path} (worker entry)")
     return 0
 
 
@@ -121,12 +145,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", type=Path, help=f"output folder (default {CITY})")
     ap.add_argument("--heroes", action="store_true", help="pack the rigged hero glbs only")
     ap.add_argument("--crowd", action="store_true", help="pack the crowd kit glbs only")
+    ap.add_argument("--worker", action="store_true", help="pack crowd_worker.glb + crowd.json key")
     args = ap.parse_args(_drop_pnpm_separator(sys.argv[1:] if argv is None else argv))
     out = args.out or CITY
     if args.heroes:
         return pack_heroes(out)
     if args.crowd:
         return pack_crowd(out)
+    if args.worker:
+        return pack_worker_only(out)
     if args.only:
         ids = args.only
         tests = [a for a in ids if a in TEST_ASSETS]

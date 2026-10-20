@@ -383,3 +383,18 @@ def test_tudung_back_is_pulled_in():
     back = max(v[1] for v in pv) - lay.head_c[1]
     side = max(v[0] for v in pv)
     assert back < side  # flatter at the back than wide
+
+
+# --- devsim worker (AS1) -----------------------------------------------------------------------
+
+
+def test_worker_outfit_is_outside_the_six_body_kit():
+    assert "worker" not in crowd.OUTFITS
+    assert all("worker" not in v for v in crowd.BODY_OUTFITS.values())
+    roles = {
+        r for _g, role, (_v, f) in crowd.person_parts("adult_man", "worker", 0) for r in [role]
+    }
+    assert roles  # builds without error at LOD0
+    crowd.person_parts("adult_man", "worker", 1)
+    pal = crowd_looks.WORKER_LOOK.palette
+    assert pal["headwear"].lower() == "#ffd51a" and pal["outer"].lower() == "#ff7a12"

@@ -402,6 +402,23 @@ LOOKS: tuple[Look, ...] = (
     ),
 )
 
+# Devsim site worker (AS1): adult man, hard hat (headwear), orange hi-vis vest (outer) with light
+# reflective stripes (top_trim). Not in LOOKS; ships as crowd_worker.glb + manifest key `worker`.
+WORKER_LOOK = _look(
+    "worker_adult_man",
+    "adult_man",
+    "worker",
+    skin="medium",
+    top="#4a5568",
+    top_trim="#eef2ee",
+    bottom="#2f3a52",
+    outer="#ff7a12",
+    headwear="#ffd51a",
+    headwear_trim="#d9a900",
+    shoe="#3a3330",
+)
+WORKER_CLIPS = ("walk", "idle")
+
 LOD_MAX_M = (60.0, 300.0)  # LOD1 beyond 60 m, hidden beyond 300 m (P4)
 
 
@@ -420,6 +437,33 @@ def modes_for(body: str) -> list[str]:
 
 def clips_for(body: str) -> list[str]:
     return [c for m in modes_for(body) for c in crowd_rig.clip_names(m)]
+
+
+def worker_entry(stats: dict, size: int) -> dict:
+    """The manifest's `worker` key (AS1): the devsim site worker, one glb, walk + idle."""
+    walk, idle = (stats["clips"][c] for c in WORKER_CLIPS)
+    meshes = stats["meshes"]
+    clips = {}
+    for name, c in (("walk", walk), ("idle", idle)):
+        clips[name] = {
+            "duration": round(c["duration"], 4),
+            "frames": c["frames"],
+            "keys": len(crowd_rig.key_frames(name, crowd_rig.duration("adult_man", name))),
+            "keyFps": crowd_rig.FPS // (crowd_rig.IDLE_KEY_STEP if name == "idle" else 1),
+            "loop": True,
+            "stride": round(crowd_rig.stride("adult_man", name), 4),
+        }
+    return {
+        "file": "characters/crowd_worker.glb",
+        "bytes": size,
+        "label": crowd.WORKER_OUTFIT.label,
+        "body": "adult_man",
+        "outfit": "worker",
+        "mesh": "worker",
+        "tris": [meshes["worker__LOD0"], meshes["worker__LOD1"]],
+        "clips": clips,
+        "palette": WORKER_LOOK.palette,
+    }
 
 
 def build_manifest(stats: dict[str, dict], sizes: dict[str, int]) -> dict:
