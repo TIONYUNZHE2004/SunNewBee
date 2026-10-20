@@ -12,7 +12,8 @@ computed here by the routing engine (`routing.plan_route`, default profile):
 Residents' lines, the crowd and the timeline are illustrative; `check_plan` keeps every number in
 the copy equal to a computed fact. Places are looked up by name, not id (place ids moved with the
 place-scoping update). Run `python -m townshiplens_spatial.devsim --dump <path>` from the repo root
-to write the Elmina plan as JSON.
+to write the Elmina plan as JSON (then `pnpm exec biome check --write <path>` for the web
+fixtures `plan.elmina.json` and `e2e/fixtures/devsim-plan.json`).
 
 Geometry is computed in a local equirectangular frame (metres) centred on the parcel, the same
 recipe as the prototype.

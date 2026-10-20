@@ -322,3 +322,17 @@ def test_no_banned_words_anywhere_in_the_plan():  # AC-H4
     text = _plan().model_dump_json()
     assert not devsim.BANNED.search(text)
     assert not re.search(r"\bSDP project\b", text.replace("not an SDP project", ""))
+
+
+@seed_only
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "apps/web/src/features/devsim/fixtures/plan.elmina.json",
+        "apps/web/e2e/fixtures/devsim-plan.json",
+    ],
+)
+def test_committed_web_fixtures_equal_the_built_plan(rel):
+    """Regenerate with `python -m townshiplens_spatial.devsim --dump <path>` + biome format."""
+    got = DevelopmentPlan.model_validate_json((ROOT / rel).read_text(encoding="utf-8"))
+    assert got == _plan()
