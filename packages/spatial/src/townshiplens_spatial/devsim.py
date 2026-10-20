@@ -274,6 +274,14 @@ def _round_min(x: float) -> int:
     return int(math.floor(x + 0.5))
 
 
+def walk_minutes(world: World, route: Route) -> float:
+    """Unrounded walking minutes: the route's distance at the profile's pace.
+
+    `Route.est_minutes` is rounded to 0.1 min, so a difference of two of them can overstate a
+    detour by a rounding step (41.8 - 38.3 = 3.5 for a real 3.41); facts use this instead."""
+    return route.distance_m / routing._pace_m_per_min(world.profiles[PROFILE])
+
+
 def _node_at(world: World, coord) -> str:
     for n, c in world.node_coords.items():
         if abs(c[0] - coord[0]) < 1e-6 and abs(c[1] - coord[1]) < 1e-6:
@@ -295,7 +303,9 @@ def _walk(world: World, from_id: str, to_id: str) -> DevsimWalk:
     if r is None:
         raise DevsimUnavailable(f"no walk from the tower to {to_id}")
     return DevsimWalk(
-        m=round(r.distance_m), min=max(1, _round_min(r.est_minutes)), path=_route_path(r)
+        m=round(r.distance_m),
+        min=max(1, _round_min(walk_minutes(world, r))),
+        path=_route_path(r),
     )
 
 
@@ -391,7 +401,7 @@ def _detour(world: World, site: DevelopmentSite, lay: _Layout, target: str) -> D
                 a = _first(w1, f"devsim-home-{n}", target)
                 if a is None or eid in {s.edge_id for s in a.segments}:
                     continue
-                mins = _round_min(a.est_minutes - b.est_minutes)
+                mins = _round_min(walk_minutes(world, a) - walk_minutes(world, b))
                 if mins < MIN_DETOUR_MIN:
                     continue
                 d, hid = min(by_node[n])
@@ -679,6 +689,8 @@ def _anchors(world: World, site: DevelopmentSite, facts: DevsimFacts) -> DevsimA
         and abs(e.coords[0][0] - fr.lon0) < 0.01
         and abs(e.coords[0][1] - fr.lat0) < 0.01
     ]
+    if not streets:
+        raise DevsimUnavailable("no street beside the tower entrance")
     street = min(streets, key=lambda g: g.distance(snap))
     jp = nearest_points(street, snap)[0]
     # The park spot: where the park route arrives (on the walk network).
@@ -716,6 +728,26 @@ def fact_numbers(facts: DevsimFacts) -> set[int]:
     return vals
 
 
+def expected_numbers(plan: DevelopmentPlan) -> dict[str, list[int] | tuple[list[int], ...]]:
+    """Per copy slot, the fact values it must quote, in order (a tuple lists the allowed
+    alternatives). Slots not listed must hold no digits."""
+    f, d = plan.facts, plan.facts.detour
+    out: dict[str, list[int] | tuple[list[int], ...]] = {
+        "bubble 6": [f.park.min],
+        "bubble 6 tag": [f.park.m, f.park.min],
+        "bubble 7": ([f.mall.min], []),  # "Mall's right downstairs!" quotes none
+        "bubble 7 tag": [f.mall.m, f.mall.min],
+    }
+    items = plan.end_card.items
+    if d is not None:
+        out["bubble 1 tag"] = [d.detour_min, d.before_m, d.after_m]
+        if items:
+            out["end card item 1"] = [d.detour_min, d.before_m, d.after_m]
+    if items:
+        out[f"end card item {len(items)}"] = [f.park.min, f.mall.min]
+    return out
+
+
 def plan_texts(plan: DevelopmentPlan) -> list[tuple[str, str]]:
     """(where, text) for every copy string check_plan reads."""
     out = []
@@ -733,19 +765,23 @@ def plan_texts(plan: DevelopmentPlan) -> list[tuple[str, str]]:
 def check_plan(plan: DevelopmentPlan) -> list[str]:
     """Reasons the plan's copy may not be shown (empty list = fine).
 
-    Every digit run (thousands separators removed) in bubble, tag and end-card text must equal a
-    computed fact; bubbles 2-5 hold no digits at all; no banned words (spec §3) anywhere in the
-    copy, the labels or the cast; no numbers spelled out in words."""
+    Each copy slot quotes exactly its own facts, in order (`expected_numbers`; thousands
+    separators removed): bubble 6 the park minutes, bubble 7 the mall minutes, each tag and
+    end-card item its own fields; every other slot (bubbles 1-5, titles) holds no digits at all.
+    No banned words (spec §3) anywhere in the copy, the labels or the cast; no numbers spelled
+    out in words."""
     errs = []
-    allowed = fact_numbers(plan.facts)
+    expected = expected_numbers(plan)
     for where, text in plan_texts(plan):
-        for m in DIGITS.finditer(text):
-            if int(m.group(0).replace(",", "")) not in allowed:
-                errs.append(f"{where}: number {m.group(0)} is not a computed fact")
+        got = [int(m.group(0).replace(",", "")) for m in DIGITS.finditer(text)]
+        want = expected.get(where, [])
+        options = want if isinstance(want, tuple) else (want,)
+        if got not in options:
+            errs.append(f"{where}: numbers {got} are not the computed facts {list(options)}")
         if m := spot.NUMBER_WORDS.search(text):
             errs.append(f"{where}: number in words {m.group(0)!r}")
     for b in plan.bubbles:
-        if 2 <= b.n <= 5 and re.search(r"\d", b.text):
+        if 1 <= b.n <= 5 and re.search(r"\d", b.text):
             errs.append(f"bubble {b.n}: digits are not allowed")
     extra = [("labels", v) for v in plan.labels.model_dump().values()]
     extra += [(f"cast {c.id}", f"{c.name} {c.role} {c.persona}") for c in plan.cast]

@@ -24,7 +24,7 @@
       "edge_id": "seg-910300105-0",
       "before_m": 2684,
       "after_m": 2923,
-      "detour_min": 4,
+      "detour_min": 3,
       "before_path": [
         [101.509079, 3.176158],
         [101.509213, 3.17588],
@@ -453,7 +453,7 @@
       "t1": 21.4,
       "tone": "neg",
       "text": "Footpath closed lah, must walk the other side now",
-      "tag": "ROUTE ENGINE · +4 min walk · 2,684 → 2,923 m"
+      "tag": "ROUTE ENGINE · +3 min walk · 2,684 → 2,923 m"
     },
     {
       "n": 2,
@@ -568,7 +568,7 @@
     "subtitle": "Simulated reactions · Hypothetical development · not an SDP project",
     "items": [
       {
-        "text": "Building work closes the footpath beside the site: the walk to the mall gets about 4 min longer (2,684 m → 2,923 m).",
+        "text": "Building work closes the footpath beside the site: the walk to the mall gets about 3 min longer (2,684 m → 2,923 m).",
         "badges": ["ROUTE ENGINE"]
       },
       {

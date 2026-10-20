@@ -91,7 +91,7 @@ def test_facts_equal_a_direct_route_recomputation(capsys):  # AC-H1
         pid = next(p.id for p in world.places.values() if p.name == name)
         r = routing.plan_route(tw, devsim.TOWER_PLACE, pid, "default").routes[0]
         assert walk.m == round(r.distance_m)
-        assert walk.min == max(1, math.floor(r.est_minutes + 0.5))
+        assert walk.min == max(1, math.floor(r.distance_m / _pace(world) + 0.5))
         assert walk.path[0] == [round(v, 7) for v in r.geometry["coordinates"][0][:2]]
     d = facts.detour
     assert d is not None, "a >= 2 min detour exists on the seed"
@@ -107,10 +107,18 @@ def test_facts_equal_a_direct_route_recomputation(capsys):  # AC-H1
     assert d.edge_id in {s.edge_id for s in before.segments}
     assert d.edge_id not in {s.edge_id for s in after.segments}
     assert (d.before_m, d.after_m) == (round(before.distance_m), round(after.distance_m))
-    assert d.detour_min == math.floor(after.est_minutes - before.est_minutes + 0.5)
+    # from distances at the profile pace, never from the 0.1-rounded est_minutes
+    real = (after.distance_m - before.distance_m) / _pace(world)
+    assert d.detour_min == math.floor(real + 0.5)
     assert d.detour_min >= 2
     assert len(d.before_path) == len(before.geometry["coordinates"])  # full, not clipped
     assert len(d.after_path) == len(after.geometry["coordinates"])
+
+
+def _pace(world) -> float:
+    """Metres per minute of the default profile (independent of devsim.walk_minutes)."""
+    kmh = world.profiles["default"].speed_kmh
+    return kmh * 1000 / 60 if kmh else 70.0
 
 
 def _facts_summary(plan):
@@ -290,9 +298,9 @@ def test_a_mutated_number_fails_the_check(data):  # AC-H2
 
 
 @seed_only
-@given(n=st.integers(2, 5), digit=st.integers(0, 9), at=st.integers(0, 40))
+@given(n=st.integers(1, 5), digit=st.integers(0, 9), at=st.integers(0, 40))
 @settings(max_examples=30, deadline=None)
-def test_a_digit_in_bubbles_two_to_five_fails_the_check(n, digit, at):  # AC-H2
+def test_a_digit_in_bubbles_one_to_five_fails_the_check(n, digit, at):  # AC-H2
     plan = _plan()
     allowed_digit = next(iter(sorted(devsim.fact_numbers(plan.facts))))
     for value in (digit, allowed_digit):  # even a fact value may not appear in these bubbles
@@ -336,3 +344,40 @@ def test_committed_web_fixtures_equal_the_built_plan(rel):
     """Regenerate with `python -m townshiplens_spatial.devsim --dump <path>` + biome format."""
     got = DevelopmentPlan.model_validate_json((ROOT / rel).read_text(encoding="utf-8"))
     assert got == _plan()
+
+
+@seed_only
+@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(data=st.data())
+def test_a_swapped_fact_value_fails_the_check(data):  # AC-H2: per-slot facts
+    """Another fact's value in a slot (e.g. the mall minutes in the park bubble) must fail."""
+    plan = _plan()
+    values = sorted(devsim.fact_numbers(plan.facts))
+    slot = data.draw(st.sampled_from(_numbered_slots(plan)))
+    kind, i = slot
+    text = (
+        plan.end_card.items[i].text
+        if kind == "item"
+        else plan.bubbles[i].tag
+        if kind == "tag"
+        else plan.bubbles[i].text
+    )
+    runs = list(re.finditer(r"\d(?:[\d,]*\d)?", text))
+    m = runs[data.draw(st.integers(0, len(runs) - 1))]
+    old = int(m.group(0).replace(",", ""))
+    new = data.draw(st.sampled_from([v for v in values if v != old]))
+    rep = data.draw(st.sampled_from([f"{new:,}", str(new)]))
+    bad = _with_text(plan, slot, lambda t: t[: m.start()] + rep + t[m.end() :])
+    assert devsim.check_plan(bad), (slot, rep)
+
+
+@seed_only
+def test_bubble_one_text_may_not_quote_a_fact():
+    plan = _plan()
+    bad = plan.model_copy(deep=True)
+    bad.bubbles[0].text = f"Footpath closed lah, {plan.facts.park.m} m more"
+    assert any("bubble 1" in e for e in devsim.check_plan(bad))
+    bad = plan.model_copy(deep=True)
+    bad.bubbles[5].text = f"Park in {plan.facts.mall.min} min, love it"
+    assert plan.facts.mall.min != plan.facts.park.min
+    assert any("bubble 6" in e for e in devsim.check_plan(bad))
