@@ -121,8 +121,9 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
   `partly_unverified`, lists them in `rest_points_unverified`, and gets a warning naming them.
   No VRs are filed for them.
 - A route within the limit wins over any route that is not, verified or not.
-- Only when no route keeps the limit does the router fall back to the usual strict/lenient
-  order. That route has `rest_limit_met: false`, is never `confirmed`, and the result warns
+- When no route keeps the limit, the router minimises the longest stretch without a rest
+  point, then route weight. It still excludes failed edges and unavailable rest points.
+  That route has `rest_limit_met: false`, is never `confirmed`, and the result warns
   "longest stretch without a rest point is about N m (limit 100 m)" (`rest_gap_text`; N rounded
   to 10 m, never down to the limit). `rest_search_truncated` marks a search that hit the cap.
 - Routes carry `rest_limit_m`, `rest_limit_met` and `rest_points_unverified`. `RouteResult`

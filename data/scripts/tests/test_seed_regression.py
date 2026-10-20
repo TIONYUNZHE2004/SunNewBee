@@ -4,6 +4,7 @@ silently break them. Skipped when the seed is absent."""
 from pathlib import Path
 
 import pytest
+from townshiplens_spatial.models import Place
 from townshiplens_spatial.routing import plan_route
 from townshiplens_spatial.sim import default_tasks
 from townshiplens_spatial.world import load_world
@@ -45,12 +46,20 @@ def test_surau_route_exposes_its_road_centre_line_distance(world):
 
 
 def test_a_real_mapped_sidewalk_is_used_without_turning_osm_into_survey_data(world):
-    rr = plan_route(world, "osm-node-10177746975", "osm-node-11361643136", "default")
+    # T-022 removes the old destinations outside the township, while retaining walk edges.
+    # Test the real sidewalk with temporary endpoints rather than restoring removed POIs.
+    edge = min((e for e in world.edges.values() if e.type == "sidewalk"), key=lambda e: e.length_m)
+    for pid, node in (("sidewalk-start", edge.from_node), ("sidewalk-end", edge.to_node)):
+        world.places[pid] = Place(
+            id=pid, name=pid, type="test", coord=world.node_coords[node], node_id=node
+        )
+    rr = plan_route(world, "sidewalk-start", "sidewalk-end", "default")
     assert rr.routes
     route = rr.routes[0]
-    assert route.distance_m == pytest.approx(76.8, abs=0.5)
+    assert route.distance_m == pytest.approx(edge.length_m, abs=0.1)
     assert route.sidewalk_m == route.distance_m and route.road_m == 0
     assert {world.edges[s.edge_id].type for s in route.segments} == {"sidewalk"}
+    assert route.status != "confirmed"
 
 
 def test_seed_preserves_reported_sidewalk_and_crossing_tags(world):

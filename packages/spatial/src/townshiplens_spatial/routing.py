@@ -468,7 +468,40 @@ def _rest_node_state(world: World, node: str, profile=None, scenario_id=None) ->
     return "PASS" if "PASS" in states else "UNKNOWN" if states else None
 
 
-def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, limit):
+def _costs_to_targets(world, targets, profile, scenario_id, allow_unknown):
+    """Unconstrained reverse distances: admissible A* bounds for the rest-gap tie-break."""
+    best = {node: 0.0 for node in targets}
+    heap = [(0.0, node) for node in sorted(best)]
+    heapq.heapify(heap)
+    costs, evals = {}, {}
+    while heap:
+        cost, node = heapq.heappop(heap)
+        if cost != best[node]:
+            continue
+        for previous, data in world.graph[node].items():
+            for key in data:
+                if not allows_direction(world.edges[key], profile.id, previous):
+                    continue
+                if key not in costs:
+                    costs[key] = _edge_cost(world, profile, scenario_id, allow_unknown, key, evals)
+                weight = costs[key]
+                if weight is not None and cost + weight < best.get(previous, math.inf):
+                    best[previous] = cost + weight
+                    heapq.heappush(heap, (cost + weight, previous))
+    return best
+
+
+def _rest_search(
+    world,
+    sources,
+    targets,
+    profile,
+    scenario_id,
+    allow_unknown,
+    limit,
+    minimize_gap=False,
+    goal_costs=None,
+):
     """Cheapest path whose every stretch between rest points is <= `limit` metres.
 
     Label-setting search over (node, metres since the last rest point) with the same edge costs
@@ -477,50 +510,73 @@ def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, l
     node resets the counter (same rule as `_max_rest_gap`): the strict pass counts verified rest
     points only, the lenient pass unverified ones too. Returns (nodes, keys, evals,
     truncated); `truncated` is True when MAX_REST_LABELS stopped the search before it finished.
+    With `minimize_gap`, first find the smallest possible longest stretch, using dominance
+    over (longest stretch, current gap). Then search within that bound for the cheapest path.
+    Resetting at a bench must not erase an earlier gap.
     """
     evals: dict[str, tuple] = {}
     costs: dict[str, float | None] = {}
     rest: dict[str, bool] = {}
     goal = set(targets)
-    labels: list[tuple[float, float, str, int, str | None]] = []  # cost, gap, node, parent, key
+    # cost, current gap, longest gap, node, parent, key
+    labels: list[tuple[float, float, float, str, int, str | None]] = []
     alive: list[bool] = []
     front: dict[str, list[int]] = {}  # node -> non-dominated label ids
-    heap: list[tuple[float, float, int]] = []
+    heap: list[tuple[float, float, float, int]] = []
 
-    def push(cost, gap, node, parent, key):
+    def push(cost, gap, peak, node, parent, key):
         ids = front.setdefault(node, [])
         for i in ids:
-            if labels[i][0] <= cost and labels[i][1] <= gap:
+            prior = labels[i][2] if minimize_gap else labels[i][0]
+            if prior <= (peak if minimize_gap else cost) and labels[i][1] <= gap:
                 return
         keep = []
         for i in ids:
-            if cost <= labels[i][0] and gap <= labels[i][1]:
+            prior = labels[i][2] if minimize_gap else labels[i][0]
+            if (peak if minimize_gap else cost) <= prior and gap <= labels[i][1]:
                 alive[i] = False
             else:
                 keep.append(i)
         keep.append(len(labels))
         front[node] = keep
-        labels.append((cost, gap, node, parent, key))
+        labels.append((cost, gap, peak, node, parent, key))
         alive.append(True)
-        heapq.heappush(heap, (cost, gap, len(labels) - 1))
+        remaining = goal_costs.get(node, math.inf) if goal_costs is not None else 0.0
+        priority = (peak, gap, cost) if minimize_gap else (cost + remaining, cost, gap)
+        heapq.heappush(heap, (*priority, len(labels) - 1))
 
     for s in sorted(set(sources)):
-        push(0.0, 0.0, s, -1, None)
+        push(0.0, 0.0, 0.0, s, -1, None)
     g = world.graph
     while heap:
-        cost, gap, idx = heapq.heappop(heap)
+        *_, idx = heapq.heappop(heap)
         if not alive[idx]:
             continue
-        node = labels[idx][2]
+        cost, gap, peak, node, _, _ = labels[idx]
         if node in goal:
+            if minimize_gap:
+                cheapest = _rest_search(
+                    world,
+                    sources,
+                    targets,
+                    profile,
+                    scenario_id,
+                    allow_unknown,
+                    peak,
+                    goal_costs=_costs_to_targets(
+                        world, targets, profile, scenario_id, allow_unknown
+                    ),
+                )
+                if cheapest[0] is not None:
+                    return cheapest
             nodes, keys = [], []
             while idx >= 0:
-                _, _, n, parent, key = labels[idx]
+                _, _, _, n, parent, key = labels[idx]
                 nodes.append(n)
                 if key is not None:
                     keys.append(key)
                 idx = parent
-            return nodes[::-1], keys[::-1], evals, False
+            return nodes[::-1], keys[::-1], evals, minimize_gap
         for nbr, data in g[node].items():
             for key in data:
                 if not allows_direction(world.edges[key], profile.id, node):
@@ -538,7 +594,14 @@ def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, l
                     rest[nbr] = st == "PASS" or (allow_unknown and st == "UNKNOWN")
                 if len(labels) >= MAX_REST_LABELS:
                     return None, [], evals, True
-                push(cost + w, 0.0 if rest[nbr] else run, nbr, idx, key)
+                push(
+                    cost + w,
+                    0.0 if rest[nbr] else run,
+                    max(peak, run) if minimize_gap else 0.0,
+                    nbr,
+                    idx,
+                    key,
+                )
     return None, [], evals, False
 
 
@@ -962,6 +1025,21 @@ def _plan(world, from_id, to_id, profile, scenario_id) -> RouteResult:
                 status=routes[0].status, routes=routes, demo_evidence=routes[0].demo_evidence
             )
             return _with_rest(result, limit, truncated)
+        # The lenient search includes every admissible route, counting uncertain rest points
+        # honestly. When the limit is impossible, minimise the worst gap before edge cost.
+        nodes, keys, evals, gap_truncated = _rest_search(
+            world, sources, targets, profile, scenario_id, True, math.inf, True
+        )
+        truncated |= gap_truncated
+        if nodes:
+            route = _route_from_nodes(
+                world, nodes, keys, from_id, to_id, profile, scenario_id, evals
+            )
+            return _with_rest(
+                RouteResult(status=route.status, routes=[route], demo_evidence=route.demo_evidence),
+                limit,
+                truncated,
+            )
     found, evals, _ = _passes(_search, world, sources, targets, profile, scenario_id)
     routes = _pick(world, *found, evals, from_id, to_id, profile, scenario_id)
     if routes:

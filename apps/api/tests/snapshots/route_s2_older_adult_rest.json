@@ -7,6 +7,13 @@
   "rest_search_truncated": false,
   "routes": [
     {
+      "access_metres": {
+        "barrier": 0.0,
+        "likely_ok": 0.0,
+        "not_a_road": 0.0,
+        "unknown": 965.5,
+        "verified": 0.0
+      },
       "crossings": [],
       "demo_evidence": true,
       "distance_m": 965.5,
@@ -116,6 +123,207 @@
         "type": "LineString"
       },
       "id": "rt-c57e3d08",
+      "maneuvers": [
+        {
+          "access_level": "unknown",
+          "action": "depart",
+          "bearing_deg": 231.3,
+          "distance_m": 17.9,
+          "edge_type": "street",
+          "index": 1,
+          "point": [101.51342, 3.180399],
+          "rule_id": "road_sidewalk_missing_v1",
+          "segment_ids": ["seg-1239035870-0", "seg-1239035872-0"],
+          "street_name": null
+        },
+        {
+          "access_level": "unknown",
+          "action": "slight_left",
+          "bearing_deg": 167.5,
+          "distance_m": 26.1,
+          "edge_type": "street",
+          "index": 2,
+          "point": [101.513303, 3.180293],
+          "rule_id": "road_sidewalk_missing_v1",
+          "segment_ids": ["seg-1239035872-1"],
+          "street_name": null
+        },
+        {
+          "access_level": "unknown",
+          "action": "turn_right",
+          "bearing_deg": 236.5,
+          "distance_m": 27.8,
+          "edge_type": "major_road",
+          "index": 3,
+          "point": [101.513477, 3.18015],
+          "rule_id": "road_sidewalk_missing_v1",
+          "segment_ids": ["seg-909861395-3"],
+          "street_name": "Persiaran Elmina"
+        },
+        {
+          "access_level": "unknown",
+          "action": "turn_right",
+          "bearing_deg": 326.2,
+          "distance_m": 58.1,
+          "edge_type": "street",
+          "index": 4,
+          "point": [101.513268, 3.180012],
+          "rule_id": "road_sidewalk_missing_v1",
+          "segment_ids": ["seg-1306543737-0", "seg-1306543737-1"],
+          "street_name": null
+        },
+        {
+          "access_level": "unknown",
+          "action": "slight_right",
+          "bearing_deg": 17.8,
+          "distance_m": 63.9,
+          "edge_type": "street",
+          "index": 5,
+          "point": [101.512978, 3.180445],
+          "rule_id": "road_sidewalk_missing_v1",
+          "segment_ids": ["seg-1306543738-0"],
+          "street_name": null
+        },
+        {
+          "access_level": "unknown",
+          "action": "continue",
+          "bearing_deg": 315.4,
+          "distance_m": 184.6,
+          "edge_type": "street",
+          "index": 6,
+          "point": [101.512903, 3.180963],
+          "rule_id": "road_sidewalk_missing_v1",
+          "segment_ids": ["seg-1306543739-0"],
+          "street_name": "Persiaran Tamarind"
+        },
+        {
+          "access_level": "unknown",
+          "action": "slight_left",
+          "bearing_deg": 248.7,
+          "distance_m": 48.2,
+          "edge_type": "street",
+          "index": 7,
+          "point": [101.511534, 3.18187],
+          "rule_id": "road_sidewalk_missing_v1",
+          "segment_ids": ["seg-1387292585-0"],
+          "street_name": "Persiaran Tamarind"
+        },
+        {
+          "access_level": "unknown",
+          "action": "turn_left",
+          "bearing_deg": 269.3,
+          "distance_m": 17.5,
+          "edge_type": "footway",
+          "index": 8,
+          "point": [101.511133, 3.181891],
+          "rule_id": "no_estimate_rule_v1",
+          "segment_ids": ["seg-1373095741-0"],
+          "street_name": null
+        },
+        {
+          "access_level": "unknown",
+          "action": "slight_left",
+          "bearing_deg": 215.7,
+          "distance_m": 319.1,
+          "edge_type": "footway",
+          "index": 9,
+          "point": [101.510976, 3.181889],
+          "rule_id": "no_estimate_rule_v1",
+          "segment_ids": [
+            "seg-1318133037-6",
+            "seg-1318133037-5",
+            "seg-1318133037-4",
+            "seg-1318133037-3",
+            "seg-1318133037-2",
+            "seg-1318133037-1"
+          ],
+          "street_name": null
+        },
+        {
+          "access_level": "unknown",
+          "action": "turn_right",
+          "bearing_deg": 323.0,
+          "distance_m": 74.9,
+          "edge_type": "footway",
+          "index": 10,
+          "point": [101.508911, 3.179959],
+          "rule_id": "no_estimate_rule_v1",
+          "segment_ids": ["seg-1346147882-1", "seg-1346147882-0"],
+          "street_name": null
+        },
+        {
+          "access_level": "unknown",
+          "action": "turn_right",
+          "bearing_deg": 37.5,
+          "distance_m": 3.6,
+          "edge_type": "ramp",
+          "index": 11,
+          "point": [101.508501, 3.180493],
+          "rule_id": "no_estimate_rule_v1",
+          "segment_ids": ["seg-1306543755-2"],
+          "street_name": null
+        },
+        {
+          "access_level": "unknown",
+          "action": "continue",
+          "bearing_deg": 18.4,
+          "distance_m": 12.7,
+          "edge_type": "street",
+          "index": 12,
+          "point": [101.508521, 3.180519],
+          "rule_id": "road_sidewalk_missing_v1",
+          "segment_ids": ["seg-1306543755-1"],
+          "street_name": null
+        },
+        {
+          "access_level": "unknown",
+          "action": "turn_right",
+          "bearing_deg": 54.8,
+          "distance_m": 27.1,
+          "edge_type": "street",
+          "index": 13,
+          "point": [101.508515, 3.180628],
+          "rule_id": "road_sidewalk_missing_v1",
+          "segment_ids": ["seg-1306543754-8"],
+          "street_name": null
+        },
+        {
+          "access_level": "unknown",
+          "action": "turn_left",
+          "bearing_deg": 325.9,
+          "distance_m": 46.0,
+          "edge_type": "street",
+          "index": 14,
+          "point": [101.508715, 3.180769],
+          "rule_id": "road_sidewalk_missing_v1",
+          "segment_ids": ["seg-1306543775-1", "seg-1306543775-0"],
+          "street_name": null
+        },
+        {
+          "access_level": "unknown",
+          "action": "turn_right",
+          "bearing_deg": 53.7,
+          "distance_m": 38.2,
+          "edge_type": "street",
+          "index": 15,
+          "point": [101.508479, 3.181108],
+          "rule_id": "road_sidewalk_missing_v1",
+          "segment_ids": ["seg-1306543769-2", "seg-1306543769-3"],
+          "street_name": null
+        },
+        {
+          "access_level": "unknown",
+          "action": "arrive",
+          "bearing_deg": 54.2,
+          "distance_m": 0.0,
+          "edge_type": "street",
+          "index": 16,
+          "point": [101.508757, 3.18131],
+          "rule_id": "road_sidewalk_missing_v1",
+          "segment_ids": [],
+          "street_name": null
+        }
+      ],
       "max_gap_between_rest_m": 639.4,
       "profile": "older_adult_rest",
       "rest_limit_m": 100.0,
@@ -253,129 +461,269 @@
       "scenario_id": null,
       "segments": [
         {
+          "access_level": "unknown",
           "edge_id": "seg-1239035870-0",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service",
+            "oneway": "yes"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1239035872-0",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service",
+            "oneway": "yes"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1239035872-1",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service",
+            "oneway": "yes"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-909861395-3",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "secondary",
+            "oneway": "yes",
+            "surface": "asphalt"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1306543737-0",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1306543737-1",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1306543738-0",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service",
+            "oneway": "yes"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1306543739-0",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1387292585-0",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service",
+            "oneway": "yes"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1373095741-0",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "no_estimate_rule_v1",
+          "tags_used": {
+            "highway": "footway"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1318133037-6",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "no_estimate_rule_v1",
+          "tags_used": {
+            "highway": "footway"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1318133037-5",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "no_estimate_rule_v1",
+          "tags_used": {
+            "highway": "footway"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1318133037-4",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "no_estimate_rule_v1",
+          "tags_used": {
+            "highway": "footway"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1318133037-3",
           "eval": "PASS",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "no_estimate_rule_v1",
+          "tags_used": {
+            "highway": "footway"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1318133037-2",
           "eval": "PASS",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "no_estimate_rule_v1",
+          "tags_used": {
+            "highway": "footway"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1318133037-1",
           "eval": "PASS",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "no_estimate_rule_v1",
+          "tags_used": {
+            "highway": "footway"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1346147882-1",
           "eval": "PASS",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "no_estimate_rule_v1",
+          "tags_used": {
+            "highway": "footway",
+            "tunnel": "building_passage"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1346147882-0",
           "eval": "PASS",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "no_estimate_rule_v1",
+          "tags_used": {
+            "highway": "footway",
+            "tunnel": "building_passage"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1306543755-2",
           "eval": "UNKNOWN",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "no_estimate_rule_v1",
+          "tags_used": {
+            "highway": "service",
+            "oneway": "yes"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1306543755-1",
           "eval": "PASS",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service",
+            "oneway": "yes"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1306543754-8",
           "eval": "PASS",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1306543775-1",
           "eval": "PASS",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service",
+            "oneway": "yes",
+            "service": "parking_aisle"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1306543775-0",
           "eval": "PASS",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service",
+            "oneway": "yes",
+            "service": "parking_aisle"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1306543769-2",
           "eval": "PASS",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service"
+          }
         },
         {
+          "access_level": "unknown",
           "edge_id": "seg-1306543769-3",
           "eval": "PASS",
-          "flood_class": null
+          "flood_class": null,
+          "rule_id": "road_sidewalk_missing_v1",
+          "tags_used": {
+            "highway": "service"
+          }
         }
       ],
       "sidewalk_m": 0.0,

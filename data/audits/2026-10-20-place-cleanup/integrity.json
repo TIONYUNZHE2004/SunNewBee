@@ -1,0 +1,39 @@
+{
+  "protected_seed_files": 25,
+  "protected_seed_hashes": {
+    "data/seed/elmina/belief_prior.json": "d3baeb16420ce3c352f1515026335848830669e1c0cbfc68ee77724d04ae9b9d",
+    "data/seed/elmina/site.json": "b559898438846d97eec144f3d1f1240110b53d7ea3ff1953ffd2c0d8242f6f48",
+    "data/seed/elmina/base/trees.geojson": "e5a6fa18a6cd299f3598c7d52a70f282f29dbffd9ead7e8f34da6c6faf767123",
+    "data/seed/elmina/base/parks.geojson": "0f1b8b1f7eb4bdd3b71a8f94d78bf7ab609afa8abcf1a72fb0711d922b840b19",
+    "data/seed/elmina/base/hydrology.geojson": "633d109e65ef5b9d44495b024622406fec9953ae07b339a925f37bd397388e7b",
+    "data/seed/elmina/base/signage.geojson": "8c48e201581838c320fc71f3d2590e76cee6c1a2e58ffeecbbc84013c2dd7057",
+    "data/seed/elmina/base/boundary.geojson": "68a6ef7e56a5667789d87865d34b0b65158ca0f1e8380cf6a78baa4a72da4a26",
+    "data/seed/elmina/base/archetype_coverage.json": "6a6069704e91ae47585d59777d0efa6c27c3aa7cba6a832029807e9d0b30ead3",
+    "data/seed/elmina/base/landmarks.geojson": "96cbb2ecff700e4b6769a060c20bb1fef9f2dc588f99e4203ff0ac72c2da276f",
+    "data/seed/elmina/base/landcover.geojson": "834ad48f5e42c48fe41a574b287d2ff7857e4e3e7f17f73a5df8720cf35c77ed",
+    "data/seed/elmina/base/walk.geojson": "9be804ffd5d200e798623758facf34f468cbfb38a1d2311f8e03bd280aaa6a60",
+    "data/seed/elmina/base/archetype_overrides.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "data/seed/elmina/base/street_furniture.geojson": "bf3207864b1ad50524e5e10656996b278afaff1866c2a908fdfa20417b75791d",
+    "data/seed/elmina/base/buildings.geojson": "411d77d4b086745d13dd4cc6f589dd707d7c878aff92e4401358cc4ef2e1622a",
+    "data/seed/elmina/base/precincts.geojson": "c31bd1ad29a6a615ad6aee1ffa2ba679bcdaaf352e54f91e80fbc56988d27e9f",
+    "data/seed/elmina/flood/stage_p1m.geojson": "f54a2711c233bcbda669ab3fe50f1b18676e5bbddde0e1b93916d444eced9ce0",
+    "data/seed/elmina/flood/baseline.geojson": "6d18edfe75b3149104038dcbca4d0096bbcb923f0f9fa4b49f4815344e75bb90",
+    "data/seed/elmina/flood/stage_p3m.geojson": "2c1a987ef41922f3b1551c6745133b16ef7b3df04da01a01e4a708d6c2a5e4fc",
+    "data/seed/elmina/flood/stage_p5m.geojson": "827bab5acfde33247295b92a40da9ebafc4e8a81f751652bb43fceb3b6bd6c0c",
+    "data/seed/elmina/flood/stage_p4m.geojson": "4da237365832a144e54d439afbbe793935d642e8630f2eb3c14aa40fde90de97",
+    "data/seed/elmina/flood/stage_p2m.geojson": "9e9d19723c6128ff4713d169c33a1e6bf9ad8861976167eaf7d94b0791642894",
+    "data/seed/elmina/waste/points.geojson": "2c5d550b04c377e06bb45d467476e1972460ac8f7da300b5e24e7aa173e5d61f",
+    "data/seed/elmina/access/README.md": "6c81dbb40660732e5f6297d8f288e3c2d506b02aa23d1380551caaad7523e29f",
+    "data/seed/elmina/access/overlay.geojson": "30dc9f44fe93bff55836a666a4f5d08434690d37b1b19c92876f426c26c87b38",
+    "data/seed/elmina/sources/landmark_outlines.geojson": "cd8466abf87457a829e80caf81871e5199d6ef690e569da029f83c62bee945de"
+  },
+  "all_hashes_unchanged": true,
+  "walk_graph_sha256": "9be804ffd5d200e798623758facf34f468cbfb38a1d2311f8e03bd280aaa6a60",
+  "scope_stage_counts": {
+    "places_within_boundary_plus_200_m": 113,
+    "candidates_within_boundary_plus_200_m": 32
+  },
+  "repeated_cleanup_byte_identical": true,
+  "live_model_calls": 0,
+  "overpass_requests": 0
+}
