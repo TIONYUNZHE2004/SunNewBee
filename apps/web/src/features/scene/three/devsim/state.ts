@@ -1,6 +1,6 @@
 import type { DevelopmentPlan, StateAt } from "../../../devsim/types";
-// M2 swap: replace this one import with FE's timeline (`../../../devsim/timeline` `stateAt`).
-import { stubStateAt as stateAtImpl } from "./stubStateAt";
+// The timeline (FE lane, features/devsim/timeline.ts) is the authority for timing.
+import { stateAt as stateAtImpl } from "../../../devsim/timeline";
 
 /** The devsim frame state at screen time t: the only way the 3D lane reads the timeline. */
 export function stateAt(t: number, plan: DevelopmentPlan): StateAt {
