@@ -35,6 +35,10 @@ export interface SiteGeom {
   junction: XZ;
   park: XZ;
   mall: XZ;
+  /** Unit direction of the frontage street at the junction (along the closed footway, else the door face). */
+  street: XZ;
+  /** Unit vector from the junction's footway out onto the carriageway (away from the tower). */
+  kerbOut: XZ;
   /** Radius of the footprint (centre to farthest corner). */
   radius: number;
   storeys: number;
@@ -132,8 +136,11 @@ export function siteGeom(
   // compass bearing: east = sin, north = cos; local z = -north
   const out: XZ = [Math.sin(b), -Math.cos(b)];
   const side: XZ = [-out[1], out[0]];
-  const door = L(plan.site.entrance.door);
+  // the door sits on the facade: the plan door snapped to the nearest point of the footprint
+  const door = nearestOnRing(ring, L(plan.site.entrance.door));
   const path = plan.site.entrance.path.map(L);
+  if (path.length > 0) path[0] = door;
+  else path.push(door);
   const node = path[path.length - 1] ?? door;
   const radius = Math.max(...ring.map((p) => len(sub(p, centre))));
   const yard: XZ = [centre[0] - out[0] * (radius + 16), centre[1] - out[1] * (radius + 16)];
@@ -142,6 +149,23 @@ export function siteGeom(
   if (closedEdge && closedEdge.length >= 2) closed = closedEdge.map(L);
   else if (det) closed = closedPart(det.before_path.map(L), det.after_path.map(L));
   const detour = det ? near(det.after_path.map(L), centre, 260) : [];
+  const junction = L(plan.anchors.junction);
+  let street: XZ = side;
+  if (closed.length >= 2) {
+    let best = Number.POSITIVE_INFINITY;
+    for (let i = 1; i < closed.length; i++) {
+      const a = closed[i - 1] as XZ;
+      const b = closed[i] as XZ;
+      const d = distToLine([a, b], junction[0], junction[1]);
+      if (d < best && len(sub(b, a)) > 0.5) {
+        best = d;
+        street = norm(sub(b, a));
+      }
+    }
+  }
+  let kerbOut: XZ = [-street[1], street[0]];
+  const away = sub(junction, centre);
+  if (kerbOut[0] * away[0] + kerbOut[1] * away[1] < 0) kerbOut = [-kerbOut[0], -kerbOut[1]];
   return {
     ring,
     centre,
@@ -155,12 +179,35 @@ export function siteGeom(
     detour,
     halimPath: plan.anchors.halim_path.map(L),
     farid: L(plan.anchors.farid),
-    junction: L(plan.anchors.junction),
+    junction,
+    street,
+    kerbOut,
     park: L(plan.anchors.park),
     mall: L(plan.anchors.mall),
     radius,
     storeys: plan.site.storeys,
   };
+}
+
+/** The nearest point on a closed ring to p. */
+export function nearestOnRing(ring: readonly XZ[], p: XZ): XZ {
+  let best: XZ = p;
+  let bd = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i] as XZ;
+    const b = ring[(i + 1) % ring.length] as XZ;
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const l2 = dx * dx + dz * dz || 1;
+    const u = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / l2));
+    const q: XZ = [a[0] + dx * u, a[1] + dz * u];
+    const d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (d < bd) {
+      bd = d;
+      best = q;
+    }
+  }
+  return best;
 }
 
 /** A point `d` metres out from the door along its facing and `lat` metres along its face. */

@@ -84,6 +84,22 @@ function clipNear(pts: readonly XZ[], c: XZ, r: number): XZ[] {
   return out;
 }
 
+/** Centroid (x, z) of a model's vertices under 2 m (a tower crane's mast foot); [0, 0] if none. */
+export function mastFoot(g: THREE.BufferGeometry): [number, number] {
+  const p = g.getAttribute("position");
+  if (!p) return [0, 0];
+  let x = 0;
+  let z = 0;
+  let n = 0;
+  for (let i = 0; i < p.count; i++) {
+    if (p.getY(i) > 2) continue;
+    x += p.getX(i);
+    z += p.getZ(i);
+    n++;
+  }
+  return n > 0 ? [x / n, z / n] : [0, 0];
+}
+
 /** The construction yard ring: a box in the (out, side) frame round the tower and its yard. */
 export function yardRing(g: SiteGeom): XZ[] {
   const R = g.radius;
@@ -152,7 +168,8 @@ export function createSite(o: SiteOpts): DevsimPart {
   runs.push([...ring, ring[0] as XZ]);
   const closedNear = clipNear(g.closed, g.centre, CLOSED_REACH_M);
   if (closedNear.length >= 2) {
-    // push the closed-edge hoarding 1.2 m towards the tower (it stands on the closed footway)
+    // the frontage hoarding stands on the parcel edge 8 m in from the closed footway, so the red
+    // strip stays in view from the site-side beats (a 2.4 m panel hides ~4 m of ground behind it)
     runs.push(
       closedNear.map((p, i) => {
         const a = closedNear[Math.max(0, i - 1)] as XZ;
@@ -161,7 +178,7 @@ export function createSite(o: SiteOpts): DevsimPart {
         let n: XZ = [-d[1], d[0]];
         const toC = sub(g.centre, p);
         if (n[0] * toC[0] + n[1] * toC[1] < 0) n = [-n[0], -n[1]];
-        return [p[0] + n[0] * 1.2, p[1] + n[1] * 1.2];
+        return [p[0] + n[0] * 8, p[1] + n[1] * 8];
       }),
     );
   }
@@ -218,7 +235,10 @@ export function createSite(o: SiteOpts): DevsimPart {
   const craneHead = new THREE.Group();
   craneGroup.add(craneHead);
   const crane = kit("tower_crane", 1, [53, 50, 4]);
-  crane.set(0, place(_m, 0, 0, 0, 0));
+  // the kit crane's mast is not at its model origin: centre it on the slew axis (the mast foot's
+  // centroid, vertices under 2 m) so the mast extension below lines up and the jib slews round it
+  const foot = mastFoot(crane.mesh.geometry);
+  crane.set(0, place(_m, -foot[0], 0, -foot[1], 0));
   crane.setCount(1);
   craneHead.add(crane.mesh);
   const yellow = own(new THREE.MeshStandardMaterial({ color: "#f4b942", roughness: 0.5 }));
@@ -321,12 +341,14 @@ export function createSite(o: SiteOpts): DevsimPart {
         emissive: colour,
         emissiveIntensity: 0.35,
         roughness: 0.8,
+        // either winding faces up
+        side: THREE.DoubleSide,
         polygonOffset: true,
         polygonOffsetFactor: -3,
         polygonOffsetUnits: -3,
       }),
     );
-    const m = new THREE.Mesh(own(ribbonGeometry(pts, 1.6, y, dash)), mat);
+    const m = new THREE.Mesh(own(ribbonGeometry(pts, 2.4, y, dash)), mat);
     m.receiveShadow = true;
     m.raycast = NOOP;
     m.renderOrder = 1;
@@ -378,9 +400,10 @@ export function createSite(o: SiteOpts): DevsimPart {
     vkit("sedan", Math.ceil(QUEUE / 2), [1.8, 1.45, 4.6], carPal),
     vkit("mpv", Math.floor(QUEUE / 2), [1.8, 1.7, 4.7], carPal),
   ];
-  // the street at the entrance: from the junction anchor towards where the path meets the road
-  const u = unit(sub(g.node, g.junction));
-  const lane: XZ = [-u[1], u[0]];
+  // the frontage street at the junction: along it (the closed footway's direction), out onto the
+  // carriageway away from the tower; the queue and the lorries stand in the near lane
+  const u = g.street;
+  const lane = g.kerbOut;
   const onStreet = (d: number, off: number): XZ => [
     g.junction[0] + u[0] * d + lane[0] * off,
     g.junction[1] + u[1] * d + lane[1] * off,
@@ -437,7 +460,7 @@ export function createSite(o: SiteOpts): DevsimPart {
         for (let i = 0; i < LORRIES; i++) {
           const stop = 14 - i * 9;
           const d = stop - (1 - ease(span(t, 33 + i * 0.6, 35.6 + i * 0.6))) * 120;
-          const p = onStreet(d, 2.2);
+          const p = onStreet(d, 6.5);
           lorries.set(i, place(_m, p[0], 0.05, p[1], yawZ(u)), i);
           setPt(i, p[0], 1.5, p[1]);
           nl++;
@@ -450,7 +473,7 @@ export function createSite(o: SiteOpts): DevsimPart {
       if (queueOn)
         for (let i = 0; i < QUEUE; i++) {
           const d = 15 - i * 6.2 + Math.max(0, Math.sin((t - 44) * 0.8 - i * 0.4)) * 1.5;
-          const p = onStreet(d, 1.8);
+          const p = onStreet(d, 4.5);
           const k = i % 2;
           (cars[k] as (typeof cars)[number]).set(
             counts[k] as number,

@@ -360,10 +360,10 @@ export function createTower(o: TowerOpts): TowerPart & {
       // the paved path is laid at Handover (the hoarding comes down)
       pathGroup.visible = !s.hoarding || s.act === "Handover" || s.act === "Daily Life";
       // Q4: exactly 0 until the timeline lights floors in Handover; then lit floor by floor, a
-      // little glow by day (occupied homes read as lit, as in the prototype), full at night
+      // little glow by day (occupied homes read as lit, as in the prototype), kept under the city windows at night (a fully lit face blooms white)
       lit = Math.max(0, Math.min(1, s.windowsLitFraction));
       windowUniforms.uLitShare.value = lit;
-      windowUniforms.uWindowGlow.value = lit > 0 ? 0.35 + 1.25 * night : 0;
+      windowUniforms.uWindowGlow.value = lit > 0 ? 0.2 + 0.6 * night : 0;
       doorMat.emissiveIntensity = n > 0 ? 0.1 + night * 1.4 : 0.1;
       void t;
     },

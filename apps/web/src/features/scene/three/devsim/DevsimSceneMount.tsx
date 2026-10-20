@@ -174,9 +174,13 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
       }
     });
     const unprobe = registerProbe("scene", () => l.probe());
+    // dev builds: the layer for console inspection (QA and lane debugging)
+    const w = window as unknown as { __devsimLayer?: DevsimLayer };
+    if (import.meta.env.DEV) w.__devsimLayer = l;
     return () => {
       unsub();
       unprobe();
+      if (w.__devsimLayer === l) delete w.__devsimLayer;
       engine.setDecorClock?.(null);
       engine.setCameraDriver?.(null);
       bus.getState().driver?.setFlow(null);
