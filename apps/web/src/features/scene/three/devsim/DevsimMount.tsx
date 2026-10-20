@@ -11,6 +11,7 @@ import type { SceneBus } from "../scene/sceneBus";
 import type { LoadedAssets } from "../scene/useCityAssets";
 import { devDemoRequested, startDevDemo } from "./devDemo";
 import { createDevsimLayer, type DevsimLayer } from "./devsimLayer";
+import { createSite } from "./site";
 import { createTower } from "./tower";
 
 /** The plan's closed edge from the walk layer (a feature whose id is `facts.detour.edge_id`). */
@@ -74,6 +75,7 @@ export function DevsimMount(props: DevsimMountProps) {
     l.setTower(
       createTower({ geom: l.geom, roleUniforms, lib: loaded?.lib, manifest: loaded?.manifest }),
     );
+    l.add(createSite({ geom: l.geom, roleUniforms, lib: loaded?.lib, manifest: loaded?.manifest }));
     l.setT(useDevsim.getState().t);
     engine.setDevsim(l);
     setLayer(l);
