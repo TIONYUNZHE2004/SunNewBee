@@ -19,6 +19,10 @@ export interface DevsimStore {
   pause: () => void;
   /** Clamped to [0, plan.total_s]; a no-op without a plan. */
   seek: (t: number) => void;
+  /** Back to t = 0 and playing (no-op without a plan). */
+  restart: () => void;
+  /** Frame tick from the driver: moves t by dt screen seconds while playing; stops at the end. */
+  advance: (dt: number) => void;
   /** Back to idle: no plan, t = 0, paused. */
   stop: () => void;
 }
@@ -47,5 +51,12 @@ export const useDevsim = create<DevsimStore>((set) => ({
     ),
   pause: () => set({ playing: false }),
   seek: (t) => set((s) => (s.plan ? { t: clampT(s.plan, t) } : {})),
+  restart: () => set((s) => (s.plan ? { t: 0, playing: true } : {})),
+  advance: (dt) =>
+    set((s) => {
+      if (!s.plan || !s.playing || !(dt > 0)) return {};
+      const t = s.t + dt;
+      return t >= s.plan.total_s ? { t: s.plan.total_s, playing: false } : { t };
+    }),
   stop: () => set({ ...idle }),
 }));

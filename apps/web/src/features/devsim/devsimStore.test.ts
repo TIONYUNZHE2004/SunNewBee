@@ -63,3 +63,12 @@ describe("collectProbe", () => {
     expect(collectProbe(0).rects).toEqual({});
   });
 });
+
+describe("collectProbe subject", () => {
+  it("passes the scene's subject centre through", () => {
+    const off = registerProbe("scene", () => ({ subject: { x: 10, y: 20 } }));
+    expect(collectProbe(1).subject).toEqual({ x: 10, y: 20 });
+    off();
+    expect(collectProbe(1).subject).toBeUndefined();
+  });
+});

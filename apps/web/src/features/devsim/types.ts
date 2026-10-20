@@ -134,7 +134,8 @@ export interface DevelopmentPlan {
 /** Scene intent emitted by the agent after `simulate_development`. */
 export interface DevelopmentPlayIntent {
   kind: "development.play";
-  plan?: DevelopmentPlan;
+  /** Null or absent on a world without the parcel: the web fetches POST /api/developments/simulate. */
+  plan?: DevelopmentPlan | null;
   brief_text: string;
 }
 
@@ -182,5 +183,9 @@ export interface Probe {
   vehicles: [number, number][];
   cameraInsideBuilding: boolean;
   windowsLitFraction: number;
+  /** The timeline's window-lit fraction at t (what the 3D tower should show). */
+  expectedWindowsLitFraction?: number;
   fps?: number;
+  /** CSS px centre of the §4.4 camera subject, stage-relative (3D fills it; AC-C1). */
+  subject?: { x: number; y: number };
 }

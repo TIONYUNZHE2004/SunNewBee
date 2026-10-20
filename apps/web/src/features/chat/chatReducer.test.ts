@@ -238,3 +238,28 @@ describe("journey.play", () => {
     expect(reduceChatEvent(m, ev({ type: "scene.intent", intent: play }))).toBe(m);
   });
 });
+
+describe("development.play", () => {
+  it("notes the simulation on the answer, with or without an inlined plan", () => {
+    const withPlan = reduceIntent(emptyAssistant("a"), {
+      kind: "development.play",
+      brief_text: "Simulate a tower",
+      plan: { acts: [], bubbles: [], site: {} },
+    } as never);
+    expect(withPlan.devsim).toEqual({ briefText: "Simulate a tower", inlined: true });
+    const bare = reduceIntent(emptyAssistant("a"), {
+      kind: "development.play",
+      brief_text: "Simulate a tower",
+    } as never);
+    expect(bare.devsim).toEqual({ briefText: "Simulate a tower", inlined: false });
+  });
+
+  it("other intents never note a simulation; the scene.intent event leaves the message unchanged", () => {
+    const m = reduceIntent(emptyAssistant("a"), { kind: "place.focus", place_id: "p" } as never);
+    expect(m.devsim).toBeUndefined();
+    const e = emptyAssistant("b");
+    expect(
+      reduceChatEvent(e, ev({ type: "scene.intent", intent: { kind: "development.play" } })),
+    ).toBe(e);
+  });
+});
