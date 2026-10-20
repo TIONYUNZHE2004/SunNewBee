@@ -1883,7 +1883,7 @@ def simulate_development(ctx: Ctx, brief: str = "") -> ToolResult:
     head = {"brief": {"storeys": b.storeys, "homes": b.homes}}
     try:
         plan = _build_development_plan(ctx.world, b)
-    except (DevsimUnavailable, ImportError, AttributeError):
+    except DevsimUnavailable:
         return ToolResult(
             ok=True,
             data={"available": False, "reason": UNAVAILABLE_DEVSIM, **head},
