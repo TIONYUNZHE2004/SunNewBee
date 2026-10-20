@@ -58,7 +58,8 @@ the tool did not return as such. The app adds "Flash floods from heavy rain are 
 
 **Events (T-025, management only).** `simulate_event` takes the roads as staff name them
 (`event_course.course_segments`: exact name, else one clear loose match; unknown, ambiguous or
-over-40-segment courses are asked about) and HH:MM times; the window's date is filled in after
+over-40-segment courses are asked about; a road too long for one event lists the roads that
+cross it and one stretch that resolves, closed as "<road> between <A> and <B>") and HH:MM times; the window's date is filled in after
 the tool-call event (`event_course.event_window`), so recordings stay stable. Answers quote
 `trips_affected` of `trips_total`, `trips_newly_no_route` (trips with no route before the event
 are data gaps), places cut off, detour roads and suggestions; `validate.event_errors` checks the
@@ -345,6 +346,6 @@ real spatial tools on the tiny fixture. They make no network calls.
 - **MCP**: expose the 10 spatial tools as an MCP server so other agents can use the same
   grounded facts.
 
-Route selection is checked before a tool can choose a journey. The request supplies both endpoints, a clear follow-up uses stored server endpoint IDs, and ambiguous or missing places need clarification. The guard preserves the requested mode and river scenario, including nearby amenity searches. An evacuation destination must come from the centre search for that same origin, profile and scenario. Route distances bind to exact place IDs, and the highlighted route must match the answer's selected route. Map-derived `likely_ok` sections require an estimate caveat in English, Bahasa Melayu or Chinese; they cannot support accessibility or staff-survey claims. Demo replay requires a fingerprint of the current world, profiles, engine/agent code and expiry day.
+Route selection is checked before a tool can choose a journey. The request supplies both endpoints, a clear follow-up uses stored server endpoint IDs, and ambiguous or missing places need clarification. The guard preserves the requested mode and river scenario, including nearby amenity searches. An evacuation destination must come from the centre search for that same origin, profile and scenario. Route distances bind to exact place IDs, and the highlighted route must match the answer's selected route. Map-derived `likely_ok` sections require an estimate caveat in English, Bahasa Melayu or Chinese; they cannot support accessibility or staff-survey claims. Demo replay requires a fingerprint of the current world, closures, profiles, engine/agent code and the verified claims past their TTL today (`demo.expired_claims`); the date itself is not part of it, so a recording replays on later days until a fact expires.
 
 `find_place` also accepts `near_place`: this limits identity candidates to 1 km of an already resolved origin. It supplies no walking-distance fact. For a generic destination and a unique named origin, the server supplies that context before calling the tool. Multiple local matches still require clarification. Amenity replies may recommend only matching returned destinations of the requested type; they cannot widen a user-stated search radius.

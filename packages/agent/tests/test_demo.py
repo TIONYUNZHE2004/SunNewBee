@@ -212,15 +212,32 @@ async def test_staff_fact_changes_invalidate_replay(ctx, tmp_path):
     )
 
 
-def test_world_signature_changes_with_expiry_day(ctx, monkeypatch):
+def _on_day(monkeypatch, day):
     from datetime import date
 
-    first = demo.world_fingerprint(ctx.world)
-
-    class Tomorrow(date):
+    class Fixed(date):
         @classmethod
         def today(cls):
-            return cls(2100, 1, 1)
+            return cls.fromisoformat(day)
 
-    monkeypatch.setattr(demo, "date", Tomorrow)
+    monkeypatch.setattr(demo, "date", Fixed)
+
+
+def test_world_signature_changes_when_a_claim_expires(ctx, monkeypatch):
+    _on_day(monkeypatch, "2026-10-20")
+    first = demo.world_fingerprint(ctx.world)
+    _on_day(monkeypatch, "2100-01-01")
+    assert demo.expired_claims(ctx.world, demo.date.today())  # verified facts past their TTL
     assert demo.world_fingerprint(ctx.world) != first
+
+
+def test_world_signature_does_not_change_with_the_day_alone(ctx, monkeypatch):
+    """A recording made today still replays tomorrow when no fact expired (no date time bomb)."""
+    from datetime import date
+
+    d1, d2 = date(2026, 10, 20), date(2026, 10, 23)
+    assert demo.expired_claims(ctx.world, d1) == demo.expired_claims(ctx.world, d2)
+    _on_day(monkeypatch, d1.isoformat())
+    first = demo.world_fingerprint(ctx.world)
+    _on_day(monkeypatch, d2.isoformat())
+    assert demo.world_fingerprint(ctx.world) == first

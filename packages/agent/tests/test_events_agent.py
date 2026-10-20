@@ -1,5 +1,7 @@
 """T-025: management event answers (simulate_event) and their checks."""
 
+import re
+
 import pytest
 from townshiplens_agent.answer import Claim, FinalAnswer
 from townshiplens_agent.event_course import CourseError, course_segments, event_window
@@ -44,6 +46,27 @@ def test_a_named_road_resolves_to_its_mapped_segments(seed):
 def test_unknown_ambiguous_or_long_courses_are_asked_about(seed, road, why):
     with pytest.raises(CourseError, match=why):
         course_segments(seed, [road], None)
+
+
+@needs_seed
+def test_a_road_too_long_for_one_event_suggests_a_section_that_resolves(seed):
+    with pytest.raises(CourseError, match="Persiaran Elmina meets ") as err:
+        course_segments(seed, ["Persiaran Elmina"], None)
+    section = re.search(r"'(Persiaran Elmina between .+? and .+?)'", str(err.value)).group(1)
+    segs = course_segments(seed, [section], None)
+    assert 0 < len(segs) <= 40 and {seed.edges[s].name for s in segs} == {"Persiaran Elmina"}
+
+
+@needs_seed
+def test_a_stretch_follows_the_road_between_two_cross_streets(seed):
+    segs = course_segments(
+        seed, ["persiaran elmina between bulatan elektron and bulatan elmina"], None
+    )
+    assert segs and all(seed.edges[s].name == "Persiaran Elmina" for s in segs)
+    with pytest.raises(CourseError, match="does not meet"):
+        course_segments(
+            seed, ["Persiaran Elmina between Persiaran Elmina 1/1 and Bulatan Elmina"], None
+        )
 
 
 def test_event_window_is_local_time_and_needs_an_end_after_the_start():
