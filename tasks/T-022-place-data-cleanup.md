@@ -17,18 +17,21 @@ Full table: `tasks/data/T-022-places-audit.csv` (id, name, type, inside boundary
 
 Cause: `data/scripts/import_osm.py` keeps only the `amenity`/`leisure` value as the type, queries the whole bbox (101.46–101.53, 3.15–3.24), not the township outline, and keeps both node and area of one feature.
 
-## Fix (backend engineer)
+## Root cause (control, confirmed offline)
 
-1. Tag each place `in_township: true|false` against the boundary (+100 m buffer). Places outside stay findable, but answers say "outside City of Elmina". Evacuation candidates: keep only inside + buffer, unless Yunzhe rules otherwise.
-2. Remove candidates that residents cannot use (prisons, `access=private|no`); log each removal with its reason.
-3. Types from more tags: `amenity=kindergarten` → kindergarten; tuition (`amenity=school` + name "Tuition"/`school=tuition`) → tuition_centre; `leisure=pitch` → sports_pitch; `barrier=toll_booth`/toll plaza → drop; name-only "building" → use `tourism`/`shop`/`office`/`amenity` when present, else drop it from places.
-4. Merge duplicates: same normalised name + type within 150 m → one place (prefer the area; keep the node id as an alias id).
-5. Re-run `pnpm data:build` with the Overpass cache, re-record the demo cache with the mock, and report the before/after counts here.
+The 3D map draws buildings within 3.5 km of the centre (`site.json` buildings.radius_m), which covers City of Elmina. Places, evacuation candidates and the walk graph are imported from the much larger `site.json` bbox (101.46-101.53, 3.15-3.24). So **107 of 225 places lie beyond the 3D map**; 103 of them are also outside the township boundary.
 
-## Acceptance
+## Fix, kept simple (Yunzhe, 20 Oct: "don't over complex it")
 
-- Audit script re-run: 0 duplicates under 150 m, 0 name/type mismatches from the list above, prison surau gone from candidates, inside/outside count reported.
-- `uv run pytest -q` and `pnpm golden` green; segment and place ids used in tests still exist.
+**Backend engineer (data):**
+1. Keep only places and evacuation candidates inside `base/boundary.geojson` + 200 m. Use the existing seed; no new Overpass download is needed. Leave the walk graph as it is.
+2. Fix the 6 wrong types and drop the toll plaza; merge the node + area duplicates listed above (same name, under 150 m).
+3. Re-record the demo cache with the mock. Check that place ids used in tests and golden still exist; if a test place is now outside, tell control.
+
+**AI engineer (names):**
+1. A partial name that starts exactly one place name is that place: "SK Taman" → "SK Taman Bukit Subang". If several places start with it, ask "Which one: A or B?" and do not refuse.
+2. Bug: `route_binding.entities()` strips "Surau " and adds "SK Taman Bukit Subang" as an alias of "Surau SK Taman Bukit Subang", which collides with the school's own name. Never add an alias that equals another place's name.
+3. Tests for both, in EN/BM.
 
 ## Log
 
