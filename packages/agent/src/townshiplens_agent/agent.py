@@ -1078,7 +1078,8 @@ def build_agent(
         profiles: list[str] | None = None,
     ) -> dict:
         """Management: an event (marathon, parade) closes roads for a time window. Pass the
-        roads as the user names them (road_names), start and end as HH:MM local time, and day
+        roads as the user names them (road_names; one stretch as "<road> between <A> and <B>",
+        A and B being roads that cross it), start and end as HH:MM local time, and day
         as YYYY-MM-DD only when the user gives a date. Compares everyday sample trips (walking,
         wheelchair, driving) without and with the closures: trips affected, trips that newly
         lose a route, places cut off, detour roads ranked by rerouted trips, and suggestions.
