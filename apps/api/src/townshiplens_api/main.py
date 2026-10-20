@@ -5,7 +5,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from . import warm
-from .routes import chat, closures, core, day, evidence, flood, manage, plan, sim, whatif
+from .routes import (
+    chat,
+    closures,
+    core,
+    day,
+    devsim,
+    evidence,
+    flood,
+    manage,
+    plan,
+    sim,
+    whatif,
+)
 from .settings import ApiSettings
 
 
@@ -37,5 +49,6 @@ for r in (
     whatif.router,
     plan.router,
     day.router,
+    devsim.router,
 ):
     app.include_router(r)

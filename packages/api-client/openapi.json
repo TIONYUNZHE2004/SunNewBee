@@ -1,6 +1,29 @@
 {
   "components": {
     "schemas": {
+      "Act": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "t0": {
+            "title": "T0",
+            "type": "number"
+          },
+          "t1": {
+            "title": "T1",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "t0",
+          "t1"
+        ],
+        "title": "Act",
+        "type": "object"
+      },
       "AffectedResult": {
         "properties": {
           "disclaimer": {
@@ -322,6 +345,59 @@
           "note"
         ],
         "title": "BeliefTable",
+        "type": "object"
+      },
+      "Bubble": {
+        "properties": {
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "t0": {
+            "title": "T0",
+            "type": "number"
+          },
+          "t1": {
+            "title": "T1",
+            "type": "number"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "tone": {
+            "enum": [
+              "pos",
+              "neg"
+            ],
+            "title": "Tone",
+            "type": "string"
+          },
+          "who": {
+            "title": "Who",
+            "type": "string"
+          }
+        },
+        "required": [
+          "n",
+          "who",
+          "t0",
+          "t1",
+          "tone",
+          "text"
+        ],
+        "title": "Bubble",
         "type": "object"
       },
       "BuildRamp": {
@@ -1661,6 +1737,357 @@
         "title": "DeepSpot",
         "type": "object"
       },
+      "DevelopmentEntrance": {
+        "properties": {
+          "door": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Door",
+            "type": "array"
+          },
+          "facing_deg": {
+            "title": "Facing Deg",
+            "type": "number"
+          },
+          "path": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Path",
+            "type": "array"
+          }
+        },
+        "required": [
+          "door",
+          "facing_deg",
+          "path"
+        ],
+        "title": "DevelopmentEntrance",
+        "type": "object"
+      },
+      "DevelopmentPlan": {
+        "description": "Everything the Development Simulation player needs (spec \u00a74\u2013\u00a75).",
+        "properties": {
+          "acts": {
+            "items": {
+              "$ref": "#/components/schemas/Act"
+            },
+            "title": "Acts",
+            "type": "array"
+          },
+          "anchors": {
+            "$ref": "#/components/schemas/DevsimAnchors"
+          },
+          "bubbles": {
+            "items": {
+              "$ref": "#/components/schemas/Bubble"
+            },
+            "title": "Bubbles",
+            "type": "array"
+          },
+          "cast": {
+            "items": {
+              "$ref": "#/components/schemas/SpotlightCast"
+            },
+            "title": "Cast",
+            "type": "array"
+          },
+          "end_card": {
+            "$ref": "#/components/schemas/EndCard"
+          },
+          "facts": {
+            "$ref": "#/components/schemas/DevsimFacts"
+          },
+          "households": {
+            "title": "Households",
+            "type": "integer"
+          },
+          "labels": {
+            "$ref": "#/components/schemas/DevsimLabels"
+          },
+          "provisional": {
+            "default": false,
+            "title": "Provisional",
+            "type": "boolean"
+          },
+          "site": {
+            "$ref": "#/components/schemas/DevelopmentSite"
+          },
+          "total_s": {
+            "default": 66,
+            "title": "Total S",
+            "type": "number"
+          },
+          "world": {
+            "title": "World",
+            "type": "string"
+          }
+        },
+        "required": [
+          "world",
+          "site",
+          "facts",
+          "cast",
+          "households",
+          "acts",
+          "bubbles",
+          "anchors",
+          "end_card",
+          "labels"
+        ],
+        "title": "DevelopmentPlan",
+        "type": "object"
+      },
+      "DevelopmentSite": {
+        "properties": {
+          "entrance": {
+            "$ref": "#/components/schemas/DevelopmentEntrance"
+          },
+          "footprint": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Footprint",
+            "type": "array"
+          },
+          "homes": {
+            "title": "Homes",
+            "type": "integer"
+          },
+          "kanopi_clearance_m": {
+            "title": "Kanopi Clearance M",
+            "type": "number"
+          },
+          "parcel_id": {
+            "title": "Parcel Id",
+            "type": "string"
+          },
+          "storeys": {
+            "title": "Storeys",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "parcel_id",
+          "footprint",
+          "storeys",
+          "homes",
+          "entrance",
+          "kanopi_clearance_m"
+        ],
+        "title": "DevelopmentSite",
+        "type": "object"
+      },
+      "DevsimAnchors": {
+        "properties": {
+          "farid": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Farid",
+            "type": "array"
+          },
+          "halim_path": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Halim Path",
+            "type": "array"
+          },
+          "junction": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Junction",
+            "type": "array"
+          },
+          "mall": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Mall",
+            "type": "array"
+          },
+          "park": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Park",
+            "type": "array"
+          }
+        },
+        "required": [
+          "halim_path",
+          "farid",
+          "junction",
+          "park",
+          "mall"
+        ],
+        "title": "DevsimAnchors",
+        "type": "object"
+      },
+      "DevsimDetour": {
+        "description": "A resident's walk to the mall before and after the hoarding closes the frontage edge.",
+        "properties": {
+          "after_m": {
+            "title": "After M",
+            "type": "integer"
+          },
+          "after_path": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "After Path",
+            "type": "array"
+          },
+          "before_m": {
+            "title": "Before M",
+            "type": "integer"
+          },
+          "before_path": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Before Path",
+            "type": "array"
+          },
+          "detour_min": {
+            "title": "Detour Min",
+            "type": "integer"
+          },
+          "detour_side_switch": {
+            "title": "Detour Side Switch",
+            "type": "boolean"
+          },
+          "edge_id": {
+            "title": "Edge Id",
+            "type": "string"
+          },
+          "home_id": {
+            "title": "Home Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "home_id",
+          "edge_id",
+          "before_m",
+          "after_m",
+          "detour_min",
+          "before_path",
+          "after_path",
+          "detour_side_switch"
+        ],
+        "title": "DevsimDetour",
+        "type": "object"
+      },
+      "DevsimFacts": {
+        "properties": {
+          "detour": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DevsimDetour"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mall": {
+            "$ref": "#/components/schemas/DevsimWalk"
+          },
+          "park": {
+            "$ref": "#/components/schemas/DevsimWalk"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "provenance": {
+            "title": "Provenance",
+            "type": "string"
+          }
+        },
+        "required": [
+          "park",
+          "mall",
+          "profile",
+          "provenance"
+        ],
+        "title": "DevsimFacts",
+        "type": "object"
+      },
+      "DevsimLabels": {
+        "properties": {
+          "decorative": {
+            "default": "Decorative details are illustrative.",
+            "title": "Decorative",
+            "type": "string"
+          },
+          "end_card_subtitle": {
+            "default": "Simulated reactions \u00b7 Hypothetical development \u00b7 not an SDP project",
+            "title": "End Card Subtitle",
+            "type": "string"
+          },
+          "hypothetical": {
+            "default": "Hypothetical development \u00b7 not an SDP project \u00b7 30 storeys \u00b7 ~500 homes",
+            "title": "Hypothetical",
+            "type": "string"
+          },
+          "simulation": {
+            "default": "Simulation \u00b7 illustrative",
+            "title": "Simulation",
+            "type": "string"
+          }
+        },
+        "title": "DevsimLabels",
+        "type": "object"
+      },
+      "DevsimWalk": {
+        "properties": {
+          "m": {
+            "title": "M",
+            "type": "integer"
+          },
+          "min": {
+            "title": "Min",
+            "type": "integer"
+          },
+          "path": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Path",
+            "type": "array"
+          }
+        },
+        "required": [
+          "m",
+          "min",
+          "path"
+        ],
+        "title": "DevsimWalk",
+        "type": "object"
+      },
       "Disclaimer": {
         "properties": {
           "lens": {
@@ -1726,6 +2153,62 @@
           "model"
         ],
         "title": "Done",
+        "type": "object"
+      },
+      "EndCard": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EndCardItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "legend": {
+            "title": "Legend",
+            "type": "string"
+          },
+          "subtitle": {
+            "title": "Subtitle",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "subtitle",
+          "items",
+          "legend"
+        ],
+        "title": "EndCard",
+        "type": "object"
+      },
+      "EndCardItem": {
+        "properties": {
+          "badges": {
+            "items": {
+              "enum": [
+                "ROUTE ENGINE",
+                "SIMULATED"
+              ],
+              "type": "string"
+            },
+            "title": "Badges",
+            "type": "array"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "badges"
+        ],
+        "title": "EndCardItem",
         "type": "object"
       },
       "ErrorEvent": {
@@ -4361,6 +4844,24 @@
         "title": "SimViolation",
         "type": "object"
       },
+      "SimulateRequest": {
+        "properties": {
+          "brief_text": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brief Text"
+          }
+        },
+        "title": "SimulateRequest",
+        "type": "object"
+      },
       "SiteBoundary": {
         "description": "The display-only Elmina outline with its geometry, for the stylised renderer's clip and\ndiorama slab. Routing, evaluation and answers never read it. `geometry` is null when the file\nis missing, unreadable or not one Polygon / MultiPolygon.",
         "properties": {
@@ -4513,6 +5014,48 @@
           "bbox"
         ],
         "title": "SiteInfo",
+        "type": "object"
+      },
+      "SpotlightCast": {
+        "properties": {
+          "colour": {
+            "title": "Colour",
+            "type": "string"
+          },
+          "home": {
+            "enum": [
+              "tower",
+              "existing"
+            ],
+            "title": "Home",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "persona": {
+            "title": "Persona",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role",
+          "persona",
+          "home",
+          "colour"
+        ],
+        "title": "SpotlightCast",
         "type": "object"
       },
       "Stage": {
@@ -6029,6 +6572,55 @@
           }
         },
         "summary": "Day Trip"
+      }
+    },
+    "/developments/simulate": {
+      "post": {
+        "description": "The Development Simulation plan for the loaded world: site, routed facts (detour, park and\nmall walks), cast, timeline, bubbles and end card. Illustrative, not a forecast; 404 when the\nworld lacks the parcel (e.g. the tiny fixture).",
+        "operationId": "simulate_development_developments_simulate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SimulateRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentPlan"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "development simulation not available for this world"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Simulate Development"
       }
     },
     "/elements/{element_id}/attributes/{key}": {

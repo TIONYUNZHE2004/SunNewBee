@@ -232,6 +232,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/developments/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Simulate Development
+         * @description The Development Simulation plan for the loaded world: site, routed facts (detour, park and
+         *     mall walks), cast, timeline, bubbles and end card. Illustrative, not a forecast; 404 when the
+         *     world lacks the parcel (e.g. the tiny fixture).
+         */
+        post: operations["simulate_development_developments_simulate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/elements/{element_id}/attributes/{key}": {
         parameters: {
             query?: never;
@@ -871,6 +893,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Act */
+        Act: {
+            /** Name */
+            name: string;
+            /** T0 */
+            t0: number;
+            /** T1 */
+            t1: number;
+        };
         /** AffectedResult */
         AffectedResult: {
             /** Disclaimer */
@@ -1041,6 +1072,26 @@ export interface components {
             sources: {
                 [key: string]: number;
             };
+        };
+        /** Bubble */
+        Bubble: {
+            /** N */
+            n: number;
+            /** T0 */
+            t0: number;
+            /** T1 */
+            t1: number;
+            /** Tag */
+            tag?: string | null;
+            /** Text */
+            text: string;
+            /**
+             * Tone
+             * @enum {string}
+             */
+            tone: "pos" | "neg";
+            /** Who */
+            who: string;
         };
         /**
          * BuildRamp
@@ -1547,6 +1598,137 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** DevelopmentEntrance */
+        DevelopmentEntrance: {
+            /** Door */
+            door: number[];
+            /** Facing Deg */
+            facing_deg: number;
+            /** Path */
+            path: number[][];
+        };
+        /**
+         * DevelopmentPlan
+         * @description Everything the Development Simulation player needs (spec §4–§5).
+         */
+        DevelopmentPlan: {
+            /** Acts */
+            acts: components["schemas"]["Act"][];
+            anchors: components["schemas"]["DevsimAnchors"];
+            /** Bubbles */
+            bubbles: components["schemas"]["Bubble"][];
+            /** Cast */
+            cast: components["schemas"]["SpotlightCast"][];
+            end_card: components["schemas"]["EndCard"];
+            facts: components["schemas"]["DevsimFacts"];
+            /** Households */
+            households: number;
+            labels: components["schemas"]["DevsimLabels"];
+            /**
+             * Provisional
+             * @default false
+             */
+            provisional: boolean;
+            site: components["schemas"]["DevelopmentSite"];
+            /**
+             * Total S
+             * @default 66
+             */
+            total_s: number;
+            /** World */
+            world: string;
+        };
+        /** DevelopmentSite */
+        DevelopmentSite: {
+            entrance: components["schemas"]["DevelopmentEntrance"];
+            /** Footprint */
+            footprint: number[][];
+            /** Homes */
+            homes: number;
+            /** Kanopi Clearance M */
+            kanopi_clearance_m: number;
+            /** Parcel Id */
+            parcel_id: string;
+            /** Storeys */
+            storeys: number;
+        };
+        /** DevsimAnchors */
+        DevsimAnchors: {
+            /** Farid */
+            farid: number[];
+            /** Halim Path */
+            halim_path: number[][];
+            /** Junction */
+            junction: number[];
+            /** Mall */
+            mall: number[];
+            /** Park */
+            park: number[];
+        };
+        /**
+         * DevsimDetour
+         * @description A resident's walk to the mall before and after the hoarding closes the frontage edge.
+         */
+        DevsimDetour: {
+            /** After M */
+            after_m: number;
+            /** After Path */
+            after_path: number[][];
+            /** Before M */
+            before_m: number;
+            /** Before Path */
+            before_path: number[][];
+            /** Detour Min */
+            detour_min: number;
+            /** Detour Side Switch */
+            detour_side_switch: boolean;
+            /** Edge Id */
+            edge_id: string;
+            /** Home Id */
+            home_id: string;
+        };
+        /** DevsimFacts */
+        DevsimFacts: {
+            detour?: components["schemas"]["DevsimDetour"] | null;
+            mall: components["schemas"]["DevsimWalk"];
+            park: components["schemas"]["DevsimWalk"];
+            /** Profile */
+            profile: string;
+            /** Provenance */
+            provenance: string;
+        };
+        /** DevsimLabels */
+        DevsimLabels: {
+            /**
+             * Decorative
+             * @default Decorative details are illustrative.
+             */
+            decorative: string;
+            /**
+             * End Card Subtitle
+             * @default Simulated reactions · Hypothetical development · not an SDP project
+             */
+            end_card_subtitle: string;
+            /**
+             * Hypothetical
+             * @default Hypothetical development · not an SDP project · 30 storeys · ~500 homes
+             */
+            hypothetical: string;
+            /**
+             * Simulation
+             * @default Simulation · illustrative
+             */
+            simulation: string;
+        };
+        /** DevsimWalk */
+        DevsimWalk: {
+            /** M */
+            m: number;
+            /** Min */
+            min: number;
+            /** Path */
+            path: number[][];
+        };
         /** Disclaimer */
         Disclaimer: {
             /**
@@ -1580,6 +1762,24 @@ export interface components {
              * @enum {string}
              */
             type: "done";
+        };
+        /** EndCard */
+        EndCard: {
+            /** Items */
+            items: components["schemas"]["EndCardItem"][];
+            /** Legend */
+            legend: string;
+            /** Subtitle */
+            subtitle: string;
+            /** Title */
+            title: string;
+        };
+        /** EndCardItem */
+        EndCardItem: {
+            /** Badges */
+            badges: ("ROUTE ENGINE" | "SIMULATED")[];
+            /** Text */
+            text: string;
         };
         /** ErrorEvent */
         ErrorEvent: {
@@ -2561,6 +2761,11 @@ export interface components {
             /** Task Id */
             task_id: string;
         };
+        /** SimulateRequest */
+        SimulateRequest: {
+            /** Brief Text */
+            brief_text?: string | null;
+        };
         /**
          * SiteBoundary
          * @description The display-only Elmina outline with its geometry, for the stylised renderer's clip and
@@ -2612,6 +2817,24 @@ export interface components {
             timezone: string;
             /** Township */
             township: string;
+        };
+        /** SpotlightCast */
+        SpotlightCast: {
+            /** Colour */
+            colour: string;
+            /**
+             * Home
+             * @enum {string}
+             */
+            home: "tower" | "existing";
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Persona */
+            persona: string;
+            /** Role */
+            role: string;
         };
         /** Stage */
         Stage: {
@@ -3423,6 +3646,46 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    simulate_development_developments_simulate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SimulateRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevelopmentPlan"];
+                };
+            };
+            /** @description development simulation not available for this world */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
