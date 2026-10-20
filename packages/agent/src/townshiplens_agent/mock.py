@@ -191,7 +191,7 @@ DEMO_ORIGIN = ("lakeside-mall", "Elmina Lakeside Mall")  # same start point the 
 _WHERE_NEXT = r"where (?:can|should|do) (?:i|we) go|where (?:to|should i) (?:go|evacuate)"
 _ACCESS_Q = (
     r"stroller|pram|stairs|tangga|wheelchair|kerusi roda|step|older adult|elderly|\brest\b"
-    r"|\beasy\b|\bwalk\b|get to|from .+ to "
+    r"|\beasy\b|\bwalk\b|get to|from .+ to |从.+?(?:走|步行)?到"
 )
 _PROFILE_WORDS = [
     ("wheelchair", r"wheelchair|kerusi roda"),
@@ -223,7 +223,9 @@ def _named(phrase: str) -> str | None:
 def _route_ends(q: str) -> tuple[str | None, str | None]:
     """Both endpoints must be stated; no silent demo origin. A phrase with no pinned place word
     is searched by its own words (find_place by name)."""
-    m = re.search(r"from (.+?) to (.+)", q)
+    m = re.search(r"from (.+?) to (.+)", q) or re.search(
+        r"从(.+?)(?:走|步行)?到(.+?)(?:怎么走|怎样走|可以吗|吗)?[？?。]*$", q
+    )
     if m:
         a, b = m.group(1), m.group(2)
         return _place(a, None) or _named(a), _place(b, None) or _named(b)

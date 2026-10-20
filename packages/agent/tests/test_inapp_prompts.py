@@ -355,6 +355,28 @@ async def test_ambiguous_place_asks_which_one_and_files_nothing(world, tmp_path)
     assert "asked the team" not in text.lower()
 
 
+async def test_neighbourhood_name_in_two_places_asks_which_one(world, tmp_path):
+    """Live round 6 (T-022): "tmn bukit subang" fits the school and its surau equally well."""
+    evs = await _turn(world, tmp_path, "Tell me about tmn bukit subang", "default", None)
+    text = _text(evs)
+    assert evs[-1].answer_status == "cannot_answer"
+    assert "SK Taman Bukit Subang" in text and "Surau SK Taman Bukit Subang" in text
+    assert "get_place_details" not in [e.name for e in evs if e.type == "tool.call"]
+    assert not [e for e in evs if e.type == "verification.requested"]
+
+
+async def test_chinese_route_with_sloppy_names_is_planned(world, tmp_path):
+    """Live round 6 (T-022): "subang走到surau" hid both names and the route was refused."""
+    msg = "从SK TAMAN BKT SUBANG走到surau at takwa怎么走？"
+    evs = await _turn(world, tmp_path, msg, "default", None)
+    calls = [e.args for e in evs if e.type == "tool.call" and e.name == "plan_route"]
+    assert [(c["from_id"], c["to_id"]) for c in calls] == [
+        ("osm-way-894147407", "osm-way-910378231")
+    ]
+    assert evs[-1].answer_status in ("answered", "partial")
+    assert "SK Taman Bukit Subang" in _text(evs)
+
+
 async def test_clear_hit_still_answers(world, tmp_path):
     evs = await _turn(world, tmp_path, "Tell me about Elmina Lakeside Mall", "default", None)
     assert evs[-1].answer_status in ("answered", "partial")
