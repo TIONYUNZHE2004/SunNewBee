@@ -406,3 +406,57 @@ def test_substituted_or_unnamed_endpoints_are_still_blocked(question, args):
     world = load_world(_SEED)
     with pytest.raises(_RSE):
         _guard(world, question, args, strict=True)
+
+
+# T-022: sloppy names in route questions, and no derived alias that is another place's name.
+from townshiplens_agent.route_binding import entities as _entities  # noqa: E402
+
+_SK, _SURAU_SK = "osm-way-894147407", "osm-way-910352168"
+
+
+@pytest.mark.skipif(not (_SEED / "site.json").exists(), reason="Elmina seed not built")
+def test_derived_alias_never_equals_another_place_name():
+    reg = _entities(load_world(_SEED))
+    assert "SK Taman Bukit Subang" not in reg[_SURAU_SK]["aliases"]
+
+
+@pytest.mark.skipif(not (_SEED / "site.json").exists(), reason="Elmina seed not built")
+@pytest.mark.parametrize(
+    "question, args",
+    [
+        ("How do I walk from surau al mahdi to sk taman?", {"from_id": _MAHDI, "to_id": _SK}),
+        (
+            "Dari Surau Al Mahdi ke surau at takwa, boleh jalan kaki?",
+            {"from_id": _MAHDI, "to_id": _TAQWA},
+        ),
+        ("from SK TAMAN BKT SUBANG to surau at takwa", {"from_id": _SK, "to_id": _TAQWA}),
+        (
+            "from surau al mahdi to surau sk taman bukit subang",
+            {"from_id": _MAHDI, "to_id": _SURAU_SK},
+        ),
+    ],
+)
+def test_sloppy_names_bind_to_the_named_place(question, args):
+    _guard(load_world(_SEED), question, args, strict=True)
+
+
+@pytest.mark.skipif(not (_SEED / "site.json").exists(), reason="Elmina seed not built")
+@pytest.mark.parametrize(
+    "question, args",
+    [
+        ("from sk taman to surau at takwa", {"from_id": _SK, "to_id": _MAHDI}),  # wrong place
+        (
+            "from Surau Al Mahdi to klinik siti",
+            {"from_id": _MAHDI, "to_id": "osm-node-11949343474"},
+        ),
+        (
+            "Dari Lakeside Mall Car Park B ke taman permainan",
+            {"from_id": "park-b", "to_id": "osm-way-781364799"},
+        ),
+    ],
+)
+def test_wrong_ambiguous_or_generic_names_are_not_taken(question, args):
+    """A different place, two places called 'Klinik Siti' (ask which one), and the generic
+    'taman permainan' (playground near the start) never bind to the typed words."""
+    with pytest.raises(_RSE):
+        _guard(load_world(_SEED), question, args, strict=True)

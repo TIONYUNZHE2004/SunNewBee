@@ -7,6 +7,7 @@ other endpoint. Otherwise the assistant must ask which place, rather than choose
 import re
 import unicodedata
 
+from townshiplens_spatial import place_search
 from townshiplens_spatial.geo import haversine_m
 
 from .facts import _matches, extract_facts
@@ -67,12 +68,17 @@ def entities(world):
                 "taman permainan Elmina Urban Park",
             ]
         )
+    taken = {normalise(n) for p in registry.values() for n in [p["name"], *p["aliases"]]}
     for p in registry.values():
+        derived = []
         if p["name"].startswith("Elmina ") and len(p["name"].split()) >= 3:
-            p["aliases"].append(p["name"].removeprefix("Elmina "))
+            derived.append(p["name"].removeprefix("Elmina "))
         shortened = re.sub(r"^(?:Surau|Masjid|Sekolah|SK|SRA)\s+", "", p["name"], flags=re.I)
         if shortened != p["name"] and len(shortened.split()) >= 2:
-            p["aliases"].append(shortened)
+            derived.append(shortened)
+        # T-022: a derived alias never equals another place's name ("Surau SK Taman Bukit
+        # Subang" must not become "SK Taman Bukit Subang", the school).
+        p["aliases"] += [a for a in derived if normalise(a) not in taken]
         # "Harmoni 1 @ City of Elmina Show Units" is asked for as "Harmoni 1".
         head = p["name"].split(" @ ", 1)[0].strip()
         if head != p["name"] and len(head.split()) >= 2:
@@ -120,6 +126,159 @@ _MODE_NEGATION = re.compile(
 def _negated_mode(question, start):
     clause = re.split(r"[,.;!?，。；！？]", question[:start])[-1]
     return bool(_MODE_NEGATION.search(clause))
+
+
+# T-022: sloppy names ("sk taman", "surau at takwa") resolve with the same forgiving search as
+# find_place; filler words and generic place words never count as a name.
+_FILLER = set(
+    [
+        "the",
+        "a",
+        "an",
+        "to",
+        "from",
+        "with",
+        "my",
+        "i",
+        "i'm",
+        "im",
+        "can",
+        "could",
+        "how",
+        "do",
+        "does",
+        "go",
+        "get",
+        "walk",
+        "walking",
+        "push",
+        "take",
+        "me",
+        "please",
+        "route",
+        "way",
+        "there",
+        "here",
+        "is",
+        "are",
+        "at",
+        "in",
+        "on",
+        "of",
+        "for",
+        "and",
+        "or",
+        "by",
+        "near",
+        "nearest",
+        "closest",
+        "stroller",
+        "pram",
+        "wheelchair",
+        "car",
+        "drive",
+        "driving",
+        "older",
+        "adult",
+        "rest",
+        "saya",
+        "nak",
+        "boleh",
+        "macam",
+        "mana",
+        "ke",
+        "dari",
+        "di",
+        "dengan",
+        "naik",
+        "kerusi",
+        "roda",
+        "kereta",
+        "sorong",
+        "laluan",
+        "ikut",
+        "jalan",
+        "kaki",
+        "ini",
+        "itu",
+        "yang",
+    ]
+)
+
+
+def _rows(world, window):
+    rows = []
+    for p in world.places.values():
+        if p.id.startswith("__"):
+            continue
+        names = [p.name, *p.aliases]
+        kind = place_search.match(window, names)
+        if kind:
+            rows.append(
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "match": kind,
+                    "score": max(place_search.score(window, kind, n) for n in names),
+                    "_key": place_search.rank_key(world, window, kind, p),
+                }
+            )
+    rows.sort(key=lambda r: (-r["score"], r["_key"]))
+    return rows
+
+
+def fuzzy_mentions(world, text):
+    """Places a text names loosely: ({ids of clear matches}, [[names] of 'which one?' sets]).
+    Generic place words ("taman permainan", "游乐场") are removed first: they name a kind of
+    place, which the generic-destination rule resolves, never a place called that."""
+    plain = f" {normalise(text)} "
+    for word in sorted(GENERIC_NAMES, key=len, reverse=True):
+        plain = plain.replace(f" {normalise(word)} ", " ")
+    tokens = plain.split()
+    used = [False] * len(tokens)
+    ids, ask = set(), []
+    for size in range(min(6, len(tokens)), 0, -1):
+        for i in range(len(tokens) - size + 1):
+            window = tokens[i : i + size]
+            if any(used[i : i + size]) or all(t in _FILLER for t in window):
+                continue
+            phrase = " ".join(window)
+            if phrase in GENERIC_NAMES or (size == 1 and len(phrase) < 3):
+                continue
+            rows = _rows(world, phrase)
+            decision = place_search.decide(rows)
+            if decision == "use":
+                ids.add(canonical_id(world, rows[0]["id"]))
+            elif decision == "ask":
+                ask.append([r["name"] for r in rows[:3]])
+            else:
+                continue
+            used[i : i + size] = [True] * size
+    return ids, ask
+
+
+def named_places(world, text, registry):
+    """Exact names first; else the forgiving search. Raises when 2-3 places fit equally well."""
+    named = mentions(text, registry)
+    shared = {
+        pid
+        for pid in named
+        if sum(normalise(p["name"]) == normalise(registry[pid]["name"]) for p in registry.values())
+        > 1
+    }
+    if named and named != shared:
+        return named
+    # Only names several places share ("Surau"): a longer loose match wins ("surau at takwa").
+    ids, ask = fuzzy_mentions(world, text)
+    if named and not ids:
+        return named
+    if ids:
+        return ids
+    if not ids and ask:
+        raise RouteSelectionError(
+            f"Which place do you mean: {' or '.join(ask[0])}? Ask the resident; do not guess."
+        )
+    return ids
 
 
 def effective_profile(question, ui_profile, supplied=None):
@@ -228,7 +387,7 @@ def generic_kind(phrase):
 
 def guard_origin(world, question, origin_id, *, context=None, strict=False):
     pair = role_phrases(question)
-    named = mentions(pair[0] if pair else question, entities(world))
+    named = named_places(world, pair[0] if pair else question, entities(world))
     if named:
         if named != {canonical_id(world, origin_id)}:
             raise RouteSelectionError(
@@ -271,7 +430,7 @@ def guard_endpoints(world, question, args, *, context=None, strict=False, centre
         ):
             return
     if not pair:
-        named = mentions(question, registry)
+        named = named_places(world, question, registry)
         chosen = {canonical_id(world, args.get(k, "")) for k in ("from_id", "to_id")}
         if named and not named <= chosen:
             raise RouteSelectionError(
@@ -291,7 +450,7 @@ def guard_endpoints(world, question, args, *, context=None, strict=False, centre
         return
     for phrase, key, otherkey in zip(pair, ("from_id", "to_id"), ("to_id", "from_id"), strict=True):
         selected = canonical_id(world, args.get(key, ""))
-        named = mentions(phrase, registry)
+        named = named_places(world, phrase, registry)
         if named:
             if len(named) > 1 or selected not in named:
                 names = ", ".join(sorted(registry[p]["name"] for p in named))
