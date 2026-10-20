@@ -42,3 +42,4 @@ What gets easier, what gets harder, what we must watch.
 | [0011](0011-time-of-day-theme-and-decorative-motion.md) | Time-of-day theme (Day / Dusk / Night) and decorative-only motion in the stylised city | partly superseded by 0013 |
 | [0012](0012-stylised-city-on-threejs-with-blender-assets.md) | Stylised city on Three.js with Blender-made assets; Realistic stays on Cesium (amends 0007) | accepted |
 | [0013](0013-living-township-traffic-people-and-sourced-signage.md) | Living township: decorative traffic and people, real landmarks, sourced text-only signage | accepted |
+| [0014](0014-developer-lens-hypothetical-developments-on-real-parcels.md) | Developer lens: hypothetical developments on real parcels, with simulated resident reactions | accepted |
