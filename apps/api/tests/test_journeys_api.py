@@ -27,7 +27,7 @@ def test_post_journeys_returns_the_plan_for_the_recommended_route():
     world = state.get_ctx().world
     route = plan_route(world, "park-b", "kiosk", "older_adult_rest").routes[0]
     assert plan == build_journey(world, route, "older_adult_rest", "15:20")
-    assert [e.kind for e in plan.events] == ["verified", "rest", "gap", "arrive"]
+    assert [e.kind for e in plan.events] == ["verified", "gap", "unknown", "rest", "arrive"]
 
 
 def test_post_journeys_files_no_verification_requests():
@@ -153,7 +153,15 @@ def test_agent_journey_equals_post_journeys_on_the_seed_demo_route(monkeypatch, 
 
     async def plan():
         deps = Deps(
-            ctx=ctx, rec=TurnRecord(queue=asyncio.Queue()), request=ChatRequest(message="x")
+            ctx=ctx,
+            rec=TurnRecord(queue=asyncio.Queue()),
+            request=ChatRequest(
+                message=(
+                    "As an older adult, walk from Harmoni 1 @ City of Elmina Show Units "
+                    "to Lakeside Mall Car Park B."
+                ),
+                profile=profile,
+            ),
         )
         out = await call_tool(deps, "plan_route", from_id=a, to_id=b, profile=profile)
         return deps.rec, out["data"]["routes"][0]["id"]

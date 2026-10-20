@@ -161,16 +161,17 @@ def test_stroller_ramp_route_events(world):
 
 def test_rest_profile_events_rest_and_gap(world):
     _, plan = _plan(world, "park-b", "kiosk", "older_adult_rest")
-    assert [e.kind for e in plan.events] == ["verified", "rest", "gap", "arrive"]
-    rest, gap = plan.events[1], plan.events[2]
+    assert [e.kind for e in plan.events] == ["verified", "gap", "unknown", "rest", "arrive"]
+    gap, rest = plan.events[1], plan.events[3]
     assert rest.element_id == "bench-1" and rest.title == "Bench by the path"
     assert rest.status == "verified" and rest.demo is True
     assert rest.at_m == pytest.approx(111.2, abs=1)
-    # The longest stretch without a rest point starts at the bench: the gap fires 100 m later.
+    # The fallback takes the ramp route with the smaller worst gap. The first stretch
+    # exceeds 100 m before the bench; the ramp still carries its own uncertainty event.
     assert gap.title == "No mapped rest stop ahead" and gap.element_id is None
     assert gap.source == "route.max_gap_between_rest_m" and gap.status == "route"
-    assert gap.at_m == pytest.approx(rest.at_m + 100, abs=0.5)
-    assert "100 m" in gap.body and "destination" in gap.body
+    assert gap.at_m == pytest.approx(100, abs=0.5)
+    assert "100 m" in gap.body and "next mapped rest stop" in gap.body
 
 
 def test_street_spur_rules_and_unknown_collapsing(world):
@@ -284,7 +285,7 @@ def test_gap_body_drops_the_distance_when_the_rest_stop_is_right_ahead(world):  
     plan = build_journey(world, near, "older_adult_rest", "15:20")
     gap = next(e for e in plan.events if e.kind == "gap")
     assert not re.search(r"about \d+ m", gap.body), gap.body
-    assert "destination" in gap.body
+    assert "rest stop" in gap.body
 
 
 def test_rests_are_thinned_by_distance_not_list_order():  # review minor #6
@@ -445,5 +446,7 @@ def test_seed_journey_properties(pair, profile):  # AC-D2, AC-D3
     assume(rr.routes and rr.routes[0].distance_m <= 2000)
     route = rr.routes[0]
     plan = build_journey(w, route, profile, "09:00")
-    assert plan.polyline == route.geometry["coordinates"]
+    # Zero-edge routes repeat a point to form a GeoJSON LineString; a journey is stationary.
+    coords = route.geometry["coordinates"]
+    assert plan.polyline == (coords if route.segments else coords[:1])
     check_plan(w, route, plan)

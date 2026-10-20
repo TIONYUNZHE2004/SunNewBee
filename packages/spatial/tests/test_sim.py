@@ -77,7 +77,7 @@ def test_route_over_rest_limit_without_alternative_is_advisory_not_i7(world):
     assert len(r["rest_advisories"]) == 1
     a = r["rest_advisories"][0]
     assert a["task_id"] == "o" and a["kind"] == "rest_limit_no_alternative"
-    assert "235.5 m > limit 100 m" in a["detail"]  # strict route a-b-c-d-f: c->d->f
+    assert "111.2 m > limit 100 m" in a["detail"]  # smaller worst gap via the uncertain ramp
     assert r["results"][0]["outcome"] == "success_with_unknowns"  # never "success"
 
 
@@ -155,6 +155,7 @@ def test_one_advisory_per_journey_even_with_an_alternative_route(world):
 
 
 def test_advisory_counts_segments_longer_than_the_limit(world):
+    world.graph.remove_edge("n-c", "n-f", key="seg-cf")
     # park-b -> kiosk falls back to a-b-c-d-f: seg-cd 111.2 m and seg-fd 124.3 m are each longer
     # than 100 m, so no rest point at a node can split them.
     r = sim.run_suite(world, [_older()])
@@ -164,6 +165,7 @@ def test_advisory_counts_segments_longer_than_the_limit(world):
 
 
 def test_rest_long_segments_counts_distinct_segments_across_the_run(world):
+    world.graph.remove_edge("n-c", "n-f", key="seg-cf")
     r = sim.run_suite(world, [_older(), {**_older("playground"), "id": "o2"}])
     assert len(r["rest_advisories"]) == 2
     assert r["rest_long_segments"] == 2  # seg-cd is on both routes, seg-fd on one

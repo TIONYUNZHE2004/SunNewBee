@@ -323,6 +323,80 @@ def test_rest_limit_prefers_unverified_route_within_limit_over_verified_one_over
     assert not any("rest point" in w for w in rr.warnings)
 
 
+def test_rest_fallback_minimises_longest_gap_before_route_weight(world):
+    from rest_support import add_edge
+
+    add_edge(world, "shortcut", "n-a", "n-d", 180.0)
+    rr = plan_route(world, "park-b", "playground", "older_adult_rest")
+    route = rr.routes[0]
+    assert _ids(route) == ["seg-ab", "seg-bc", "seg-cd"]
+    assert route.distance_m == 222.4
+    assert route.max_gap_between_rest_m == 111.2
+    assert route.rest_limit_met is False
+    assert rr.status == "partly_unverified"
+    # Profiles without a rest limit still prefer the shorter route.
+    assert _ids(plan_route(world, "park-b", "playground", "default").routes[0]) == ["shortcut"]
+
+
+def test_rest_fallback_can_use_unverified_edges_for_a_smaller_gap(world):
+    from rest_support import add_edge
+    from townshiplens_spatial.models import Claim
+
+    add_edge(world, "shortcut", "n-a", "n-d", 180.0)
+    world.edges["seg-cd"].claims["incline_pct"] = Claim()
+    rr = plan_route(world, "park-b", "playground", "older_adult_rest")
+    assert _ids(rr.routes[0]) == ["seg-ab", "seg-bc", "seg-cd"]
+    assert rr.max_rest_gap_m == 111.2
+    assert rr.status == "partly_unverified"
+    assert any(u["element_id"] == "seg-cd" for u in rr.routes[0].unknowns)
+
+
+def test_rest_fallback_remembers_earlier_gaps_after_reaching_a_bench(world):
+    from rest_support import add_edge
+
+    world.graph.clear()
+    add_edge(world, "direct-bench", "n-a", "n-c", 180)
+    add_edge(world, "first-rest", "n-a", "n-b", 110)
+    add_edge(world, "second-rest", "n-b", "n-c", 110)
+    add_edge(world, "finish", "n-c", "n-d", 110)
+    _add_rest(world, "bench-b", "n-b")
+    rr = plan_route(world, "park-b", "playground", "older_adult_rest")
+    assert _ids(rr.routes[0]) == ["first-rest", "second-rest", "finish"]
+    assert rr.max_rest_gap_m == 110
+
+
+def test_rest_fallback_breaks_equal_gap_ties_by_route_weight(world):
+    from rest_support import add_edge
+
+    add_edge(world, "detour-start", "n-a", "n-r", 111.2)
+    add_edge(world, "detour-middle", "n-r", "n-s", 10)
+    add_edge(world, "detour-end", "n-s", "n-d", 111.2)
+    _add_rest(world, "bench-r", "n-r")
+    _add_rest(world, "bench-s", "n-s")
+    rr = plan_route(world, "park-b", "playground", "older_adult_rest")
+    assert _ids(rr.routes[0]) == ["seg-ab", "seg-bc", "seg-cd"]
+    assert rr.max_rest_gap_m == 111.2
+
+
+def test_rest_fallback_restores_harmoni_bench_route():
+    import pytest
+    from townshiplens_spatial.world import load_world
+
+    if not (SEED / "site.json").exists():
+        pytest.skip("Elmina seed not built")
+    rr = plan_route(load_world(SEED), "osm-way-909868201", "park-b", "older_adult_rest")
+    route = rr.routes[0]
+    assert route.distance_m == pytest.approx(966, abs=1)
+    assert route.max_gap_between_rest_m == pytest.approx(640, abs=1)
+    assert [r["place_id"] for r in route.rest_points if r["place_id"].startswith("bench-")] == [
+        "bench-urban-3",
+        "bench-urban-2",
+        "bench-urban-1",
+    ]
+    assert route.rest_limit_met is False
+    assert rr.status == "partly_unverified"
+
+
 def test_rest_search_is_deterministic(world):
     _rest_detour(world)
     a = plan_route(world, "park-b", "playground", "older_adult_rest")
