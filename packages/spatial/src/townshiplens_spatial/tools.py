@@ -1857,3 +1857,77 @@ def engine_disclaimer() -> str:
 
 
 TOOLS["rehearse_my_trip"] = rehearse_my_trip
+
+
+# Development Simulation (developer lens, ADR 0014). `devsim.build_development_plan` is imported
+# lazily and through this seam, so a world or build without it answers "unavailable" and tests
+# can substitute a plan.
+UNAVAILABLE_DEVSIM = "development simulation not available for this world"
+
+
+def _build_development_plan(world: World, brief):
+    from . import devsim  # noqa: PLC0415 (lazy: may not exist in every build)
+
+    return devsim.build_development_plan(world, brief)
+
+
+def simulate_development(ctx: Ctx, brief: str = "") -> ToolResult:
+    """Build the Development Simulation plan for the fixed demo brief (a hypothetical
+    30-storey, 500-home tower near Lakeside Mall). Every number comes from the routing engine.
+    `data.plan` is the full plan (the server attaches it to the `development.play` intent and
+    keeps it out of the model's view); `data.facts` holds its computed numbers. On a world
+    without the parcel the result is `available: false` and carries no facts."""
+    from .devsim_models import DevelopmentBrief, DevsimUnavailable
+
+    b = DevelopmentBrief(text=(brief or None))
+    head = {"brief": {"storeys": b.storeys, "homes": b.homes}}
+    try:
+        plan = _build_development_plan(ctx.world, b)
+    except (DevsimUnavailable, ImportError, AttributeError):
+        return ToolResult(
+            ok=True,
+            data={"available": False, "reason": UNAVAILABLE_DEVSIM, **head},
+            evidence=[_devsim_evidence(False)],
+            warnings=[UNAVAILABLE_DEVSIM],
+        )
+    f = plan.facts
+    facts: dict = {
+        "park_m": f.park.m,
+        "park_min": f.park.min,
+        "mall_m": f.mall.m,
+        "mall_min": f.mall.min,
+        "households": plan.households,
+        "provenance": f.provenance,
+    }
+    if f.detour is not None:
+        facts |= {
+            "detour_min": f.detour.detour_min,
+            "before_m": f.detour.before_m,
+            "after_m": f.detour.after_m,
+        }
+    head = {"brief": {"storeys": plan.site.storeys, "homes": plan.site.homes}}
+    return ToolResult(
+        ok=True,
+        data={
+            "available": True,
+            **head,
+            "facts": facts,
+            "plan": plan.model_dump(mode="json"),
+        },
+        evidence=[_devsim_evidence(True)],
+        warnings=[plan.labels.hypothetical],
+    )
+
+
+def _devsim_evidence(available: bool) -> Evidence:
+    return Evidence(
+        id="ev-devsim-brief",
+        element_id="development-brief",
+        attribute="simulation",
+        value={"available": available},
+        status="indicative",
+        source_type="simulation",
+    )
+
+
+TOOLS["simulate_development"] = simulate_development

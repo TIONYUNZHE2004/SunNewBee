@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
+from townshiplens_spatial.devsim_models import DevelopmentPlan
 from townshiplens_spatial.models import HHMM_PATTERN, JourneyPlan, RouteStatus
 
 IntentKind = Literal[
@@ -18,6 +19,7 @@ IntentKind = Literal[
     "day.show",  # open an Elmina Day rehearsal on the map, paused at `t_min` (server-added)
     "day.trip",  # a resident's own rehearsed trip: day.show plus the trip (geojson, server-built)
     "journey.play",  # play a planned route as a journey (JourneyPlan attached by the server)
+    "development.play",  # play the Development Simulation (plan attached by the server, if built)
 ]
 
 
@@ -52,6 +54,11 @@ class SceneIntent(AnswerSceneIntent):
     # Attached by the server for journey.play from the route plan_route returned this turn
     # (townshiplens_spatial.journey.build_journey); never set by the model.
     journey: JourneyPlan | None = None
+    # development.play, attached by the server (run.py) from simulate_development; never set by
+    # the model. `plan` is absent (null) when the world cannot build one: the web then fetches
+    # POST /developments/simulate itself. Matches the web's DevelopmentPlayIntent.
+    plan: DevelopmentPlan | None = None
+    brief_text: str | None = None
 
 
 class TextDelta(BaseModel):

@@ -7,6 +7,7 @@ from pydantic_ai import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.messages import ModelRequest, ToolReturnPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
+from .developments import EVIDENCE_PREFIX, devsim_answer, is_brief
 from .journeys import PLAYABLE, journey_steps, start_time_for
 from .labels import (
     LIKELY_OK_CAVEAT,
@@ -605,8 +606,20 @@ def _day_change(q: str, rets, info: AgentInfo) -> ModelResponse:
     return _final(**day_change_answer(d, ev))
 
 
+def _devsim(q: str, rets, info: AgentInfo) -> ModelResponse:
+    if not rets:
+        return _call("simulate_development")
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't set up the development simulation.")
+    ev = [i for i in _ev_ids(rets) if i.startswith(EVIDENCE_PREFIX)]
+    return _final(**devsim_answer(d, ev))
+
+
 def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     q = _prompt(messages).lower()
+    if is_brief(q):  # the developer-lens brief (ADR 0014), in any assistant scope
+        return _devsim(q, _returns(messages), info)
     from .scope import is_greeting, outside_scope
     from .settings import AgentSettings
 
