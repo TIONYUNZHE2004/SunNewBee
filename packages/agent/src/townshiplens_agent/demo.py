@@ -11,6 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from pydantic import TypeAdapter
+from townshiplens_spatial.evaluate import effective_claim_status
 from townshiplens_spatial.world import World
 
 from .events import ChatEvent, ChatRequest, Done, VerificationRequested
@@ -37,19 +38,34 @@ def _code_digest() -> str:
     return digest.hexdigest()
 
 
+def expired_claims(world: World, today: date) -> list[str]:
+    """Verified claims past their TTL on `today` ("element.attribute"): the only way the calendar
+    changes what the engine says, so the only date-dependent part of the fingerprint."""
+    return sorted(
+        f"{eid}.{attr}"
+        for items in (world.edges, world.places)
+        for eid, x in items.items()
+        for attr, c in x.claims.items()
+        if c.status == "verified" and effective_claim_status(c, attr, today) == "stale"
+    )
+
+
 def world_fingerprint(world: World) -> str:
-    """Stable across restarts; invalidated by claims, data, profiles, rules and expiry day.
+    """Stable across restarts and days; invalidated by claims, data, closures, profiles, rules,
+    code, and a verified claim reaching its expiry (not by the date itself, so a recording made
+    today still replays tomorrow when no fact has expired in between).
 
     Only demo mode pays for hashing world facts. Mutation methods increment world.version.
     The code hash prevents an old recording bypassing a repaired validator or route rule.
     """
-    key = (world.version, date.today().isoformat(), _code_digest())
+    today = date.today()
+    key = (world.version, today.isoformat(), _code_digest())
     cached = getattr(world, "_demo_fingerprint", None)
     if cached and cached[0] == key:
         return cached[1]
     payload = {
         "code": key[2],
-        "day": key[1],
+        "expired": expired_claims(world, today),
         "site": world.site.model_dump(mode="json"),
         "edges": {k: v.model_dump(mode="json") for k, v in world.edges.items()},
         "places": {k: v.model_dump(mode="json") for k, v in world.places.items()},
