@@ -16,7 +16,11 @@ from townshiplens_spatial.world import load_world
 
 SEED = ROOT / "data/seed/elmina"
 DEMO = ROOT / "data/demo"
-MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
+# A generous turn timeout: the rising-river rollout entry is slow on a busy runner, and a
+# timeout would compare an error event, not the answer.
+MOCK = AgentSettings(
+    _env_file=None, llm_provider="mock", assistant_scope="all", turn_timeout_s=600.0
+)
 # Differ between runs by design: replay mints ids and the VR store decides created/demand.
 IGNORED = {"message_id", "request_id", "created", "demand"}
 pytestmark = pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
