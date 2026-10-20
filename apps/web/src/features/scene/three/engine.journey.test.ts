@@ -229,3 +229,22 @@ describe("Engine.setJourney", () => {
     expect(layer.dispose).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Engine.warmDraw (ITER2: the preloaded hero stayed colourless)", () => {
+  it("overlapping warm draws of one model restore its own colorWrite, not the first warm-up's", async () => {
+    const { e, THREE } = await setup();
+    try {
+      const mat = new THREE.MeshBasicMaterial();
+      const obj = new THREE.Mesh(new THREE.BoxGeometry(), mat);
+      const first = e.warmDraw?.(obj, 2);
+      // a second preload of the same model starts before the first has finished
+      const second = e.warmDraw?.(obj, 3);
+      expect(mat.colorWrite).toBe(false);
+      for (let i = 0; i < 4; i++) e.renderNow?.();
+      await Promise.all([first, second]);
+      expect(mat.colorWrite).toBe(true);
+    } finally {
+      e.dispose();
+    }
+  });
+});

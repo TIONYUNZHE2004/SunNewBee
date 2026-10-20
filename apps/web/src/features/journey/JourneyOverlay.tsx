@@ -53,7 +53,7 @@ export function JourneyOverlay({
       <InSlot name="sim">
         <div data-testid="journey-overlay" className="flex flex-col items-start gap-2">
           <SimulationLabel />
-          <JourneyHud state={st} covered={timeline.covered} />
+          <JourneyHud state={st} covered={timeline.covered} profile={timeline.plan.profile} />
         </div>
       </InSlot>
       <div className="pointer-events-none absolute right-[calc(var(--panel-w,0px)+1rem)] top-4 z-20">

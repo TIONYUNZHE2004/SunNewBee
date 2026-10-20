@@ -9,6 +9,12 @@ import {
   type FollowScene,
   journeyCameraAt,
 } from "../scene/three/journey/followRig";
+import {
+  fitOverview,
+  OVERVIEW_FIT,
+  type Subject,
+  type ViewFit,
+} from "../scene/three/journey/safeFrame";
 import { useJourney } from "./journeyStore";
 
 /** Wall-clock ms a camera mode change (or the hand-over to the player) eases in. */
@@ -48,6 +54,37 @@ export function routeOverview(pointAt: (m: number) => [number, number], lengthM:
   });
   return { pos: c.position, look: c.target };
 }
+
+/**
+ * The route overview fitted to the UI-safe area (gate §9.1 re-check: the pull-back ended with the
+ * start and final markers cut at the frame's edges): the whole route and every event marker with
+ * its pin (`markers`: the journey layer's anchors) inside the part of the map no UI covers. Without
+ * a view, the plain `routeOverview`. Pure.
+ */
+export function routeOverviewFit(
+  pointAt: (m: number) => [number, number],
+  lengthM: number,
+  view: ViewFit | null,
+  markers: readonly (readonly [number, number, number])[],
+): CamPose {
+  const base = routeOverview(pointAt, lengthM);
+  if (!view) return base;
+  const subjects: Subject[] = [];
+  const n = 48;
+  for (let i = 0; i <= n; i++) {
+    const [x, z] = pointAt((lengthM * i) / n);
+    subjects.push({ p: [x, 0.3, z], padPx: OVERVIEW_FIT.routePadPx });
+  }
+  for (const [x, y, z] of markers) {
+    // the anchor and the top of the pin drawn above it
+    subjects.push({ p: [x, y, z], padPx: OVERVIEW_FIT.pinPadPx });
+    subjects.push({ p: [x, y + PIN_TOP_M, z], padPx: OVERVIEW_FIT.routePadPx });
+  }
+  return fitOverview(base, subjects, view) as CamPose;
+}
+
+/** Metres from a marker's anchor to the top of its pin, for the overview fit. */
+export const PIN_TOP_M = 4;
 
 /** The overview the dive starts from: the slab's derived overview (A-T5), else the route's. */
 export function overviewFor(

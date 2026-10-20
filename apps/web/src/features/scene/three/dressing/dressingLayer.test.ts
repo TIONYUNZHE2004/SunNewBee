@@ -202,3 +202,35 @@ describe("B-T8: the dressing fades at the bubble edge (layer + fader)", () => {
     layer.dispose();
   });
 });
+
+describe("ITER2 AC-D18: every bucket is drawn once at load, never first in the dive", () => {
+  it("each bucket has a zero-scale warm-up draw with its own geometry until its real mesh exists", () => {
+    const layer = createDressingLayer();
+    const warm = new Map<string, THREE.InstancedMesh>();
+    layer.group.traverse((o) => {
+      if (o.userData.prewarm) warm.set(o.name, o as THREE.InstancedMesh);
+    });
+    const models = buildDressingModels();
+    expect(warm.size).toBe(models.size);
+    const m = new THREE.Matrix4();
+    for (const key of models.keys()) {
+      const w = warm.get(`dressing__prewarm__${key}`) as THREE.InstancedMesh;
+      expect(w, key).toBeTruthy();
+      // a real draw (count 1: a count-0 mesh is linked but never drawn, so ANGLE built its D3D
+      // shader at the first real draw mid-dive), of no pixel
+      expect(w.count).toBe(1);
+      w.getMatrixAt(0, m);
+      expect(new THREE.Vector3().setFromMatrixScale(m).length()).toBe(0);
+    }
+    const planterGeom = warm.get("dressing__prewarm__planter")?.geometry;
+    layer.setItems([{ key: "d", model: "planter", x: 2, z: 0, yaw: 0, s: 1 }]);
+    layer.update([0, 0], 150);
+    expect(layer.group.getObjectByName("dressing__prewarm__planter")).toBeUndefined();
+    // the warm-up drew the very geometry the real mesh draws (its buffers are on the GPU already)
+    expect((layer.group.getObjectByName("dressing__planter") as THREE.Mesh).geometry).toBe(
+      planterGeom,
+    );
+    expect(layer.group.getObjectByName("dressing__prewarm__bench")).toBeTruthy();
+    layer.dispose();
+  });
+});

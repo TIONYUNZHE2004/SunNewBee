@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Tier } from "../../shared/quality";
 import { patchDecorCut } from "../assets/treeCut";
+import { markUsed } from "../assets/uploadRange";
 import { ROAD_Y, VERGE_Y } from "../ground/bands";
 import { clayMaterial } from "../shared/clayTokens";
 import { bucketOf, buildDressingModels, trianglesOf } from "./dressingModels";
@@ -68,24 +69,32 @@ export function createDressingLayer(opts: { tier?: Tier } = {}): DressingLayer {
   const buckets = new Map<string, Bucket>();
   for (const [key, geom] of buildDressingModels())
     buckets.set(key, { key, geom, tris: trianglesOf(geom), mesh: null, cap: 0, drawn: 0 });
-  // Bucket meshes are made as items come into the bubble (mid-dive): two empty instanced meshes,
-  // one per material, so the layer's compile before it shows covers both programs and the shadow
-  // variant (the decorative material's program was linked on its first draw, gate AC-D18).
-  const firstGeom = buckets.values().next().value?.geom;
-  if (firstGeom)
-    for (const mat of [material, decorMaterial]) {
-      const warm = new THREE.InstancedMesh(firstGeom, mat, 1);
-      warm.count = 0;
-      warm.name = "dressing__prewarm";
-      warm.castShadow = true;
-      warm.receiveShadow = true;
-      warm.frustumCulled = false;
-      warm.raycast = NOOP;
-      warm.userData.decorative = mat === decorMaterial;
-      warm.userData.fact = mat === material;
-      warm.userData.sourceIds = [];
-      group.add(warm);
-    }
+  // Bucket meshes are made as items come into the bubble (mid-dive). Each bucket gets a warm-up
+  // mesh at once: one instance at zero scale (a real draw that covers no pixel), with its own
+  // geometry and material, cast shadow included. So the programs are linked, the model's vertex
+  // buffers uploaded and ANGLE's draw-time D3D shader built at load, never in the dive (gate
+  // AC-D18; ITER2: a dressing bucket's first draw blocked the GPU 255-390 ms at Ask+1.5 s while a
+  // count-0 warm-up never drew). The warm-up goes when the bucket's real mesh is made.
+  const warmups = new Map<string, THREE.InstancedMesh>();
+  const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+  for (const b of buckets.values()) {
+    const model = b.key.split(":")[0]!;
+    const decor = DECOR.has(model);
+    const warm = new THREE.InstancedMesh(b.geom, decor ? decorMaterial : material, 1);
+    warm.setMatrixAt(0, ZERO);
+    warm.count = 1;
+    warm.name = `dressing__prewarm__${b.key}`;
+    warm.castShadow = !NO_SHADOW.has(model);
+    warm.receiveShadow = true;
+    warm.frustumCulled = false;
+    warm.raycast = NOOP;
+    warm.userData.decorative = decor;
+    warm.userData.fact = !decor;
+    warm.userData.prewarm = true;
+    warm.userData.sourceIds = [];
+    group.add(warm);
+    warmups.set(b.key, warm);
+  }
   let items: readonly DressItem[] = [];
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -101,6 +110,12 @@ export function createDressingLayer(opts: { tier?: Tier } = {}): DressingLayer {
       b.mesh.dispose();
     }
     b.cap = Math.max(16, 2 ** Math.ceil(Math.log2(Math.max(1, n))));
+    const warm = warmups.get(b.key);
+    if (warm) {
+      group.remove(warm);
+      warm.dispose();
+      warmups.delete(b.key);
+    }
     const model0 = b.key.split(":")[0]!;
     const mesh = new THREE.InstancedMesh(
       b.geom,
@@ -157,7 +172,7 @@ export function createDressingLayer(opts: { tier?: Tier } = {}): DressingLayer {
       mesh.count = list.length;
       mesh.visible = list.length > 0;
       mesh.userData.sourceIds = ids;
-      mesh.instanceMatrix.needsUpdate = true;
+      markUsed(mesh.instanceMatrix, list.length);
       b.drawn = list.length;
       if (list.length > 0) stats.instances[b.key] = list.length;
       stats.triangles += list.length * b.tris;
@@ -183,6 +198,8 @@ export function createDressingLayer(opts: { tier?: Tier } = {}): DressingLayer {
         b.geom.dispose();
       }
       buckets.clear();
+      for (const w of warmups.values()) w.dispose();
+      warmups.clear();
       material.dispose();
       decorMaterial.dispose();
       group.clear();

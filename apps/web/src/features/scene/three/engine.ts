@@ -6,6 +6,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import type { Pass } from "three/addons/postprocessing/Pass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { journeyMarkerStandIn } from "../../journey/three/journeyLayer";
 import { reducedMotion } from "../cesium/controls/cameraOps";
 import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
@@ -29,6 +30,8 @@ import {
 import type { CityGeometry } from "./cityMesh";
 import { type Clearance, createLift } from "./clearance";
 import { cullFrustum, shadowPadM } from "./cull";
+import { createEnvTexture, ENV_SIGMA, fillEnvTexture, loadEnvFile } from "./envMap";
+import { createGpuPacer } from "./gpuPacer";
 import { applyGroundGrade, GROUND_GRADE, groundMaterial, ROAD_GRADE } from "./ground/bands";
 import type { Boundary } from "./ground/boundary";
 import { cityGroundMeshes } from "./ground/cityGround";
@@ -55,6 +58,7 @@ import { applyClayTier, CLAY_PALETTE, clayMaterial, setClayTier } from "./shared
 import { createSky } from "./sky";
 import { measure, UPLOAD_MEASURE } from "./stream/streamer";
 import { CityBokehPass, focusDepth } from "./tiltShift";
+import { buildWarmDraws, releaseWarmDraws } from "./warmDraw";
 import { attachWheelZoom, dispatchOwnWheel } from "./zoom";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
@@ -552,13 +556,36 @@ function build(
   const sky = createSky();
   scene.add(sky.mesh);
   undo.push(() => sky.dispose());
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  undo.push(() => pmrem.dispose());
-  const room = new RoomEnvironment();
-  const envRT = pmrem.fromScene(room, 0.04);
-  room.dispose();
-  undo.push(() => envRT.dispose());
-  scene.environment = envRT.texture;
+  // The environment light: baked at build time (envMap.ts), so the first frame links no PMREM
+  // programs (ITER2 AC-D18: 434-814 ms). Same size as the runtime PMREM it falls back to.
+  const envTex = createEnvTexture();
+  undo.push(() => envTex.dispose());
+  scene.environment = envTex;
+  let envFallback: THREE.WebGLRenderTarget | null = null;
+  undo.push(() => envFallback?.dispose());
+  // (unit tests: no file, no fetch; the texture stays without pixels)
+  (import.meta.env.MODE === "test" ? new Promise<Uint16Array>(() => {}) : loadEnvFile()).then(
+    (px) => {
+      if (disposed) return;
+      fillEnvTexture(envTex, px);
+      requestRender();
+    },
+    (err: unknown) => {
+      if (disposed) return;
+      console.warn(`city: baked environment unavailable, rendering it (${String(err)})`);
+      try {
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const room = new RoomEnvironment();
+        envFallback = pmrem.fromScene(room, ENV_SIGMA);
+        room.dispose();
+        pmrem.dispose();
+        scene.environment = envFallback.texture;
+        requestRender();
+      } catch (e) {
+        console.warn(`city: no environment light (${String(e)})`);
+      }
+    },
+  );
 
   const camera = new THREE.PerspectiveCamera(VFOV_DEG, 1, 2, 30000);
   const sun = new THREE.DirectionalLight();
@@ -889,7 +916,106 @@ function build(
           for (const mat of copies) mat.dispose();
         }, STAND_IN_DISPOSE_MS),
       );
+    // Each compiled program gets its first use (three's onFirstUse: info-log and uniform queries, a
+    // synchronous round trip to the GPU process) at the next idle moment if nothing has drawn it by
+    // then: a route-line program compiled at load but first drawn when the answer landed waited
+    // 132-222 ms in that frame behind its uploads (ITER2 AC-D18 diagnosis). Programs drawn at once
+    // (a layer shown when ready) are used by their first draw before the idle moment: no change.
+    const mats: THREE.Material[] = [...copies];
+    root.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      for (const x of Array.isArray(m) ? m : m ? [m] : []) if (!mats.includes(x)) mats.push(x);
+    });
+    void all.then(
+      () => {
+        const ric = (
+          globalThis as {
+            requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+          }
+        ).requestIdleCallback;
+        const run = () => {
+          if (disposed) return;
+          touchPrograms(mats);
+          // and one real draw of each mesh (ITER2 AC-D18: ANGLE builds the D3D executable at a
+          // program's first draw; see warmDraw.ts), for one frame, if the layer is still shown
+          if (root.parent) warmDraw(root, into);
+          // a stand-in (never in a scene: the line, marker and journey marker programs) is drawn
+          // once into its own target, clipped to one pixel, inside the next frame
+          else if (!overrides) {
+            standWarm.push({ root, target, into });
+            requestRender();
+          }
+        };
+        // without idle callbacks (Safari, node) the first draw does it, as before
+        if (ric) ric(run, { timeout: 2000 });
+      },
+      () => {},
+    );
     return all;
+  };
+  /** Warm-up draw groups (warmDraw.ts) in their scenes until the next rendered frame. */
+  let warming: THREE.Group[] = [];
+  let standWarm: {
+    root: THREE.Object3D;
+    target: THREE.WebGLRenderTarget | null;
+    into: THREE.Scene;
+  }[] = [];
+  /**
+   * Draws the queued stand-ins for real (ITER2 AC-D18: the journey ribbon's line programs and its
+   * marker sprite were compiled at load but first DRAWN at Ask+0.8 s, where ANGLE built their D3D
+   * executables and the GPU process fell ~300 ms behind). Each is drawn in the scene it was compiled
+   * for, into the target it draws in, with the scissor on one pixel: that pixel of the scene target is
+   * cleared by the next frame's scene pass, and on the canvas it is only touched where a stand-in
+   * covers it. Shadows are not re-rendered for it.
+   */
+  const drawStandWarm = () => {
+    const list = standWarm;
+    standWarm = [];
+    const prevTarget = renderer.getRenderTarget();
+    const autoShadow = renderer.shadowMap.autoUpdate;
+    const autoClear = renderer.autoClear;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.autoClear = false;
+    try {
+      for (const { root, target, into } of list) {
+        const own = root !== into && !root.parent;
+        if (own) into.add(root);
+        try {
+          renderer.setRenderTarget(target);
+          renderer.setScissorTest(true);
+          renderer.setScissor(0, 0, 1, 1);
+          renderer.render(into, camera);
+        } finally {
+          renderer.setScissorTest(false);
+          if (own) into.remove(root);
+        }
+      }
+    } catch (err) {
+      warnCompileOnce(err);
+    } finally {
+      renderer.shadowMap.autoUpdate = autoShadow;
+      renderer.autoClear = autoClear;
+      renderer.setRenderTarget(prevTarget);
+    }
+  };
+  const warmDraw = (root: THREE.Object3D, into: THREE.Scene) => {
+    const g = buildWarmDraws(root);
+    if (!g) return;
+    into.add(g);
+    warming.push(g);
+    requestRender();
+  };
+  const touchPrograms = (mats: readonly THREE.Material[]) => {
+    for (const m of mats) {
+      const prog = (
+        renderer.properties.get(m) as { currentProgram?: { getUniforms?(): unknown } } | undefined
+      )?.currentProgram;
+      try {
+        prog?.getUniforms?.();
+      } catch {
+        /* a failed program reports through renderer.debug.onShaderError */
+      }
+    }
   };
   /** Material patches run on every layer before its first compile (`addMaterialPatch`). */
   const materialPatches = new Set<(root: THREE.Object3D) => number>();
@@ -1121,6 +1247,12 @@ function build(
     camera.updateProjectionMatrix();
   };
 
+  /** Materials inside a `warmDraw` (colorWrite off): their own colorWrite and the open warm-ups. */
+  const warmColor = new WeakMap<THREE.Material, { n: number; cw: boolean }>();
+  /** renderNow: this tick renders whatever the GPU pacing says. */
+  let forced = false;
+  const pacer = createGpuPacer(renderer.getContext() as WebGL2RenderingContext);
+  undo.push(() => pacer.dispose());
   let composer = new EffectComposer(renderer);
   let passes: Pass[] = [];
   /** The live GTAO pass (null on Low or before the first tier), for the per-mood blend. */
@@ -1373,6 +1505,11 @@ function build(
     raf = 0;
     if (disposed) return;
     const now = performance.now();
+    // GPU pacing (gpuPacer.ts): at most two frames ahead of the GPU; otherwise try again next frame
+    if (!forced && !pacer.ready(now)) {
+      raf = requestAnimationFrame(tick);
+      return;
+    }
     unlift();
     const drive = driveCamera(now);
     const flying = drive.driven ? false : rig.step(now);
@@ -1465,8 +1602,26 @@ function build(
     }
     aimBokeh();
     const tRender = performance.now();
+    // The scene pass always draws into the same target (ITER2 AC-D18). The composer ping-pongs its
+    // two targets once per swapping pass, so when a pass turns on or off (the depth of field once
+    // the journey sets its subject) the scene pass moved to the other target, where none of the
+    // city's programs had drawn yet: ANGLE / D3D11 built their executables there at the dive
+    // (~66 first draws, one 160-360 ms frame at Ask+1.3-1.6 s). Nothing reads the scene target
+    // across frames (the scene pass clears it), so pinning it changes no pixel.
+    if (
+      composer.renderTarget1 &&
+      composer.readBuffer !== composer.renderTarget1 &&
+      typeof composer.swapBuffers === "function"
+    )
+      composer.swapBuffers();
     composer.render();
     renderJourneyMarkers();
+    if (warming.length > 0) {
+      for (const g of warming) releaseWarmDraws(g);
+      warming = [];
+    }
+    if (standWarm.length > 0) drawStandWarm();
+    pacer.submitted(now);
     if (swapped) {
       swapped = false;
       measure(UPLOAD_MEASURE, tRender);
@@ -1546,6 +1701,20 @@ function build(
         sun.castShadow = cast;
       }
     }
+  // The journey's event markers (their own scene, straight to the canvas), first drawn when the
+  // answer lands: compiled now (ITER2 AC-D18).
+  {
+    // kept for the engine's life (one sprite and a 1x1 texture): its program stays in use
+    const standIn = journeyMarkerStandIn();
+    void compileRoot(standIn, null, false, standIn);
+    undo.push(() =>
+      standIn.traverse((o) => {
+        const m = (o as THREE.Sprite).material as THREE.SpriteMaterial | undefined;
+        m?.map?.dispose();
+        m?.dispose();
+      }),
+    );
+  }
   // the overlay scene (no lights) with and without the mood's fog
   for (const fogOn of [true, false]) {
     const fog = overlayScene.fog;
@@ -1576,7 +1745,13 @@ function build(
       cancelAnimationFrame(raf);
       raf = 0;
       dirty = true;
-      tick();
+      // synchronous (acceptance measurements, captures): never deferred by the GPU pacing
+      forced = true;
+      try {
+        tick();
+      } finally {
+        forced = false;
+      }
     },
     setDecor(slot, d) {
       if (disposed) {
@@ -1850,11 +2025,17 @@ function build(
     },
     warmDraw(obj, frames = 2) {
       if (disposed) return Promise.resolve();
-      const mats: [THREE.Material, boolean][] = [];
+      const mats: THREE.Material[] = [];
       obj.traverse((o) => {
         const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
         for (const x of Array.isArray(m) ? m : m ? [m] : []) {
-          mats.push([x, x.colorWrite]);
+          // overlapping warm draws of one model (a second preload before the first ended) must
+          // restore the material's own colorWrite, never the first warm-up's false (ITER2: the
+          // hero stayed invisible once the frame pacing changed the timing)
+          const w = warmColor.get(x);
+          if (w) w.n++;
+          else warmColor.set(x, { n: 1, cw: x.colorWrite });
+          mats.push(x);
           x.colorWrite = false;
         }
         o.frustumCulled = false;
@@ -1871,7 +2052,13 @@ function build(
           }
           off();
           scene.remove(obj);
-          for (const [x, cw] of mats) x.colorWrite = cw;
+          for (const x of mats) {
+            const w = warmColor.get(x);
+            if (!w) continue;
+            if (--w.n > 0) continue;
+            x.colorWrite = w.cw;
+            warmColor.delete(x);
+          }
           done();
         });
         requestRender();

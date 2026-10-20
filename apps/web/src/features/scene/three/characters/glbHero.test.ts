@@ -12,8 +12,15 @@ import {
   heroVariantFor,
   lodFor,
   parseHeroGlb,
+  preloadHeroModel,
 } from "./glbHero";
-import { HERO_DISPLAY_SCALE, type Hero, type HeroContact } from "./hero";
+import {
+  HERO_DISPLAY_SCALE,
+  type Hero,
+  type HeroClip,
+  type HeroContact,
+  type HeroFade,
+} from "./hero";
 
 /**
  * C-T4: the rigged GLB hero behind the `Hero` interface, read from the committed meshopt GLBs with
@@ -194,6 +201,115 @@ describe("GLB hero model (walker)", () => {
           path.join(">"),
         ).toBeLessThan(1e-4);
       });
+    }
+  });
+
+  it("ITER2 AC-D17: a repeated pose (a paused hold re-posed) equals a single one, also mid-fade", async () => {
+    const fresh = async (seq: [HeroClip, number, HeroFade | undefined][]) => {
+      const h = await parseHeroGlb(glbBytes("walker"), "walker");
+      h.setPose({ x: 2, y: 0.1, z: -1 }, 1.1);
+      h.setGround(() => 0.1);
+      for (const [c, t, f] of seq) h.play(c, t, 0, f);
+      const out = ["prop", "hips", "forearm_L"].flatMap((b) => wp(h.bone(b)).toArray());
+      for (const c of h.contacts()) out.push(c.x, c.y, c.z);
+      h.dispose();
+      return out;
+    };
+    // the sit_down -> sit_idle fade at a rest (event 7 of the demo trip, t = 66.09)
+    const fade: HeroFade = { prevClip: "sit_down", prevTime: 1.68, blend: 0.51 };
+    const once = await fresh([["sit_idle", 0.1, fade]]);
+    for (const seq of [
+      [
+        ["sit_idle", 0.1, fade],
+        ["sit_idle", 0.1, fade],
+      ],
+      [
+        ["sit_down", 1.4, undefined],
+        ["sit_idle", 0.1, fade],
+      ],
+      [
+        ["sit_idle", 0.5, undefined],
+        ["sit_idle", 0.1, fade],
+      ],
+      [
+        ["sit_idle", 0.05, fade],
+        ["sit_idle", 0.1, fade],
+        ["sit_idle", 0.1, fade],
+      ],
+    ] as [HeroClip, number, HeroFade | undefined][][]) {
+      const got = await fresh(seq);
+      got.forEach((v, i) => {
+        expect(
+          Math.abs(v - (once[i] as number)),
+          `${seq.map((x) => x[0]).join(">")} #${i}`,
+        ).toBeLessThan(1e-6);
+      });
+    }
+  });
+
+  it("ITER2 AC-D17: every pose is a function of t: seeking to t from t-20 s, from t+20 s and fresh give identical bones", async () => {
+    const { heroStateAt, restSchedule } = await import("../journey/heroDriver");
+    const { buildTimeline } = await import("../../../journey/timeline");
+    const { createRoutePath } = await import("../../../journey/routePath");
+    const { createFrame } = await import("../frame");
+    const demo = (await import("../../../journey/fixtures/demoPlan.json")).default;
+    const plan = demo as unknown as Parameters<typeof buildTimeline>[0];
+    const frame = createFrame([101.5135, 3.18]);
+    const path = createRoutePath(plan, (lon, lat) => frame.toLocal(lon, lat));
+    const tl = buildTimeline(plan);
+    const helpers = {
+      pointAt: path.pointAt,
+      seatOf: () => null,
+    };
+    // uneven ground (kerbs every 3 m) so planting and grip IK do real work
+    const ground = (x: number) => (Math.floor(x / 3) % 2 === 0 ? 0.08 : 0.2);
+    const bones = [
+      "hips",
+      "foot_L",
+      "foot_R",
+      "forearm_L",
+      "forearm_R",
+      "upper_arm_L",
+      "upper_arm_R",
+      "prop",
+    ];
+    // one model carried through every seek (its history), and a fresh one per beat
+    const used = await parseHeroGlb(glbBytes("walker"), "walker");
+    used.setGround(ground);
+    const at = (h: GlbHeroModel, t: number, from: number[]) => {
+      for (const s of [...from, t]) {
+        const st = heroStateAt(tl, s, helpers);
+        h.setPose({ x: st.x, y: 0.1, z: st.z }, st.yaw);
+        h.play(st.clip, st.clipTime, st.walkRate, st.fade);
+      }
+      const out = bones.flatMap((b) => wp(h.bone(b)).toArray());
+      for (const c of h.contacts()) out.push(c.x, c.y, c.z);
+      return out;
+    };
+    const rests = tl.phases.filter((p) => p.event?.kind === "rest");
+    expect(rests.length).toBeGreaterThan(0);
+    const ts = [
+      ...rests.map((p) => (p.t0 + p.t1) / 2),
+      ...rests.map((p) => p.t0 + 0.1),
+      // inside the sit_down -> sit_idle crossfade (event 7's hold in the demo trip)
+      ...rests.map((p) => p.t0 + restSchedule(p.t1 - p.t0).sitIdle[0] + 0.1),
+      tl.total * 0.3,
+    ];
+    for (const t of ts) {
+      const h0 = await parseHeroGlb(glbBytes("walker"), "walker");
+      h0.setGround(ground);
+      const fresh = at(h0, t, []);
+      h0.dispose();
+      const again = at(used, t, [t, t]);
+      const before = at(used, t, [Math.max(0, t - 20), Math.max(0, t - 20) + 1 / 60]);
+      const after = at(used, t, [Math.min(tl.total, t + 20), Math.min(tl.total, t + 20) - 1 / 60]);
+      for (const [k, other] of [again, before, after].entries())
+        other.forEach((v, i) => {
+          expect(
+            Math.abs(v - (fresh[i] as number)),
+            `t=${t.toFixed(2)} h${k} #${i} ${heroStateAt(tl, t, helpers).clip} ${heroStateAt(tl, t, helpers).clipTime.toFixed(2)}`,
+          ).toBeLessThan(1e-6);
+        });
     }
   });
 
@@ -497,6 +613,45 @@ describe("createGlbHero: async load and fallback", () => {
       expect(Math.abs(f.y - 0.08)).toBeLessThan(0.01);
     }
     h.dispose();
+  });
+
+  it("ITER2 AC-D18: the journey hero adopts the preloaded model at once (no parse or build at Ask) and gives it back", async () => {
+    const realFetch = globalThis.fetch;
+    let fetches = 0;
+    globalThis.fetch = (async () => {
+      fetches++;
+      return new Response(glbBytes("walker"));
+    }) as typeof fetch;
+    try {
+      const pre = await preloadHeroModel("older_adult_rest");
+      expect(pre).not.toBeNull();
+      expect(await preloadHeroModel("older_adult_rest")).toBe(pre);
+      const h = createGlbHero({ profile: "older_adult_rest" });
+      // synchronous: the preloaded model is drawn from the first frame
+      expect(h.kind()).toBe("glb");
+      expect(h.model()).toBe(pre);
+      expect(await h.ready).toBe(true);
+      // in use: a second hero does not take it (test mode: the placeholder)
+      const other = createGlbHero({ profile: "older_adult_rest" });
+      expect(other.kind()).toBe("placeholder");
+      other.dispose();
+      h.setPose({ x: 1, y: 0.08, z: 2 }, 0);
+      h.play("walk", 0.2, 1.2);
+      h.dispose();
+      // given back, not disposed: its geometry is intact and the next hero adopts it again
+      expect((pre as GlbHeroModel).body(0).geometry.getAttribute("position")).toBeTruthy();
+      expect((pre as GlbHeroModel).object3d.parent).toBeNull();
+      const again = createGlbHero({ profile: "older_adult_rest" });
+      expect(again.model()).toBe(pre);
+      // the pose is a function of the call, not of the last hero's
+      again.setPose({ x: 1, y: 0.08, z: 2 }, 0);
+      again.play("walk", 0.2, 1.2);
+      expect(again.contacts().length).toBe(6);
+      again.dispose();
+      expect(fetches).toBe(1);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 
   it("a hero disposed before its GLB arrives never shows it", async () => {

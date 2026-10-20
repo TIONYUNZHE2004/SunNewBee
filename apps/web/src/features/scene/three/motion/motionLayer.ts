@@ -9,6 +9,7 @@ import {
   type RoleKind,
   type RoleUniforms,
 } from "../assets/roleMaterial";
+import { markUsed } from "../assets/uploadRange";
 import {
   AGENT_LIFT_M,
   type Agent,
@@ -29,12 +30,15 @@ import { advanceGait, framePair, type GaitState, gaitAt, gaitStartPhase } from "
 import { type CrowdRenderer, createCrowdRenderer, crowdLodBands } from "./crowdRenderer";
 import {
   assignLooks,
+  densityShown,
   type HeroXZ,
   type KeepOutMemory,
   type KeepOutResult,
   keepOut,
   type LookMemory,
   lookSpeed,
+  personClear,
+  vehicleClear,
 } from "./crowdRules";
 
 /**
@@ -119,7 +123,6 @@ export function crowdPeopleOf(agents: readonly Agent[]): Agent[] {
 
 interface CrowdSlot {
   agent: Agent;
-  rank: number;
   raw: LodBucket | undefined;
   walk: BakedClip;
   idle: BakedClip;
@@ -133,8 +136,6 @@ interface Bucket {
 }
 interface Slot {
   agent: Agent;
-  /** Rank within its kind: shown while rank < the kind's active count. */
-  rank: number;
   lods: { maxM: number | null }[];
   buckets: (Bucket | undefined)[];
   /** Missing LOD geometry resolves to the nearest available LOD. */
@@ -261,8 +262,6 @@ export function createMotionLayer(
     return out;
   };
 
-  const rankOf = new Map<Agent["kind"], number>();
-  const total: Record<Agent["kind"], number> = { person: 0, vehicle: 0 };
   const slots: Slot[] = [];
   const lodsByVariant = new Map<string, { maxM: number | null }[]>();
   const crowdMode = opts.crowd !== undefined;
@@ -288,10 +287,7 @@ export function createMotionLayer(
       const stride = kit.manifest.bodies[spec.body].clips[spec.clips.walk]?.stride ?? 0;
       const speed = lookSpeed(a, spec, stride);
       const agent = speed === a.speed ? a : { ...a, speed };
-      const rank = rankOf.get(a.kind) ?? 0;
-      rankOf.set(a.kind, rank + 1);
-      total[a.kind]++;
-      crowdSlots.push({ agent, rank, raw: undefined, walk, idle });
+      crowdSlots.push({ agent, raw: undefined, walk, idle });
       crowdLooks.push(look);
       continue;
     }
@@ -301,9 +297,6 @@ export function createMotionLayer(
     if (!spec || !vspec) continue;
     const { buckets, resolve } = variantBuckets(a);
     if (!buckets.some(Boolean)) continue;
-    const rank = rankOf.get(a.kind) ?? 0;
-    rankOf.set(a.kind, rank + 1);
-    total[a.kind]++;
     const pal = paletteFor(spec, "default", a.id);
     const lk = `${a.kind}/${a.variant}`;
     let lods = lodsByVariant.get(lk);
@@ -313,7 +306,6 @@ export function createMotionLayer(
     }
     slots.push({
       agent: a,
-      rank,
       lods,
       buckets,
       resolve,
@@ -326,7 +318,12 @@ export function createMotionLayer(
   const allBuckets = [...bucketsByVariant.values()].flatMap((v) =>
     v.buckets.filter((b): b is Bucket => !!b),
   );
-  const active: Record<Agent["kind"], number> = { ...total };
+  /**
+   * The mood's share of the peak density: an agent is drawn while `densityShown(id, share)`, a
+   * hash of its own id (ITER2 AC-D17: never a rank in the streamed union, which changed with the
+   * seek history).
+   */
+  let share = 1;
   const pose: Pose2 = { x: 0, z: 0, yaw: 0 };
   /** The poses of the pure facing (`yawAt`): now and the look-back. */
   const cur: Pose2 = { x: 0, z: 0, yaw: 0 };
@@ -378,9 +375,7 @@ export function createMotionLayer(
     group,
     crowd,
     setDensity(w) {
-      const share = Math.min(1, densityFor(w) / DENSITY_PEAK);
-      active.person = Math.round(total.person * share);
-      active.vehicle = Math.round(total.vehicle * share);
+      share = Math.min(1, densityFor(w) / DENSITY_PEAK);
     },
     tick(nowMs, camera, frustum, pure = false) {
       const t = nowMs / 1000;
@@ -402,9 +397,17 @@ export function createMotionLayer(
       };
       for (const b of allBuckets) b.n = 0;
       for (const s of slots) {
-        if (s.rank >= active[s.agent.kind]) continue;
+        if (!densityShown(s.agent.id, share)) continue;
         poseAt(s.agent, t, pose);
         if (!keepClear(s.agent, hero)) continue;
+        // ITER2: no decorative vehicle by her route or between the camera and her, no person at the
+        // camera's feet (whole agents, never half cut), while a journey hero is shown.
+        if (
+          s.agent.kind === "vehicle"
+            ? !vehicleClear(pose.x, pose.z, hero, camera)
+            : !personClear(pose.x, pose.z, hero, camera)
+        )
+          continue;
         const d = Math.hypot(pose.x - camera.x, camera.y, pose.z - camera.z);
         const raw = lodFor(d, s.lods, s.raw);
         s.raw = raw;
@@ -430,12 +433,12 @@ export function createMotionLayer(
       // out of the hero's way (P8).
       for (const [i, s] of crowdSlots.entries()) {
         if (!crowd) break;
-        if (s.rank >= active.person) {
+        if (!densityShown(s.agent.id, share)) {
           crowd.hide(i);
           continue;
         }
         poseAt(s.agent, t, pose);
-        const clear = keepClear(s.agent, hero);
+        const clear = keepClear(s.agent, hero) && personClear(pose.x, pose.z, hero, camera);
         const d = Math.hypot(pose.x - camera.x, camera.y, pose.z - camera.z);
         const raw = lodFor(d, crowdLods, s.raw);
         s.raw = raw;
@@ -474,8 +477,8 @@ export function createMotionLayer(
         b.mesh.count = b.n;
         b.mesh.visible = b.n > 0;
         if (b.n === 0 && was === 0) continue;
-        b.mesh.instanceMatrix.needsUpdate = true;
-        for (const a of b.pal) a.needsUpdate = true;
+        markUsed(b.mesh.instanceMatrix, b.n);
+        for (const a of b.pal) markUsed(a, b.n);
       }
     },
     setOpacity(o) {
