@@ -109,6 +109,9 @@ describe("intent wiring", () => {
       brief_text: "x",
       plan,
     });
+    expect(asDevsimIntent({ kind: "development.play", brief_text: "x", plan: null })?.plan).toBe(
+      undefined,
+    );
     expect(asDevsimIntent({ kind: "development.play", plan: { nope: 1 } })).toEqual({
       kind: "development.play",
       brief_text: "",

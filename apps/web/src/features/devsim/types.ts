@@ -134,7 +134,8 @@ export interface DevelopmentPlan {
 /** Scene intent emitted by the agent after `simulate_development`. */
 export interface DevelopmentPlayIntent {
   kind: "development.play";
-  plan?: DevelopmentPlan;
+  /** Null or absent on a world without the parcel: the web fetches POST /api/developments/simulate. */
+  plan?: DevelopmentPlan | null;
   brief_text: string;
 }
 
