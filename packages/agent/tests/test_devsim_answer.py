@@ -283,7 +283,17 @@ def test_the_committed_brief_replay_carries_no_banned_words():
     assert path.exists(), "brief replay not recorded"
     rows = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
     assert rows[0]["meta"]["world"] == "elmina"
-    hits = [s for row in rows for s in _strings(row) if BANNED_IN_REPLAY.search(s)]
+    # The plan's flood-exposure block (demo polish C7, the Impact Brief's FLOOD row: an
+    # indicative scenario) is data the player labels itself; the brief copy and the answer
+    # around it still say no flood word.
+    for row in rows[1:]:
+        if row.get("type") == "scene.intent" and (plan := row["intent"].get("plan")):
+            assert plan["flood"]["disclaimer"] == "Indicative scenario, not a forecast."
+            plan.pop("flood")
+    allowed = {"FLOOD", "flood_cut"}
+    hits = [
+        s for row in rows for s in _strings(row) if s not in allowed and BANNED_IN_REPLAY.search(s)
+    ]
     assert hits == []
     intents = [r["intent"] for r in rows[1:] if r.get("type") == "scene.intent"]
     assert [i["kind"] for i in intents] == ["development.play"] and intents[0]["plan"]
