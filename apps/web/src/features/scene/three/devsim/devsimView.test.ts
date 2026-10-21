@@ -3,7 +3,12 @@ import plan from "../../../devsim/fixtures/plan.provisional.json";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import { createClearance } from "../clearance";
 import { createFrame } from "../frame";
-import { devsimCamera, devsimMoodSource, devsimMoodWeights } from "./devsimView";
+import {
+  DEVSIM_FOV_DEG,
+  devsimCamera,
+  devsimMoodSource,
+  devsimMoodWeights,
+} from "./devsimView";
 import { inRing, siteGeom, TOWER_STOREY_M } from "./geom";
 import { stateAt } from "./state";
 
@@ -75,5 +80,15 @@ describe("devsim camera (Q2)", () => {
     expect(cam.look[2]).toBeCloseTo(tz, 6);
     expect(cam.position[0] - tx).toBeCloseTo(s.camera.offset[0], 6);
     expect(cam.position[2] - tz).toBeCloseTo(-s.camera.offset[1], 6);
+  });
+
+  it("is a pure function of t: a seek from anywhere gives the same pose and pinned fov", () => {
+    const at = (t: number) => devsimCamera(stateAt(t, P), frame, geom, 40, null);
+    const want = at(24);
+    for (const from of [0, 23.9, 30, 66, 10]) {
+      at(from);
+      expect(at(24)).toEqual(want);
+    }
+    expect(want.fovDeg).toBe(DEVSIM_FOV_DEG);
   });
 });

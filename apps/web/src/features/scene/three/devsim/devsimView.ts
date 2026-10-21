@@ -27,9 +27,14 @@ export function devsimMoodSource(sun: StateAt["sun"]): MoodSource {
 /** Metres the camera keeps above the tower roof inside its footprint (+ pad). */
 const TOWER_CLEAR_M = 3;
 
+/** The prototype camera's vertical field of view (deg): the beats are its keyframes. */
+export const DEVSIM_FOV_DEG = 38;
+
 export interface DevsimCameraPose {
   position: [number, number, number];
   look: [number, number, number];
+  /** Pinned, so the frame at t never depends on the rig pose before the run (seek determinism). */
+  fovDeg: number;
 }
 
 /**
@@ -63,5 +68,5 @@ export function devsimCamera(
     });
     if (inRing(pad, pos[0], pos[2])) pos[1] = Math.max(pos[1], towerTopM + TOWER_CLEAR_M);
   }
-  return { position: [pos[0], pos[1], pos[2]], look };
+  return { position: [pos[0], pos[1], pos[2]], look, fovDeg: DEVSIM_FOV_DEG };
 }

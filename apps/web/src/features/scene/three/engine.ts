@@ -307,6 +307,12 @@ export interface DrivenCamera {
   look: [number, number, number];
   /** True while the driver animates on its own (e.g. a mode change blend): render another frame. */
   animating?: boolean;
+  /**
+   * Vertical field of view to render with (degrees). Without it the rig's fov applies, which
+   * depends on the pose the user left the rig at; a driver that must be a pure function of its own
+   * clock (the Development Simulation's seek) pins it.
+   */
+  fovDeg?: number;
 }
 export type CameraDriver = (
   now: number,
@@ -1267,6 +1273,12 @@ function build(
    * towards max range to what the whole slab needs (`vfovFor`).
    */
   const syncFov = (now = performance.now()) => {
+    if (driving && drivenFov !== null) {
+      if (Math.abs(camera.fov - drivenFov) <= 1e-4) return;
+      camera.fov = drivenFov;
+      camera.updateProjectionMatrix();
+      return;
+    }
     const pose = rig.get();
     const aspect = size[0] / Math.max(1, size[1]);
     const k = rig.landingWeight(now);
@@ -1479,6 +1491,8 @@ function build(
   // A camera driver (the journey follow camera): it owns the camera while it returns a pose.
   let driver: CameraDriver | null = null;
   let driving = false;
+  /** The driver's pinned fov (DrivenCamera.fovDeg), or null: the rig's. */
+  let drivenFov: number | null = null;
   const _cur = {
     position: [0, 0, 0] as [number, number, number],
     look: [0, 0, 0] as [number, number, number],
@@ -1495,6 +1509,7 @@ function build(
       _cur.look[2] = controls.target.z;
       pose = driver(now, _cur);
     }
+    drivenFov = pose?.fovDeg ?? null;
     if (!pose) {
       if (driving) {
         driving = false;
