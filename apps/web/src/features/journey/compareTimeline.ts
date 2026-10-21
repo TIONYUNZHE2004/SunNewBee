@@ -62,6 +62,11 @@ export interface Beat {
   raw: number | null;
   /** Route-tied beats: the metre on its route (recommended, or fastest for the stop). */
   at_m?: number;
+  /**
+   * Ticket flight: when the walker reaches `unchecked[0].start_m` (unfloored). `raw` is floored at
+   * the 17.6 s baseline by construction (R32), so this is the route fact to check.
+   */
+  reach?: number;
   /** POI beats: index into `payload.pois`. */
   poi?: number;
 }
@@ -203,6 +208,7 @@ export function buildCompareTimeline(c: CompareIntent): CompareTimeline {
         t1: f + FLIGHT_S,
         baseline: BASE["ticket-flight"],
         raw: flightRaw,
+        reach,
         at_m: u.start_m,
       });
       beats.push({

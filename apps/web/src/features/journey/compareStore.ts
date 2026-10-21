@@ -146,8 +146,14 @@ export function compareDemoState(): Record<string, unknown> {
   return {
     // every beat's window as played (clamped) and its unclamped route time (AC-N3 report)
     timeline:
-      tl?.beats.map((b) => ({ id: b.id, t0: b.t0, t1: b.t1, raw: b.raw, baseline: b.baseline })) ??
-      [],
+      tl?.beats.map((b) => ({
+        id: b.id,
+        t0: b.t0,
+        t1: b.t1,
+        raw: b.raw,
+        baseline: b.baseline,
+        ...(b.reach !== undefined ? { reach: b.reach } : {}),
+      })) ?? [],
     recommendedM: tl?.recommendedM ?? null,
     stopAtM: s.payload?.stop?.at_m ?? null,
     beats: st?.beats ?? [],

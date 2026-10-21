@@ -15,6 +15,7 @@ import { handCompare } from "./fixtures/compareHand";
 /** Spec §5.4 rows as beat windows (the reasons card and overview run to the end). */
 const TABLE: [BeatId, number, number][] = [
   ["intro", 0, 3],
+  ["split", 0, 31.5],
   ["tag-kerb", 3, 5.5],
   ["tag-covered", 4.5, 7],
   ["greeting", 7, 10],
@@ -23,6 +24,7 @@ const TABLE: [BeatId, number, number][] = [
   ["tag-unchecked", 13.6, 18],
   ["tag-stop", 16.7, 31],
   ["ticket-flight", 17.6, 19.4],
+  ["tickets-chip", 0, 45],
   ["ticket-toast", 19.4, 25],
   ["tag-rest", 19.5, 23],
   ["arrive", 29, 31.5],
@@ -37,8 +39,13 @@ const ROUTE_TIED: BeatId[] = [
   "tag-unchecked",
   "tag-stop",
   "ticket-flight",
+  "ticket-toast", // follows the flight
   "tag-rest",
 ];
+/** Fixed beats play exactly the table window. */
+const FIXED_TOL_S = 0.05;
+/** Route-tied beats whose end is fixed by the table (the stop tag stays until 31 s). */
+const FIXED_END: BeatId[] = ["tag-stop"];
 
 /**
  * AC-N3 at unit level for any payload: beats, walkers, stop. `absent`: rows the payload has no
@@ -56,16 +63,40 @@ function checkBeats(c: CompareIntent, opts: { absent?: BeatId[]; offBaseline?: B
     }
     expect(beat, id).toBeDefined();
     if (!beat) continue;
-    if (opts.offBaseline?.includes(id)) {
-      expect(Math.abs((beat.raw ?? a) - a), `${id} raw ${beat.raw}`).toBeGreaterThan(
-        BEAT_TOLERANCE_S,
+    const [, , b] = TABLE.find((r) => r[0] === id) ?? [id, a, a];
+    if (!ROUTE_TIED.includes(id)) {
+      // fixed beats: the played window is the table window
+      expect(Math.abs(beat.t0 - a), `${id} t0 ${beat.t0}`).toBeLessThanOrEqual(FIXED_TOL_S);
+      expect(Math.abs(beat.t1 - b), `${id} t1 ${beat.t1}`).toBeLessThanOrEqual(FIXED_TOL_S);
+    } else {
+      // route-tied: the played window within ±1.5 s of the table (end exact where the table fixes it)
+      expect(Math.abs(beat.t0 - a), `${id} t0 ${beat.t0}`).toBeLessThanOrEqual(
+        BEAT_TOLERANCE_S + 1e-9,
       );
-      expect(Math.abs(beat.t0 - a), `${id} clamped`).toBeCloseTo(BEAT_TOLERANCE_S, 5);
-    } else if (ROUTE_TIED.includes(id)) {
-      // route-tied beats land within ±1.5 s of the table, from the route facts themselves (unclamped)
-      expect(Math.abs((beat.raw ?? Number.NaN) - a), `${id} raw ${beat.raw}`).toBeLessThanOrEqual(
-        BEAT_TOLERANCE_S,
-      );
+      const endTol = FIXED_END.includes(id) ? FIXED_TOL_S : BEAT_TOLERANCE_S + 1e-9;
+      expect(Math.abs(beat.t1 - b), `${id} t1 ${beat.t1}`).toBeLessThanOrEqual(endTol);
+      if (opts.offBaseline?.includes(id)) {
+        // R28: the route fact misses the window; the clamp holds the played start at its edge
+        expect(Math.abs((beat.raw ?? a) - a), `${id} raw ${beat.raw}`).toBeGreaterThan(
+          BEAT_TOLERANCE_S,
+        );
+        expect(Math.abs(beat.t0 - a), `${id} clamped`).toBeCloseTo(BEAT_TOLERANCE_S, 5);
+      } else {
+        // the unclamped route time itself lands within ±1.5 s
+        expect(Math.abs((beat.raw ?? Number.NaN) - a), `${id} raw ${beat.raw}`).toBeLessThanOrEqual(
+          BEAT_TOLERANCE_S,
+        );
+      }
+      if (id === "ticket-flight") {
+        // R32: raw is floored at 17.6 s; the walker's own arrival at the stretch is checked here:
+        // within ±1.5 s of the unchecked tag's baseline, and never after the card starts flying
+        const tag = TABLE.find((r) => r[0] === "tag-unchecked")?.[1] ?? Number.NaN;
+        expect(
+          Math.abs((beat.reach ?? Number.NaN) - tag),
+          `reach ${beat.reach}`,
+        ).toBeLessThanOrEqual(BEAT_TOLERANCE_S);
+        expect(beat.reach ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(beat.t0);
+      }
     }
     // visible at the midpoint of its own window, hidden 0.5 s outside it
     const mid = (beat.t0 + beat.t1) / 2;

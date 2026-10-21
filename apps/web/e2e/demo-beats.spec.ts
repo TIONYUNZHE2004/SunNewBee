@@ -87,8 +87,14 @@ const ROUTE_TIED = [
   "tag-unchecked",
   "tag-stop",
   "ticket-flight",
+  "ticket-toast", // follows the flight
   "tag-rest",
 ];
+/** Fixed beats play exactly the table window (±0.05 s); route-tied ones within ±1.5 s. */
+const FIXED_TOL_S = 0.05;
+const TIED_TOL_S = 1.5;
+/** Route-tied beats whose end the table fixes (the stop tag stays until 31 s). */
+const FIXED_END = ["tag-stop"];
 /** R28: known off-baseline on the corridor, clamped instead. */
 const OFF_BASELINE = ["tag-kerb"];
 /** No DOM element: a camera state read from the hook. */
@@ -101,6 +107,8 @@ type TimelineBeat = {
   t1: number;
   raw: number | null;
   baseline: [number, number];
+  /** ticket-flight only: the walker's unfloored arrival at unchecked[0].start_m (R32). */
+  reach?: number;
 };
 type NavState = {
   key: string;
@@ -192,31 +200,51 @@ test.describe("navigation compare beats, Stylised 3D, recorded Elmina intent", (
     const st0 = await navState(page);
     expect(st0.key).toBe("nav");
 
-    // AC-N3 (data): raw route times against the table; R28 / R29 rows
+    // AC-N3 (data): every §5.4 row's played window against the table, raw route times, and the
+    // stated exceptions: R28 kerb raw off baseline (clamped), R29 no rest beat without a seating
+    // POI, R32 flight raw floored at 17.6 s (the walker's own arrival `reach` is checked instead).
     const byId = new Map(st0.timeline.map((b) => [b.id, b]));
-    const report: string[] = ["beat | baseline | raw | played (clamped)"];
+    const report: string[] = ["beat | baseline | raw | reach | played (clamped)"];
     for (const [id, a, b] of TABLE) {
       const x = byId.get(id);
       report.push(
-        `${id} | ${a}–${b} | ${x?.raw == null ? "—" : x.raw.toFixed(2)} | ${x ? `${x.t0.toFixed(2)}–${x.t1.toFixed(2)}` : "absent"}`,
+        `${id} | ${a}–${b} | ${x?.raw == null ? "—" : x.raw.toFixed(2)} | ${x?.reach == null ? "—" : x.reach.toFixed(2)} | ${x ? `${x.t0.toFixed(2)}–${x.t1.toFixed(2)}` : "absent"}`,
       );
     }
     await info.attach("beat-times.txt", { body: report.join("\n"), contentType: "text/plain" });
     console.log(report.join("\n"));
     const seating = intent.compare.pois.some((p) => p.kind === "seating");
-    for (const [id, a] of TABLE) {
+    for (const [id, a, b] of TABLE) {
       const x = byId.get(id);
       if (id === "tag-rest" && !seating) {
         expect(x, "R29: no seating POI, no rest beat").toBeUndefined();
         continue;
       }
-      if (CAMERA_ONLY.includes(id)) continue;
       expect(x, id).toBeDefined();
-      if (!x || !ROUTE_TIED.includes(id)) continue;
+      if (!x) continue;
+      if (!ROUTE_TIED.includes(id)) {
+        expect(Math.abs(x.t0 - a), `${id} t0 ${x.t0}`).toBeLessThanOrEqual(FIXED_TOL_S);
+        expect(Math.abs(x.t1 - b), `${id} t1 ${x.t1}`).toBeLessThanOrEqual(FIXED_TOL_S);
+        continue;
+      }
+      expect(Math.abs(x.t0 - a), `${id} t0 ${x.t0}`).toBeLessThanOrEqual(TIED_TOL_S + 1e-9);
+      const endTol = FIXED_END.includes(id) ? FIXED_TOL_S : TIED_TOL_S + 1e-9;
+      expect(Math.abs(x.t1 - b), `${id} t1 ${x.t1}`).toBeLessThanOrEqual(endTol);
       if (OFF_BASELINE.includes(id)) {
-        expect(Math.abs(x.t0 - a), `${id} clamped`).toBeCloseTo(1.5, 5);
+        expect(Math.abs((x.raw ?? a) - a), `R28 ${id} raw ${x.raw}`).toBeGreaterThan(TIED_TOL_S);
+        expect(Math.abs(x.t0 - a), `R28 ${id} clamped`).toBeCloseTo(TIED_TOL_S, 5);
       } else {
-        expect(Math.abs((x.raw ?? Number.NaN) - a), `${id} raw ${x.raw}`).toBeLessThanOrEqual(1.5);
+        expect(Math.abs((x.raw ?? Number.NaN) - a), `${id} raw ${x.raw}`).toBeLessThanOrEqual(
+          TIED_TOL_S,
+        );
+      }
+      if (id === "ticket-flight") {
+        // R32: the walker reaches the stretch within ±1.5 s of the unchecked tag's 13.6 s, before
+        // the card flies
+        expect(Math.abs((x.reach ?? Number.NaN) - 13.6), `reach ${x.reach}`).toBeLessThanOrEqual(
+          TIED_TOL_S,
+        );
+        expect(x.reach ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(x.t0);
       }
     }
 
@@ -298,7 +326,7 @@ test.describe("navigation compare beats, Stylised 3D, recorded Elmina intent", (
     expect(Math.abs((s30.walkers?.fastest ?? 0) - (s30.stopAtM ?? 1e9))).toBeLessThanOrEqual(2);
 
     // AC-N7: after the merge (settled from 32 s, B8), both routes lie above the card with ≥ 24 px
-    for (const t of [33, 38]) {
+    for (const t of [32.5, 33, 38]) {
       await seek(page, t);
       await expect
         .poll(async () => {
@@ -361,7 +389,14 @@ test.describe("navigation compare, List view, real mock assistant (tiny world)",
     await expect(beat(page, "split")).toHaveCount(0);
 
     // AC-N5: the Rail open-ticket badge goes up by one, and /tickets lists the VR
-    if (vr?.created) await expect.poll(count, COLD).toBe(n0 + 1);
+    if (vr?.created) {
+      await expect.poll(count, COLD).toBe(n0 + 1);
+    } else {
+      // an existing ticket was upvoted, so the open count does not change
+      const note = `Rail badge +1 check skipped: ${vr?.request_id} was not newly created`;
+      test.info().annotations.push({ type: "skipped-check", description: note });
+      console.log(note);
+    }
     const rows = (await (await page.request.get("/api/verification-requests")).json()) as {
       id: string;
     }[];
