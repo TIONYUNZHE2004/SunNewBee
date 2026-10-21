@@ -1,6 +1,6 @@
 # T-027 UI: flood markers and the closure (traffic) screen, in shaoxian04's style
 
-- **Status:** assigned · **Owner:** cloud Claude (moved from cloud Codex, Yunzhe 21 Oct) · **Priority:** P1
+- **Status:** done · **Owner:** cloud Claude (moved from cloud Codex, Yunzhe 21 Oct) · **Priority:** P1
 - **Source:** Yunzhe, 21 Oct: "we do the UI ourselves, but read the style from shaoxian's work and match it"
 
 ## Style source (read before writing any UI)
@@ -29,3 +29,4 @@ The PR must include light and dark screenshots of: the flood summary card with "
 - 2026-10-21 00:52 UTC · control · Created from Yunzhe's decisions (1: we build the UI in shaoxian's style; 2: ignore his developer-lens work).
 - 2026-10-21 07:38 UTC · control · Owner: cloud Codex with the screenshot gate.
 - 2026-10-21 13:35 UTC · control · Owner moved to cloud Claude (Yunzhe: A), so the UI runs in parallel with the Codex T-026 backend. Screenshot gate unchanged. Prompt: `prompts/cloud-claude-t027-ui.md`.
+- 2026-10-21 16:45 UTC · control · Done. Backend #25 (Codex) + binding #27 + UI #26 (cloud Claude) in davinci; squash-merged to main as #28 (f623afa), CI green.

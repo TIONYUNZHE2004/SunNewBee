@@ -1,6 +1,6 @@
 # T-026 General traffic and closure simulation (not only marathons)
 
-- **Status:** assigned (start after davinci → main merges) · **Owner:** cloud backend worker + cloud AI worker · **Priority:** P1
+- **Status:** done (start after davinci → main merges) · **Owner:** cloud backend worker + cloud AI worker · **Priority:** P1
 - **Source:** Yunzhe, 21 Oct: "marathon is only one example; we need a mature traffic system, so when a route is closed traffic is still maintained"
 
 ## Goal
@@ -45,3 +45,4 @@ No jam minutes, queue lengths, vehicle counts or crowd sizes. Every number comes
 ## Log
 - 2026-10-21 00:52 UTC · control · Created from Yunzhe's request.
 - 2026-10-21 07:38 UTC · control · Decisions recorded; contract fixed for parallel work.
+- 2026-10-21 16:45 UTC · control · Done. Backend #25 (Codex) + binding #27 + UI #26 (cloud Claude) in davinci; squash-merged to main as #28 (f623afa), CI green.
