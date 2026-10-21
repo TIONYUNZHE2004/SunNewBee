@@ -268,6 +268,3 @@ export function compareStateAt(
     flight,
   };
 }
-
-/** The brief's name for `compareStateAt`. */
-export const stateAt = compareStateAt;

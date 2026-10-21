@@ -74,8 +74,10 @@ export function createDemoHook(): DemoHook {
 type HookTarget = { __tl?: { demo?: DemoHook; [k: string]: unknown } };
 
 /**
- * Installs `window.__tl.demo` when `dev` (Vite dev server, which the e2e suite also runs) or `e2e`
- * (`import.meta.env.VITE_E2E`) is true. Returns whether it installed.
+ * Installs `window.__tl.demo` when `dev` (Vite dev server, which the e2e suite also runs) is true.
+ * `e2e` is for a build that maps an e2e flag into the client explicitly (none does today:
+ * `envPrefix` is TL_PUBLIC_, so `import.meta.env.VITE_E2E` is always undefined). Returns whether
+ * it installed.
  */
 export function installDemoHook(
   opts: { dev: boolean; e2e?: unknown },

@@ -116,13 +116,14 @@ function route(x: unknown): CompareRoute | null {
   };
 }
 
-function place(x: unknown, fallbackId: string): ComparePlace {
+function place(x: unknown, fallbackId: unknown): ComparePlace {
+  const id = typeof fallbackId === "string" ? fallbackId : "";
   if (isObj(x))
     return {
-      id: typeof x.id === "string" ? x.id : fallbackId,
+      id: typeof x.id === "string" ? x.id : id,
       name: typeof x.name === "string" ? x.name : "",
     };
-  return { id: fallbackId, name: "" };
+  return { id, name: "" };
 }
 
 /**
@@ -140,8 +141,8 @@ export function asCompareIntent(i: unknown): CompareIntent | null {
   const list = <T>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : []);
   return {
     kind: "route.compare",
-    from: place(i.from ?? d.from, recommended?.from_place as string),
-    to: place(i.to ?? d.to, recommended?.to_place as string),
+    from: place(i.from ?? d.from, recommended?.from_place),
+    to: place(i.to ?? d.to, recommended?.to_place),
     status: (d.status as CompareStatus) ?? recommended?.status ?? "no_data",
     profile: (d.profile as CompareProfile) ?? "wheelchair",
     same_path: d.same_path === true,

@@ -15,8 +15,9 @@ applyDemoPreset();
 // Acceptance runs (`?sun=pinned`) light the scene at the pinned sun time; normal loads use the clock.
 applySunPin();
 installJourneyHook({ dev: import.meta.env.DEV, search: window.location.search });
-// window.__tl.demo (dev and e2e builds only, spec §7): the demo playbacks register themselves.
-installDemoHook({ dev: import.meta.env.DEV, e2e: import.meta.env.VITE_E2E });
+// window.__tl.demo (spec §7): dev server only. The e2e suite runs `pnpm dev`, so DEV covers it;
+// no VITE_* variable reaches the client (envPrefix TL_PUBLIC_), hence no e2e flag here.
+installDemoHook({ dev: import.meta.env.DEV });
 applyTheme(useTheme.getState().theme);
 startThemeClock();
 createRoot(el).render(
