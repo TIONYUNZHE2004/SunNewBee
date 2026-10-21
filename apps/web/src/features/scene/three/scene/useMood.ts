@@ -4,7 +4,7 @@ import { useDevsim } from "../../../devsim/devsimStore";
 import { reducedMotion } from "../../cesium/controls/cameraOps";
 import { useScene } from "../../sceneStore";
 import type { RoleUniforms } from "../assets/roleMaterial";
-import { devsimMoodSource, devsimMoodWeights } from "../devsim/devsimView";
+import { devsimGrade, devsimMoodSource, devsimMoodWeights } from "../devsim/devsimView";
 import { stateAt } from "../devsim/state";
 import type { Engine } from "../engine";
 import { LIGHT_PRESETS } from "../lighting";
@@ -71,7 +71,7 @@ export function useMood({
       const sun = stateAt(d.t, d.plan).sun;
       return { w: devsimMoodWeights(sun), src: devsimMoodSource(sun) };
     };
-    const apply = (w: MoodWeights, src: MoodSource) => {
+    const apply = (w: MoodWeights, src: MoodSource, devsim = false) => {
       shown = w;
       bus.setState({ mood: w });
       bus.getState().driver?.setWeights(w);
@@ -79,7 +79,7 @@ export function useMood({
       roleUniforms.uWindowGlow.value = g.uWindowGlow;
       roleUniforms.uLitShare.value = g.uLitShare;
       roleUniforms.uLightGlow.value = g.uLightGlow;
-      const preset = moodPreset(w);
+      const preset = devsim ? devsimGrade(moodPreset(w), w) : moodPreset(w);
       if (sectionRef.current) sectionRef.current.style.background = preset.background;
       engine.setLighting(preset, moodKeyDir(src, w, sunNow(), home.lat, home.lon));
     };
@@ -100,7 +100,7 @@ export function useMood({
       if (dv) {
         fade = null;
         key = "devsim";
-        apply(dv.w, dv.src);
+        apply(dv.w, dv.src, true);
         return;
       }
       const src = source();

@@ -1,21 +1,39 @@
 import type { StateAt } from "../../../devsim/types";
 import type { Clearance, Vec3 } from "../clearance";
 import type { LocalFrame } from "../frame";
+import type { LightPreset } from "../lighting";
 import type { MoodSource, MoodWeights } from "../mood";
 import { ease, span } from "./ease";
 import { inRing, type SiteGeom } from "./geom";
 
 /**
- * Mood weights from the sim sun (spec §5.3 Lighting): day while the sun is up, dusk around the
- * horizon, night once it is well below; the same blend `mood.ts` makes from the clock, so the sky,
- * the lights, lit windows and street lights follow the devsim clock (ADR 0011 override path).
+ * Mood weights from the sim sun (spec §5.3 Lighting), on the prototype's palette (`PAL`): full day
+ * from e 0.42, the dusk palette between e 0.14 and -0.06, full night by e -0.3; the same blend
+ * `mood.ts` makes from the clock, so the sky, the lights, lit windows and street lights follow the
+ * devsim clock (ADR 0011 override path). So 18:45 on Day 30 (e ~0.12) reads as dusk, not midday.
  */
 export function devsimMoodWeights(sun: StateAt["sun"]): MoodWeights {
   const e = sun.elevation;
-  const day = ease(span(e, -0.08, 0.22));
-  const deep = ease(span(-e, 0.08, 0.3));
-  const rest = 1 - day;
-  return { day, dusk: rest * (1 - deep), night: rest * deep };
+  const day = ease(span(e, 0.14, 0.42));
+  const night = ease(span(-e, 0.06, 0.3));
+  return { day, dusk: Math.max(0, 1 - day - night), night };
+}
+
+/**
+ * The devsim grade on the blended preset: the city's dusk and night presets are tuned to keep the
+ * whole township legible at the overview; the simulation's close beats need the prototype's deeper
+ * evening and night so the lit windows, street lights, floodlights and the speakers read (Q3).
+ * Display only.
+ */
+export function devsimGrade(p: LightPreset, w: MoodWeights): LightPreset {
+  const dark = w.night + 0.6 * w.dusk;
+  return {
+    ...p,
+    exposure: p.exposure * (1 - 0.45 * dark),
+    hemiIntensity: p.hemiIntensity * (1 - 0.35 * dark),
+    envIntensity: p.envIntensity * (1 - 0.6 * dark),
+    groundGrade: p.groundGrade * (1 - 0.3 * w.night),
+  };
 }
 
 /** The key light's moment: the sim clock's time of day (phase01 x 24 h) as an Elmina Day source. */

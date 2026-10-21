@@ -7,6 +7,7 @@ import { framePair } from "../motion/crowdGait";
 import { type CrowdRenderer, createCrowdRenderer } from "../motion/crowdRenderer";
 import { DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
+import { devsimMoodWeights } from "./devsimView";
 import { ease, span } from "./ease";
 import { along, lengthOf, onPath, type SiteGeom, type XZ, yawOf } from "./geom";
 import { toScreen } from "./project";
@@ -19,6 +20,36 @@ const MOVE_GAP = 0.8;
 const SLOT_M = 2.3;
 /** Name tags show only within this camera distance (prototype). */
 const TAG_RANGE_M = 220;
+
+/** Peak opacity of the speaker's backlight glow at full night (Q3: the speaker reads at dusk and night). */
+const GLOW_MAX = 1;
+/** The glow colour's gain over the token colour (additive light). */
+const GLOW_GAIN = 1.6;
+
+/** A soft round glow (white centre to clear edge), as a small RGBA texture (no canvas: tests run in node). */
+export function glowTexture(n = 64): THREE.DataTexture {
+  const data = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++)
+    for (let x = 0; x < n; x++) {
+      const dx = (x + 0.5) / n - 0.5;
+      const dy = (y + 0.5) / n - 0.5;
+      const r = Math.min(1, Math.hypot(dx * 2, dy * 2));
+      const a = (1 - r) ** 1.5;
+      const i = (y * n + x) * 4;
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = Math.round(a * 255);
+    }
+  const t = new THREE.DataTexture(data, n, n, THREE.RGBAFormat);
+  t.needsUpdate = true;
+  return t;
+}
+
+/** The speaker's backlight at the sim sun: 0 by full day, up to GLOW_MAX at night (dusk partly). */
+export function speakerGlow(sun: DevsimFrame["s"]["sun"]): number {
+  return GLOW_MAX * (1 - devsimMoodWeights(sun).day);
+}
 
 /** Spotlight Residents, their bodies and preferred looks (the cast ids are the plan's). */
 export const CAST_LOOKS: Record<string, { body: CrowdBody; looks: string[] }> = {
@@ -240,6 +271,30 @@ export function createCast(o: CastOpts): Cast {
     rings.set(c.id, m);
     group.add(m);
   }
+
+  // The speaker's backlight (spec §9 Q3): at dusk and night a soft warm glow just behind the
+  // speaking resident, so they read against the darker street, as a stage light would. Decorative.
+  const glowMat = own(
+    new THREE.SpriteMaterial({
+      map: own(glowTexture()),
+      color: DEVSIM_COLOURS.headGlow,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0,
+    }),
+  );
+  // brighter than white (additive, linear): a stage light, not a tint
+  glowMat.color.multiplyScalar(GLOW_GAIN);
+  const glow = new THREE.Sprite(glowMat);
+  glow.name = "devsim-speaker-glow";
+  glow.visible = false;
+  glow.raycast = NOOP;
+  // drawn before the (transparent) crowd, so the speaker stands in front of their light
+  glow.renderOrder = -1;
+  group.add(glow);
+  let speaker: string | null = null;
+  let glowK = 0;
 
   // name tags (DOM)
   const tags = new Map<string, HTMLDivElement>();
@@ -481,6 +536,8 @@ export function createCast(o: CastOpts): Cast {
     },
     update({ s, t: tt }: DevsimFrame) {
       t = tt;
+      speaker = s.bubbles[0]?.who ?? null;
+      glowK = speaker ? speakerGlow(s.sun) : 0;
       poses = castAt(tt, g, {
         workersActive: s.workersActive,
         ...(o.flowT ? { flowT: o.flowT(tt) } : {}),
@@ -493,6 +550,17 @@ export function createCast(o: CastOpts): Cast {
       const moved = !cam || cam.distanceToSquared(camera.position) > 1e-4;
       cam = (cam ?? new THREE.Vector3()).copy(camera.position);
       if (moved) draw(); // display scale follows the camera distance
+      const sb = speaker && glowK > 0.01 ? personBox(speaker) : null;
+      if (sb) {
+        // a metre behind the speaker from the camera: the body stands in front of the light
+        const dx = sb.x - camera.position.x;
+        const dz = sb.z - camera.position.z;
+        const l = Math.hypot(dx, dz) || 1;
+        glow.position.set(sb.x + dx / l, sb.h * 0.55, sb.z + dz / l);
+        glow.scale.set(sb.h * 0.85, sb.h * 1.35, 1);
+        glowMat.opacity = glowK;
+        glow.visible = true;
+      } else glow.visible = false;
       for (const [id, el] of tags) {
         const p = poses.get(id);
         const box = p ? personBox(id) : null;

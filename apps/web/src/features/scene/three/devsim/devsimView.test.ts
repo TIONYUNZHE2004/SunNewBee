@@ -3,9 +3,12 @@ import plan from "../../../devsim/fixtures/plan.provisional.json";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import { createClearance } from "../clearance";
 import { createFrame } from "../frame";
+import { LIGHT_PRESETS } from "../lighting";
+import { speakerGlow } from "./cast";
 import {
   DEVSIM_FOV_DEG,
   devsimCamera,
+  devsimGrade,
   devsimMoodSource,
   devsimMoodWeights,
 } from "./devsimView";
@@ -44,6 +47,33 @@ describe("devsim lighting from the sim sun", () => {
       prev = night;
     }
     expect(flips).toBeGreaterThanOrEqual(18);
+  });
+});
+
+describe("devsim lighting follows the prototype palette (gate 2: 18:45 was lit like midday)", () => {
+  it("18:45 on Day 30 is dusk, Construction nights are night, midday is day", () => {
+    const w = (t: number) => devsimMoodWeights(stateAt(t, P).sun);
+    expect(w(60).dusk).toBeGreaterThan(0.9);
+    expect(w(11).night).toBe(1);
+    expect(w(37).night).toBeGreaterThan(0.6);
+    expect(w(54).day).toBe(1);
+  });
+
+  it("the devsim grade darkens dusk and night, and leaves the day alone", () => {
+    const base = LIGHT_PRESETS.night;
+    const night = devsimGrade(base, { day: 0, dusk: 0, night: 1 });
+    expect(night.exposure).toBeLessThan(base.exposure * 0.6);
+    expect(night.envIntensity).toBeLessThan(base.envIntensity);
+    expect(devsimGrade(LIGHT_PRESETS.day, { day: 1, dusk: 0, night: 0 })).toEqual(
+      LIGHT_PRESETS.day,
+    );
+  });
+
+  it("the speaker's backlight is off by day and on at dusk and night", () => {
+    const g = (t: number) => speakerGlow(stateAt(t, P).sun);
+    expect(g(54)).toBe(0);
+    expect(g(37)).toBeGreaterThan(0.9);
+    expect(g(60)).toBeGreaterThan(0.9);
   });
 });
 
