@@ -4,13 +4,13 @@ import { InSlot } from "../map-ui/mapSlots";
 import { registerDomProbe, useDevsimAnchors } from "./anchors";
 import { Bubble, type BubbleView } from "./Bubble";
 import { BUBBLE_BELOW, BUBBLE_ESTIMATE, placeBubbleBox, speakerKeepClear } from "./bubblePlacement";
-import { ERROR_COPY, LOADING_COPY, SITE_LABEL } from "./copy";
+import { SITE_LABEL } from "./copy";
 import { DevsimHud } from "./DevsimHud";
+import { DevsimStatusNotice } from "./DevsimStatus";
 import { useDevsim } from "./devsimStore";
 import { EndCard } from "./EndCard";
 import { Envelope, FeedbackBadge } from "./FeedbackBadge";
 import { HypotheticalLabel } from "./HypotheticalLabel";
-import { NOT_AVAILABLE } from "./intent";
 import { PlaybackBar } from "./PlaybackBar";
 import { SimBadge } from "./SimBadge";
 import { CON, stateAt } from "./timeline";
@@ -125,23 +125,19 @@ export function DevsimOverlay({
   useEffect(() => registerDomProbe(() => domProbe(stage.current)), [stage]);
 
   if (status === "idle") return null;
-  if (!plan) {
-    const msg =
-      status === "unavailable" ? NOT_AVAILABLE : status === "error" ? ERROR_COPY : LOADING_COPY;
+  if (!plan)
     return (
       <InSlot name="sim">
-        <p
-          role={status === "loading" ? "status" : "alert"}
-          data-testid="devsim-status"
-          className="glass m-0 rounded-xl px-3 py-2 text-sm text-fg"
-        >
-          {msg}
-        </p>
+        <DevsimStatusNotice
+          status={status}
+          onClose={onClose}
+          className="glass rounded-xl px-3 py-2"
+        />
       </InSlot>
     );
-  }
   const st = stateAt(t, plan);
   const views = bubbleViews(plan, t);
+  const latest = views.at(-1);
   const showLabel = t >= CON[0];
   const anchoredLabel = showLabel && labelPoint ? placeLabel(labelPoint, viewport) : null;
   return (
@@ -149,6 +145,10 @@ export function DevsimOverlay({
       {!stageRef && (
         <div ref={ownStage} aria-hidden="true" className="pointer-events-none absolute inset-0" />
       )}
+      {/* the bubbles for screen readers: each new one once (the HUD is aria-live off) */}
+      <p className="sr-only" aria-live="polite" data-testid="devsim-bubble-live">
+        {latest ? `Simulated reaction, ${latest.speaker.name}: ${latest.text}` : ""}
+      </p>
       <InSlot name="sim">
         <div data-testid="devsim-overlay" className="flex flex-col items-start gap-2">
           <SimBadge text={plan.labels.simulation} />

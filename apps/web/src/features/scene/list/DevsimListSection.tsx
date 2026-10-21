@@ -1,9 +1,8 @@
-import { ERROR_COPY, LOADING_COPY } from "../../devsim/copy";
 import { DevsimHud } from "../../devsim/DevsimHud";
+import { DevsimStatusNotice } from "../../devsim/DevsimStatus";
 import { useDevsim } from "../../devsim/devsimStore";
 import { EndCard } from "../../devsim/EndCard";
 import { HypotheticalLabel } from "../../devsim/HypotheticalLabel";
-import { NOT_AVAILABLE } from "../../devsim/intent";
 import { PlaybackBar } from "../../devsim/PlaybackBar";
 import { RouteTag } from "../../devsim/RouteTag";
 import { SimBadge } from "../../devsim/SimBadge";
@@ -31,17 +30,11 @@ export function DevsimListSection() {
   if (!plan)
     return (
       <section aria-label="Development simulation" data-testid="devsim-list">
-        <p
-          role={status === "loading" ? "status" : "alert"}
-          data-testid="devsim-status"
-          className="rounded-lg border border-line bg-card px-4 py-3 text-sm text-fg"
-        >
-          {status === "unavailable"
-            ? NOT_AVAILABLE
-            : status === "error"
-              ? ERROR_COPY
-              : LOADING_COPY}
-        </p>
+        <DevsimStatusNotice
+          status={status}
+          onClose={() => useScene.getState().stopDevsim()}
+          className="rounded-lg border border-line bg-card px-4 py-3"
+        />
       </section>
     );
   const st = stateAt(t, plan);

@@ -35,21 +35,23 @@ export const Bubble = forwardRef<
         at ? "pointer-events-none absolute z-20" : ""
       }`}
     >
-      <blockquote
+      <div
         className={`m-0 rounded-2xl border-2 bg-surface px-3 py-2 text-[15px] font-semibold leading-snug text-fg shadow-[var(--c-shadow)] ${
           b.tone === "neg" ? "border-rose" : "border-ok"
         }`}
       >
-        <figcaption className="mb-0.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-fg">
+        <p className="m-0 mb-0.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-fg">
           <span
             aria-hidden="true"
             className="size-2 shrink-0 rounded-full"
             style={{ background: b.speaker.colour }}
           />
           {b.speaker.name}
-        </figcaption>
-        <p className="m-0">{b.text}</p>
-      </blockquote>
+        </p>
+        <blockquote className="m-0">
+          <p className="m-0">{b.text}</p>
+        </blockquote>
+      </div>
       {b.tag && <RouteTag tag={b.tag} />}
     </figure>
   );

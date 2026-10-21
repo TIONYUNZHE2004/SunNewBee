@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useDevsim } from "../../devsim/devsimStore";
 import provisional from "../../devsim/fixtures/plan.provisional.json";
@@ -78,6 +78,15 @@ describe("DevsimListSection", () => {
       "Development simulation is not available for this map.",
     );
     expect(NOT_AVAILABLE).toBe("Development simulation is not available for this map.");
+  });
+
+  it("the not-available alert can be dismissed (I2)", () => {
+    d().start(null, "b");
+    act(() => d().setStatus("unavailable"));
+    const { container } = render(<DevsimListSection />);
+    fireEvent.click(screen.getByRole("button", { name: "Close simulation" }));
+    expect(d().status).toBe("idle");
+    expect(container.textContent).toBe("");
   });
 
   it("loading says so politely", () => {

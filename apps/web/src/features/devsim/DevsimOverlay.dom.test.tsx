@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { collectProbe, useDevsimAnchors } from "./anchors";
 import { bubbleViews, DevsimOverlay } from "./DevsimOverlay";
 import { useDevsim } from "./devsimStore";
@@ -77,6 +77,19 @@ describe("DevsimOverlay", () => {
     expect(screen.queryByTestId("devsim-route-tag")).toBeNull();
     at(30);
     expect(screen.queryByTestId("devsim-bubble")).toBeNull();
+  });
+
+  it("each new bubble is announced once to screen readers, labelled simulated (Minor 6)", () => {
+    d().start(plan, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    at(19);
+    const live = screen.getByTestId("devsim-bubble-live");
+    expect(live).toHaveAttribute("aria-live", "polite");
+    expect(live).toHaveTextContent(
+      "Simulated reaction, Pak Cik Halim: Footpath closed lah, must walk the other side now",
+    );
+    at(30);
+    expect(live.textContent).toBe("");
   });
 
   it("bubbles sit by the speaker when 3D gives them, inside the map area and off the speaker", () => {
@@ -158,6 +171,63 @@ describe("DevsimOverlay", () => {
     render(<DevsimOverlay viewport={vp} />);
     expect(screen.getByRole("alert")).toHaveTextContent(NOT_AVAILABLE);
     expect(screen.queryByTestId("devsim-controls")).toBeNull();
+  });
+
+  it("not available or failed: Close ends it, so the place markers and the map come back (I2)", () => {
+    for (const status of ["unavailable", "error"] as const) {
+      d().start(null, "b");
+      act(() => d().setStatus(status));
+      const { container, unmount } = render(<DevsimOverlay viewport={vp} />);
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Close simulation" }));
+      // idle is what the 3D scene keys the hidden markers and the camera controls on
+      expect(d().status).toBe("idle");
+      expect(container.textContent).toBe("");
+      unmount();
+    }
+    // a host's own close handler is used when given
+    d().start(null, "b");
+    act(() => d().setStatus("unavailable"));
+    let closed = 0;
+    render(<DevsimOverlay viewport={vp} onClose={() => closed++} />);
+    fireEvent.click(screen.getByRole("button", { name: "Close simulation" }));
+    expect(closed).toBe(1);
+  });
+
+  it("failed: Try again fetches the same brief again and plays (I2)", async () => {
+    const fetchFn = vi.fn(
+      async () =>
+        new Response(JSON.stringify(plan), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchFn);
+    try {
+      d().start(null, "the brief");
+      act(() => d().setStatus("error"));
+      render(<DevsimOverlay viewport={vp} />);
+      expect(screen.queryByRole("button", { name: "Try again" })).toBeInTheDocument();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      expect(fetchFn).toHaveBeenCalledWith(
+        "/api/developments/simulate",
+        expect.objectContaining({ body: JSON.stringify({ brief_text: "the brief" }) }),
+      );
+      expect(d()).toMatchObject({ status: "ready", playing: true });
+      expect(screen.getByTestId("devsim-controls")).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("unavailable offers no retry (the world has no parcel)", () => {
+    d().start(null, "b");
+    act(() => d().setStatus("unavailable"));
+    render(<DevsimOverlay viewport={vp} />);
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
 
   it("registers the DOM part of the probe", () => {
