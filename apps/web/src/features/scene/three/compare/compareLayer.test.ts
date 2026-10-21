@@ -8,7 +8,9 @@ import {
   createCompareLayer,
   ribbonGeometry,
   SHIRTS,
+  STOP_EDGE_M,
   spansWith,
+  stopEdgeM,
   tintVertexColours,
 } from "./compareLayer";
 
@@ -148,5 +150,73 @@ describe("createCompareLayer", () => {
 
   it("route points cover both routes for the overview box", () => {
     expect(layer.routePoints(10)).toHaveLength(22);
+  });
+});
+
+describe("wheelchair heroes with an adopted (preloaded) model", () => {
+  it("tints both at once although onReady is never called, and restores before the hero is disposed", async () => {
+    const baju = new THREE.Color("#8a63cc");
+    const order: string[] = [];
+    const meshes: THREE.Mesh[] = [];
+    const originals: THREE.BufferGeometry[] = [];
+    const fake = (() => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3), 3));
+      g.setAttribute(
+        "color",
+        new THREE.BufferAttribute(new Float32Array([baju.r, baju.g, baju.b]), 3),
+      );
+      const mesh = new THREE.Mesh(g);
+      meshes.push(mesh);
+      originals.push(g);
+      const root = new THREE.Group();
+      root.add(mesh);
+      const model = { object3d: root };
+      // an adopted spare: a GLB from the start, `ready` resolved, onReady never called
+      return {
+        object3d: root,
+        ready: Promise.resolve(true),
+        variant: "wheelchair",
+        kind: () => "glb",
+        model: () => model,
+        setPose: () => {},
+        play: () => {},
+        setGround: () => {},
+        contacts: () => [],
+        dispose: () => order.push(mesh.geometry === g ? "dispose:restored" : "dispose:tinted"),
+      };
+    }) as unknown as NonNullable<Parameters<typeof createCompareLayer>[0]["createHero"]>;
+    const c = playable();
+    const layer = createCompareLayer({
+      payload: c,
+      timeline: buildCompareTimeline(c),
+      frame: createFrame([101.5, 3.18]),
+      createHero: fake,
+    });
+    expect(meshes).toHaveLength(2);
+    const colourOf = (m: THREE.Mesh) => {
+      const a = m.geometry.getAttribute("color");
+      return `#${new THREE.Color(a.getX(0), a.getY(0), a.getZ(0)).getHexString()}`;
+    };
+    const hex = (h: string) => `#${new THREE.Color(h).getHexString()}`;
+    expect(colourOf(meshes[0] as THREE.Mesh)).toBe(hex(SHIRTS.fastest));
+    expect(colourOf(meshes[1] as THREE.Mesh)).toBe(hex(SHIRTS.recommended));
+    await Promise.resolve();
+    await Promise.resolve();
+    // `ready` resolving later tints nothing twice
+    expect(meshes[0]?.geometry).not.toBe(originals[0]);
+    layer.dispose();
+    expect(order).toEqual(["dispose:restored", "dispose:restored"]);
+    expect(meshes[0]?.geometry).toBe(originals[0]);
+  });
+});
+
+describe("stop edge length", () => {
+  it("reads the segment's length_m, else 12 m", () => {
+    const c = playable();
+    const segs = c.fastest.segments;
+    expect(stopEdgeM(c.fastest, "rt-fast-e2")).toBe(STOP_EDGE_M);
+    const withLen = { ...c.fastest, segments: segs.map((s) => ({ ...s, length_m: 7.5 })) };
+    expect(stopEdgeM(withLen, "rt-fast-e2")).toBe(7.5);
   });
 });

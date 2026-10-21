@@ -1,18 +1,30 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { buildCompareTimeline, compareStateAt, T_MERGE } from "../../../journey/compareTimeline";
+import { handCompare } from "../../../journey/fixtures/compareHand";
 import { createViewFit } from "../../../journey/three/viewFit";
 import { VFOV_DEG } from "../cameraRig";
 import { overviewCardTop, screenBox } from "./CompareSceneMount";
+
 import {
   CARD_GAP_PX,
   CHASE,
   chasePose,
   compareCamerasAt,
   compareOverview,
-  MERGE_AT,
   overviewSafe,
   pullWeight,
 } from "./compareCameras";
+
+/** The cameras at t with the timeline's own camera mode (the renderer never re-derives it). */
+const tl = buildCompareTimeline(handCompare());
+const MERGE_AT = T_MERGE;
+const camsAt = (
+  t: number,
+  chase: Parameters<typeof compareCamerasAt>[2],
+  ov: Parameters<typeof compareCamerasAt>[3],
+  reduced: boolean,
+) => compareCamerasAt(t, compareStateAt(tl, t, { reduced }).camera, chase, ov, reduced);
 
 type P = (m: number) => [number, number];
 /** A polyline pointAt over [x, z] vertices (metres = polyline length). */
@@ -100,7 +112,7 @@ describe("AC-N7: the overview frames both routes above the reasons card", () => 
       const view = createViewFit(vfCam, size, overviewSafe({ w, h, top: 72 }, cardTop));
       const ov = compareOverview(fast, rec, view);
       // after the merge the engine camera is the overview (pull-back done by 32 s)
-      const cams = compareCamerasAt(
+      const cams = camsAt(
         32.2,
         {
           left: chasePose(fast.pointAt, fast.length * 0.6, fast.length),
@@ -138,31 +150,31 @@ describe("merge timeline", () => {
     look: [100, 0, 130] as [number, number, number],
   };
   it("splits until 31.5 s and is one overview after", () => {
-    expect(compareCamerasAt(10, chase, ov, false).mode).toBe("split");
-    expect(compareCamerasAt(MERGE_AT - 0.01, chase, ov, false).mode).toBe("split");
-    expect(compareCamerasAt(MERGE_AT, chase, ov, false).mode).toBe("overview");
+    expect(camsAt(10, chase, ov, false).mode).toBe("split");
+    expect(camsAt(MERGE_AT - 0.01, chase, ov, false).mode).toBe("split");
+    expect(camsAt(MERGE_AT, chase, ov, false).mode).toBe("overview");
   });
   it("chase poses before the pull-back, the overview once it ends", () => {
-    const a = compareCamerasAt(20, chase, ov, false);
+    const a = camsAt(20, chase, ov, false);
     expect(a.left.pos).toEqual(chase.left.pos);
     expect(a.right.look).toEqual(chase.right.look);
     expect(a.left.fovDeg).toBe(CHASE.fovDeg);
-    const b = compareCamerasAt(32.1, chase, ov, false);
+    const b = camsAt(32.1, chase, ov, false);
     for (let i = 0; i < 3; i++) expect(b.main.pos[i]).toBeCloseTo(ov.pos[i] as number, 6);
     expect(b.main.fovDeg).toBe(VFOV_DEG);
   });
   it("the merge is continuous: the full-screen camera carries on the right half's pull-back", () => {
-    const before = compareCamerasAt(MERGE_AT - 1e-6, chase, ov, false);
-    const after = compareCamerasAt(MERGE_AT, chase, ov, false);
+    const before = camsAt(MERGE_AT - 1e-6, chase, ov, false);
+    const after = camsAt(MERGE_AT, chase, ov, false);
     for (let i = 0; i < 3; i++)
       expect(after.main.pos[i]).toBeCloseTo(before.right.pos[i] as number, 2);
   });
   it("reduced motion cuts (no fly): chase until the merge, then the overview at once", () => {
     expect(pullWeight(31.4, true)).toBe(0);
     expect(pullWeight(MERGE_AT, true)).toBe(1);
-    const a = compareCamerasAt(31, chase, ov, true);
+    const a = camsAt(31, chase, ov, true);
     expect(a.right.pos).toEqual(chase.right.pos);
-    const b = compareCamerasAt(MERGE_AT, chase, ov, true);
+    const b = camsAt(MERGE_AT, chase, ov, true);
     for (let i = 0; i < 3; i++) expect(b.main.pos[i]).toBeCloseTo(ov.pos[i] as number, 6);
   });
 });

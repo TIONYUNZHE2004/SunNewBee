@@ -1,3 +1,4 @@
+import { type CameraMode, T_MERGE } from "../../../journey/compareTimeline";
 import { routeOverviewFit } from "../../../journey/followCamera";
 import { safeRectOf } from "../../../journey/three/viewFit";
 import { VFOV_DEG } from "../cameraRig";
@@ -19,15 +20,18 @@ export const CHASE = { backM: 42, upM: 26, aheadM: 12, fovDeg: 50 } as const;
  * metres behind the walker to `aheadM` in front, which smooths corners over a similar distance.
  */
 export const CHASE_LAG_M = 8;
-/** The pull-back to the overview: from 30.5 s, eased over 1.5 s (prototype), split until 31.5 s. */
-export const PULL_START = 30.5;
+/**
+ * The pull-back to the overview (prototype): it starts PULL_LEAD_S before the timeline's merge
+ * (`T_MERGE`, compareTimeline.ts) and eases over PULL_S, so it is still under way when the timeline
+ * switches the camera to "overview" and the full-screen camera carries it on.
+ */
+export const PULL_LEAD_S = 1;
 export const PULL_S = 1.5;
-export const MERGE_AT = 31.5;
 /** AC-N7: the routes stay this far (CSS px) above the reasons card's top edge. */
 export const CARD_GAP_PX = 24;
 /**
  * The reasons card's height before the overlay reports its top (it shows from 32 s, the overview is
- * framed from 30.5 s): a generous estimate, so the real card is never taller than the space kept.
+ * framed from the start of the pull-back): a generous estimate, so the real card is never taller than the space kept.
  */
 export const CARD_EST_PX = 330;
 /** The reasons card sits this far above the map's bottom edge (overlay `bottom-4`). */
@@ -100,15 +104,15 @@ export function compareOverview(
   ) as CamPose;
 }
 
-/** Pull-back weight at playback time t (0 chase .. 1 overview); a cut with reduced motion. */
+/** Pull-back weight at playback time t (0 chase .. 1 overview); a cut at the merge with reduced motion. */
 export function pullWeight(t: number, reduced: boolean): number {
-  if (reduced) return t >= MERGE_AT ? 1 : 0;
-  return ease((t - PULL_START) / PULL_S);
+  if (reduced) return t >= T_MERGE ? 1 : 0;
+  return ease((t - (T_MERGE - PULL_LEAD_S)) / PULL_S);
 }
 
 export interface CompareCameraState {
   /** "split": two halves (left, right); "overview": one camera (`main`). */
-  mode: "split" | "overview";
+  mode: CameraMode;
   left: CamPose & { fovDeg: number };
   right: CamPose & { fovDeg: number };
   /**
@@ -125,11 +129,12 @@ const mid = (a: CamPose, b: CamPose): CamPose => ({
 
 /**
  * Both cameras at playback time t: the chase poses blended into the overview by the pull-back
- * weight (fov 50 -> the rig's 30); split until MERGE_AT, then the right camera's blend carries on
- * full screen, so the merge is continuous.
+ * weight (fov 50 -> the rig's 30). `mode` is the timeline's camera (`compareStateAt(...).camera`):
+ * split, then the right camera's blend carries on full screen, so the merge is continuous.
  */
 export function compareCamerasAt(
   t: number,
+  mode: CameraMode,
   chase: { left: CamPose; right: CamPose },
   overview: CamPose,
   reduced: boolean,
@@ -139,6 +144,6 @@ export function compareCamerasAt(
   const blend = (a: CamPose) => (k <= 0 ? a : k >= 1 ? overview : blendPose(a, overview, k));
   const left = { ...blend(chase.left), fovDeg: fov };
   const right = { ...blend(chase.right), fovDeg: fov };
-  if (t >= MERGE_AT) return { mode: "overview", left, right, main: right };
+  if (mode === "overview") return { mode, left, right, main: right };
   return { mode: "split", left, right, main: { ...mid(left, right), fovDeg: fov } };
 }

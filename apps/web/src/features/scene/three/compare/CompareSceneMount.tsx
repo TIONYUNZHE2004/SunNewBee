@@ -107,7 +107,6 @@ export function CompareSceneMount({
       ac.abort();
     };
   }, [wantKit, kit]);
-  useEffect(() => () => kit?.dispose(), [kit]);
 
   const [layer, setLayer] = useState<CompareLayer | null>(null);
   useEffect(() => {
@@ -140,10 +139,25 @@ export function CompareSceneMount({
 
     // the overview, refitted only when the canvas, the map's top stack or the card top changes
     let ov: { key: string; pose: CamPose } | null = null;
+    // the map area (a layout read), measured once and again only when the map or the top stack
+    // resizes or a transition (the side panel) ends: never per frame
+    const host = hostRef?.current ?? null;
+    let area: { w: number; h: number; top?: number } | null = null;
+    const staleArea = () => {
+      area = null;
+      engine.requestRender();
+    };
+    let ro: ResizeObserver | null = null;
+    if (host && typeof ResizeObserver === "function") {
+      ro = new ResizeObserver(staleArea);
+      ro.observe(host);
+      const stack = host.ownerDocument.querySelector('[data-testid="top-stack"]');
+      if (stack) ro.observe(stack);
+    }
+    host?.ownerDocument.addEventListener("transitionend", staleArea, true);
     const overview = (): CamPose => {
       const size = engine.pickView().size;
-      const host = hostRef?.current ?? null;
-      const area = host ? measureMapArea(host) : { w: size[0], h: size[1], top: 0 };
+      area ??= host ? measureMapArea(host) : { w: size[0], h: size[1], top: 0 };
       const cardTop = overviewCardTop(area.h, useCompare.getState().screen?.cardTop ?? null);
       const key = `${size[0]}x${size[1]}|${area.w}x${area.h}|${area.top ?? 0}|${cardTop}`;
       if (!ov || ov.key !== key) {
@@ -186,7 +200,7 @@ export function CompareSceneMount({
       };
       // the overview (a layout read and a fit) only once the pull-back has started
       const ovPose = pullWeight(st.t, s.reduced) > 0 ? overview() : chase.right;
-      const cams = compareCamerasAt(st.t, chase, ovPose, s.reduced);
+      const cams = compareCamerasAt(st.t, st.camera, chase, ovPose, s.reduced);
       place(sv.left.camera, sv.left.look, cams.left);
       place(sv.right.camera, sv.right.look, cams.right);
       const want = cams.mode === "split";
@@ -283,6 +297,8 @@ export function CompareSceneMount({
     if (import.meta.env.DEV) w.__compareLayer = l;
 
     return () => {
+      ro?.disconnect();
+      host?.ownerDocument.removeEventListener("transitionend", staleArea, true);
       if (w.__compareLayer === l) delete w.__compareLayer;
       offFrame();
       unsub();
@@ -295,6 +311,10 @@ export function CompareSceneMount({
       engine.requestRender();
     };
   }, [engine, frame, playable, hostRef]);
+
+  // Declared after the layer effect: on unmount React runs cleanups in declaration order, so the
+  // layer (and the greeter's crowd renderer) is disposed before the kit it draws with.
+  useEffect(() => () => kit?.dispose(), [kit]);
 
   return null;
 }

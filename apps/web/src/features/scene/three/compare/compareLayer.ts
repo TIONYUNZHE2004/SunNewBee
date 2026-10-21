@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { CompareTimeline } from "../../../journey/compareTimeline";
+import { beatVisible, type CompareTimeline, T_START } from "../../../journey/compareTimeline";
 import type { CompareIntent, CompareRoute } from "../../../journey/compareTypes";
 import { createRoutePath, type RoutePath, type SpanEval } from "../../../journey/routePath";
 import type { JourneyPlan } from "../../../journey/timeline";
@@ -141,6 +141,13 @@ export function setRibbonWidth(
   g.computeBoundingSphere();
 }
 
+/** The stop edge's length: the segment's `length_m` when the payload has it, else STOP_EDGE_M. */
+export function stopEdgeM(route: CompareRoute, edgeId: string): number {
+  const seg = route.segments.find((s) => s.edge_id === edgeId);
+  const len = seg?.length_m;
+  return typeof len === "number" && Number.isFinite(len) && len > 0 ? len : STOP_EDGE_M;
+}
+
 /** Spans for a route: PASS everywhere, `marks` (from, to) as `ev`, clipped to [0, L]. */
 export function spansWith(
   L: number,
@@ -234,6 +241,8 @@ export function createCompareLayer(o: {
   frame: LocalFrame;
   prepare?: (obj: THREE.Object3D) => Promise<unknown>;
   onReady?: () => void;
+  /** The hero factory (tests: a pre-built or adopted model); default `createGlbHero`. */
+  createHero?: typeof createGlbHero;
 }): CompareLayer {
   const { payload: c, timeline: tl, frame } = o;
   const group = new THREE.Group();
@@ -242,7 +251,9 @@ export function createCompareLayer(o: {
 
   const fastL = Math.max(0, c.fastest.distance_m);
   const recL = Math.max(0, c.recommended.distance_m);
-  const stopMarks: [number, number][] = c.stop ? [[c.stop.at_m, c.stop.at_m + STOP_EDGE_M]] : [];
+  const stopMarks: [number, number][] = c.stop
+    ? [[c.stop.at_m, c.stop.at_m + stopEdgeM(c.fastest, c.stop.edge_id)]]
+    : [];
   const fastest = pathOf(c.fastest, spansWith(fastL, stopMarks, "FAIL"), frame);
   const recommended = pathOf(
     c.recommended,
@@ -320,15 +331,30 @@ export function createCompareLayer(o: {
   // the two wheelchair users
   const variant = heroVariantFor("wheelchair");
   const tints: (() => void)[] = [];
+  const makeHero = o.createHero ?? createGlbHero;
+  let disposed = false;
   const hero = (shirt: string) => {
-    const h = createGlbHero({
+    let tinted: object | null = null;
+    /** Tints the GLB model once it is drawn (a loaded one, or the adopted preloaded spare). */
+    const tint = () => {
+      const m = h.model();
+      if (disposed || !m || h.kind() !== "glb" || tinted === m) return;
+      tinted = m;
+      tints.push(tintVertexColours(m.object3d, HERO_BAJU, shirt));
+    };
+    const h: GlbHero = makeHero({
       variant,
       ...(o.prepare ? { prepare: o.prepare } : {}),
       onReady: () => {
-        const m = h.model();
-        if (m) tints.push(tintVertexColours(m.object3d, HERO_BAJU, shirt));
+        tint();
         o.onReady?.();
       },
+    });
+    // an adopted spare is a GLB at once: `ready` resolves but onReady is never called
+    tint();
+    void h.ready.then(() => {
+      tint();
+      o.onReady?.();
     });
     group.add(h.object3d);
     return h;
@@ -346,7 +372,7 @@ export function createCompareLayer(o: {
   const poseHero = (h: GlbHero, p: RoutePath, L: number, m: number, moving: boolean, t: number) => {
     const [x, z] = p.pointAt(m);
     h.setPose({ x, y: AGENT_LIFT_M, z }, yawAt(p, m, L));
-    if (moving) h.play("walk", Math.max(0, t - 3) * rate * WALK_PHASE_RATE, rate);
+    if (moving) h.play("walk", Math.max(0, t - T_START) * rate * WALK_PHASE_RATE, rate);
     else h.play("idle", t, 0);
   };
 
@@ -370,6 +396,7 @@ export function createCompareLayer(o: {
   const _s = new THREE.Vector3();
   const _y = new THREE.Vector3(0, 1, 0);
   let tNow = 0;
+  const greetBeat = tl.beats.find((b) => b.id === "greeting") ?? null;
   const drawGreeter = () => {
     if (!crowd || !kit || !greeterBody) return;
     const clips = kit.clips[greeterBody as keyof CrowdKit["clips"]];
@@ -379,8 +406,8 @@ export function createCompareLayer(o: {
       crowd.commit();
       return;
     }
-    // a little turn towards the passer-by while greeting (prototype: sway at 10.5-14.5 s)
-    const sway = tNow >= 7 && tNow <= 10 ? Math.sin(tNow * 3) * 0.3 : 0;
+    // a little turn towards the passer-by while the greeting beat shows
+    const sway = greetBeat && beatVisible(greetBeat, tNow, tl.total) ? Math.sin(tNow * 3) * 0.3 : 0;
     _m.compose(
       _p.set(greeter.x, AGENT_LIFT_M, greeter.z),
       _q.setFromAxisAngle(_y, greeter.yaw + sway),
@@ -401,7 +428,7 @@ export function createCompareLayer(o: {
       tNow = t;
       posed.fastest = w.fastest;
       posed.recommended = w.recommended;
-      const walking = t >= 3;
+      const walking = t >= T_START;
       poseHero(
         heroes.fastest,
         fastest,
@@ -495,6 +522,7 @@ export function createCompareLayer(o: {
       drawGreeter();
     },
     dispose() {
+      disposed = true;
       for (const u of tints) u();
       tints.length = 0;
       heroes.fastest.dispose();
