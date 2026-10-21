@@ -196,7 +196,11 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
     const driver: CameraDriver = () => {
       const st = l.state();
       if (!st) return null;
-      return devsimCamera(st, frame, l.geom, l.towerTopM(), engine.clearance?.() ?? null);
+      const pose = devsimCamera(st, frame, l.geom, l.towerTopM(), engine.clearance?.() ?? null);
+      // While playing the engine schedules its own next frame (C10p): without it every playback
+      // frame was a one-off request (the store's t), which the engine counts as idle (dt 0), so
+      // frame stats and the layer's fps saw ~8 frames a second while ~75 were drawn.
+      return useDevsim.getState().playing ? { ...pose, animating: true } : pose;
     };
     const clock = () => flowSeconds(useDevsim.getState().t, plan);
     engine.setCameraDriver?.(driver);
