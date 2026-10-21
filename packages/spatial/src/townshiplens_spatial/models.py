@@ -480,3 +480,82 @@ class JourneyPlan(BaseModel):
     spans: list[tuple[float, float, EvalResult]]  # [from_m, to_m, eval], one per route segment
     events: list[JourneyEvent]
     conditions: list[dict[str, Any]] = Field(default_factory=list)  # seam for later (P4)
+
+
+# ---- Navigation compare (demo polish B1): fastest vs profile route -------------------------
+PoiKind = Literal["kerb", "covered_start", "incline", "seating", "unknown", "arrival"]
+
+
+class StopPoint(BaseModel):
+    """The first known FAIL along the fastest route under the requested profile."""
+
+    edge_id: str
+    at_m: float  # distance from the route start to the start of that edge
+    attribute: str
+    value: Any = None
+    limit: float | None = None  # the profile's hard limit for `attribute`, when it has one
+    evidence_id: str | None = None
+
+
+class ReasonSet(BaseModel):
+    """Per-route reasons from known facts only (spec D2): a field is None when no edge on the
+    route has a known value for it. Unknown values never count for or against a route."""
+
+    steps: int | None = None
+    max_incline_pct: float | None = None
+    min_width_m: float | None = None
+    covered_share: float | None = None  # covered length / route length, rounded to 0.05
+    rest_stops: int | None = None
+    distance_m: float | None = None
+    minutes: float | None = None
+    # Evidence ids behind each non-null field (traceability, AC-B4); not part of the payload.
+    evidence_ids: dict[str, list[str]] = Field(default_factory=dict, exclude=True)
+
+
+class RouteReasons(BaseModel):
+    fastest: ReasonSet | None = None
+    recommended: ReasonSet | None = None
+
+
+class UncheckedStretch(BaseModel):
+    """A contiguous run of recommended-route edges whose `attribute` is not checked yet."""
+
+    edge_id: str  # the run's first edge
+    attribute: str
+    start_m: float
+    end_m: float
+    length_m: float
+
+
+class Poi(BaseModel):
+    kind: PoiKind
+    at_m: float
+    value: Any = None
+    evidence_ids: list[str] = Field(default_factory=list)
+    demo: bool = False  # cites team_survey_placeholder evidence: "Demo value · not surveyed"
+
+
+class CompareVr(BaseModel):
+    id: str
+    created: bool
+    target_id: str
+    attribute: str
+
+
+class CompareResult(BaseModel):
+    status: RouteStatus  # the recommended route's status (or the plan's no_data / blocked)
+    profile: ProfileId
+    same_path: bool
+    fastest: Route | None = None
+    recommended: Route | None = None
+    stop: StopPoint | None = None
+    reasons: RouteReasons = Field(default_factory=RouteReasons)
+    extra_minutes: float | None = None
+    unchecked: list[UncheckedStretch] = Field(default_factory=list)
+    pois: list[Poi] = Field(default_factory=list)
+    vr: CompareVr | None = None
+    confirm_n: int | None = None
+    # Every evidence record the fields above rest on; the tool returns them as ToolResult
+    # evidence. Not part of the payload.
+    evidence: list[Evidence] = Field(default_factory=list, exclude=True)
+    warnings: list[str] = Field(default_factory=list, exclude=True)
