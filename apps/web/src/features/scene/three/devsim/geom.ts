@@ -51,6 +51,8 @@ export interface SiteGeom {
    * plan has none (today's 66 s plan: the Handover lorries keep the lane).
    */
   lorryRoute: XZ[];
+  /** The nearest playground (C10 children), else the park anchor (local). */
+  playground: XZ;
   /** Radius of the footprint (centre to farthest corner). */
   radius: number;
   storeys: number;
@@ -231,6 +233,7 @@ export function siteGeom(
     park: L(plan.anchors.park),
     mall: L(plan.anchors.mall),
     lorryRoute: planExtras(plan).lorryRoute?.path.map(L) ?? [],
+    playground: L(planExtras(plan).playground),
     radius,
     storeys: plan.site.storeys,
   };

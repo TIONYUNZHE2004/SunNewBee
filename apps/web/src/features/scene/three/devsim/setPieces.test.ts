@@ -54,7 +54,11 @@ afterEach(() => {
 
 describe("set piece timing (adapter)", () => {
   it("reads the C7 fields in one place; today's plan has neither", () => {
-    expect(planExtras(LEGACY)).toEqual({ lorryRoute: null, schedule: null });
+    expect(planExtras(LEGACY)).toEqual({
+      lorryRoute: null,
+      schedule: null,
+      playground: LEGACY.anchors.park,
+    });
     const x = planExtras(C7);
     expect(x.lorryRoute?.path.length).toBe(pre.lorry_route.path.length);
     expect(x.schedule?.months_total).toBe(27);
@@ -188,7 +192,7 @@ describe("lorries on the lorry route (AC-W4)", () => {
       for (const v of routeTrafficPoses(route, t, 8.5))
         if (v) expect(distToLine(route, v.x, v.z)).toBeLessThanOrEqual(3);
     for (let t = 27; t < 33; t += 0.1)
-      for (const v of moveInRoutePoses(route, t, 27))
+      for (const v of moveInRoutePoses(route, t, SET_PIECE_S.moveIn))
         if (v) expect(distToLine(route, v.x, v.z)).toBeLessThanOrEqual(3);
   });
 
@@ -247,7 +251,9 @@ describe("scaffold and netting (AC-W4)", () => {
       sc.update(f);
       tw.update(f);
       const st = demo(sc) as { scaffoldTop: number; topFloor: number; netting: boolean };
-      if (f.s.act === "Construction" && tw.floorsShown() > 0 && f.s.floorsBuilt < geom.storeys) {
+      // schedule mode: up until Handover starts (27 s), whatever the act is called
+      const building = t < SET_PIECE_S.moveIn.t0;
+      if (building && tw.floorsShown() > 0 && f.s.floorsBuilt < geom.storeys) {
         expect(st.netting).toBe(true);
         expect(st.topFloor).toBe(tw.floorsShown());
         expect(
@@ -255,7 +261,7 @@ describe("scaffold and netting (AC-W4)", () => {
         ).toBeLessThanOrEqual(0.5);
         rising++;
       }
-      if (f.s.act !== "Construction") {
+      if (!building) {
         expect(st.netting).toBe(false);
         expect(sc.group.visible).toBe(false);
       }

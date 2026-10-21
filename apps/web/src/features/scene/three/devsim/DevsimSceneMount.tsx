@@ -18,9 +18,11 @@ import { type Cast, createCast } from "./cast";
 import { devDemoRequested, startDevDemo } from "./devDemo";
 import { createDevsimLayer, type DevsimLayer } from "./devsimLayer";
 import { devsimCamera } from "./devsimView";
+import { createMoveIn } from "./moveIn";
 import { createPilingRig } from "./pilingRig";
 import { createRain } from "./rain";
 import { createScaffold } from "./scaffold";
+import { setPieceTiming } from "./setPieces";
 import { createSite, nearClosed, nearQueue, queueShown } from "./site";
 import { flowSeconds } from "./state";
 import { createTower } from "./tower";
@@ -149,6 +151,16 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
     l.add(createScaffold({ geom: l.geom }));
     l.add(createPilingRig({ geom: l.geom }));
     l.add(createRain());
+    // C10 move-in: the box stack and the cars parking in the tower car park
+    l.add(
+      createMoveIn({
+        geom: l.geom,
+        timing: setPieceTiming(plan),
+        roleUniforms,
+        lib: loaded?.lib,
+        manifest: loaded?.manifest,
+      }),
+    );
     const cast = createCast({
       plan,
       geom: l.geom,

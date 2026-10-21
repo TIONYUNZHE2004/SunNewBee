@@ -131,7 +131,8 @@ export function createScaffold(o: { geom: SiteGeom }): ScaffoldPart {
   for (const m of [standards, ledgers]) {
     m.frustumCulled = false;
     m.raycast = NOOP;
-    m.castShadow = true;
+    // thin tubes: no shadow pass (AC-P2 draw budget)
+    m.castShadow = false;
     m.count = 0;
     group.add(m);
   }
@@ -198,11 +199,17 @@ export function createScaffold(o: { geom: SiteGeom }): ScaffoldPart {
     nettingVisible: () => netOn,
     demoState: () => ({ scaffoldTop: top, topFloor: floor, netting: netOn }),
     aoExcluded: () => [net],
-    update({ s }: DevsimFrame) {
+    update({ s, t, sp }: DevsimFrame) {
       const ext = scaffoldExtent(s.floorsBuilt, N);
       floor = ext.topFloor;
-      // up while building (behind the hoarding, before Handover), once there is a floor
-      const on = s.act === "Construction" && s.hoarding && ext.topFloor > 0;
+      // up while building, once there is a floor: schedule mode (C7 45 s acts) until Handover
+      // starts (SET_PIECE_S.moveIn.t0); legacy while the timeline is in Construction behind the
+      // hoarding
+      const building =
+        sp?.timing.mode === "schedule"
+          ? t < sp.timing.moveIn.t0
+          : s.act === "Construction" && s.hoarding;
+      const on = building && ext.topFloor > 0;
       group.visible = on;
       netOn = on;
       top = on ? ext.top : 0;

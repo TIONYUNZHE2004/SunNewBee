@@ -1,5 +1,5 @@
 {
-  "_note": "PRE-C7 fixture: dumped from devsim_impact.lorry_route() and devsim_schedule.schedule() on the Elmina seed (place_tower default brief); the DevelopmentPlan carries these after task C7. monsoon_set_piece is re-selected per ruling R25 (first band starting after the Raya set piece: Nov 2028-Mar 2029; days_lost 0 because rain loss counts in structure only), standing in for the C7 change.",
+  "_note": "PRE-C7 fixture: dumped from devsim_impact.lorry_route() and devsim_schedule.schedule() on the Elmina seed (place_tower default brief); the DevelopmentPlan carries these after task C7. monsoon_set_piece is re-selected per ruling R25 (first band starting after the Raya set piece: Nov 2028-Mar 2029; days_lost 0 because rain loss counts in structure only), standing in for the C7 change. playground: the nearest seed place of type playground to the tower entrance (358 m; C10 children), a pre-C7 stand-in field.",
   "lorry_route": {
     "from_node": "n-31776782_1015092613",
     "gate_node": "n-31798344_1015073472",
@@ -509,5 +509,10 @@
     ],
     "label": "ESTIMATE",
     "source_line": "ESTIMATE from published benchmarks: Arcadis Construction Cost Handbook (Kuala Lumpur, JUBM data); MetMalaysia Subang rain normals; JPM public holiday list. Durations, floor area and losses are assumptions. Not an SDP figure."
+  },
+  "playground": {
+    "place_id": "playground",
+    "name": "Urban Park playground",
+    "coord": [101.51053, 3.18077]
   }
 }

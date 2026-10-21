@@ -200,4 +200,9 @@ export interface LorryRoute {
 export interface DevelopmentPlanExtras {
   lorry_route?: LorryRoute | null;
   schedule?: Schedule | null;
+  /**
+   * The nearest playground to the tower entrance (C10 move-in children). PRE-C7 assumption: the
+   * field name and shape are aligned with C7 in `planExtras`; absent: the park anchor.
+   */
+  playground?: { place_id: string; name: string; coord: number[] } | null;
 }

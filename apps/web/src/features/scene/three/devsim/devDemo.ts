@@ -25,9 +25,9 @@ export function startDevDemo(): () => void {
     fixtures["../../../devsim/fixtures/plan.provisional.json"];
   if (!load) return () => {};
   const withSetPieces = new URLSearchParams(location.search).get("setpieces") === "preC7";
-  const extras = import.meta.glob<{ default: { lorry_route: unknown; schedule: unknown } }>(
-    "./fixtures/setPieces.preC7.elmina.json",
-  );
+  const extras = import.meta.glob<{
+    default: { lorry_route: unknown; schedule: unknown; playground: unknown };
+  }>("./fixtures/setPieces.preC7.elmina.json");
   const loadExtras = withSetPieces ? extras["./fixtures/setPieces.preC7.elmina.json"] : undefined;
   void Promise.all([load(), loadExtras?.()]).then(([m, x]) => {
     if (!live) return;
@@ -37,6 +37,7 @@ export function startDevDemo(): () => void {
           ...base,
           lorry_route: x.default.lorry_route,
           schedule: x.default.schedule,
+          playground: x.default.playground,
         } as DevelopmentPlan)
       : base;
     useDevsim.getState().start(plan, "dev: provisional fixture");

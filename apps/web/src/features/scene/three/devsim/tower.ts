@@ -280,6 +280,7 @@ export function createTower(o: TowerOpts): TowerPart & {
   let top = 0;
   let lit = 0;
   let shown = 0;
+  let occupancy = 0;
 
   return {
     group,
@@ -287,7 +288,8 @@ export function createTower(o: TowerOpts): TowerPart & {
     topM: () => top,
     litFraction: () => lit,
     floorsShown: () => shown,
-    update({ s, t, night }: DevsimFrame) {
+    demoState: () => ({ litShare: lit, occupancy }),
+    update({ s, t, night, sp }: DevsimFrame) {
       const built = Math.max(0, Math.min(N, s.floorsBuilt));
       const n = Math.max(0, Math.ceil(built - 1e-6));
       const building = built < N - 1e-3 && s.act === "Construction";
@@ -314,8 +316,11 @@ export function createTower(o: TowerOpts): TowerPart & {
       pathGroup.visible = !s.hoarding || s.act === "Handover" || s.act === "Daily Life";
       // Q4: exactly 0 until the timeline lights floors in Handover; then lit floor by floor, a
       // little glow by day (occupied homes read as lit, as in the prototype), kept under the city windows at night (a fully lit face blooms white)
-      lit = Math.max(0, Math.min(1, s.windowsLitFraction));
+      // C10: the move-in share (schedule mode: 0 -> 0.9 over 28-33 s, floor by floor), else the
+      // timeline's
+      lit = Math.max(0, Math.min(1, sp ? sp.lit : s.windowsLitFraction));
       windowUniforms.uLitShare.value = lit;
+      occupancy = sp ? sp.occupancy : s.occupancy;
       windowUniforms.uWindowGlow.value = lit > 0 ? 0.2 + 0.6 * night : 0;
       doorMat.emissiveIntensity = n > 0 ? 0.1 + night * 1.4 : 0.1;
       void t;

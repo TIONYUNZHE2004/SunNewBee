@@ -15,7 +15,7 @@ import type { DevelopmentPlanExtras, LorryRoute, Schedule } from "../../../devsi
 import { BUILD_BEATS, buildPlayback } from "../../../devsim/schedulePlayback";
 import { CON } from "../../../devsim/timeline";
 import type { DevelopmentPlan, StateAt } from "../../../devsim/types";
-import { ease } from "./ease";
+import { ease, span } from "./ease";
 import { stateAt } from "./state";
 
 /** Spec §6.3 / brief C9 screen times (s) for the schedule mode, and the legacy stand-ins. */
@@ -24,8 +24,26 @@ export const SET_PIECE_S = {
   piling: [3.5, 8.5] as const,
   /** Lorry route ribbon and the construction lorries on it. */
   lorryRoute: [8.5, BUILD_BEATS.handover] as const,
-  /** Move-in lorries start along the route (Handover). */
-  moveIn: BUILD_BEATS.handover,
+  /** Move-in (spec §6.3 27-33 s; C10, AC-W5). */
+  moveIn: {
+    /** Moving lorries drive in to the entrance kerb (27-29.5 s) and park. */
+    t0: BUILD_BEATS.handover,
+    lorryGap: 0.25,
+    lorryDrive: 2,
+    lorriesUntil: 33.5,
+    /** Boxes stack by the door over 29-31 s; cleared once everyone is in. */
+    boxes: [29, 31] as const,
+    boxesUntil: 34,
+    /** Movers leave the lorries one by one and walk in through the door. */
+    movers: { t0: 29, gap: 0.25, walk: 1.3 },
+    /** Windows light 0 -> litTarget, monotonic, floor by floor. */
+    lit: [28, 33] as const,
+    litTarget: 0.9,
+    /** Cars drive into the tower car park one by one. */
+    cars: { t0: 30, gap: 0.35, drive: 0.6 },
+    /** Children play at the nearest playground from here on. */
+    kidsAt: 32.5,
+  },
   /** Monsoon wet beats: every other 1.5 s inside the monsoon window (the 2nd, 4th ... beat). */
   wetBeat: 1.5,
   /** Rain fades in and out over this much of the monsoon window's ends. */
@@ -34,9 +52,39 @@ export const SET_PIECE_S = {
   craneRamp: 0.3,
   /** Legacy (66 s): the rig stands until the first floor rises (`timeline.ts` WORK_START). */
   legacyPiling: [CON[0], CON[0] + 1.2] as const,
-  /** Legacy (66 s): today's Handover lorries (`site.ts` lorryPoses). */
-  legacyMoveIn: 33,
+  /** Legacy (66 s): today's Handover lorries (`site.ts` lorryPoses), movers and lit windows from
+   * the timeline; the C10 extras (boxes, cars, children) shifted onto its Handover act. */
+  legacyMoveIn: {
+    t0: 33,
+    lorryGap: 0.6,
+    lorryDrive: 2.6,
+    lorriesUntil: null,
+    boxes: [34, 36] as const,
+    boxesUntil: 44,
+    movers: null,
+    lit: null,
+    litTarget: 0.9,
+    cars: { t0: 35, gap: 0.35, drive: 0.6 },
+    kidsAt: 37.5,
+  },
 } as const;
+
+export interface MoveInTiming {
+  t0: number;
+  lorryGap: number;
+  lorryDrive: number;
+  /** Schedule mode: the lorries leave then; null: the timeline's `lorries` flag. */
+  lorriesUntil: number | null;
+  boxes: readonly [number, number];
+  boxesUntil: number;
+  /** Null: today's queue on the entrance path (`cast.ts` castAt). */
+  movers: { t0: number; gap: number; walk: number } | null;
+  /** Null: the timeline's `windowsLitFraction`. */
+  lit: readonly [number, number] | null;
+  litTarget: number;
+  cars: { t0: number; gap: number; drive: number };
+  kidsAt: number;
+}
 
 export interface SetPieceTiming {
   mode: "schedule" | "legacy";
@@ -47,7 +95,7 @@ export interface SetPieceTiming {
   raya: readonly [number, number] | null;
   /** Monsoon stretch (rain, wet beats), schedule mode only. */
   monsoon: readonly [number, number] | null;
-  moveIn: number;
+  moveIn: MoveInTiming;
   total: number;
 }
 
@@ -55,12 +103,16 @@ export interface SetPieceTiming {
 export function planExtras(plan: DevelopmentPlan): {
   lorryRoute: LorryRoute | null;
   schedule: Schedule | null;
+  /** The nearest playground [lon, lat] (C10 children), else the park anchor. */
+  playground: number[];
 } {
   const x = plan as DevelopmentPlan & DevelopmentPlanExtras;
   const r = x.lorry_route;
+  const pg = x.playground?.coord;
   return {
     lorryRoute: r && Array.isArray(r.path) && r.path.length >= 2 ? r : null,
     schedule: x.schedule ?? null,
+    playground: pg && pg.length >= 2 ? pg : plan.anchors.park,
   };
 }
 
@@ -211,6 +263,42 @@ export function craneAt(plan: DevelopmentPlan, t: number, s?: StateAt): CraneAt 
 
 // ---- per frame ---------------------------------------------------------------------------------
 
+// ---- move-in (C10) -----------------------------------------------------------------------------
+
+/**
+ * The lit-window share the tower shows at t (schedule mode): 0 before the window, then floor by
+ * floor (whole floors of `storeys`) up to `litTarget` at its end, monotonic (AC-W5). After the
+ * window it never drops below the target; the timeline's own share wins if higher. Legacy: the
+ * timeline's share.
+ */
+export function litShareAt(
+  tm: SetPieceTiming,
+  t: number,
+  storeys: number,
+  timeline: number,
+): number {
+  const w = tm.moveIn.lit;
+  if (!w) return timeline;
+  const n = Math.max(1, storeys);
+  const k = Math.floor(tm.moveIn.litTarget * ease(span(t, w[0], w[1])) * n + 1e-9) / n;
+  return t >= w[1] ? Math.max(k, timeline) : k;
+}
+
+/** Homes occupied shown with the lit windows (HUD counter): lit share x homes, rounded. */
+export function occupancyAt(lit: number, homes: number): number {
+  return Math.round(Math.max(0, Math.min(1, lit)) * homes);
+}
+
+/** The move-in HUD numbers at t for a plan (the overlay's occupancy counter reads this). */
+export function moveInCounter(
+  plan: DevelopmentPlan,
+  t: number,
+): { litShare: number; occupancy: number } {
+  const s = stateAt(t, plan);
+  const lit = litShareAt(setPieceTiming(plan), t, plan.site.storeys, s.windowsLitFraction);
+  return { litShare: lit, occupancy: occupancyAt(lit, plan.site.homes) };
+}
+
 export interface SetPiecesAt {
   timing: SetPieceTiming;
   /** Hari Raya hold: site closed (crane frozen, hook parked, workers and lorries gone). */
@@ -227,6 +315,10 @@ export interface SetPiecesAt {
   /** Construction lorries and mixers drive the route. */
   traffic: boolean;
   crane: CraneAt;
+  /** Move-in: lit share and occupied homes now, moving lorries on stage. */
+  lit: number;
+  occupancy: number;
+  moveInLorries: boolean;
 }
 
 export function setPiecesAt(plan: DevelopmentPlan, t: number, s: StateAt): SetPiecesAt {
@@ -237,6 +329,7 @@ export function setPiecesAt(plan: DevelopmentPlan, t: number, s: StateAt): SetPi
   const building = tm.mode === "schedule" || (s.act === "Construction" && s.hoarding);
   const piling = building && inWin(t, tm.piling);
   const routeOn = inWin(t, tm.lorryRoute);
+  const lit = litShareAt(tm, t, plan.site.storeys, s.windowsLitFraction);
   return {
     timing: tm,
     hold,
@@ -248,5 +341,9 @@ export function setPiecesAt(plan: DevelopmentPlan, t: number, s: StateAt): SetPi
     routeOn,
     traffic: routeOn && !hold && building,
     crane: craneAt(plan, t, s),
+    lit,
+    occupancy: occupancyAt(lit, plan.site.homes),
+    moveInLorries:
+      tm.moveIn.lorriesUntil === null ? s.lorries : t >= tm.moveIn.t0 && t < tm.moveIn.lorriesUntil,
   };
 }

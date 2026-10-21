@@ -10,10 +10,12 @@ import type { DevsimFrame, DevsimPart } from "./devsimLayer";
 import { devsimMoodWeights } from "./devsimView";
 import { ease, span } from "./ease";
 import { along, lengthOf, onPath, type SiteGeom, type XZ, yawOf } from "./geom";
+import { KIDS, kidAt, moverAt, moverPath, parkedLorries } from "./moveIn";
 import { toScreen } from "./project";
+import { type MoveInTiming, setPieceTiming } from "./setPieces";
 
 const NOOP = () => {};
-export const MOVERS = 8;
+export const MOVERS = 12;
 export const WORKERS = 9;
 const MOVE_IN = 36.4;
 const MOVE_GAP = 0.8;
@@ -83,6 +85,13 @@ const MOVER_LOOKS = [
   "oldman_office_batik",
   "woman_casual_bob",
 ];
+/** Move-in children at the playground (C10): child crowd looks in turn. */
+const CHILD_LOOKS = [
+  "child_casual_orange",
+  "child_baju_kurung_pink",
+  "child_casual_mint",
+  "child_baju_melayu_teal",
+];
 /** The ASSETS lane's worker look (if the manifest has one), else the adult man with runtime hat + vest. */
 const WORKER_FALLBACK = "man_office_white";
 
@@ -102,13 +111,42 @@ export interface CastPose {
   z: number;
   yaw: number;
   walk: boolean;
+  /** Carries a box (movers); unset: today's rule (even movers in Handover). */
+  carry?: boolean;
 }
 
-/** Slot order: spotlight ids, then movers, then workers (fixed: probe index i = same person). */
+/** The move-in context `castAt` needs (C10), computed once per site geometry and plan. */
+export interface CastMoveIn {
+  timing: MoveInTiming;
+  /** Each mover's walk from a lorry tail to the door (schedule mode). */
+  paths: XZ[][];
+  playground: XZ;
+}
+
+/** The move-in context for a plan on this site (pure). */
+export function castMoveIn(plan: DevelopmentPlan, g: SiteGeom): CastMoveIn {
+  const timing = setPieceTiming(plan).moveIn;
+  const lorries = parkedLorries(g, timing);
+  return {
+    timing,
+    paths: Array.from({ length: MOVERS }, (_, i) => moverPath(g, lorries, i)),
+    playground: g.playground,
+  };
+}
+
+/** Today's Handover mover queue index (castAt); at or below -0.4 the mover is through the door. */
+export function legacyMoverK(t: number, i: number): number {
+  return (
+    i + 18 * (1 - ease(span(t, 33.6 + i * 0.2, MOVE_IN))) - Math.max(0, (t - MOVE_IN) / MOVE_GAP)
+  );
+}
+
+/** Slot order: spotlight ids, then movers, children, then workers (fixed: probe index i = same person). */
 export function castSlots(plan: DevelopmentPlan): string[] {
   const ids = plan.cast.map((c) => c.id);
   if (ids.includes("meiling")) ids.push("kid");
   for (let i = 0; i < MOVERS; i++) ids.push(`mover${i}`);
+  for (let i = 0; i < KIDS; i++) ids.push(`child${i}`);
   for (let i = 0; i < WORKERS; i++) ids.push(`worker${i}`);
   return ids;
 }
@@ -160,7 +198,7 @@ function workerLoopsOf(g: SiteGeom): XZ[][] {
 export function castAt(
   t: number,
   g: SiteGeom,
-  opts: { workersActive: boolean; flowT?: number },
+  opts: { workersActive: boolean; flowT?: number; moveIn?: CastMoveIn },
 ): Map<string, CastPose> {
   const o = new Map<string, CastPose>();
   const toward = (a: XZ, b: XZ) => yawOf([b[0] - a[0], b[1] - a[1]]);
@@ -198,13 +236,25 @@ export function castAt(
       put(`worker${i}`, a.p, yawOf(a.dir), true);
     });
   }
-  // Handover: movers queue and go in; the greeting at the door
-  if (t >= 33.6 && t < 44) {
+  // Move-in (C10, schedule mode): movers leave the lorries one by one, carry boxes up the
+  // entrance path and go in through the door (not drawn once inside)
+  const mv = opts.moveIn?.timing.movers;
+  if (mv && opts.moveIn)
     for (let i = 0; i < MOVERS; i++) {
-      const k =
-        i +
-        18 * (1 - ease(span(t, 33.6 + i * 0.2, MOVE_IN))) -
-        Math.max(0, (t - MOVE_IN) / MOVE_GAP);
+      const a = moverAt(opts.moveIn.paths[i] as XZ[], mv, i, t);
+      if (!a || a.entered) continue;
+      o.set(`mover${i}`, { x: a.p[0], z: a.p[1], yaw: a.yaw, walk: true, carry: true });
+    }
+  // children at the nearest playground
+  if (opts.moveIn)
+    for (let k = 0; k < KIDS; k++) {
+      const c = kidAt(opts.moveIn.playground, opts.moveIn.timing, k, t);
+      if (c) put(`child${k}`, c.p, c.yaw, c.walk);
+    }
+  // Handover (today's 66 s plan): movers queue and go in; the greeting at the door
+  if (!mv && t >= 33.6 && t < 44) {
+    for (let i = 0; i < MOVERS; i++) {
+      const k = legacyMoverK(t, i);
       if (k <= -0.4) continue;
       const moving = t < MOVE_IN || (t - MOVE_IN) % MOVE_GAP < MOVE_GAP * 0.6;
       put(`mover${i}`, onPath(g, 1.6 + Math.max(0, k) * SLOT_M, 0), inYaw, moving);
@@ -283,6 +333,7 @@ export type Cast = DevsimPart & {
 export function createCast(o: CastOpts): Cast {
   const { geom: g, plan } = o;
   const slots = castSlots(plan);
+  const moveIn = castMoveIn(plan, g);
   const group = new THREE.Group();
   group.name = "devsim-cast";
   group.raycast = NOOP;
@@ -499,7 +550,7 @@ export function createCast(o: CastOpts): Cast {
         nh++;
       }
       const mi = id.startsWith("mover") ? Number(id.slice(5)) : -1;
-      if (mi >= 0 && mi % 2 === 0 && t < 44) boxes.setMatrixAt(nb++, _m);
+      if (mi >= 0 && (p.carry ?? (mi % 2 === 0 && t < 44))) boxes.setMatrixAt(nb++, _m);
       if (crowd && kit) {
         const body = bodies[i] as CrowdBody;
         const clips = kit.clips[body];
@@ -556,6 +607,10 @@ export function createCast(o: CastOpts): Cast {
       const looks = slots.map((id) => {
         const spec = CAST_LOOKS[id];
         if (spec) return lookFor(k, spec.looks, spec.body);
+        if (id.startsWith("child")) {
+          const n = Number(id.slice(5));
+          return lookFor(k, [CHILD_LOOKS[n % CHILD_LOOKS.length] as string], "child");
+        }
         if (id.startsWith("mover")) {
           const n = Number(id.slice(5));
           return lookFor(
@@ -582,6 +637,7 @@ export function createCast(o: CastOpts): Cast {
       speaker = s.bubbles[0]?.who ?? null;
       glowK = speaker ? speakerGlow(s.sun) : 0;
       poses = castAt(tt, g, {
+        moveIn,
         // the site is closed over the Hari Raya hold (C9): no workers
         workersActive: s.workersActive && !sp?.hold,
         ...(o.flowT ? { flowT: o.flowT(tt) } : {}),
@@ -589,9 +645,21 @@ export function createCast(o: CastOpts): Cast {
       draw();
     },
     people: () => pts,
-    demoState: () => ({
-      workers: [...poses.keys()].filter((id) => id.startsWith("worker")).length,
-    }),
+    demoState: () => {
+      const ids = [...poses.keys()];
+      const mv = moveIn.timing.movers;
+      let entered = 0;
+      for (let i = 0; i < MOVERS; i++) {
+        if (mv) {
+          if (moverAt(moveIn.paths[i] as XZ[], mv, i, t)?.entered) entered++;
+        } else if (t >= 33.6 && legacyMoverK(Math.min(t, 43.99), i) <= -0.4) entered++;
+      }
+      return {
+        workers: ids.filter((id) => id.startsWith("worker")).length,
+        movers: { walking: ids.filter((id) => id.startsWith("mover")).length, entered },
+        kidsAtPlayground: ids.filter((id) => id.startsWith("child")).length,
+      };
+    },
     aoExcluded: () => [glow],
     personBox,
     project(camera, size) {

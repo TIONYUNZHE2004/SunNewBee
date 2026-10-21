@@ -8,7 +8,7 @@ import type { DevsimFrame, DevsimPart } from "./devsimLayer";
 import { ease, span } from "./ease";
 import { along, distToLine, laneAt, lengthOf, type SiteGeom, type XZ } from "./geom";
 import { kitMesh, kitPalettes, place } from "./kit";
-import type { SetPiecesAt } from "./setPieces";
+import { type MoveInTiming, SET_PIECE_S, type SetPiecesAt } from "./setPieces";
 
 const NOOP = () => {};
 const HOARD_M = 6;
@@ -295,7 +295,7 @@ export function createSite(o: SiteOpts): DevsimPart {
       own(new THREE.BoxGeometry(3.4, 0.9, 1.4).translate(0, -SLING_M - 0.45, 0)),
       own(new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.loadTimber, roughness: 0.85 })),
     );
-    bundle.castShadow = true;
+    bundle.castShadow = false;
     loadPivot.add(sling, bundle);
   }
 
@@ -304,14 +304,15 @@ export function createSite(o: SiteOpts): DevsimPart {
   // others drive the lorry route (C9), drawn in the same mesh.
   const mixer = kit("cement_mixer", 1 + ROUTE_MIXERS, [2.5, 3.6, 8.5]);
   mixer.mesh.name = "devsim-mixer";
-  {
-    const p: XZ = [
-      g.yard[0] + g.side[0] * -(g.radius + 4) + g.out[0] * 6,
-      g.yard[1] + g.side[1] * -(g.radius + 4) + g.out[1] * 6,
-    ];
-    mixer.set(0, place(_m, p[0], 0.05, p[1], yawZ(g.side)));
-    mixer.setCount(1);
-  }
+  const yardMixer = place(
+    new THREE.Matrix4(),
+    g.yard[0] + g.side[0] * -(g.radius + 4) + g.out[0] * 6,
+    0.05,
+    g.yard[1] + g.side[1] * -(g.radius + 4) + g.out[1] * 6,
+    yawZ(g.side),
+  );
+  mixer.set(0, yardMixer);
+  mixer.setCount(1);
   // the route mixers drive outside the yard: the mesh joins the site group
   group.add(mixer.mesh);
 
@@ -468,6 +469,7 @@ export function createSite(o: SiteOpts): DevsimPart {
   );
   /** Drawn lorries and mixers this frame (demo hook). */
   const drawnLorries: { kind: "lorry" | "mixer"; x: number; z: number }[] = [];
+  let movingLorries = 0;
   let last: SetPiecesAt | null = null;
   const setPt = (i: number, x: number, y: number, z: number) => {
     const v = vehiclePts[i] as [number, number, number];
@@ -492,6 +494,7 @@ export function createSite(o: SiteOpts): DevsimPart {
           hookParked: !loadPivot.visible,
           loadSwingRad: loadPivot.rotation.x,
         },
+        movingLorries,
         lorries: drawnLorries.map((v) => ({
           ...v,
           distToRoute: route.length >= 2 ? distToLine(route, v.x, v.z) : null,
@@ -543,7 +546,8 @@ export function createSite(o: SiteOpts): DevsimPart {
       // Handover lorries: along the lorry route to the gate when the plan has one, else up the
       // lane, parking nose to tail short of the junction
       let nl = 0;
-      if (s.lorries && !sp.hold) {
+      movingLorries = 0;
+      if (sp.moveInLorries && !sp.hold) {
         const poses =
           g.lorryRoute.length >= 2
             ? moveInRoutePoses(g.lorryRoute, t, sp.timing.moveIn)
@@ -554,10 +558,13 @@ export function createSite(o: SiteOpts): DevsimPart {
           setPt(i, v.x, 1.5, v.z);
           drawnLorries.push({ kind: "lorry", x: v.x, z: v.z });
           nl++;
+          movingLorries++;
         });
       }
-      // construction traffic on the lorry route (lorries and mixers alternate); gone in the hold
-      let nm = 1;
+      // construction traffic on the lorry route (lorries and mixers alternate); gone in the hold.
+      // The yard mixer (instance 0) is drawn only while building behind the hoarding.
+      let nm = 0;
+      if (cons) mixer.set(nm++, yardMixer);
       const tr = sp.timing.lorryRoute;
       if (sp.traffic && tr && g.lorryRoute.length >= 2)
         routeTrafficPoses(g.lorryRoute, t, tr[0]).forEach((v, k) => {
@@ -654,18 +661,19 @@ function routePose(route: readonly XZ[], d: number, fwd: boolean): VehiclePose {
 
 /**
  * The Handover lorries on the lorry route at t (pure; index i is lorry i, null = not drawn): one
- * every 0.6 s from `t0` they drive the last stretch of the route to the gate and park nose to tail
+ * every `lorryGap` s from `t0` (schedule: parked by 29.5 s) they drive the last stretch of the route to the gate and park nose to tail
  * in the inbound lane, each within ROUTE_LANE_M of the route (AC-W4).
  */
 export function moveInRoutePoses(
   route: readonly XZ[],
   t: number,
-  t0: number,
+  m: Pick<MoveInTiming, "t0" | "lorryGap" | "lorryDrive">,
 ): (VehiclePose | null)[] {
   const L = lengthOf(route);
   return Array.from({ length: LORRIES }, (_, i) => {
     const stop = L - (ROUTE_STOPS[i] as number);
-    const d = stop - (1 - ease(span(t, t0 + i * 0.6, t0 + 2.6 + i * 0.6))) * 120;
+    const a = m.t0 + i * m.lorryGap;
+    const d = stop - (1 - ease(span(t, a, a + m.lorryDrive))) * 120;
     if (d < 0 || stop < 0) return null;
     return routePose(route, d, true);
   });
@@ -702,7 +710,7 @@ function legacySetPieces(s: StateAt): SetPiecesAt {
       lorryRoute: null,
       raya: null,
       monsoon: null,
-      moveIn: 33,
+      moveIn: SET_PIECE_S.legacyMoveIn,
       total: 0,
     },
     hold: false,
@@ -714,6 +722,9 @@ function legacySetPieces(s: StateAt): SetPiecesAt {
     routeOn: false,
     traffic: false,
     crane: { yaw: s.crane.slewRad, vel: 0, stopped: !s.workersActive },
+    lit: s.windowsLitFraction,
+    occupancy: s.occupancy,
+    moveInLorries: s.lorries,
   };
 }
 

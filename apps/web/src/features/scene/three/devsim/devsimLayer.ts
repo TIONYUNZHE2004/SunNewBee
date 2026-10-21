@@ -8,7 +8,7 @@ import type { LocalFrame } from "../frame";
 import { dayness } from "./ease";
 import { inRing, type SiteGeom, siteGeom, TOWER_STOREY_M } from "./geom";
 import { onStage, screenRect, toScreen } from "./project";
-import { type SetPiecesAt, setPiecesAt } from "./setPieces";
+import { craneAt, type SetPiecesAt, setPiecesAt } from "./setPieces";
 import { stateAt } from "./state";
 
 /** Everything a part needs for one frame. */
@@ -124,6 +124,8 @@ export function labelFits(p: [number, number] | null, size: readonly [number, nu
  */
 export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
   const geom = siteGeom(o.plan, o.frame, o.closedEdge, o.roads);
+  // warm the per-plan set piece tables (crane slew) now, not on the first played frame
+  craneAt(o.plan, 0);
   const group = new THREE.Group();
   group.name = "devsim";
   group.userData.decorative = true;
