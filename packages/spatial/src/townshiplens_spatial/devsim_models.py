@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .models import LonLat
+from .models import LonLat, RouteStatus
 
 CastHome = Literal["tower", "existing"]
 BubbleTone = Literal["pos", "neg"]
@@ -143,3 +143,276 @@ class DevelopmentPlan(BaseModel):
     end_card: EndCard
     labels: DevsimLabels
     total_s: float = 66
+
+
+# ---- Demo polish impact outputs (spec 2026-10-21 demo polish §6.1; C7 wires them into the plan) --
+TargetKind = Literal["mall", "park", "school", "clinic"]
+
+
+class ImpactTarget(BaseModel):
+    """A daily-life destination: Lakeside Mall, Urban Park, and the school and clinic nearest the
+    tower entrance on foot (default profile). Every home uses the same four."""
+
+    id: str  # place id
+    name: str
+    kind: TargetKind
+    # Places that count as arriving (default: just `id`); the mall includes its Car Park B.
+    arrive_at: list[str] = []
+
+
+class HoardingHome(BaseModel):
+    """One residential building within the radius, before vs after the hoarding (default walk)."""
+
+    home_id: str  # building id
+    extra_min: int  # the largest rounded extra walk over the four targets (>= 0)
+    extra_target: str | None = None  # the target id of that walk (None when extra_min is 0)
+    # The place that walk arrives at (the mall or its Car Park B, ruling R18), None when extra is 0.
+    extra_arrival: str | None = None
+    cut_off: bool = False  # a default route that existed before has none after
+    wheelchair_cut: bool = False  # a wheelchair route that existed before has none after
+
+
+class HoardingOption(BaseModel):
+    """The impact with only one side of the site hoarded (its frontage walk paths closed)."""
+
+    side: str  # compass side of the site, e.g. "north-east"
+    edge_ids: list[str]
+    homes_2min_plus: int
+    max_extra_min: int
+    wheelchair_links_cut: int
+
+
+class HoardingImpact(BaseModel):
+    """Every nearby home's walks to the four targets before and after the hoarding closes the
+    frontage paths (routing engine; default profile for minutes, wheelchair for links cut)."""
+
+    radius_m: int
+    homes_considered: int  # residential buildings within radius_m of the tower centre
+    homes_2min_plus: int  # homes with any target >= 2 min longer (or cut off)
+    max_extra_min: int
+    # Homes whose wheelchair route to any target was confirmed / likely_ok / partly_unverified
+    # before and is blocked / no_data after.
+    wheelchair_links_cut: int
+    targets: list[ImpactTarget]
+    closed_edges: list[str]  # every frontage path the full hoarding closes
+    options: list[HoardingOption]  # one per hoarded side
+    best_side: str | None  # fewest homes_2min_plus, ties by max_extra_min
+    homes: list[HoardingHome]
+    profile: str = "default"
+    provenance: str = "routing engine, default profile (wheelchair profile for links cut)"
+
+
+SensitiveType = Literal["school", "kindergarten", "park", "playground"]
+SCHOOL_RUN_NOTE = "School run assumed 7–8 am (typical); not from data"
+
+
+class LorrySensitive(BaseModel):
+    """A school, kindergarten, park or playground within 50 m of the lorry route."""
+
+    place_id: str
+    name: str
+    type: SensitiveType
+    distance_m: int  # from the route line to the place (its point, walk node or park outline)
+    along_m: int  # how far along the route from the main road it is passed
+
+
+class LorryRoute(BaseModel):
+    """Construction lorries: `drive` route from the nearest major road to the site gate."""
+
+    from_node: str  # the major-road node the lorries leave the main road at
+    gate_node: str  # the road node nearest the tower entrance (the site gate)
+    path: list[LonLat]
+    distance_m: int
+    minutes: int  # at the drive profile's 30 km/h
+    status: RouteStatus  # a drive route is never "confirmed"
+    sensitive: list[LorrySensitive]  # ordered by along_m
+    school_run_note: str = SCHOOL_RUN_NOTE  # a labelled assumption, not from data
+    profile: str = "drive"
+    warnings: list[str] = []
+
+
+EvacSource = Literal["official_pps", "osm_candidate"]
+
+
+class DevsimEvacuation(BaseModel):
+    """The nearest reachable evacuation centre from the tower entrance (default walk)."""
+
+    centre_id: str
+    name: str
+    source: EvacSource  # official_pps vs osm_candidate: shown as such, never upgraded
+    m: int
+    min: int
+    status: RouteStatus
+
+
+class FloodExposure(BaseModel):
+    """At handover: the river-rise scenario from which the entrance's usual walk to the main road
+    crosses a likely-flooded stretch. Indicative scenario, not a forecast; no depths."""
+
+    road_node: str  # the nearest major-road node the walk goes to
+    route_edges: list[str]  # the baseline (no scenario) default-profile walk
+    scenarios_checked: list[str]  # the stage_p1m..stage_p5m scenarios the world has, in order
+    cut_from_scenario: (
+        str | None
+    )  # lowest one with a likely_flooded edge on the walk; None = not cut
+    cut_edges: list[str]  # the likely_flooded edges in that scenario
+    evacuation: DevsimEvacuation | None
+    disclaimer: str = "Indicative scenario, not a forecast."
+    profile: str = "default"
+
+
+MatrixValue = int | Literal["?", "gap", "blocked"]
+
+
+class MatrixCell(BaseModel):
+    profile: str  # default | stroller | wheelchair
+    status: RouteStatus
+    # Minutes, "?" when the route is partly_unverified, "gap" for no_data, "blocked" for blocked.
+    value: MatrixValue
+    m: int | None = None  # metres, only when value is minutes
+    arrival_id: str  # the place the walk ends at (the mall or its Car Park B for the mall row)
+    label: str  # how copy names this walk: "Lakeside Mall" / "Lakeside Mall (Car Park B)" / name
+
+
+class MatrixRow(BaseModel):
+    target: ImpactTarget
+    cells: list[MatrixCell]  # in DailyLifeMatrix.profiles order
+
+
+class DailyLifeMatrix(BaseModel):
+    """Walks from the tower entrance to the four daily-life targets, per profile."""
+
+    profiles: list[str]
+    rows: list[MatrixRow]  # Urban Park, Lakeside Mall, nearest clinic, nearest school
+
+
+# ---- C4: schedule and cost estimate (devsim_schedule.py) ----------------------------------------
+HolidayStatus = Literal["gazetted", "expected"]
+
+
+class ScheduleHoliday(BaseModel):
+    date: str  # ISO date
+    name: str
+    status: HolidayStatus  # "expected dates" for years whose official list is not yet gazetted
+    month_index: int  # months after the start month (0 = the start month)
+    working_day: bool  # falls on a site working day (Mon-Sat)
+
+
+class SchedulePhase(BaseModel):
+    name: Literal["foundation", "structure", "fit-out"]
+    start: str  # ISO date, inclusive
+    end: str  # ISO date, exclusive (the next phase starts here)
+
+
+class MonsoonBand(BaseModel):
+    start_month: str  # "YYYY-MM"
+    end_month: str  # "YYYY-MM", inclusive
+    start_index: int  # month indices (0 = the start month); the band is clipped to the project
+    end_index: int
+
+
+class RayaSetPiece(BaseModel):
+    """The one Hari Raya Aidilfitri site shutdown the playback stages (the first during structure
+    work). `days` is the assumed shutdown length in working days, beyond the gazetted holidays."""
+
+    date: str  # Hari Raya Aidilfitri, day 1
+    month_index: int
+    days: int
+
+
+class MonsoonMonth(BaseModel):
+    month: str  # "YYYY-MM"
+    month_index: int
+    wet_days: int  # climatology: days with 1.0 mm of rain or more
+    days_lost: float  # wet days x the lost fraction, for the structure work in that month
+
+
+class MonsoonSetPiece(BaseModel):
+    """The first northeast-monsoon stretch during structure work."""
+
+    start_month: str  # "YYYY-MM"
+    end_month: str  # "YYYY-MM", inclusive
+    months: list[MonsoonMonth]
+
+
+class Schedule(BaseModel):
+    """ESTIMATE: an indicative schedule and cost for the Hypothetical Development, from the
+    published benchmarks and labelled assumptions in the sources doc
+    (docs/04-architecture/devsim-estimates-sources.md, `devsim_schedule.SOURCES`). Not an SDP
+    figure, a quotation or a forecast."""
+
+    storeys: int
+    homes: int
+    start: str  # ISO date
+    handover: str  # ISO date: structure end + fit-out
+    months_total: int  # calendar months from the start month to the handover month, inclusive
+    months: list[str]  # "YYYY-MM" for each month index
+    phases: list[SchedulePhase]
+    floors_by_month: list[int]  # floors topped out by the end of each month
+    gfa_m2: int  # homes x net area x common factor
+    rate_rm_per_m2: int
+    cost_total_rm: int
+    cost_by_month: list[int]  # cumulative RM by the end of each month (S-curve), ends at the total
+    holidays: list[ScheduleHoliday]  # every holiday from the start to the handover
+    holiday_days_lost: int  # holidays on structure working days (Mon-Sat), the extended phase
+    holidays_lost: list[str]  # their dates
+    rain_days_lost: int  # rounded; monsoon wet days x lost fraction over the structure work
+    raya_shutdown_days: int  # assumption
+    monsoon_bands: list[MonsoonBand]
+    raya_set_piece: RayaSetPiece | None
+    monsoon_set_piece: MonsoonSetPiece | None
+    source_ids: list[str]  # SOURCES rows the estimate used
+    label: str = "ESTIMATE"
+    source_line: str
+
+
+# ---- C6: forty simulated residents (devsim_residents.py) ----------------------------------------
+ResidentSide = Literal["tower", "neighbour"]
+PersonaGroup = Literal["older", "parent", "commuter", "wheelchair", "general"]
+WalkValue = int | Literal["?", "gap", "blocked"]
+
+
+class ResidentWalk(BaseModel):
+    kind: TargetKind
+    name: str  # the target's place name
+    value: WalkValue  # minutes for their profile; "?" partly_unverified, "gap" no_data, "blocked"
+    arrival_id: str  # the place the walk ends at (the mall or its Car Park B, ruling R18)
+    label: str  # "Lakeside Mall" / "Lakeside Mall (Car Park B)" for the mall, else the name
+
+
+class ResidentFacts(BaseModel):
+    """The only facts a resident's lines may quote (routing engine, their own profile)."""
+
+    profile: str  # wheelchair if a wheelchair user, stroller with a toddler, else default
+    home_id: str | None  # the neighbour's building id (None for the tower)
+    # Construction detour (neighbours): the largest extra walk over the four targets.
+    extra_walk_min: int | None = None
+    extra_walk_to: str | None = None  # how the lines name that walk ("Lakeside Mall (Car Park B)")
+    extra_walk_arrival: str | None = None  # the place id it arrives at
+    walks: list[ResidentWalk]  # park, mall, clinic, school
+
+
+class ResidentLines(BaseModel):
+    construction: str
+    handover: str
+    daily_life: str
+
+
+class SimResident(BaseModel):
+    id: str  # cast id ("halim") or "t-<resident>" / "n-<resident>"
+    name: str
+    role: str
+    side: ResidentSide
+    group: PersonaGroup
+    colour: str  # "#rrggbb"
+    age: int | None = None
+    tags: list[str] = []  # e.g. "wheelchair", "toddler", "children", "commuter", "cast"
+    facts: ResidentFacts
+    lines: ResidentLines
+
+
+class SimResidents(BaseModel):
+    residents: list[SimResident]  # 20 tower, then 20 neighbours
+    seed: int
+    label: str = "Simulated reactions"
+    note: str = "Lines are written for the simulation; every number comes from the world model."
