@@ -226,3 +226,56 @@ class LorryRoute(BaseModel):
     school_run_note: str = SCHOOL_RUN_NOTE  # a labelled assumption, not from data
     profile: str = "drive"
     warnings: list[str] = []
+
+
+EvacSource = Literal["official_pps", "osm_candidate"]
+
+
+class DevsimEvacuation(BaseModel):
+    """The nearest reachable evacuation centre from the tower entrance (default walk)."""
+
+    centre_id: str
+    name: str
+    source: EvacSource  # official_pps vs osm_candidate: shown as such, never upgraded
+    m: int
+    min: int
+    status: RouteStatus
+
+
+class FloodExposure(BaseModel):
+    """At handover: the river-rise scenario from which the entrance's usual walk to the main road
+    crosses a likely-flooded stretch. Indicative scenario, not a forecast; no depths."""
+
+    road_node: str  # the nearest major-road node the walk goes to
+    route_edges: list[str]  # the baseline (no scenario) default-profile walk
+    scenarios_checked: list[str]  # the stage_p1m..stage_p5m scenarios the world has, in order
+    cut_from_scenario: (
+        str | None
+    )  # lowest one with a likely_flooded edge on the walk; None = not cut
+    cut_edges: list[str]  # the likely_flooded edges in that scenario
+    evacuation: DevsimEvacuation | None
+    disclaimer: str = "Indicative scenario, not a forecast."
+    profile: str = "default"
+
+
+MatrixValue = int | Literal["?", "gap", "blocked"]
+
+
+class MatrixCell(BaseModel):
+    profile: str  # default | stroller | wheelchair
+    status: RouteStatus
+    # Minutes, "?" when the route is partly_unverified, "gap" for no_data, "blocked" for blocked.
+    value: MatrixValue
+    m: int | None = None  # metres, only when value is minutes
+
+
+class MatrixRow(BaseModel):
+    target: ImpactTarget
+    cells: list[MatrixCell]  # in DailyLifeMatrix.profiles order
+
+
+class DailyLifeMatrix(BaseModel):
+    """Walks from the tower entrance to the four daily-life targets, per profile."""
+
+    profiles: list[str]
+    rows: list[MatrixRow]  # Urban Park, Lakeside Mall, nearest clinic, nearest school

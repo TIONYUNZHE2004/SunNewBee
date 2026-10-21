@@ -31,14 +31,20 @@ from shapely.ops import nearest_points
 
 from . import devsim, routing, twm
 from .devsim_models import (
+    DailyLifeMatrix,
     DevelopmentSite,
+    DevsimEvacuation,
+    FloodExposure,
     HoardingHome,
     HoardingImpact,
     HoardingOption,
     ImpactTarget,
     LorryRoute,
     LorrySensitive,
+    MatrixCell,
+    MatrixRow,
 )
+from .flood import centres_reachability
 from .world import World
 
 log = logging.getLogger(__name__)
@@ -435,3 +441,111 @@ def lorry_route(world: World, site: DevelopmentSite, lay=None) -> LorryRoute:
         raise devsim.DevsimUnavailable("no mapped road from a major road to the site gate")
 
     return _cached("lorry_route", world, site, build)
+
+
+# ---- C5: flood exposure and daily-life matrix ----------------------------------------------------
+FLOOD_STAGES = ("stage_p1m", "stage_p2m", "stage_p3m", "stage_p4m", "stage_p5m")
+MATRIX_PROFILES = ("default", "stroller", "wheelchair")
+MATRIX_ORDER = ("park", "mall", "clinic", "school")
+
+
+def cell_value(status: str, metres: float | None, pace: float) -> int | str:
+    """A walk as the matrix shows it: minutes, "?" (partly_unverified), "gap" (no_data) or
+    "blocked". An unchecked walk is never shown as blocked, nor a data gap as blocked."""
+    if status == "blocked":
+        return "blocked"
+    if status == "no_data" or metres is None:
+        return "gap"
+    if status == "partly_unverified":
+        return "?"
+    return max(1, devsim._round_min(metres / pace))
+
+
+def _road_walk(tw: World, lay):
+    """The default walk from the tower entrance to the nearest major-road node (nearest first,
+    straight line; the next one is tried when a node has no walk)."""
+    for node in _major_road_nodes(tw, lay)[:MAX_ROAD_TRIES]:
+        w = devsim._with_places(tw, [devsim._temp_place(ROAD_PLACE, "Main road", tw, node)])
+        res = routing.plan_route(w, devsim.TOWER_PLACE, ROAD_PLACE, devsim.PROFILE)
+        if res.routes:
+            return node, res.routes[0]
+    raise devsim.DevsimUnavailable("no walk from the tower to a major road")
+
+
+def _evacuation(tw: World) -> DevsimEvacuation | None:
+    rows = centres_reachability(tw, None, devsim.PROFILE, devsim.TOWER_PLACE)
+    r = next((r for r in rows if r.reachable and r.distance_m is not None), None)
+    if r is None:
+        return None
+    return DevsimEvacuation(
+        centre_id=r.centre.id,
+        name=r.centre.name,
+        source=r.centre.source,
+        m=round(r.distance_m),
+        min=max(1, devsim._round_min(r.distance_m / _pace(tw))),
+        status=r.route_status,
+    )
+
+
+def flood_exposure(world: World, site: DevelopmentSite, lay=None) -> FloodExposure:
+    """AC-C5: the lowest of stage_p1m..stage_p5m at which the entrance's baseline walk to the
+    nearest major road crosses a `likely_flooded` edge (None: not cut in any scenario the world
+    has), and the nearest evacuation centre with its official_pps / osm_candidate label."""
+
+    def build() -> FloodExposure:
+        layout = lay or devsim._layout(world, site)
+        tw = devsim.tower_world(world, site)
+        node, route = _road_walk(tw, layout)
+        edges = [s.edge_id for s in route.segments]
+        have = {s.id for s in world.flood.scenarios}
+        checked = [s for s in FLOOD_STAGES if s in have]
+        cut, cut_edges = None, []
+        for s in checked:
+            classes = world.flood.edge_classes.get(s, {})
+            hit = sorted({e for e in edges if classes.get(e) == "likely_flooded"})
+            if hit:
+                cut, cut_edges = s, hit
+                break
+        return FloodExposure(
+            road_node=node,
+            route_edges=edges,
+            scenarios_checked=checked,
+            cut_from_scenario=cut,
+            cut_edges=cut_edges,
+            evacuation=_evacuation(tw),
+        )
+
+    return _cached("flood_exposure", world, site, build)
+
+
+def daily_life_matrix(world: World, site: DevelopmentSite) -> DailyLifeMatrix:
+    """AC-C6: walk minutes from the tower entrance (plan_route) to Urban Park, Lakeside Mall, the
+    nearest clinic and the nearest school, for the default, stroller and wheelchair profiles.
+
+    The mall row routes to the mall itself (as the existing mall bubble does), not its car park."""
+
+    def build() -> DailyLifeMatrix:
+        tw = devsim.tower_world(world, site)
+        by_kind = {t.kind: t for t in impact_targets(world, site)}
+        rows = []
+        with routing.eval_memo():
+            for kind in MATRIX_ORDER:
+                t = by_kind[kind]
+                cells = []
+                for prof in MATRIX_PROFILES:
+                    res = routing.plan_route(tw, devsim.TOWER_PLACE, t.id, prof)
+                    r = res.routes[0] if res.routes else None
+                    status = r.status if r else res.status
+                    value = cell_value(status, r.distance_m if r else None, _pace(tw, prof))
+                    cells.append(
+                        MatrixCell(
+                            profile=prof,
+                            status=status,
+                            value=value,
+                            m=round(r.distance_m) if r and isinstance(value, int) else None,
+                        )
+                    )
+                rows.append(MatrixRow(target=t, cells=cells))
+        return DailyLifeMatrix(profiles=list(MATRIX_PROFILES), rows=rows)
+
+    return _cached("daily_life_matrix", world, site, build)

@@ -212,3 +212,66 @@ def test_elmina_lorry_route():  # AC-C2
     # The gate is the road node nearest the entrance; the route starts on the main road.
     assert r.path[0] == pytest.approx(w.node_coords[r.from_node][:2], abs=1e-6)
     assert r.path[-1] == pytest.approx(w.node_coords[r.gate_node][:2], abs=1e-6)
+
+
+# ---- C5: flood exposure and the daily-life matrix ----------------------------------------------
+def test_cell_value_rules():  # AC-C6
+    assert di.cell_value("confirmed", 700, 70) == 10
+    assert di.cell_value("likely_ok", 30, 70) == 1  # never "0 min"
+    assert di.cell_value("partly_unverified", 700, 70) == "?"
+    assert di.cell_value("no_data", None, 70) == "gap"
+    assert di.cell_value("blocked", None, 70) == "blocked"
+
+
+@seed_only
+def test_elmina_flood_exposure():  # AC-C5
+    w = _world()
+    f = di.flood_exposure(w, _site())
+    assert f.scenarios_checked == [
+        s for s in di.FLOOD_STAGES if s in {x.id for x in w.flood.scenarios}
+    ]
+    assert f.route_edges and f.disclaimer == "Indicative scenario, not a forecast."
+    if f.cut_from_scenario is None:
+        assert f.cut_edges == []
+    else:
+        i = f.scenarios_checked.index(f.cut_from_scenario)
+        for s in f.scenarios_checked[:i]:  # the lowest such scenario
+            assert not any(
+                w.flood.edge_classes.get(s, {}).get(e) == "likely_flooded" for e in f.route_edges
+            )
+        classes = w.flood.edge_classes[f.cut_from_scenario]
+        assert f.cut_edges and all(classes[e] == "likely_flooded" for e in f.cut_edges)
+        assert set(f.cut_edges) <= set(f.route_edges)
+    ev = f.evacuation
+    assert ev is not None and ev.source in ("official_pps", "osm_candidate")
+    assert ev.source == w.centres[ev.centre_id].source and ev.name == w.centres[ev.centre_id].name
+    assert ev.min >= 1 and ev.m > 0
+    text = f.model_dump_json().lower()
+    assert "safe" not in text and "depth" not in text
+
+
+@seed_only
+def test_elmina_daily_life_matrix():  # AC-C6
+    w = _world()
+    m = di.daily_life_matrix(w, _site())
+    assert m.profiles == ["default", "stroller", "wheelchair"]
+    assert [r.target.kind for r in m.rows] == ["park", "mall", "clinic", "school"]
+    assert [r.target.name for r in m.rows[:2]] == [devsim.PARK_NAME, devsim.MALL_NAME]
+    for row in m.rows:
+        assert [c.profile for c in row.cells] == m.profiles
+        for c in row.cells:
+            if c.status == "partly_unverified":
+                assert c.value == "?" and c.m is None
+            elif c.status == "no_data":
+                assert c.value == "gap"
+            elif c.status == "blocked":
+                assert c.value == "blocked"
+            else:
+                assert isinstance(c.value, int) and c.value >= 1 and c.m and c.m > 0
+    # The default walks to the park and the mall are the plan's existing facts.
+    facts = devsim.compute_facts(w, _site())
+    cell = {(r.target.kind, c.profile): c for r in m.rows for c in r.cells}
+    for kind, walk in (("park", facts.park), ("mall", facts.mall)):
+        if isinstance(cell[(kind, "default")].value, int):
+            assert cell[(kind, "default")].value == walk.min
+            assert cell[(kind, "default")].m == walk.m
