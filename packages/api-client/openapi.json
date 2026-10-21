@@ -1067,6 +1067,11 @@
             "title": "Trips No Route Before",
             "type": "integer"
           },
+          "trips_on_course": {
+            "default": 0,
+            "title": "Trips On Course",
+            "type": "integer"
+          },
           "trips_total": {
             "title": "Trips Total",
             "type": "integer"
@@ -2835,6 +2840,11 @@
             "title": "Trips No Route Before",
             "type": "integer"
           },
+          "trips_on_course": {
+            "default": 0,
+            "title": "Trips On Course",
+            "type": "integer"
+          },
           "trips_total": {
             "title": "Trips Total",
             "type": "integer"
@@ -3024,6 +3034,11 @@
           },
           "no_route": {
             "title": "No Route",
+            "type": "boolean"
+          },
+          "on_closed_course": {
+            "default": false,
+            "title": "On Closed Course",
             "type": "boolean"
           },
           "profile": {
@@ -3966,6 +3981,11 @@
           },
           "trips_no_route_before": {
             "title": "Trips No Route Before",
+            "type": "integer"
+          },
+          "trips_on_course": {
+            "default": 0,
+            "title": "Trips On Course",
             "type": "integer"
           },
           "trips_total": {

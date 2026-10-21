@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import threading
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from datetime import UTC, date, datetime
 from statistics import median
 from time import perf_counter
@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from . import closure_roads, flood, traffic, twm
 from .direction import direction_rule
 from .models import ClosureReason
-from .routing import route_batch
+from .routing import _road_nodes, _targets, route_batch
 from .sim import ORIGIN_TYPES, snapshot_world
 from .world import World
 
@@ -105,6 +105,7 @@ class EventTrip(BaseModel):
     extra_m: float | None
     extra_min: float | None
     segment_ids: list[str]
+    on_closed_course: bool = False
 
 
 class ProfileImpact(BaseModel):
@@ -115,6 +116,7 @@ class ProfileImpact(BaseModel):
     trips_newly_no_route: int
     extra_m_median: float | None
     extra_min_median: float | None
+    trips_on_course: int = 0
 
 
 class EventPlace(BaseModel):
@@ -180,14 +182,16 @@ def resolve_scenario(world: World, spec: ClosureScenario) -> ClosureScenario:
 
 
 def _summary(trips: list[EventTrip]) -> ProfileImpact:
-    metres = [t.extra_m for t in trips if t.extra_m is not None]
-    minutes = [t.extra_min for t in trips if t.extra_min is not None]
+    ordinary = [t for t in trips if not t.on_closed_course]
+    metres = [t.extra_m for t in ordinary if t.extra_m is not None]
+    minutes = [t.extra_min for t in ordinary if t.extra_min is not None]
     return ProfileImpact(
         trips_total=len(trips),
-        trips_affected=sum(t.affected for t in trips),
-        trips_no_route=sum(t.no_route for t in trips),
-        trips_no_route_before=sum(t.before_m is None for t in trips),
-        trips_newly_no_route=sum(t.before_m is not None and t.no_route for t in trips),
+        trips_affected=sum(t.affected for t in ordinary),
+        trips_no_route=sum(t.no_route for t in ordinary),
+        trips_no_route_before=sum(t.before_m is None for t in ordinary),
+        trips_newly_no_route=sum(t.before_m is not None and t.no_route for t in ordinary),
+        trips_on_course=sum(t.on_closed_course for t in trips),
         extra_m_median=round(median(metres), 1) if metres else None,
         extra_min_median=round(median(minutes), 1) if minutes else None,
     )
@@ -206,13 +210,19 @@ def _journeys(world, profile, limit, expanded):
     types = {t for peak in traffic.config().peaks for t in peak.types} | {"facility", "toilet"}
     origins = sorted(p.id for p in world.places.values() if p.type in ORIGIN_TYPES)
     destinations = sorted(p.id for p in world.places.values() if p.type in types)
-    # Round-robin origins: the bounded sample represents all mapped parking/stops.
-    return [
-        twm.Journey(from_id=o, to_id=d, profile=profile)
-        for d in destinations
-        for o in origins
-        if o != d
-    ][:limit]
+    # Rotate both sides of the bipartite sample, rather than filling it with the
+    # first destination. Each complete round uses the smaller side exactly once.
+    pairs = []
+    small, large = sorted((origins, destinations), key=len)
+    for offset in range(len(large)):
+        for i, value in enumerate(small):
+            other = large[(i + offset) % len(large)]
+            o, d = (value, other) if small is origins else (other, value)
+            if o != d:
+                pairs.append(twm.Journey(from_id=o, to_id=d, profile=profile))
+                if len(pairs) == limit:
+                    return pairs
+    return pairs
 
 
 def _baseline(world, closure_hash, profile, journeys):
@@ -391,6 +401,7 @@ def _simulate(world, spec, profiles, at, legacy):
         if window.starts_at <= at < window.ends_at
         for eid in window.segment_ids
     }
+    course_nodes = closure_roads._nodes(baseline, closed)
     actions = [twm.ClosePath(element_id=eid) for eid in sorted(closed)]
     after = twm.apply(baseline, actions, max_actions=MAX_SEGMENTS).world
     limit = twm.MAX_JOURNEYS // len(profiles)
@@ -402,6 +413,13 @@ def _simulate(world, spec, profiles, at, legacy):
         for profile in profiles:
             journeys = _journeys(baseline, profile, limit, expanded=legacy is None)
             states, before_ids = _baseline(baseline, closure_hash, profile, journeys)
+            prof = baseline.profiles[profile]
+            road_nodes = _road_nodes(baseline, prof) if prof.allowed_types is not None else None
+            on_course = {
+                pid
+                for pid in {pid for j in journeys for pid in (j.from_id, j.to_id)}
+                if course_nodes.intersection(_targets(baseline, pid, prof, road_nodes=road_nodes))
+            }
             for j, b in zip(journeys, states, strict=True):
                 # Removing edges cannot improve an unavailable route. An existing best
                 # route avoiding every removed edge is still optimal, so reuse it exactly.
@@ -412,13 +430,15 @@ def _simulate(world, spec, profiles, at, legacy):
                     and b.segment_ids != a.segment_ids
                 )
                 lost = b.distance_m is not None and a.distance_m is None
+                endpoint_on_course = j.from_id in on_course or j.to_id in on_course
                 demo |= b.demo_evidence or a.demo_evidence
                 trips.append(
                     EventTrip(
                         **j.model_dump(),
                         before_status=b.status,
                         after_status=a.status,
-                        affected=rerouted or lost,
+                        affected=(rerouted or lost) and not endpoint_on_course,
+                        on_closed_course=endpoint_on_course,
                         no_route=a.distance_m is None,
                         before_m=b.distance_m,
                         after_m=a.distance_m,
@@ -427,7 +447,7 @@ def _simulate(world, spec, profiles, at, legacy):
                         segment_ids=a.segment_ids,
                     )
                 )
-                if rerouted:
+                if rerouted and not endpoint_on_course:
                     per_road = {}
                     for eid in set(a.segment_ids) - set(b.segment_ids):
                         edge = world.edges[eid]
@@ -464,6 +484,21 @@ def _simulate(world, spec, profiles, at, legacy):
         "the window are not modelled.",
         "Extra minutes are travel-distance/pace estimates, not congestion or crowd predictions.",
     ]
+    if summary.trips_on_course:
+        warnings.append(
+            f"{summary.trips_on_course} sample trips start or end on the course: access during "
+            "the event needs a separate plan; excluded from detour and new route-loss counts."
+        )
+    for profile in profiles:
+        sample = [t for t in trips if t.profile == profile]
+        if sample and any(
+            max(Counter(getattr(t, field) for t in sample).values()) * 10 > len(sample)
+            for field in ("from_id", "to_id")
+        ):
+            warnings.append(
+                f"{profile}: the available mapped endpoints cannot meet the 10% sample "
+                "diversity target; this small sample is not representative."
+            )
     if demo:
         warnings.append("Some routes use demo values, not yet surveyed.")
     warnings.extend(

@@ -1403,6 +1403,11 @@ export interface components {
             trips_no_route: number;
             /** Trips No Route Before */
             trips_no_route_before: number;
+            /**
+             * Trips On Course
+             * @default 0
+             */
+            trips_on_course: number;
             /** Trips Total */
             trips_total: number;
             /** Warnings */
@@ -2081,6 +2086,11 @@ export interface components {
             trips_no_route: number;
             /** Trips No Route Before */
             trips_no_route_before: number;
+            /**
+             * Trips On Course
+             * @default 0
+             */
+            trips_on_course: number;
             /** Trips Total */
             trips_total: number;
             /** Warnings */
@@ -2144,6 +2154,11 @@ export interface components {
             from_id: string;
             /** No Route */
             no_route: boolean;
+            /**
+             * On Closed Course
+             * @default false
+             */
+            on_closed_course: boolean;
             /** Profile */
             profile: string;
             /** Segment Ids */
@@ -2478,6 +2493,11 @@ export interface components {
             trips_no_route: number;
             /** Trips No Route Before */
             trips_no_route_before: number;
+            /**
+             * Trips On Course
+             * @default 0
+             */
+            trips_on_course: number;
             /** Trips Total */
             trips_total: number;
         };

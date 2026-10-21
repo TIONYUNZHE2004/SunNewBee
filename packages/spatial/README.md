@@ -477,6 +477,11 @@ existing gaps; `trips_no_route_before` and `trips_newly_no_route` distinguish th
 Pre-existing disconnected data stays `no_data` and is never attributed to a closure.
 Extra metre/minute medians cover rerouted trips only (null if none); minutes describe
 physical distance/profile pace, never traffic delay. Per-profile counts use the same rules.
+Trips whose origin or destination maps onto a closed-course node have
+`on_closed_course=true` and are counted separately in `trips_on_course`. These access-during-
+the-event cases are excluded from ordinary detour, no-route and newly-no-route summaries.
+The total sample still includes them. Origins and destinations rotate together; samples
+that cannot meet the 10% endpoint-share target carry an explicit limitation warning.
 `places_cut_off` contains newly lost mapped centre access in at least one selected
 profile; pre-existing isolation and missing entrances are excluded.
 
