@@ -223,10 +223,11 @@ export const CAM_KEYS: readonly CamKey[] = [
   },
   { t: 10.4, targetAnchor: "site", h: 26, offset: [-130, -180, 95] },
   { t: 15.4, targetAnchor: "site", h: 34, offset: [-145, -200, 105] },
-  // Gate 2 fix: the tower (left third) and Halim on his detour (right) in one frame, as the
-  // prototype frames them: aimed between them and pulled back from the south-south-west
-  { t: 17.2, targetAnchor: { lerp: ["site", "halimMid", 0.5] }, h: 12, offset: [-20, -200, 105] },
-  { t: 21.6, targetAnchor: { lerp: ["site", "halimMid", 0.55] }, h: 10, offset: [-15, -180, 94] },
+  // Gate 2 fix: the tower (left) and Halim on his detour (right) in one frame, as the prototype
+  // frames them: aimed between them from the south-south-west, as close as keeps the tower in
+  // (loop 2: closer, so Halim reads against the street, Q3)
+  { t: 17.2, targetAnchor: { lerp: ["site", "halimMid", 0.58] }, h: 10, offset: [-16, -165, 86] },
+  { t: 21.6, targetAnchor: { lerp: ["site", "halimMid", 0.62] }, h: 8, offset: [-12, -148, 77] },
   // Gate 2 fix: from the south-west, over the yard, so no street tree stands between the camera
   // and Farid (the prototype's north-west view looks through a canopy on the Elmina plan)
   { t: 22.8, targetAnchor: "farid", h: 4, offset: [-32, -30, 22] },
@@ -255,8 +256,9 @@ export const CAM_KEYS: readonly CamKey[] = [
   // (smaller than the prototype's) people scale
   { t: 52.8, targetAnchor: "park", h: 1.5, offset: [-30, -33, 21] },
   { t: 57, targetAnchor: "park", h: 1.5, offset: [-26, -29, 18] },
-  { t: 58, targetAnchor: "mall", h: 2, offset: [-33, -27, 20] },
-  { t: 62.4, targetAnchor: "mall", h: 2, offset: [-29, -23, 17] },
+  // Gate 2 loop 2: Arjun from the south-east, so he stands against the plaza, not the lit window
+  { t: 58, targetAnchor: "mall", h: 1, offset: [32, -24, 28] },
+  { t: 62.4, targetAnchor: "mall", h: 1, offset: [28, -21, 25] },
   // 3D integration: 0.72 (prototype 0.9) keeps the tower where the prototype frames it (left third)
   { t: 63.6, targetAnchor: { lerp: ["site", "mall", 0.72] }, h: 20, offset: [-120, -470, 300] },
   { t: 66, targetAnchor: { lerp: ["site", "mall", 0.72] }, h: 20, offset: [-130, -490, 310] },

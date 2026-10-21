@@ -4,7 +4,7 @@ import type { DevelopmentPlan } from "../../../devsim/types";
 import { createClearance } from "../clearance";
 import { createFrame } from "../frame";
 import { LIGHT_PRESETS } from "../lighting";
-import { speakerGlow } from "./cast";
+import { speakerGlow, spotBoost } from "./cast";
 import {
   DEVSIM_FOV_DEG,
   devsimCamera,
@@ -67,6 +67,12 @@ describe("devsim lighting follows the prototype palette (gate 2: 18:45 was lit l
     expect(devsimGrade(LIGHT_PRESETS.day, { day: 1, dusk: 0, night: 0 })).toEqual(
       LIGHT_PRESETS.day,
     );
+  });
+
+  it("Spotlight Residents grow with distance in the wide beats only (gate 2 loop 2)", () => {
+    expect(spotBoost(40)).toBe(1);
+    expect(spotBoost(120)).toBeGreaterThan(1.5);
+    expect(spotBoost(250)).toBeCloseTo(2.4, 9);
   });
 
   it("the speaker's backlight is off by day and on at dusk and night", () => {

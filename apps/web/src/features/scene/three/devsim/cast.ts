@@ -29,6 +29,15 @@ const KEY_CANDELA = 8;
 /** The glow colour's gain over the token colour (additive light). */
 const GLOW_GAIN = 1.8;
 
+/**
+ * Extra display scale for the Spotlight Residents in the wide beats (1 up to 60 m from the camera,
+ * 2.4x from 180 m): the story's speakers read at the distance the prototype frames them (gate 2:
+ * Halim was 7 x 15 px at 19 s), the way the journey hero is drawn larger. Decorative only.
+ */
+export function spotBoost(d: number): number {
+  return 1 + 1.4 * ease(span(d, 60, 180));
+}
+
 /** A soft round glow (white centre to clear edge), as a small RGBA texture (no canvas: tests run in node). */
 export function glowTexture(n = 64): THREE.DataTexture {
   const data = new Uint8Array(n * n * 4);
@@ -413,10 +422,15 @@ export function createCast(o: CastOpts): Cast {
   const _s = new THREE.Vector3();
   const _y = new THREE.Vector3(0, 1, 0);
 
+  const spotlight = new Set(plan.cast.map((c) => c.id));
+  /** Display scale: the crowd's, and Spotlight Residents grow further with distance (spotBoost). */
+  const castScale = (id: string, d: number) =>
+    peopleScale(d) * (spotlight.has(id) ? spotBoost(d) : 1) * (id === "kid" ? 0.9 : 1);
+
   const personBox = (id: string) => {
     const p = poses.get(id);
     if (!p) return null;
-    const k = cam ? peopleScale(Math.hypot(p.x - cam.x, cam.y, p.z - cam.z)) : 1.55;
+    const k = cam ? castScale(id, Math.hypot(p.x - cam.x, cam.y, p.z - cam.z)) : 1.55;
     const body = CAST_LOOKS[id]?.body;
     const h = (body === "child" ? 1.1 : body?.startsWith("older") ? 1.62 : 1.72) * k;
     return { x: p.x, z: p.z, h };
@@ -440,7 +454,7 @@ export function createCast(o: CastOpts): Cast {
       pt[1] = 1;
       pt[2] = p.z;
       const d = cam ? Math.hypot(p.x - cam.x, cam.y, p.z - cam.z) : 50;
-      const k = id === "kid" ? peopleScale(d) * 0.9 : peopleScale(d);
+      const k = castScale(id, d);
       if (ring) {
         ring.visible = true;
         ring.position.set(p.x, 0.06, p.z);
