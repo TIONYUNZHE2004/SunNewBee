@@ -537,7 +537,7 @@
       "t0": 18.5,
       "t1": 23.0,
       "title": "Northeast monsoon",
-      "text": "11–18 wet days a month (typical) · rain cost the structure work ~16 days in all",
+      "text": "11–18 wet days a month (typical) · fit-out stage: rain adds no schedule days now · structure work lost ~16 days to rain",
       "badges": ["CALENDAR", "ESTIMATE"]
     },
     {
@@ -1811,7 +1811,7 @@
     [11.0, 13.8966],
     [13.0, 13.8966],
     [18.5, 22.0],
-    [23.0, 26.6452],
+    [23.0, 25.6452],
     [27.0, 26.6452],
     [45.0, 26.6452]
   ],
@@ -4100,8 +4100,8 @@
           },
           {
             "key": "best_side",
-            "label": "Best hoarding side",
-            "value": "north-east (only side hoarded)",
+            "label": "Hoarded side",
+            "value": "north-east",
             "badges": ["ROUTE"]
           },
           {
