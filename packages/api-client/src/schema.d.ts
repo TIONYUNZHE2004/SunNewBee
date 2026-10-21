@@ -2848,6 +2848,7 @@ export interface components {
             brief_text?: string | null;
             /** Center */
             center?: number[] | null;
+            closure?: components["schemas"]["ClosureImpact"] | null;
             /** Day */
             day?: string | null;
             /** Distance M */
@@ -2863,7 +2864,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip" | "journey.play" | "development.play";
+            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip" | "journey.play" | "development.play" | "closure.show";
             /** Lens */
             lens?: ("access" | "flood" | "waste") | null;
             /** Place Id */

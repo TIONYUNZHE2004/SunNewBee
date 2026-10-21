@@ -6,6 +6,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 from townshiplens_spatial.devsim_models import DevelopmentPlan
+from townshiplens_spatial.events import ClosureImpact
 from townshiplens_spatial.models import HHMM_PATTERN, JourneyPlan, RouteStatus
 
 IntentKind = Literal[
@@ -20,6 +21,7 @@ IntentKind = Literal[
     "day.trip",  # a resident's own rehearsed trip: day.show plus the trip (geojson, server-built)
     "journey.play",  # play a planned route as a journey (JourneyPlan attached by the server)
     "development.play",  # play the Development Simulation (plan attached by the server, if built)
+    "closure.show",  # a closure simulation's result card and map lines (server-added, managers)
 ]
 
 
@@ -59,6 +61,9 @@ class SceneIntent(AnswerSceneIntent):
     # POST /developments/simulate itself. Matches the web's DevelopmentPlayIntent.
     plan: DevelopmentPlan | None = None
     brief_text: str | None = None
+    # closure.show, attached by the server from this turn's simulate_closure result for the
+    # management screen only (pressure is for managers); per-trip rows are left out.
+    closure: ClosureImpact | None = None
 
 
 class TextDelta(BaseModel):

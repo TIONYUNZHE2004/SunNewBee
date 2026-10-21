@@ -4871,6 +4871,16 @@
             ],
             "title": "Center"
           },
+          "closure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClosureImpact"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "day": {
             "anyOf": [
               {
@@ -4938,7 +4948,8 @@
               "day.show",
               "day.trip",
               "journey.play",
-              "development.play"
+              "development.play",
+              "closure.show"
             ],
             "title": "Kind",
             "type": "string"

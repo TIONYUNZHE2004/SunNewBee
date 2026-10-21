@@ -219,3 +219,17 @@ def test_a_road_name_on_several_stretches_may_carry_each_stretch_band():
     for text, errs in ((ok, 0), (bad, 1)):
         ans = FinalAnswer(answer_status="answered", summary=text, claims=[claim])
         assert len(closure_claim_errors(ans, rec)) == errs
+
+
+@needs_seed
+async def test_managers_get_the_closure_card_intent_residents_never(seed, tmp_path):
+    q = "Road works on Persiaran Garcinia next Tuesday 9 am-5 pm: what is affected?"
+    evs, _, _ = await _ask(seed, tmp_path, q)
+    cards = [e.intent for e in evs if e.type == "scene.intent" and e.intent.kind == "closure.show"]
+    assert len(cards) == 1
+    card = cards[0].closure
+    assert card is not None and card.trips == [] and card.event.reason == "works"
+    assert card.detour_roads and all(r.segment_ids for r in card.detour_roads)
+    assert any(c.segment_ids for c in card.event.closures)  # the course, for the map
+    evs, _, _ = await _ask(seed, tmp_path, q, panel="resident")
+    assert not any(e.type == "scene.intent" and e.intent.kind == "closure.show" for e in evs)
