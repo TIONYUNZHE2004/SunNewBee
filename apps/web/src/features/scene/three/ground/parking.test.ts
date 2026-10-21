@@ -8,6 +8,7 @@ import {
   AISLE_M,
   CARS_SHARE,
   LOT_INSET_M,
+  PARKED_SHARES,
   planParking,
   STALL_D_M,
   STALL_STRIDE,
@@ -130,9 +131,25 @@ describe("planParking", () => {
     expect(CARS_SHARE).toBeCloseTo(0.7);
   });
 
-  it("parks hatchbacks, sedans and MPVs of the vehicles kit, all decorative", () => {
+  it("AC-L10: parks only compact hatches, micro hatches, small sedans and MPVs of the vehicles kit, all decorative", () => {
     const { cars } = planParking([BIG], tile, frame, 100000, opts);
-    expect(new Set(cars.map((c) => c.variant))).toEqual(new Set(["hatchback", "sedan", "mpv"]));
+    const allowed = ["compact_hatch", "micro_hatch", "small_sedan", "mpv"];
+    expect(Object.keys(PARKED_SHARES).sort()).toEqual([...allowed].sort());
+    expect(new Set(cars.map((c) => c.variant))).toEqual(new Set(allowed));
+    // weighted like the street mix's cars (30 / 12 / 20 / 10 of 72), within 5 points
+    const want: Record<string, number> = {
+      compact_hatch: 30 / 72,
+      micro_hatch: 12 / 72,
+      small_sedan: 20 / 72,
+      mpv: 10 / 72,
+    };
+    for (const v of allowed) {
+      const got = cars.filter((c) => c.variant === v).length / cars.length;
+      expect(Math.abs(got - (want[v] as number)), v).toBeLessThan(0.05);
+    }
+    // the kit's other variants (pickup, two-wheelers, bus, lorry) never park
+    const kit = Object.keys(manifest.assets.vehicles?.variants ?? {});
+    expect(kit).toEqual(expect.arrayContaining(["pickup", "kapchai", "bicycle", "bus", "lorry"]));
     expect(manifest.assets.vehicles?.decorative).toBe(true);
     for (const c of cars) {
       expect(c.asset).toBe("vehicles");

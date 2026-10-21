@@ -41,7 +41,8 @@ export function usePicking({
         x: ((e.clientX - r.left) / r.width) * 2 - 1,
         y: -((e.clientY - r.top) / r.height) * 2 + 1,
       };
-      const v = engine.pickView();
+      // split screen: the camera of the half under the click
+      const v = engine.pickView({ x: e.clientX - r.left, y: e.clientY - r.top });
       const hit = pickAt(ndc, v.camera, v.roots, LINE_PICK_PX, {
         width: v.size[0],
         height: v.size[1],

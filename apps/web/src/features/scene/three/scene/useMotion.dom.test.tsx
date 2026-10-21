@@ -40,7 +40,7 @@ vi.mock("../motion/motionLayer", () => ({
 const agent = (id: string): Agent => ({
   id,
   kind: "vehicle",
-  variant: "sedan",
+  variant: "small_sedan",
   path: Float32Array.from([0, 0, 50, 0]),
   length: 50,
   speed: 10,

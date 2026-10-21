@@ -45,12 +45,26 @@ export const STALL_STRIDE = 3;
 export const CARS_SHARE = 0.7;
 /** Stalls stay this clear (beyond the ribbon half-width) of a drawn road: the stall's half-diagonal. */
 const RIBBON_CLEAR_M = Math.hypot(STALL_W_M, STALL_D_M) / 2;
-/** Parked variants of the vehicles kit and their shares (hatchback, sedan, MPV). */
-const VARIANTS: [string, number][] = [
-  ["hatchback", 0.5],
-  ["sedan", 0.8],
-  ["mpv", 1],
-];
+/**
+ * The vehicles kit variants that park (AC-L10: the four cars only, never a pickup, two-wheeler, bus
+ * or lorry), weighted like the street mix's cars (spec §4 A4: 30 / 12 / 20 / 10). Decorative.
+ */
+export const PARKED_SHARES: Readonly<Record<string, number>> = {
+  compact_hatch: 30,
+  micro_hatch: 12,
+  small_sedan: 20,
+  mpv: 10,
+};
+/** PARKED_SHARES as (variant, cumulative share up to 1) for a hashed pick. */
+const VARIANTS: [string, number][] = (() => {
+  const all = Object.entries(PARKED_SHARES);
+  const sum = all.reduce((n, [, w]) => n + w, 0);
+  let acc = 0;
+  return all.map(([v, w], i): [string, number] => {
+    acc += w;
+    return [v, i === all.length - 1 ? 1 : acc / sum];
+  });
+})();
 
 interface Stall {
   id: string;

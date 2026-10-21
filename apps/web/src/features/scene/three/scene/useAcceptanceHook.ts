@@ -7,6 +7,7 @@ import { dressingFadeProbe } from "../fadeProbe";
 import type { LocalFrame } from "../frame";
 import { createFrameStats, type PerfSample } from "../frameStats";
 import { type Boundary, insideBoundary, outsideBy, type P } from "../ground/boundary";
+import { readUturnWatch, startUturnWatch, type UturnReport } from "../motion/uturnWatch";
 import { pickAt } from "../pick";
 
 /**
@@ -134,6 +135,12 @@ export interface AcceptanceApi {
   gpu(): { vendor: string; renderer: string };
   /** Which post effects run now (B-T5 AC-B5): tilt-shift depth of field and AO. */
   effects(): { dof: boolean; ao: boolean };
+  /**
+   * AC-L4 (demo polish A1): the decorative agents' mid-edge U-turn counter. `start` true (re)starts
+   * it from zero; the report says how many reversals above 150 deg within 2 s happened away from a
+   * dead end since, over how many seconds and with how many vehicles and people drawn per frame.
+   */
+  uturns(start?: boolean): UturnReport;
   /** The depth-of-field focus point on the canvas (CSS px), null behind the camera (AC-B4). */
   focusScreen(): { x: number; y: number } | null;
   /** The building-clearance grid in use (A-T7), or null before the city arrives. Read-only. */
@@ -935,6 +942,10 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
     },
     effects() {
       return engine.effects();
+    },
+    uturns(start) {
+      if (start) startUturnWatch();
+      return readUturnWatch();
     },
     focusScreen() {
       return engine.focusScreen();

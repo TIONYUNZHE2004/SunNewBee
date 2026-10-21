@@ -291,6 +291,41 @@ describe("P8: keep-out around the hero", () => {
     expect(keepOutDistance(0, 9, { x: 0, z: 0, yaw: 0 })).toBe(0);
   });
 
+  it("A4w: a person walking past the outside of a bend in her path ahead moves continuously (no snap where the deeper segment changes)", () => {
+    // The playback case: she walks -x, her path turns north-west 5 m ahead; a person walks by the
+    // outside of the bend. Pushing across whichever segment was deeper snapped her 1.56 m once.
+    const ahead: [number, number][] = [];
+    for (let k = 1; k <= 40; k++) {
+      const m = k * 0.25;
+      ahead.push(m <= 5 ? [-m, 0] : [-5 - 0.6 * (m - 5), 0.8 * (m - 5)]);
+    }
+    const h = { x: 0, z: 0, yaw: -Math.PI / 2, ahead };
+    const spine: [number, number][] = [
+      [0, 0],
+      [-5, 0],
+      [-8, 4],
+    ];
+    for (const off of [-0.3, -0.6, -1, -1.5]) {
+      const mem: KeepOutMemory = {};
+      let last: { x: number; z: number } | null = null;
+      let worst = 0;
+      // 1.3 m/s sampled at 30 Hz, along z = off past the bend's outside (south of the joint)
+      for (let x = -2; x >= -9; x -= 1.3 / 30) {
+        const r = keepOut(x, off, h, mem);
+        if (r.hidden) {
+          last = null;
+          continue;
+        }
+        expect(polylineDistance(r.x, r.z, spine)).toBeGreaterThanOrEqual(KEEP_OUT_M);
+        if (last) worst = Math.max(worst, Math.hypot(r.x - last.x, r.z - last.z));
+        last = r;
+      }
+      // a 4.3 cm step never moves her more than 0.5 m: an arc round the joint (0.31 m at most when
+      // she passes 0.3 m from it), not the old switch between the two segments (1.71 m)
+      expect(worst, `offset ${off}`).toBeLessThan(0.5);
+    }
+  });
+
   it("a person crossing her path inside the zone is hidden, never drawn through her", () => {
     const mem: KeepOutMemory = {};
     const seen: boolean[] = [];

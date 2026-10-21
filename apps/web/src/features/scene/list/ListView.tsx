@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useClosures, useLayer, useScenarios } from "../../../lib/api";
 import { GapsLensSection } from "../../gaps/GapsSection";
 import { gapsApplicable } from "../../gaps/gapModel";
+import { CompareListSection } from "../../journey/compare/CompareListSection";
 import { useJourney } from "../../journey/journeyStore";
 import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
@@ -154,6 +155,7 @@ export function ListView() {
       </section>
 
       {journey && <JourneyStepList plan={journey} />}
+      <CompareListSection />
 
       <DayListSection />
       <MyTripListSection />

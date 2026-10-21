@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { THREE_TIERS } from "./quality";
 import {
   CityBokehPass,
+  cocAt,
   dofActive,
   focusDepth,
   pitchWeight,
@@ -194,5 +195,34 @@ describe("CityBokehPass", () => {
     // slab 0: sign(f) * max(0, |f|) = f, the stock factor.
     expect(slabBlur({ aperture: 0.001, maxblur: 1, slab: 0 }, 10, 25)).toBeCloseTo(0.015, 9);
     pass.dispose();
+  });
+});
+
+describe("AC-L11: no blur in front of the focus (demo polish A3)", () => {
+  // orbit (no subject) at several ranges and pitches, and follow mode (a subject) close in
+  const cases: [string, number, boolean, number][] = [
+    ["orbit 150 m", 150, false, 45],
+    ["orbit 800 m", 800, false, 45],
+    ["orbit 7 km", 7000, false, 60],
+    ["orbit low pitch", 300, false, 30],
+    ["follow 10 m", 10, true, 20],
+    ["follow 30 m", 30, true, 20],
+    ["follow 120 m", 120, true, 30],
+  ];
+  for (const [name, dist, subject, down] of cases)
+    it(`${name}: CoC 0 at every depth nearer than the focus; blur only behind it`, () => {
+      const p = { ...tiltShiftParams(dist, subject, down), focus: dist };
+      for (let d = 0.5; d < dist; d += Math.max(0.25, dist / 400))
+        expect(cocAt(d, p), `${d}`).toBe(0);
+      expect(cocAt(dist, p)).toBe(0);
+      if (p.aperture > 0) expect(cocAt(dist * 3 + p.slab + 50, p)).toBeGreaterThan(0);
+      expect(cocAt(1e6, p)).toBeLessThanOrEqual(p.maxblur);
+    });
+  it("the shader factor is one-sided (min(0, ...)), mirrored by blurAt / cocAt", () => {
+    expect(SLAB_FACTOR_GLSL).toContain("min( 0.0,");
+    const p = { aperture: 0.001, maxblur: 1, slab: 2 };
+    expect(slabBlur(p, 10, 5)).toBe(0);
+    expect(slabBlur(p, 10, 11)).toBe(0); // inside the slab
+    expect(slabBlur(p, 10, 22)).toBeCloseTo(0.01, 9);
   });
 });
