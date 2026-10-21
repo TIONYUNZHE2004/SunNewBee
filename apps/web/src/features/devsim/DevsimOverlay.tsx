@@ -14,7 +14,7 @@ import {
 } from "./bubblePlacement";
 import { bannersAt, hoardingCardOn, hudAt, tagsAt } from "./buildModel";
 import { SITE_LABEL } from "./copy";
-import { EstimateHud } from "./DevsimHud";
+import { EstimateHud, MoveInCounter } from "./DevsimHud";
 import { DevsimStatusNotice } from "./DevsimStatus";
 import { useDevsim } from "./devsimStore";
 import { HypotheticalLabel } from "./HypotheticalLabel";
@@ -23,7 +23,7 @@ import { PlaybackBar } from "./PlaybackBar";
 import { ResidentsLayer } from "./residents/ResidentsLayer";
 import { ScheduleBar } from "./ScheduleBar";
 import { SimBadge } from "./SimBadge";
-import { BUILD_T, ease, stateAt } from "./timeline";
+import { BUILD_T, ease, isBuildPlan, stateAt } from "./timeline";
 import type { DevelopmentPlan, Probe, Rect } from "./types";
 
 /** Room kept above the playback bar. */
@@ -125,6 +125,12 @@ export function domProbe(
   return { rects };
 }
 
+/**
+ * Room under the schedule and playback bars: the map's bottom-left notes slot (the renderer's
+ * "Decorative details are illustrative." pill, 1 rem up) stays clear of them.
+ */
+const BARS_BOTTOM = "3.25rem";
+
 /** The Impact Brief slides in over this long from 33 s (prototype `#brief` transition). */
 const BRIEF_SLIDE_S = 0.5;
 /** The brief's width before it is measured (prototype 440 px; 26 rem here). */
@@ -171,7 +177,9 @@ export function DevsimOverlay({
   const stage = stageRef ?? ownStage;
   const briefRef = useRef<HTMLElement>(null);
   const [briefW, setBriefW] = useState(BRIEF_W_ESTIMATE);
-  const briefOn = !!plan && t >= BUILD_T.brief;
+  // only the 45 s building plan has a schedule, brief and banners (a legacy plan plays bare)
+  const build = !!plan && isBuildPlan(plan);
+  const briefOn = build && t >= BUILD_T.brief;
 
   useEffect(() => registerDomProbe(() => domProbe(stage.current)), [stage]);
   useLayoutEffect(() => {
@@ -198,13 +206,13 @@ export function DevsimOverlay({
     );
   const views = bubbleViews(plan, t);
   const latest = views.at(-1);
-  const hud = hudAt(plan, t);
-  const banners = bannersAt(plan, t);
+  const hud = build ? hudAt(plan, t) : null;
+  const banners = build ? bannersAt(plan, t) : [];
   // a banner holds the top centre: the anchored label keeps below it, so it stays readable (AC-W9)
   const anchoredLabel = labelPoint
     ? placeLabel(labelPoint, viewport, banners.length > 0 ? BANNER_CLEAR : 0)
     : null;
-  const tags = tagsAt(plan, t);
+  const tags = build ? tagsAt(plan, t) : [];
   const slide = briefOn ? 1 - ease((t - BUILD_T.brief) / BRIEF_SLIDE_S) : 1;
   const rightOfBars = `calc(var(--panel-w,0px) + 1rem + ${briefOn ? briefW : 0}px)`;
   const site = t < BUILD_T.construction[0] ? siteLabel : null;
@@ -221,13 +229,11 @@ export function DevsimOverlay({
         <div data-testid="devsim-overlay" className="flex flex-col items-start gap-2">
           <SimBadge text={plan.labels.simulation} />
           {!anchoredLabel && <HypotheticalLabel text={plan.labels.hypothetical} />}
-          <EstimateHud
-            schedule={plan.schedule}
-            at={hud.at}
-            sources={plan.estimate_sources}
-            occupancy={hud.occupancy}
-          />
-          {hoardingCardOn(t) && <HoardingCard plan={plan} />}
+          {hud && (
+            <EstimateHud schedule={plan.schedule} at={hud.at} sources={plan.estimate_sources} />
+          )}
+          {hud?.moveIn && <MoveInCounter n={hud.moveIn.n} homes={hud.moveIn.homes} />}
+          {build && hoardingCardOn(plan, t) && <HoardingCard plan={plan} />}
           {tags
             .filter((g) => !tagPoints?.[g.kind])
             .map((g) => (
@@ -313,7 +319,7 @@ export function DevsimOverlay({
         <div
           className="pointer-events-none absolute left-4 z-30 flex flex-col justify-end *:pointer-events-auto"
           style={{
-            bottom: "calc(var(--sheet-h,0px) + var(--attr-h,0px) + 14.5rem)",
+            bottom: `calc(var(--sheet-h,0px) + var(--attr-h,0px) + ${BARS_BOTTOM} + 13.5rem)`,
             top: `${(viewport.top ?? 0) + 12}px`,
           }}
         >
@@ -333,11 +339,14 @@ export function DevsimOverlay({
         </div>
       )}
       <div
-        className="pointer-events-none absolute bottom-[calc(var(--sheet-h,0px)+var(--attr-h,0px)+1rem)] left-4 z-20 flex justify-center *:pointer-events-auto"
-        style={{ right: rightOfBars }}
+        className="pointer-events-none absolute left-4 z-20 flex justify-center *:pointer-events-auto"
+        style={{
+          right: rightOfBars,
+          bottom: `calc(var(--sheet-h,0px) + var(--attr-h,0px) + ${BARS_BOTTOM})`,
+        }}
       >
         <div className="flex w-full max-w-[42rem] flex-col gap-2">
-          <ScheduleBar schedule={plan.schedule} month={hud.month} />
+          {hud && <ScheduleBar schedule={plan.schedule} month={hud.month} />}
           <PlaybackBar onClose={onClose} />
         </div>
       </div>

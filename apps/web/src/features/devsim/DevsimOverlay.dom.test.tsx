@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { collectProbe, useDevsimAnchors } from "./anchors";
+import { hoardingCardOn, hoardingCardWindow } from "./buildModel";
 import { briefViewShift, bubbleViews, DevsimOverlay } from "./DevsimOverlay";
 import { useDevsim } from "./devsimStore";
 import elmina from "./fixtures/plan.elmina.json";
@@ -61,17 +62,41 @@ describe("DevsimOverlay (45 s building plan)", () => {
     }
   });
 
-  it("the HUD counts homes occupied from handover: lit share × homes", () => {
+  it("homes moved in from handover: labelled simulated, outside the estimate HUD (no ESTIMATE)", () => {
     d().start(plan, "b");
     render(<DevsimOverlay viewport={vp} />);
     at(26.9);
-    expect(screen.queryByTestId("devsim-hud-homes")).toBeNull();
+    expect(screen.queryByTestId("devsim-movein-counter")).toBeNull();
     at(27.5);
-    expect(screen.getByTestId("devsim-hud-homes")).toHaveTextContent(`0/${plan.site.homes}`);
+    const c = screen.getByTestId("devsim-movein-counter");
+    expect(c).toHaveTextContent(`0/${plan.site.homes}`);
+    expect(c).toHaveTextContent("Homes moved in (simulated)");
+    // not inside the estimate HUD, not under its footnote, no source badge of its own
+    const hud = screen.getByTestId("devsim-estimate-hud");
+    expect(hud.contains(c)).toBe(false);
+    expect(c.contains(screen.getByTestId("devsim-hud-footnote"))).toBe(false);
+    expect(c.querySelector("[data-testid=devsim-estimate-badge],[data-badge]")).toBeNull();
+    expect(c.textContent).not.toMatch(/ESTIMATE|benchmark/i);
+    expect(within(hud).queryByText(/moved in|occupied/i)).toBeNull();
     at(33);
-    expect(screen.getByTestId("devsim-hud-homes")).toHaveTextContent(
+    expect(screen.getByTestId("devsim-movein-counter")).toHaveTextContent(
       `${Math.round(0.9 * plan.site.homes)}/${plan.site.homes}`,
     );
+  });
+
+  it("a legacy plan without a schedule plays bare: no HUD, brief, banners or residents", () => {
+    const legacy = { ...plan, schedule: undefined } as unknown as DevelopmentPlan;
+    d().start(legacy, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    for (const t of [6, 12, 30, 40]) {
+      at(t);
+      expect(screen.queryByTestId("devsim-estimate-hud")).toBeNull();
+      expect(screen.queryByTestId("devsim-impact-brief")).toBeNull();
+      expect(screen.queryByTestId("devsim-banner")).toBeNull();
+      expect(screen.queryByTestId("devsim-hoarding-card")).toBeNull();
+    }
+    expect(screen.getByTestId("devsim-controls")).toBeInTheDocument();
+    expect(screen.getByTestId("devsim-hypothetical")).toBeInTheDocument();
   });
 
   it("the decorative note can be left to the renderer", () => {
@@ -90,12 +115,13 @@ describe("DevsimOverlay (45 s building plan)", () => {
     expect(label.style.top).toBe("300px");
   });
 
-  it("hoarding impact card 4–9.5 s: the plan's rows, with the hoarded side row", () => {
+  it("hoarding impact card at the plan's detour-tag window: the plan's rows, with the hoarded side row", () => {
+    const w = tag("detour");
     d().start(plan, "b");
     render(<DevsimOverlay viewport={vp} />);
-    at(3.9);
+    at(w.t0 - 0.05);
     expect(screen.queryByTestId("devsim-hoarding-card")).toBeNull();
-    at(4);
+    at(w.t0);
     const card = screen.getByTestId("devsim-hoarding-card");
     const rows = plan.brief.sections[0]?.rows ?? [];
     const pick = (k: string) => rows.find((r) => r.key === k);
@@ -106,7 +132,7 @@ describe("DevsimOverlay (45 s building plan)", () => {
       expect(el).toHaveTextContent(`${r?.label}${r?.value}`);
     }
     expect(card).toHaveTextContent(plan.impact.provenance);
-    at(9.5);
+    at(w.t1);
     expect(screen.queryByTestId("devsim-hoarding-card")).toBeNull();
   });
 
@@ -372,5 +398,19 @@ describe("pure placement", () => {
         speaker: expect.objectContaining({ name: "Arjun" }),
       }),
     ]);
+  });
+});
+
+describe("hoarding card window", () => {
+  it("follows the plan's detour tag, else 4–9.5 s", () => {
+    const moved = {
+      ...plan,
+      tags: plan.tags.map((g) => (g.kind === "detour" ? { ...g, t0: 5, t1: 8 } : g)),
+    };
+    expect(hoardingCardWindow(moved)).toMatchObject({ t0: 5, t1: 8 });
+    expect(hoardingCardOn(moved, 4.5)).toBe(false);
+    expect(hoardingCardOn(moved, 5)).toBe(true);
+    const none = { ...plan, tags: plan.tags.filter((g) => g.kind !== "detour") };
+    expect(hoardingCardWindow(none)).toEqual({ t0: 4, t1: 9.5 });
   });
 });

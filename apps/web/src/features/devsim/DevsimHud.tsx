@@ -57,13 +57,10 @@ export function EstimateHud({
   schedule,
   at,
   sources,
-  occupancy,
 }: {
   schedule: Schedule;
   at: ScheduleAt;
   sources: readonly EstimateSource[];
-  /** From handover: homes occupied (lit share × homes, the 3D move-in counter) of `homes`. */
-  occupancy?: { n: number; homes: number } | null;
 }) {
   return (
     <div
@@ -73,7 +70,7 @@ export function EstimateHud({
       aria-live="off"
       className="glass rounded-2xl px-2.5 py-2 text-fg"
     >
-      <div className={`grid gap-0.5 ${occupancy ? "grid-cols-5" : "grid-cols-4"}`}>
+      <div className="grid grid-cols-4 gap-0.5">
         <Cell
           id="devsim-hud-month"
           value={monthLabel(at.ym)}
@@ -82,13 +79,6 @@ export function EstimateHud({
         <Cell id="devsim-hud-floors" value={`${at.floors}/${schedule.storeys}`} label="Floors" />
         <Cell id="devsim-hud-cost" value={formatRmMillions(at.costRm)} label="Spent (est.)" />
         <Cell id="devsim-hud-lost" value={formatDays(at.daysLost)} label="Days lost" />
-        {occupancy && (
-          <Cell
-            id="devsim-hud-homes"
-            value={`${occupancy.n}/${occupancy.homes}`}
-            label="Homes occupied"
-          />
-        )}
       </div>
       <p
         data-testid="devsim-hud-footnote"
@@ -98,5 +88,29 @@ export function EstimateHud({
         <span>{ESTIMATE_FOOTNOTE}</span>
       </p>
     </div>
+  );
+}
+
+/** "Homes moved in (simulated)": the move-in animation's counter, not an estimate or a fact. */
+export const MOVE_IN_LABEL = "Homes moved in (simulated)";
+
+/**
+ * The move-in counter from handover (lit share × homes, the 3D move-in's own count). A display
+ * value of the animation, so it sits outside the estimate HUD, with no ESTIMATE badge or source.
+ */
+export function MoveInCounter({ n, homes }: { n: number; homes: number }) {
+  return (
+    <p
+      role="note"
+      aria-live="off"
+      data-testid="devsim-movein-counter"
+      data-beat="movein-counter"
+      className="glass m-0 inline-flex items-baseline gap-2 rounded-full px-3 py-1 text-sm text-fg"
+    >
+      <b className="tabular-nums">
+        {n}/{homes}
+      </b>
+      <span className="text-xs">{MOVE_IN_LABEL}</span>
+    </p>
   );
 }

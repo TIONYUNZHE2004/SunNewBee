@@ -3,8 +3,9 @@
  *
  * Hand mirror of `townshiplens_spatial.devsim_models`, named and shaped as `pnpm gen` emits them
  * (fields with a non-null default are required, `None` defaults are optional and nullable); the 45 s
- * plan's newer fields come from the generated schemas via `planTypes.ts`, and `types.typecheck.ts`
- * keeps this mirror assignable to `components["schemas"]["DevelopmentPlan"]`. Coordinates are
+ * plan's newer fields come from the generated schemas via `planTypes.ts`, and a type test in
+ * `timeline.build.test.ts` keeps the generated `components["schemas"]["DevelopmentPlan"]` assignable
+ * to this mirror. Coordinates are
  * [lon, lat].
  */
 import type {

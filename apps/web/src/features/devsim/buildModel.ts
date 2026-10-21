@@ -19,8 +19,12 @@ import type { DevelopmentPlan } from "./types";
 
 const on = (t: number, w: { t0: number; t1: number }) => t >= w.t0 && t < w.t1;
 
-/** The hoarding impact card's screen window (prototype `#hoard`: 4–9.5 s, with the detour tag). */
+/** The hoarding impact card's fallback window (prototype `#hoard`: 4–9.5 s) when a plan has no detour tag. */
 export const HOARDING_CARD_WINDOW = { t0: 4, t1: 9.5 } as const;
+
+/** The hoarding card shows with the plan's detour tag (prototype `#hoard`), else the fallback. */
+export const hoardingCardWindow = (plan: DevelopmentPlan): { t0: number; t1: number } =>
+  plan.tags.find((g) => g.kind === "detour") ?? HOARDING_CARD_WINDOW;
 
 /** Banners on screen at t (the plan's windows, title and text). */
 export const bannersAt = (plan: DevelopmentPlan, t: number): Banner[] =>
@@ -30,7 +34,7 @@ export const bannersAt = (plan: DevelopmentPlan, t: number): Banner[] =>
 export const tagsAt = (plan: DevelopmentPlan, t: number): TimedTag[] =>
   plan.tags.filter((g) => on(t, g));
 
-export const hoardingCardOn = (t: number) => on(t, HOARDING_CARD_WINDOW);
+export const hoardingCardOn = (plan: DevelopmentPlan, t: number) => on(t, hoardingCardWindow(plan));
 
 /** The brief's construction rows the hoarding card shows, in card order (labels from the plan). */
 export function hoardingRows(plan: DevelopmentPlan): BriefRow[] {
@@ -78,7 +82,7 @@ export function buildBeatsAt(plan: DevelopmentPlan, t: number): string[] {
   const out: string[] = [];
   if (t < BUILD_T.construction[0]) out.push("brief-overview");
   if (t >= BUILD_T.hoarding[0] && t < BUILD_T.hoarding[1]) out.push("hoarding");
-  if (hoardingCardOn(t)) out.push("hoarding-card");
+  if (hoardingCardOn(plan, t)) out.push("hoarding-card");
   for (const g of tagsAt(plan, t)) out.push(`${g.kind}-tag`);
   for (const b of bannersAt(plan, t)) out.push(`banner-${b.kind}`);
   for (const b of plan.bubbles) if (on(t, b)) out.push(`bubble-${b.n}`);
@@ -91,13 +95,16 @@ export function buildBeatsAt(plan: DevelopmentPlan, t: number): string[] {
   return out;
 }
 
-/** The HUD at t: the schedule row for the month shown, and homes occupied from handover. */
+/**
+ * The HUD at t: the schedule row for the month shown; `moveIn` is the move-in animation's counter
+ * from handover (simulated, shown apart from the estimates).
+ */
 export function hudAt(plan: DevelopmentPlan, t: number) {
   const m = monthAt(t, planPlayback(plan).keys);
   return {
     month: m,
     at: scheduleAt(plan.schedule, m),
-    occupancy:
+    moveIn:
       t >= BUILD_T.handover[0] ? { n: buildOccupancyAt(t, plan), homes: plan.site.homes } : null,
   };
 }

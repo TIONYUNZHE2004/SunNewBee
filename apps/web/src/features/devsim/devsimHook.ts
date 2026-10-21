@@ -104,7 +104,7 @@ export function buildDemoState(): Record<string, unknown> {
           floors: hud.at.floors,
           costRm: hud.at.costRm,
           daysLost: hud.at.daysLost,
-          occupancy: hud.occupancy?.n ?? null,
+          movedIn: hud.moveIn?.n ?? null,
         }
       : null,
     floorsBuilt: st.floorsBuilt,

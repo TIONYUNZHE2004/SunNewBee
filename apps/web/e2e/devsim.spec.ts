@@ -201,10 +201,21 @@ test("simulated residents: the button from 33 s; scripted taps open the panel at
   await seek(page, 38.4);
   await expect(page.getByRole("button", { name: /Simulated residents · 40/ })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.evaluate(() => (window as unknown as { __tl: { demo: Bld } }).__tl.demo.play());
+  // while playing, seek just past each scripted tap (deterministic: no waiting on real time)
+  const playAndSeek = (s: number) =>
+    page.evaluate((x) => {
+      const d = (window as unknown as { __tl: { demo: Bld } }).__tl.demo;
+      d.set("bld");
+      d.play();
+      d.seek(x);
+    }, s);
+  await playAndSeek(39.05);
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByRole("dialog").getByRole("listitem")).toHaveCount(40);
-  await expect(page.getByRole("dialog")).toContainText("Mei Ling", { timeout: 10_000 });
+  await expect(page.getByRole("button", { name: /All 40 residents/ })).toHaveCount(0);
+  await playAndSeek(41.05);
+  await expect(page.getByRole("button", { name: /All 40 residents/ })).toBeVisible();
+  await expect(page.getByRole("dialog")).toContainText("Mei Ling");
   await expect(page.getByRole("dialog")).toContainText("Simulated reactions");
   // Escape closes it and focus returns to the button
   await page.keyboard.press("Escape");

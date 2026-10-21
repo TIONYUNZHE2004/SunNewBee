@@ -1,6 +1,6 @@
 import { BuildBanner, HoardingCard, TimedTagCard } from "../../devsim/BuildCards";
 import { bannersAt, hoardingCardOn, hudAt, tagsAt } from "../../devsim/buildModel";
-import { EstimateHud } from "../../devsim/DevsimHud";
+import { EstimateHud, MoveInCounter } from "../../devsim/DevsimHud";
 import { DevsimStatusNotice } from "../../devsim/DevsimStatus";
 import { useDevsim } from "../../devsim/devsimStore";
 import { HypotheticalLabel } from "../../devsim/HypotheticalLabel";
@@ -10,7 +10,7 @@ import { RouteTag } from "../../devsim/RouteTag";
 import { ResidentsLayer } from "../../devsim/residents/ResidentsLayer";
 import { ScheduleBar } from "../../devsim/ScheduleBar";
 import { SimBadge } from "../../devsim/SimBadge";
-import { stateAt } from "../../devsim/timeline";
+import { isBuildPlan, stateAt } from "../../devsim/timeline";
 import { useDevsimDriver } from "../../devsim/useDevsimDriver";
 import { useScene } from "../sceneStore";
 import { devsimListModel } from "./devsimListModel";
@@ -45,9 +45,12 @@ export function DevsimListSection() {
     );
   const st = stateAt(t, plan);
   const { acts, quotes } = devsimListModel(plan, t);
-  const hud = hudAt(plan, t);
-  const banners = bannersAt(plan, t);
-  const tags = tagsAt(plan, t);
+  // only the 45 s building plan has a schedule, brief and banners (a legacy plan plays bare)
+  const build = isBuildPlan(plan);
+  const hud = build ? hudAt(plan, t) : null;
+  const banners = build ? bannersAt(plan, t) : [];
+  const tags = build ? tagsAt(plan, t) : [];
+  const card = build && hoardingCardOn(plan, t);
   return (
     <section
       aria-labelledby="devsim-h"
@@ -61,13 +64,9 @@ export function DevsimListSection() {
         <SimBadge text={plan.labels.simulation} />
         <HypotheticalLabel text={plan.labels.hypothetical} />
       </div>
-      <EstimateHud
-        schedule={plan.schedule}
-        at={hud.at}
-        sources={plan.estimate_sources}
-        occupancy={hud.occupancy}
-      />
-      <ScheduleBar schedule={plan.schedule} month={hud.month} />
+      {hud && <EstimateHud schedule={plan.schedule} at={hud.at} sources={plan.estimate_sources} />}
+      {hud?.moveIn && <MoveInCounter n={hud.moveIn.n} homes={hud.moveIn.homes} />}
+      {hud && <ScheduleBar schedule={plan.schedule} month={hud.month} />}
       <PlaybackBar onClose={() => useScene.getState().stopDevsim()} />
       <ol aria-label="Acts" className="m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0">
         {acts.map((a) => (
@@ -82,12 +81,12 @@ export function DevsimListSection() {
           </li>
         ))}
       </ol>
-      {(banners.length > 0 || tags.length > 0 || hoardingCardOn(t)) && (
+      {(banners.length > 0 || tags.length > 0 || card) && (
         <div className="flex flex-wrap items-start gap-2">
           {banners.map((b) => (
             <BuildBanner key={b.kind} banner={b} plan={plan} />
           ))}
-          {hoardingCardOn(t) && <HoardingCard plan={plan} />}
+          {card && <HoardingCard plan={plan} />}
           {tags.map((g) => (
             <TimedTagCard key={g.kind} tag={g} />
           ))}
@@ -121,8 +120,8 @@ export function DevsimListSection() {
           ))}
         </ol>
       </div>
-      {st.brief && <ResidentsLayer data={plan.residents} t={t} playing={playing} />}
-      {st.brief && <ImpactBrief plan={plan} inline />}
+      {build && st.brief && <ResidentsLayer data={plan.residents} t={t} playing={playing} />}
+      {build && st.brief && <ImpactBrief plan={plan} inline />}
     </section>
   );
 }
