@@ -22,7 +22,7 @@ Companion to [stack-decision.md](../04-architecture/stack-decision.md). Versions
 │       ├── src/townshiplens_api/  # routes/{core,flood,manage,evidence,sim,chat}.py, auth, settings, state, store, evidence, imagestrip
 │       └── tests/
 ├── packages/
-│   ├── spatial/              # Python (backend): world loader, tools.py (10 tools), routing, flood.py (scenarios, evacuation), sim.py
+│   ├── spatial/              # Python (backend): world loader, tools.py (22 tools), routing, flood.py (scenarios, evacuation), sim.py
 │   ├── agent/                # Python (AI owner): PydanticAI agent, run_turn(), validate.py, mock, prompts
 │   └── api-client/           # generated TS client + SSE event / scene-intent types (CI-checked)
 ├── config/
@@ -184,7 +184,7 @@ pnpm data:build                     # rebuild seed data (needs network; see data
 pnpm db:reset                       # clear local SQLite state before a demo (stop the API first)
 ```
 
-`packages/spatial` is a uv workspace member used by `apps/api` and `packages/agent`. The 10 tools live only in `packages/spatial/src/townshiplens_spatial/tools.py`. Data sources and licences: [../02-research/flood-disaster-lens.md](../02-research/flood-disaster-lens.md), [../02-research/township-3d-engine-and-data.md](../02-research/township-3d-engine-and-data.md).
+`packages/spatial` is a uv workspace member used by `apps/api` and `packages/agent`. The 22 tools live only in `packages/spatial/src/townshiplens_spatial/tools.py`. Data sources and licences: [../02-research/flood-disaster-lens.md](../02-research/flood-disaster-lens.md), [../02-research/township-3d-engine-and-data.md](../02-research/township-3d-engine-and-data.md).
 
 ### AI (`packages/agent`, `evals/`, see [its README](../../packages/agent/README.md))
 

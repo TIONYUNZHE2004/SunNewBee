@@ -91,7 +91,7 @@ counts read only the classifiers 个间张处级座条部 ("两段…的台阶" 
 ```
 user message ─► Agent (instructions = prompts/system.md + UI context)
                   │
-                  ├─ 10 tools ─► townshiplens_spatial.tools.TOOLS   (facts, evidence, VRs)
+                  ├─ 22 tools ─► townshiplens_spatial.tools.TOOLS   (facts, evidence, VRs)
                   │     └─ agent.call_tool records into TurnRecord ──► queue ─► tool.call /
                   │        (evidence, routes, route status,                      tool.result /
                   │         scenarios used, VRs)                                 verification.requested

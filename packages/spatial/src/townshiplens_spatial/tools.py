@@ -1995,3 +1995,76 @@ def _devsim_evidence(available: bool) -> Evidence:
 
 
 TOOLS["simulate_development"] = simulate_development
+
+
+# ---- Navigation compare (demo polish B2): fastest vs profile route ---------------------------
+def compare_routes(
+    ctx: Ctx,
+    from_id: str,
+    to_id: str,
+    profile: str = "wheelchair",
+    scenario_id: str | None = None,
+    question_summary: str | None = None,
+    file_vrs: bool = True,
+) -> ToolResult:
+    """Fastest route (default walking) next to the route for `profile`, with reasons from
+    known facts only: unknown stretches never count for or against a route and are listed in
+    `unchecked`. `stop` is where the fastest route first breaks the profile's rules. With
+    `file_vrs`, one verification request is filed for the first unchecked stretch (`vr`), and
+    `confirm_n` counts the sampled wheelchair journeys checking it would confirm.
+    `file_vrs=False` never writes (the anonymous REST endpoint)."""
+    from . import compare as _compare
+    from . import impact
+
+    if error := selection_error(ctx.world, profile, scenario_id):
+        return ToolResult(ok=False, warnings=[error])
+    result = _compare.compare(ctx.world, from_id, to_id, profile, scenario_id)
+    warnings = list(result.warnings)
+    if result.recommended is not None and result.unchecked:
+        first = result.unchecked[0]
+        if file_vrs:
+            vr = create_verification_request(
+                ctx, first.edge_id, first.attribute, "unknown", question_summary
+            ).data
+            result.vr = _m.CompareVr(
+                id=vr["id"],
+                created=vr["created"],
+                target_id=vr["element_id"],
+                attribute=vr["attribute"],
+            )
+        n = _wm_cached(
+            ctx.world,
+            "compare_confirm_n",
+            {"element": first.edge_id, "attr": first.attribute},
+            lambda: ToolResult(
+                ok=True,
+                data=impact.fact_impact(ctx.world, first.edge_id, first.attribute).model_dump(
+                    mode="json"
+                ),
+            ),
+            cache=_IMPACT_CACHE,
+            cache_max=_IMPACT_CACHE_MAX,
+        )
+        # Wheelchair journeys only (spec D3), and only an open question ("would"): a fact the
+        # model already counts as checked, or not a path fact, has no N.
+        if n.ok and n.data["mode"] == "would" and n.data["profile"] == "wheelchair":
+            result.confirm_n = n.data["became_confirmed"]
+        else:
+            warnings.extend(n.warnings)
+    evidence = list(result.evidence)
+    if scenario_id:
+        evidence.append(
+            Evidence(
+                id=f"ev-scn-{scenario_id}",
+                element_id=scenario_id,
+                attribute="scenario",
+                status="indicative",
+                source_type=scenario_source(ctx.world, scenario_id),
+            )
+        )
+    return ToolResult(
+        ok=True, data=result.model_dump(mode="json"), evidence=evidence, warnings=warnings
+    )
+
+
+TOOLS["compare_routes"] = compare_routes

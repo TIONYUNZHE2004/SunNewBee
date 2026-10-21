@@ -22,7 +22,7 @@ flowchart LR
     REST["REST: site, layers, places, routes,<br/>scenarios, evacuation, VRs"]
     CH["/chat SSE"]
     AG["Agent (PydanticAI → OpenRouter)<br/>+ validator + redactor"]
-    TL["Tool layer (10 tools)"]
+    TL["Tool layer (22 tools)"]
     RT["Routing engine<br/>NetworkX: walk / step-free / drive<br/>strict→lenient, scenario overlay"]
     SC["Scenario store<br/>precomputed HAND flood scenarios"]
     VRQ["Verification workflow"]

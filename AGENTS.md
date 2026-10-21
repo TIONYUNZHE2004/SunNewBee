@@ -54,7 +54,7 @@ data/seed/elmina/ (committed GeoJSON + site.json)        config/profiles/*.yaml
         │ load_world()                                            │
         ▼                                                         ▼
 packages/spatial  World (graph, places, claims, flood, centres, waste) → evaluate → routing / flood / sim
-        │ 21 tools: townshiplens_spatial.tools.TOOLS (deterministic facts + Evidence + verification requests)
+        │ 22 tools: townshiplens_spatial.tools.TOOLS (deterministic facts + Evidence + verification requests)
         ├──────────────► apps/api (FastAPI REST: /layers, /places, /routes, /scenarios, /briefings, /verification-requests, /evidence, /kpis, /developments/simulate …)
         ▼
 packages/agent  PydanticAI agent → tools → forced `final_answer` → validate.py (ModelRetry) → template fallback

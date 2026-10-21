@@ -15,6 +15,8 @@ def ctx(tmp_path):
 
 
 MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
+# Spatial tools the assistant does not offer yet (compare_routes: agent wiring is task B4).
+AGENT_PENDING = {"compare_routes"}
 ACCESS_Q = "Can I push a stroller from Car Park B to the playground without stairs?"
 
 
@@ -278,7 +280,10 @@ async def test_dynamic_instructions_carry_ui_context(ctx):
     assert "You are TownshipLens" in seen["instructions"]
     assert "profile=wheelchair" in seen["instructions"]
     assert "active_scenario=stage_p3m" in seen["instructions"]
-    assert sorted(t.name for t in agent._function_toolset.tools.values()) == sorted(tools.TOOLS)
+    # compare_routes (demo polish B2) reaches the assistant in B4, with its validator, mock and
+    # template branches; until then the agent does not offer it.
+    expected = sorted(set(tools.TOOLS) - AGENT_PENDING)
+    assert sorted(t.name for t in agent._function_toolset.tools.values()) == expected
 
 
 def test_model_for_mock_and_openrouter():

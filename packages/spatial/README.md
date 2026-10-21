@@ -2,7 +2,7 @@
 
 The world model and the deterministic engines behind TownshipLens. It loads a township data
 directory into an in-memory `World` (walk graph, places, claims, flood scenarios, evacuation
-centres, waste points, accessibility profiles) and exposes 20 tools that the AI agent and the API
+centres, waste points, accessibility profiles) and exposes 22 tools that the AI agent and the API
 call by name through `townshiplens_spatial.tools.TOOLS`. All answers come from these engines;
 the LLM never computes routes or flood extents.
 
@@ -383,7 +383,40 @@ Computed facts on the Elmina seed (the web copy is built from these):
 | Tower to Urban Park | 659 m · 9 min |
 | Tower to Lakeside Mall | 712 m · 10 min |
 
-## The tools (10 lookups + 6 world-model tools + 3 Elmina Day tools + `simulate_development`)
+## Navigation compare (`compare.py`, demo polish)
+
+`compare.compare(world, from_id, to_id, profile, scenario_id=None) -> CompareResult` is a pure
+function of the world; the `compare_routes` tool wraps it.
+
+- `fastest` is the `default` profile's route and `recommended` the requested profile's route,
+  both from `routing.plan_route`. `same_path` is true when their edge sequences match; then
+  `fastest` is the recommended route, `stop` is null and `extra_minutes` is 0.
+- `stop` is the first edge of `fastest` that `evaluate_edge` FAILs under the requested profile:
+  `at_m` (edge `length_m` sum before it), attribute, value, the profile's hard limit, evidence id.
+  A steps edge without a usable step claim cites `ev-<edge>.type` (the implied step).
+- `reasons` use **known facts only**: a value counts when the evaluator could rest a result on
+  it (a verified, valued, fresh claim, or a reported/verified value that breaks a hard limit).
+  Unknown values never count for or against a route (spec D2). `steps` sums, `max_incline_pct`
+  is the largest absolute incline, `min_width_m` the narrowest, `covered_share` the known
+  covered length over the route length rounded to 0.05, `rest_stops` the verified rest points
+  plus known (PASS) seating/shelter places within 15 m of the route. A field is null when no
+  edge has a known value; `rest_stops` is null rather than 0 when none is known (an unmapped
+  bench is not a known absence). The evidence ids behind each field are on
+  `ReasonSet.evidence_ids` (excluded from the payload) and all returned with the result.
+- `unchecked`: contiguous runs of UNKNOWN edges on `recommended` per attribute (from
+  `route.unknowns`; flood and flood coverage are scenario facts, not survey gaps, and are left
+  out), ordered by `start_m`.
+- `pois` along `recommended`: first lowered/flush `kerb`, first `covered_start`, steepest known
+  `incline`, each `seating` rest stop, each `unknown` run start, `arrival`; `demo` marks
+  `team_survey_placeholder` evidence.
+- `no_data` / `blocked` short-circuit: no recommended route, stop, unchecked stretch or ticket.
+- The tool files one verification request (reason `unknown`) for the first unchecked stretch's
+  first edge and attribute when `file_vrs` (dedupe: a repeat returns the same id with
+  `created=False`), and sets `confirm_n` = `impact.fact_impact(world, edge, attribute)
+  .became_confirmed` (sampled wheelchair journeys that checking it would confirm; null when
+  the fact is not an open path question). `POST /routes/compare` passes `file_vrs=False`.
+
+## The tools (22: 10 lookups + 6 world-model tools + 3 Elmina Day tools + `simulate_event`, `simulate_development`, `compare_routes`)
 
 | Tool | Purpose |
 | --- | --- |
@@ -405,6 +438,9 @@ Computed facts on the Elmina seed (the web copy is built from these):
 | `day_rehearsal` | `(day)`: one rehearsed day summarised (trips by outcome, residents by group, school, busiest places, `show_at`) |
 | `day_test_change` | `(day, option)`: one of the day's own suggested changes, compared before and after (residents better and worse off by group); the change comes from the server's list |
 | `rehearse_my_trip` | `(from_id\|from_point, to_id\|to_point, profile, leave_at, day)`: a resident's own trip through the rehearsed day, with a departure sweep; tapped points are never stored |
+| `simulate_event` | `(name, segment_ids, starts_at, ends_at, profiles?)`: a planned event's closures compared before and after over the everyday sample journeys (see Event comparison) |
+| `simulate_development` | `(brief?)`: the Development Simulation plan for the fixed hypothetical tower (see Development Simulation) |
+| `compare_routes` | `(from_id, to_id, profile=wheelchair, scenario_id?, file_vrs=true)`: fastest (default walking) route next to the profile's route, with the stop point, known-fact reasons, unchecked stretches, points of interest, one ticket for the first unchecked stretch and `confirm_n` (see Navigation compare) |
 | `simulate_what_if` | `(actions, profile, scope=journey\|suite\|evacuation, from_id?, to_id?, scenario_id?)`: what-if diff (summary, counts, changed journeys, `diff_geojson`, `ev-whatif-…` evidence, disclaimer). Never changes the real world |
 
 Flood definitions: an island is a connected component of the passable (non-FAIL) graph for the

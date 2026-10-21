@@ -397,3 +397,104 @@ def test_unknown_neutrality_verified_values(l3_incline, s3_incline, s3_width):
         for field, value in before.items():
             if value is not None:
                 assert after[field] == value, (which, field)
+
+
+# ---------------------------------------------------------------- B2: the compare_routes tool
+
+
+@pytest.fixture
+def ctx(world, tmp_path):
+    from townshiplens_spatial import tools
+    from townshiplens_spatial.vr_store import VerificationStore
+
+    return tools.Ctx(world=world, vrs=VerificationStore(str(tmp_path / "vr.db")))
+
+
+def _tool(ctx, **kw):
+    from townshiplens_spatial import tools
+
+    args = {"from_id": "park-b", "to_id": "toilet-1", "profile": "wheelchair"} | kw
+    return tools.TOOLS["compare_routes"](ctx, **args)
+
+
+def test_tool_data_is_the_compare_result(ctx):
+    r = _tool(ctx, file_vrs=False)
+    assert r.ok
+    direct = compare(ctx.world, "park-b", "toilet-1", "wheelchair").model_dump(mode="json")
+    assert {k: v for k, v in r.data.items() if k not in ("vr", "confirm_n")} == {
+        k: v for k, v in direct.items() if k not in ("vr", "confirm_n")
+    }
+    ids = {e.id for e in r.evidence}
+    assert set(r.data["recommended"]["evidence_ids"]) <= ids
+    for rs in ("fastest", "recommended"):
+        reasons = compare(ctx.world, "park-b", "toilet-1", "wheelchair").reasons
+        for v in getattr(reasons, rs).evidence_ids.values():
+            assert set(v) <= ids
+
+
+def test_tool_files_one_vr_for_the_first_unchecked_stretch_and_dedupes(ctx):
+    """AC-B9: one VR for the first unchecked stretch; a second call reuses it."""
+    r1 = _tool(ctx, question_summary="wheelchair route Car Park B -> Toilet")
+    first = r1.data["unchecked"][0]
+    assert r1.data["vr"] == {
+        "id": r1.data["vr"]["id"],
+        "created": True,
+        "target_id": first["edge_id"],
+        "attribute": first["attribute"],
+    }
+    rows = ctx.vrs.list(status="all")
+    assert len(rows) == 1
+    assert (rows[0].element_id, rows[0].attribute, rows[0].reason) == (
+        first["edge_id"],
+        first["attribute"],
+        "unknown",
+    )
+    assert rows[0].question_summary == "wheelchair route Car Park B -> Toilet"
+    r2 = _tool(ctx, question_summary="wheelchair route Car Park B -> Toilet")
+    assert r2.data["vr"]["id"] == r1.data["vr"]["id"] and r2.data["vr"]["created"] is False
+    assert len(ctx.vrs.list(status="all")) == 1
+
+
+def test_tool_without_file_vrs_writes_nothing(ctx):
+    r = _tool(ctx, file_vrs=False)
+    assert r.data["vr"] is None and r.data["unchecked"]
+    assert ctx.vrs.list(status="all") == []
+    assert r.data["confirm_n"] is not None  # N is computed, nothing is stored
+
+
+def test_confirm_n_matches_fact_impact(ctx):
+    """AC-B10: N = sampled wheelchair journeys that become confirmed if the fact passes."""
+    from townshiplens_spatial import impact
+
+    r = _tool(ctx)
+    vr = r.data["vr"]
+    fi = impact.fact_impact(ctx.world, vr["target_id"], vr["attribute"])
+    assert fi.profile == "wheelchair" and fi.mode == "would" and fi.sampled > 0
+    assert r.data["confirm_n"] == fi.became_confirmed == 2
+
+
+def test_tool_no_unchecked_means_no_vr_and_no_n(ctx):
+    r = _tool(ctx, to_id="playground")
+    assert r.data["unchecked"] == []
+    assert r.data["vr"] is None and r.data["confirm_n"] is None
+    assert ctx.vrs.list(status="all") == []
+
+
+def test_tool_no_data_and_blocked_file_nothing(tmp_path):
+    from townshiplens_spatial import tools
+    from townshiplens_spatial.vr_store import VerificationStore
+
+    for edges, status in (
+        ([e for e in EDGES if e[0] not in ("S3", "L5")], "no_data"),
+        ([e for e in EDGES if not e[0].startswith("L")], "blocked"),
+    ):
+        c = tools.Ctx(world=build(edges), vrs=VerificationStore(str(tmp_path / f"{status}.db")))
+        r = tools.compare_routes(c, "start", "end", "wheelchair")
+        assert r.ok and r.data["status"] == status
+        assert r.data["vr"] is None and r.data["stop"] is None and r.data["confirm_n"] is None
+        assert c.vrs.list(status="all") == []
+
+
+def test_tool_rejects_unknown_profile(ctx):
+    r = _tool(ctx, profile="hovercraft")
+    assert not r.ok and r.warnings
