@@ -61,15 +61,11 @@ def compare(
         # plan_route decides no_data / blocked (and their warnings) exactly as /routes does.
         rr = routing.plan_route(world, from_id, to_id, profile, scenario_id)
         fast = _neutral_route(world, from_id, to_id, prof, scenario_id, fastest=True)
-        rec = None
-        if rr.routes:
-            rec = _neutral_route(world, from_id, to_id, prof, scenario_id) or rr.routes[0]
-            if fast is not None and _stop(world, fast, prof, scenario_id, today, {}) is None:
-                # Ruling R21: the shortest walk has no known FAIL for the profile, so it is the
-                # recommendation and there is nothing to compare (same_path).
-                rec = _neutral_route(
-                    world, from_id, to_id, prof, scenario_id, fastest=True, as_profile=True
-                )
+        rec = (
+            recommended_route(world, from_id, to_id, prof, scenario_id, rr, fast)
+            if rr.routes
+            else None
+        )
         evidence: dict[str, Evidence] = {}
         if fast is not None:
             _add(evidence, routing.evidence_for_route(world, fast))
@@ -90,6 +86,15 @@ def compare(
             )
         _add(evidence, routing.evidence_for_route(world, rec))
         same = fast is not None and _edge_ids(fast) == _edge_ids(rec)
+        if (
+            not same
+            and fast is not None
+            and prof.max_rest_free_run_m is not None
+            and _stop(world, fast, prof, scenario_id, today, {}) is None
+        ):
+            # R31: the shortest walk breaks no known rule of a rest-limit profile, so there is
+            # no stop to show; the answer is plan_route's rest-aware route alone (R21 spirit).
+            same = True
         if same:
             fast = rec
         stop = None
@@ -143,6 +148,33 @@ def _route_warnings(warnings: list[str], rec: Route, prof: Profile) -> list[str]
 
 
 # ---------------------------------------------------------------- unknown-neutral search
+
+
+def recommended_route(
+    world: World, from_id: str, to_id: str, prof: Profile, scenario_id, rr=None, fast=None
+) -> Route | None:
+    """The route compare recommends for `prof` (None when the profile has no route).
+
+    - A profile with a rest limit (older_adult_rest) keeps routing.plan_route's rest-aware route
+      (ruling R31, be-nav fix round 1): the neutral search below ignores the rest limit, which on
+      Elmina picks walks with up to 560 m more between rest points. That search weighs unknown
+      facts (UNKNOWN_WEIGHT), so AC-B3 neutrality is claimed for profiles without a rest limit.
+    - Otherwise the unknown-neutral search (R20); and when the shortest walk has no known FAIL
+      for the profile it is the recommendation, so nothing is compared (R21).
+    """
+    if prof.max_rest_free_run_m is not None:
+        rr = rr or routing.plan_route(world, from_id, to_id, prof.id, scenario_id)
+        return rr.routes[0] if rr.routes else None
+    if fast is None:
+        fast = _neutral_route(world, from_id, to_id, prof, scenario_id, fastest=True)
+    if fast is not None and _stop(world, fast, prof, scenario_id, date.today(), {}) is None:
+        return _neutral_route(
+            world, from_id, to_id, prof, scenario_id, fastest=True, as_profile=True
+        )
+    rec = _neutral_route(world, from_id, to_id, prof, scenario_id)
+    if rec is None and rr is not None and rr.routes:
+        rec = rr.routes[0]
+    return rec
 
 
 def _neutral_cost(world: World, prof: Profile, scenario_id, key: str, by_length: bool):
@@ -232,21 +264,8 @@ def _neutral_route(
     keys.reverse()
     evals = {k: routing._evaluate(world, build, scenario_id, k) for k in keys}
     route = routing._route_from_nodes(world, nodes, keys, from_id, to_id, build, scenario_id, evals)
-    # Endpoint flood unknowns, exactly as routing.plan_route adds them.
-    extra = [
-        why
-        for pid in dict.fromkeys((from_id, to_id))
-        for state, reasons in [
-            routing.endpoint_flood(world, pid, build, scenario_id)
-            if pid == to_id
-            else routing.origin_flood(world, pid, build, scenario_id)
-        ]
-        if state == "UNKNOWN"
-        for why in reasons
-    ]
-    if extra:
-        route.unknowns.extend(extra)
-        route.status = "partly_unverified"
+    # Endpoint flood unknowns, the same helper routing.plan_route uses.
+    routing.add_endpoint_unknowns(world, route, from_id, to_id, build, scenario_id)
     return route
 
 
