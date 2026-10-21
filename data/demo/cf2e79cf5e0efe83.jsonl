@@ -1,4 +1,4 @@
-{"meta": {"message": "Which routes to the lakeside mall are cut off if the water rises 3 m?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "world_fingerprint": "8c8261476bccc8f8898beadef4185c4e2f6f9e725d484819d5765711d23060aa", "model": "mock-scripted", "recorded_at": "2026-10-21T16:00:00+00:00"}}
+{"meta": {"message": "Which routes to the lakeside mall are cut off if the water rises 3 m?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "world_fingerprint": "2d77065b5f311fc118dd714c83fe19c78d7c859f07eac0e674e3f2da98c60c52", "model": "mock-scripted", "recorded_at": "2026-10-21T17:33:43+00:00"}}
 {"type": "tool.call", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "args": {}}
 {"type": "tool.result", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "summary": "4 result(s)"}
 {"type": "tool.call", "id": "affected_places-1", "name": "affected_places", "args": {"scenario_id": "stage_p3m", "kind": "all", "profile": "default"}}

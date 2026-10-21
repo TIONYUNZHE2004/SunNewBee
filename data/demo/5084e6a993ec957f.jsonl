@@ -1,4 +1,4 @@
-{"meta": {"message": "Which places are cut off if the river rises 3 m? Give me a briefing.", "profile": "default", "scenario_id": "stage_p3m", "world": "tiny", "world_fingerprint": "cc07569e204c40191435befb9b153c6b6fa2a8e0d1da316131fdbe32a43cd43a", "model": "mock-scripted", "recorded_at": "2026-10-21T15:42:20+00:00"}}
+{"meta": {"message": "Which places are cut off if the river rises 3 m? Give me a briefing.", "profile": "default", "scenario_id": "stage_p3m", "world": "tiny", "world_fingerprint": "90cc17ea3126ff25edc0119b9eb81664e664e52b1a8ca5d98879f3f82885c317", "model": "mock-scripted", "recorded_at": "2026-10-21T17:33:02+00:00"}}
 {"type": "tool.call", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "args": {}}
 {"type": "tool.result", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "summary": "4 result(s)"}
 {"type": "tool.call", "id": "affected_places-1", "name": "affected_places", "args": {"scenario_id": "stage_p3m", "kind": "all", "profile": "default"}}
@@ -19,6 +19,6 @@
 {"type": "text.delta", "delta": "floods from heavy rain are not shown."}
 {"type": "scene.intent", "intent": {"kind": "flood.set_level", "place_id": null, "route_id": null, "scenario_id": "stage_p3m", "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null, "route_status": null, "distance_m": null, "est_minutes": null, "day": null, "t_min": null, "start_time": null, "journey": null, "plan": null, "brief_text": null}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-scn-stage_p3m", "element_id": "stage_p3m", "attribute": "scenario", "status": "indicative", "verified_at": null, "source_type": "HAND scenario (indicative)", "photo_url": null}
-{"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Flash floods from heavy rain are not shown"}]}
+{"type": "uncertainty", "level": "none", "items": []}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance. Flash floods from heavy rain are not shown.", "links": []}
-{"type": "done", "message_id": "c5fcbb06283e", "answer_status": "answered", "model": "mock-scripted"}
+{"type": "done", "message_id": "demo", "answer_status": "answered", "model": "mock-scripted"}
