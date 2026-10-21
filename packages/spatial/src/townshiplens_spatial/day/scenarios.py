@@ -28,7 +28,7 @@ def _venue(world: World) -> str | None:
 
 def _stage(world: World, metres: float) -> str | None:
     for s in world.flood.scenarios:
-        if abs(s.stage_m - metres) < 1e-6 and s.id != "baseline":
+        if s.kind == "river_stage" and abs(s.stage_m - metres) < 1e-6 and s.id != "baseline":
             return s.id
     return None
 

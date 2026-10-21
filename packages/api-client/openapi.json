@@ -5292,6 +5292,13 @@
       },
       "Scenario": {
         "properties": {
+          "components": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Components",
+            "type": "array"
+          },
           "created": {
             "anyOf": [
               {
@@ -5314,6 +5321,16 @@
           },
           "id": {
             "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "river_stage",
+            "enum": [
+              "river_stage",
+              "lowlying",
+              "combined"
+            ],
+            "title": "Kind",
             "type": "string"
           },
           "label": {

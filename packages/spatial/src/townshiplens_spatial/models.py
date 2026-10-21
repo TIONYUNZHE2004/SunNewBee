@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 ClaimStatus = Literal["unknown", "reported", "verified", "stale", "contested"]
 EvalResult = Literal["PASS", "FAIL", "UNKNOWN"]
@@ -195,7 +195,9 @@ class Site(BaseModel):
 class Scenario(BaseModel):
     id: str  # baseline | stage_p1m..stage_p3m
     label: str
-    stage_m: float
+    stage_m: float  # River rise only; 0 means baseline river, including terrain-only screening.
+    kind: Literal["river_stage", "lowlying", "combined"] = "river_stage"
+    components: list[str] = Field(default_factory=list)
     method: str = "HAND"
     dem: str = "Copernicus GLO-30"
     margin_m: float | None = None  # omitted when the scenario does not state one
@@ -214,8 +216,29 @@ class FloodBundle(BaseModel):
     )  # scenario -> place -> class
     # Explicit gaps from flood/coverage.json; absence of a flood class is not proof of coverage.
     coverage: dict[str, Literal["uncovered", "partial"]] = Field(default_factory=dict)
+    scenario_coverage: dict[str, dict[str, Literal["uncovered", "partial"]]] = Field(
+        default_factory=dict
+    )
+
+    @model_validator(mode="after")
+    def _terrain_is_possible_only(self):
+        if len({s.id for s in self.scenarios}) != len(self.scenarios):
+            raise ValueError("duplicate flood scenario ids")
+        for scenario in self.scenarios:
+            if scenario.kind != "lowlying":
+                continue
+            if scenario.stage_m != 0:
+                raise ValueError(
+                    "terrain-only screening has baseline river stage, not a water level"
+                )
+            for mapping in (self.edge_classes, self.place_classes):
+                if set(mapping.get(scenario.id, {}).values()) - {"possible"}:
+                    raise ValueError("low-lying terrain classes must be possible only")
+        return self
 
     def coverage_for(self, scenario_id: str | None, element_id: str) -> str | None:
+        if scenario_id in self.scenario_coverage:
+            return self.scenario_coverage[scenario_id].get(element_id)
         return self.coverage.get(element_id) if scenario_id not in (None, "", "baseline") else None
 
 

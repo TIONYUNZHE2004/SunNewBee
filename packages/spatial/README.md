@@ -564,3 +564,30 @@ to five `rerouted_trips` with `before_coordinates` / `after_coordinates`, place 
 profile. The label is “Simulation · illustrative”. These are example routes from the
 same closure sample, not vehicle/crowd counts. Missing or disconnected geometry is
 omitted, never joined with a fabricated connector.
+
+### Low-lying terrain scenarios (T-029)
+
+Generated terrain uses scenario id `lowlying`, `kind: lowlying`, and possible-only
+edge/place classes. `stage_m: 0` means baseline river rise; it is not a terrain value
+or a water depth. The label is “Low-lying areas that may collect water (indicative)”.
+The loader requires its GeoJSON before it lists the scenario. Until real DEM generation
+succeeds, the seed does not advertise a low-lying layer; it returns an unknown scenario.
+
+With generated data, the loader also derives `stage_p1m+lowlying` (and each other
+positive river stage). These have `kind: combined` and `components` listing their
+inputs. River `likely_flooded` always wins; terrain can only add `possible`, never
+remove a river class. Missing raster coverage combines conservatively. Separate
+`scenario_coverage` maps keep the terrain screen's gaps independent of river coverage.
+GET `/scenarios`, `/scenarios/{id}`, `/scenarios/{id}/affected`, and normal layer APIs
+use these ids. River-rise playback and built-in day stages retain river-only inputs.
+
+Limits: GLO-30 is a 30 m surface model, including buildings and trees. Drains, culverts
+and rainfall amounts are not modelled. A terrain mark is a possible collection area,
+not a forecast. Unmarked areas do not establish absence. The data pipeline README
+records thresholds, limitations and generation requirements.
+
+Policy review pending: walking profiles evaluate possible marks as UNKNOWN. The
+existing driving profile treats possible river classes as FAIL; its evaluation rule
+has not been changed for this terrain feature. Do not present terrain-only driving
+exclusions as known inundation. An UNKNOWN-only terrain rule for driving requires
+Yunzhe's decision under the workflow's route-evaluation restriction.

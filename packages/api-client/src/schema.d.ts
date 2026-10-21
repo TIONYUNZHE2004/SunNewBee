@@ -3042,6 +3042,8 @@ export interface components {
         };
         /** Scenario */
         Scenario: {
+            /** Components */
+            components?: string[];
             /** Created */
             created?: string | null;
             /**
@@ -3053,6 +3055,12 @@ export interface components {
             disclaimer: string;
             /** Id */
             id: string;
+            /**
+             * Kind
+             * @default river_stage
+             * @enum {string}
+             */
+            kind: "river_stage" | "lowlying" | "combined";
             /** Label */
             label: string;
             /** Links */
