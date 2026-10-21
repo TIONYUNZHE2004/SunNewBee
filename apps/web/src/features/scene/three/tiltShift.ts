@@ -43,8 +43,18 @@ export const TILT_SHIFT = {
    * camera distance (log), so the dive from the overview and the pull-back have no pop. `slabM`: a
    * depth slab around her (her, the walker, the bench) with no blur at all; the blur ramps from its
    * faces. Without it the hero box lost ~2/3 of its sharpness to sub-pixel blur (GPU run 1).
+   * Owner, 21 Oct: the ~10 px blur (maxblur 0.018, bandK 0.6) was too much; the street around her
+   * went to mush. Now a hint: at most ~4 px (the near value), saturating only 2x her distance away, with a wider
+   * sharp slab so the nearby pavement and kerbs stay crisp.
    */
-  subject: { maxblur: 0.018, bandK: 0.6, slabM: 2.5, fullM: 120, fadeM: 2000 },
+  /**
+   * Camera pitch (degrees below the horizon) over which the plain tilt-shift fades in. The
+   * diorama blur reads as a toy-model look from above; looking along the street (a low pitch) almost
+   * the whole frame is far from the focus depth, so it read as an out-of-focus photo (owner, 21 Oct).
+   * None at or under `flatDeg`, full from `fullDeg`. Follow mode (a subject) is not faded.
+   */
+  pitch: { flatDeg: 22, fullDeg: 45 },
+  subject: { maxblur: 0.007, bandK: 2, slabM: 5, fullM: 120, fadeM: 2000 },
 } as const;
 
 /** Whether depth of field runs: the tier has it, the FX toggle is on and motion is not reduced. */
@@ -52,13 +62,27 @@ export function dofActive(s: { tier: Tier; fx: boolean; reducedMotion: boolean }
   return THREE_TIERS[s.tier].dof && s.fx && !s.reducedMotion;
 }
 
-/** Aperture and max blur for a camera `distM` from its focus (log-distance blend, monotone). */
+/** 0..1: how much of the plain tilt-shift a camera pitched `downDeg` below the horizon gets. */
+export function pitchWeight(downDeg: number): number {
+  const { flatDeg, fullDeg } = TILT_SHIFT.pitch;
+  const k = Math.min(1, Math.max(0, (downDeg - flatDeg) / (fullDeg - flatDeg)));
+  return k * k * (3 - 2 * k);
+}
+
+/**
+ * Aperture and max blur for a camera `distM` from its focus (log-distance blend, monotone);
+ * without a subject, faded by the camera's pitch `downDeg` (degrees below the horizon).
+ */
 export function tiltShiftParams(
   distM: number,
   subject = false,
+  downDeg = 90,
 ): { aperture: number; maxblur: number; slab: number } {
   const base = { ...plainParams(distM), slab: 0 };
-  if (!subject) return base;
+  if (!subject) {
+    const w = pitchWeight(downDeg);
+    return w >= 1 ? base : { aperture: base.aperture * w, maxblur: base.maxblur * w, slab: 0 };
+  }
   const { maxblur, bandK, slabM, fullM, fadeM } = TILT_SHIFT.subject;
   const d = Math.max(1, distM);
   const k = Math.min(1, Math.max(0, Math.log(d / fullM) / Math.log(fadeM / fullM)));
@@ -147,10 +171,11 @@ export class CityBokehPass extends BokehPass {
 
   /**
    * Focus at view depth `focusM` with the aperture for a camera `distM` from its focus; `subject`
-   * when the focus is a followed subject (follow mode), not the camera target.
+   * when the focus is a followed subject (follow mode), not the camera target; `downDeg` the
+   * camera's pitch below the horizon (fades the plain blur, `pitchWeight`).
    */
-  aim(focusM: number, distM: number, subject = false): void {
-    const p = tiltShiftParams(distM, subject);
+  aim(focusM: number, distM: number, subject = false, downDeg = 90): void {
+    const p = tiltShiftParams(distM, subject, downDeg);
     const u = this.uniforms as Record<string, { value: number }>;
     (u.focus as { value: number }).value = focusM;
     (u.aperture as { value: number }).value = p.aperture;

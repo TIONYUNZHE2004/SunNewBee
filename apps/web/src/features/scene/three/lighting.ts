@@ -51,8 +51,10 @@ export interface LightPreset {
  * Bloom is for lit windows and lamps. At noon the real sun is near the zenith and a pale sunlit
  * surface reaches ~1.4 linear luminance (sun 3/pi + hemi 0.5/pi + IBL 0.35), well over the
  * threshold, so a day bloom washed the whole scene to cream (final fix A; morning checks missed it).
+ * Radius 0.18 (was 0.4): the wide halo merged a facade's lit windows into one white wash at night
+ * (owner, 21 Oct); a tight glow keeps each window and lamp readable.
  */
-export const BLOOM = { radius: 0.4, threshold: 0.85 };
+export const BLOOM = { radius: 0.18, threshold: 0.85 };
 
 /**
  * Mood keyframes (B-T4 light and grade; A-T11 fog and sky; the owner tunes them).
@@ -105,8 +107,8 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     fog: { color: "#e8a589", near: 500, far: 3000, nearK: 0.7, farK: 1.45 },
     groundGrade: 0.9,
     roadGrade: 0.95,
-    windowEmissive: 0.8,
-    bloom: 0.6,
+    windowEmissive: 0.6,
+    bloom: 0.4,
     aoBlend: 0.6,
   },
   night: {
@@ -116,14 +118,14 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     hemiGround: "#2a2350",
     hemiIntensity: 0.8,
     envIntensity: 0.4,
-    exposure: 1.1,
+    exposure: 1.05,
     background: "#2e2b62",
     skyTop: "#2c2b6e",
     fog: { color: "#2e2b62", near: 400, far: 2500, nearK: 0.7, farK: 1.45 },
     groundGrade: 0.36,
     roadGrade: 1,
-    windowEmissive: 1.6,
-    bloom: 0.6,
+    windowEmissive: 1,
+    bloom: 0.35,
     aoBlend: 0.45,
   },
 };

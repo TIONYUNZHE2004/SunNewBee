@@ -790,8 +790,8 @@ describe("ThreeScene", () => {
     act(() => useTheme.setState({ choice: "night", theme: "night" }));
     const { engine } = mount();
     await waitFor(() => expect(engine.setLighting).toHaveBeenCalled());
-    expect(uniformSpy.last?.uWindowGlow.value).toBe(1.6);
-    expect(uniformSpy.last?.uLitShare.value).toBeCloseTo(0.58);
+    expect(uniformSpy.last?.uWindowGlow.value).toBe(1);
+    expect(uniformSpy.last?.uLitShare.value).toBeCloseTo(0.45);
     expect(uniformSpy.last?.uLightGlow.value).toBe(1);
     act(() => useTheme.setState({ choice: "day", theme: "day" }));
     expect(uniformSpy.last?.uWindowGlow.value).toBe(0);

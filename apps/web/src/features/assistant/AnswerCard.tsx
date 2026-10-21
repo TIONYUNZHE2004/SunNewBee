@@ -8,6 +8,7 @@ import { useElementNames } from "../chat/useElementNames";
 import { TripStrip } from "../day/TripStrip";
 import { OwnJourneyControls } from "../journey/OwnJourneyControls";
 import { WatchTripButton } from "../journey/WatchTripButton";
+import { AnswerText } from "./AnswerText";
 import { RouteSummary } from "./RouteSummary";
 import { toolStep } from "./toolSteps";
 
@@ -87,19 +88,7 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
           Checking the data<span aria-hidden="true">…</span>
         </p>
       )}
-      {m.text && (
-        <p className="m-0 whitespace-pre-wrap">
-          {m.text}
-          {!m.done && (
-            <span
-              aria-hidden="true"
-              className="ml-0.5 inline-block w-1.5 bg-fg motion-safe:animate-pulse"
-            >
-              &nbsp;
-            </span>
-          )}
-        </p>
-      )}
+      {m.text && <AnswerText text={m.text} done={m.done} />}
       {m.text && <RouteSummary m={m} />}
       {m.text && m.journey && (
         <div className="space-y-2">

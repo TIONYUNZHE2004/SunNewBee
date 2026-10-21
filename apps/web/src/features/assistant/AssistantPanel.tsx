@@ -40,7 +40,7 @@ export function AssistantPanel({
   const endRef = useRef<HTMLDivElement>(null);
   const pendingAsk = useChatDraft((s) => s.pendingAsk);
   // Developer lens paperclip (Management only): the chosen file's name, never its contents (D5);
-  // `sentFiles` maps a user message's index to the file chip shown in its bubble.
+  // `sentFiles` maps a user message's index in the management thread to the file chip in its bubble.
   const [brief, setBrief] = useState<string | null>(null);
   const [sentFiles, setSentFiles] = useState<Record<number, string>>({});
   const attach = mode === "management";
@@ -72,7 +72,7 @@ export function AssistantPanel({
     if (streaming) return;
     if (attach && brief) {
       // the attached brief is never read: the fixed brief text goes to /chat instead (D5)
-      setSentFiles((m) => ({ ...m, [messages.length]: brief }));
+      setSentFiles((m) => ({ ...m, [messages.length]: brief })); // attach is management-only
       setBrief(null);
       void send(DEVSIM_BRIEF);
       setText("");
@@ -152,7 +152,7 @@ export function AssistantPanel({
                 key={m.id}
                 className="ml-10 self-end rounded-2xl rounded-br-md bg-accent px-3.5 py-2 text-sm text-on-accent"
               >
-                {sentFiles[i] && (
+                {attach && sentFiles[i] && (
                   <span className="mb-1.5 block">
                     <BriefChip name={sentFiles[i]} />
                   </span>

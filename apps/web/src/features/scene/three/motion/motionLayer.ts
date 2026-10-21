@@ -40,6 +40,7 @@ import {
   personClear,
   vehicleClear,
 } from "./crowdRules";
+import { createVehicleLights } from "./vehicleLights";
 
 /**
  * Smoothed yaw per agent id, with the motion time (ms) it was last updated. Keyed by id (not by
@@ -227,6 +228,8 @@ interface Slot {
   resolve: number[];
   raw: LodBucket | undefined;
   palette: [THREE.Color, THREE.Color, THREE.Color];
+  /** Vehicles: centre to bumper (m, unscaled), where the night beams and tail glows start. */
+  halfLengthM: number;
 }
 
 const _m = new THREE.Matrix4();
@@ -407,8 +410,13 @@ export function createMotionLayer(
       resolve,
       raw: undefined,
       palette: [new THREE.Color(pal[0]), new THREE.Color(pal[1]), new THREE.Color(pal[2])],
+      halfLengthM: vspec.size[2] / 2,
     });
   }
+  // Night: headlight beams and tail glows on the road, one pair per drawn vehicle (none without).
+  const vehicleCount = slots.filter((sl) => sl.agent.kind === "vehicle").length;
+  const lights = vehicleCount > 0 ? createVehicleLights(vehicleCount, uniforms) : null;
+  if (lights) group.add(lights.group);
   const crowd = kit && crowdSlots.length > 0 ? createCrowdRenderer(kit, crowdLooks) : null;
   if (crowd) group.add(crowd.group);
   const allBuckets = [...bucketsByVariant.values()].flatMap((v) =>
@@ -557,6 +565,7 @@ export function createMotionLayer(
         return { yaw, dt: 0, mem };
       };
       for (const b of allBuckets) b.n = 0;
+      lights?.begin();
       for (const [si, s] of slots.entries()) {
         if (!densityShown(s.agent.id, shareOf(s.agent.kind))) continue;
         // a person whose path crosses the avoid zone walks the part before it (turning there)
@@ -587,6 +596,7 @@ export function createMotionLayer(
         const k = scaleFor(s.agent.kind, d);
         _q.setFromAxisAngle(_y, yaw);
         b.mesh.setMatrixAt(b.n, _m.compose(_p, _q, _s.set(k, k, k)));
+        if (s.agent.kind === "vehicle") lights?.add(pose.x, pose.z, yaw, s.halfLengthM, k);
         const smp = slotSample[si];
         if (smp) {
           smp[0] = pose.x;
@@ -654,6 +664,7 @@ export function createMotionLayer(
         );
       }
       crowd?.commit();
+      lights?.end();
       for (const b of allBuckets) {
         const was = b.mesh.count;
         b.mesh.count = b.n;
@@ -666,6 +677,7 @@ export function createMotionLayer(
     setOpacity(o) {
       for (const mt of materials.values()) mt.opacity = o;
       crowd?.setOpacity(o);
+      lights?.setOpacity(o);
       group.visible = o > 0;
     },
     dispose() {
@@ -679,6 +691,7 @@ export function createMotionLayer(
       }
       for (const mt of materials.values()) mt.dispose();
       crowd?.dispose();
+      lights?.dispose();
       group.clear();
     },
   };

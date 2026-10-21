@@ -1,4 +1,4 @@
-{"meta": {"message": "Which places are cut off if the river rises 3 m? Give me a briefing.", "profile": "default", "scenario_id": "stage_p3m", "world": "tiny", "world_fingerprint": "2ea0d6ae2aee8ab857b23f8edec2efdfeae0ae16ee8e85de9501f71674f9e94b", "model": "mock-scripted", "recorded_at": "2026-10-21T08:10:31+00:00"}}
+{"meta": {"message": "Which places are cut off if the river rises 3 m? Give me a briefing.", "profile": "default", "scenario_id": "stage_p3m", "world": "tiny", "world_fingerprint": "2d9add2b3df0e62c5969f675a838e5e5363865303f182c2b8db8821b9bec2a5d", "model": "mock-scripted", "recorded_at": "2026-10-21T11:49:00+00:00"}}
 {"type": "tool.call", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "args": {}}
 {"type": "tool.result", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "summary": "4 result(s)"}
 {"type": "tool.call", "id": "affected_places-1", "name": "affected_places", "args": {"scenario_id": "stage_p3m", "kind": "all", "profile": "default"}}

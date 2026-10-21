@@ -153,8 +153,12 @@ ${TREE_CUT_VERT_BODY}`,
     expect(shader.fragmentShader).not.toContain("tlRole >= 7) totalEmissiveRadiance");
     expect(shader.fragmentShader).not.toContain("max(uLightGlow, 0.15)");
     expect(base.shader.fragmentShader).toContain("tlRole >= 7) totalEmissiveRadiance");
-    // Glass and every other role are as the static program draws them.
-    expect(shader.fragmentShader).toContain("uWindowGlow");
+    // A car's glass is never a lit window (the cabin glowed white at night); buildings' glass is.
+    expect(shader.fragmentShader).not.toContain("tlRole == 3 && vColor.b < uLitShare");
+    expect(compile(true, { kind: "vehicle" }).shader.fragmentShader).not.toContain(
+      "tlRole == 3 && vColor.b < uLitShare",
+    );
+    expect(base.shader.fragmentShader).toContain("tlRole == 3 && vColor.b < uLitShare");
     expect(mat.customProgramCacheKey()).not.toBe(base.mat.customProgramCacheKey());
     expect(mat.customProgramCacheKey()).not.toBe(
       compile(true, { kind: "vehicle" }).mat.customProgramCacheKey(),

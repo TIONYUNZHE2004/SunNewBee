@@ -95,7 +95,7 @@ export function useDecor({
       const pools = timed("tl:stream-lamps", () => createLampPools(lamps, roleUniforms));
       const group = new THREE.Group();
       group.name = "lamp-pools";
-      group.add(pools.mesh);
+      group.add(pools.mesh, pools.halos);
       engine.setDecor("lamp-pools", { group, dispose: pools.dispose });
     });
   }, [engine, lamps, roleUniforms]);

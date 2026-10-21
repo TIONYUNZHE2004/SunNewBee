@@ -128,7 +128,7 @@ describe("createMotionLayer", () => {
     layer.tick(0, cam(0, 30, 0));
     expect(layer.group.userData.decorative).toBe(true);
     const ms = meshes(layer.group);
-    expect(ms.length).toBe(4);
+    expect(ms.length).toBe(6); // 4 agent meshes + the night vehicle beams and tail glows
     for (const m of ms) {
       expect(m.userData.decorative).toBe(true);
       expect(m.castShadow).toBe(false);
