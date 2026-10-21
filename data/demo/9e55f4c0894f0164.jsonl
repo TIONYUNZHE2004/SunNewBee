@@ -1,4 +1,4 @@
-{"meta": {"message": "Where can I drop off recycling nearby?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "57b035863e830a8dcad4d2bcbdb8c8b6cba53d7f305e3b5ce33db9e030b6cb10", "model": "mock-scripted", "recorded_at": "2026-10-20T20:52:59+00:00"}}
+{"meta": {"message": "Where can I drop off recycling nearby?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "e12794899c761e4a115e6657d06743e4426823ad38402503401fe5d1ae4c639e", "model": "mock-scripted", "recorded_at": "2026-10-21T08:10:44+00:00"}}
 {"type": "tool.call", "id": "find_waste_points-0", "name": "find_waste_points", "args": {"type": "recycling_drop_off", "near_place": "lakeside-mall"}}
 {"type": "tool.result", "id": "find_waste_points-0", "name": "find_waste_points", "summary": "0 result(s)"}
 {"type": "tool.call", "id": "find_waste_points-1", "name": "find_waste_points", "args": {"type": null, "near_place": "lakeside-mall"}}

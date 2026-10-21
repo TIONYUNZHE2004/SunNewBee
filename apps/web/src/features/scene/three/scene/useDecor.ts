@@ -5,6 +5,7 @@ import type { Tier } from "../../shared/quality";
 import { createAmbient } from "../ambient/ambient";
 import type { Placement } from "../assets/fit";
 import type { RoleUniforms } from "../assets/roleMaterial";
+import { type Suppress, suppressKits } from "../devsim/suppress";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import type { Boundary } from "../ground/boundary";
@@ -34,6 +35,7 @@ export function useDecor({
   kitJob,
   bus,
   boundary = null,
+  suppress = null,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
@@ -49,12 +51,17 @@ export function useDecor({
   bus: SceneBus;
   /** The Elmina outline (A-T4): birds and cloud shadows outside it are hidden. */
   boundary?: Boundary | null;
+  /** Devsim: the city's construction props inside this area are not drawn (`devsim/suppress.ts`). */
+  suppress?: Suppress | null;
 }) {
   const rich = tier !== "low";
   // Stale content can outlive a switch to Low for a few ticks (until its re-plan): gate it here.
   const kits = useMemo(
-    () => (rich ? timed(UNION_MEASURE, () => unionKits(active)) : new Map<string, Placement[]>()),
-    [active, rich],
+    () =>
+      rich
+        ? timed(UNION_MEASURE, () => suppressKits(unionKits(active), suppress))
+        : new Map<string, Placement[]>(),
+    [active, rich, suppress],
   );
 
   // Only the kit buckets of the city instances are rebuilt (the city mesh and archetypes are kept).

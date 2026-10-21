@@ -267,6 +267,18 @@ OUTFITS: dict[str, Outfit] = {
     )
 }
 
+# Devsim worker (AS1): an outfit of the adult man that ships in its own glb (crowd_worker.glb)
+# and manifest key `worker`, not in the six-body kit (the crowd's looks never use it).
+WORKER_OUTFIT = Outfit(
+    "worker",
+    "Site worker: hard hat, hi-vis vest, work trousers",
+    "casual",
+    headwear="hard_hat",
+    top="vest",
+    sleeves="long",
+)
+EXTRA_OUTFITS: dict[str, Outfit] = {"worker": WORKER_OUTFIT}
+
 BODY_OUTFITS: dict[str, tuple[str, ...]] = {
     "child": ("casual_shorts", "baju_melayu", "baju_kurung"),
     "school_age": ("school_shirt", "school_pinafore", "casual_tee"),
@@ -340,8 +352,10 @@ def _theta(c: geom.Vec) -> float:
 def person_parts(body_id: str, outfit_id: str, lod: int) -> list[Part]:
     """Every part of one body in one outfit at LOD 0 or 1, in the bind pose."""
     b = BODIES[body_id]
-    o = OUTFITS[outfit_id]
-    if outfit_id not in BODY_OUTFITS[body_id]:
+    o = OUTFITS.get(outfit_id) or EXTRA_OUTFITS[outfit_id]
+    if outfit_id not in BODY_OUTFITS[body_id] and not (
+        outfit_id in EXTRA_OUTFITS and body_id == "adult_man"
+    ):
         raise ValueError(f"{outfit_id} is not an outfit of {body_id}")
     lay = layout(b)
     s = lay.s
@@ -440,6 +454,40 @@ def person_parts(body_id: str, outfit_id: str, lod: int) -> list[Part]:
                     "headwear",
                     songkok_role,
                     geom.lathe(prof, seg, sy=0.86, center=(0, hc[1] + 0.01 * s, 0)),
+                )
+            )
+        elif o.headwear == "hard_hat":
+            # a yellow safety helmet: a dome with a short peak at the front and a thin darker
+            # rim, reads as a hat at crowd scale (it is wider and taller than the head)
+            base = hc[2] + hz * 0.22
+            top = hc[2] + hz + 0.075 * s
+            r = hx * 1.12
+            n = 5 if lod == 0 else 3
+            dome = [
+                (
+                    r * math.cos(math.pi / 2 * k / n),
+                    base + (top - base) * math.sin(math.pi / 2 * k / n),
+                )
+                for k in range(n + 1)
+            ]
+            dome[-1] = (0.0, top)
+            prof = [
+                *reversed(dome),
+                (r * 1.0, base + 0.004 * s),
+                (r * 1.22, base),
+                (r * 1.2, base - 0.012 * s),
+                (r * 0.98, base - 0.006 * s),
+                (0.0, base - 0.006 * s),
+            ]
+
+            def hat_role(c, rim=base + 0.002 * s):
+                return "headwear_trim" if c[2] < rim else "headwear"
+
+            parts.append(
+                (
+                    "headwear",
+                    hat_role,
+                    geom.lathe(prof, seg, sy=1.05, center=(0, hc[1] - 0.012 * s, 0)),
                 )
             )
         elif o.headwear == "kopiah":
@@ -657,6 +705,13 @@ def _torso_role(lay: Layout, o: Outfit) -> Callable[[geom.Vec], str]:
 
     def role(c: geom.Vec) -> str:
         z = c[2]
+        if o.top == "vest":
+            if z > lay.shoulder_z + 0.025 * s:
+                return "top"  # the shirt collar above the vest
+            band = lay.waist_z + 0.02 * s <= z <= lay.chest_z - 0.02 * s
+            if band:
+                return "top_trim"  # light reflective stripes: one band round the chest
+            return "outer"
         if o.headwear != "tudung" and z > neck_z and o.top in ("tee", "shirt"):
             return "skin" if o.top == "tee" else "top_trim"  # a neckline / a collar
         if o.top == "shirt" and z < lay.hip_z + 0.005 * s:

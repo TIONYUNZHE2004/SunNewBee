@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useEvacCentres, useGaps, useLayer, useScenarioWater } from "../../../../lib/api";
+import { useDevsim } from "../../../devsim/devsimStore";
 import { gapsActive } from "../../../gaps/gapModel";
 import { useJourney } from "../../../journey/journeyStore";
 import { type LonLat, pointFeatures } from "../../geo";
@@ -38,6 +39,8 @@ export function useOverlays({
   // While a journey plays, its own ribbon (features/journey) draws the trip's route by status; the
   // blue overlay line would sit on top of it (overlay pass), so it steps aside.
   const journeyOn = useJourney((s) => !!s.plan);
+  // A Development Simulation runs its own camera beats: the place markers stay off its stage.
+  const devsimOn = useDevsim((s) => s.status !== "idle");
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const accessVisible = useScene((s) => s.lensVisible.access);
@@ -121,7 +124,7 @@ export function useOverlays({
       boundary,
       keepPlaceIds,
       keepNear,
-      tripOnly: journeyOn,
+      tripOnly: journeyOn || devsimOn,
     });
     setMarkerCount(accessVisible ? overlay.drawnPlaces() : 0);
     engine.requestRender();
@@ -135,6 +138,7 @@ export function useOverlays({
     gapsOn,
     routeOn,
     journeyOn,
+    devsimOn,
     route,
     whatIf,
     waterQ.data,

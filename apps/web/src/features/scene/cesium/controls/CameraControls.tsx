@@ -1,5 +1,6 @@
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useState } from "react";
+import { useDevsim } from "../../../devsim/devsimStore";
 import { useBehindFullSheet } from "../../../main/usePanelReserve";
 import { InSlot } from "../../../map-ui/mapSlots";
 import { useCameraHeading } from "./cameraHeadingStore";
@@ -56,10 +57,12 @@ export function CameraControls({ ops }: { ops: CameraOps | null }) {
   const open = alwaysShow || peek;
   const heading = useCameraHeading((s) => s.heading);
   const hidden = useBehindFullSheet();
+  // the Development Simulation drives the camera: no drag hint over its stage
+  const devsim = useDevsim((s) => s.status !== "idle");
   if (!ops) return null;
   return (
     <>
-      {!hintDismissed && (
+      {!hintDismissed && !devsim && (
         <InSlot name="hint">
           <div
             role="note"

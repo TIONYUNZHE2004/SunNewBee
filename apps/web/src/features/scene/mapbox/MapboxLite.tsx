@@ -19,6 +19,7 @@ import { WHATIF_STYLE } from "../../whatif/whatifModel";
 import { homeView, shouldReframe } from "../cesium/home";
 import { mapboxLightPreset } from "../cesium/timeOfDay";
 import { accessLineData, clickedPlaceId, normalizeLayer, pointFeatures } from "../geo";
+import { DevsimTextPanel } from "../list/DevsimTextPanel";
 import { JourneyStepList } from "../list/JourneyStepList";
 import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
@@ -529,6 +530,8 @@ export default function MapboxLite() {
           />
         </div>
       )}
+      {/* Development Simulation: text version only on the lite map (spec §5.3) */}
+      <DevsimTextPanel />
     </section>
   );
 }

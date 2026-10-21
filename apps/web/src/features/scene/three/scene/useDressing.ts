@@ -106,6 +106,8 @@ export function useDressing({
             lines,
             parks: buildings?.parks ?? null,
             buildings: buildings?.buildings ?? null,
+            water: buildings?.water ?? null,
+            landcover: buildings?.landcover ?? null,
             frame,
             boundary,
             box: [focus[0] - r, focus[1] - r, focus[0] + r, focus[1] + r],

@@ -98,6 +98,24 @@ export interface JourneyOverlay {
   dispose(): void;
 }
 
+/**
+ * The developer-lens Development Simulation layer as the engine sees it
+ * (`scene/three/devsim/devsimLayer.ts`): its group joins the main scene, and `beforeRender` runs
+ * every frame once the camera is final (driver, rig, clearance), just before the render, so its
+ * objects and its projected screen anchors match the drawn frame. Decorative.
+ */
+export interface DevsimOverlay {
+  group: THREE.Object3D;
+  beforeRender(
+    camera: THREE.PerspectiveCamera,
+    size: readonly [number, number],
+    nowMs: number,
+  ): void;
+  /** Glows and paint the AO G-buffer must leave out (they would read as solid occluders). */
+  aoExcluded?(): readonly THREE.Object3D[];
+  dispose(): void;
+}
+
 export interface Engine {
   readonly frames: number;
   /**
@@ -169,6 +187,11 @@ export interface Engine {
    */
   setDecorClock?(c: (() => number | null) | null): void;
   /**
+   * Removes `c` only if it is still the decorative clock: a stale cleanup (journey and devsim share
+   * the one slot) never clears another owner's clock.
+   */
+  releaseDecorClock?(c: () => number | null): void;
+  /**
    * A material patch run on every layer before it is compiled or first drawn (the city, the asset
    * instances, decor slots): e.g. the journey building cutaway, injected ahead of need so no
    * program is compiled twice. Runs at once on what is already drawn, then the scene is
@@ -209,6 +232,8 @@ export interface Engine {
    * or returns `animating` to get the next one.
    */
   setCameraDriver?(d: CameraDriver | null): void;
+  /** Removes `d` only if it is still the camera driver (see `releaseDecorClock`). */
+  releaseCameraDriver?(d: CameraDriver): void;
   /** True while the last frame's camera came from the driver. */
   cameraDriven?(): boolean;
   /**
@@ -223,6 +248,11 @@ export interface Engine {
    * removes it.
    */
   setJourney(j: JourneyOverlay | null): void;
+  /**
+   * The Development Simulation layer (see `DevsimOverlay`); replaces and disposes the previous one;
+   * null removes it. Optional so test doubles need not provide it.
+   */
+  setDevsim?(l: DevsimOverlay | null): void;
   setLighting(p: LightPreset, keyDir: [number, number, number]): void;
   /** Camera range in metres: fog distances scale with it so the township view is never fogged out. */
   setFogRange(rangeM: number): void;
@@ -286,6 +316,12 @@ export interface DrivenCamera {
   look: [number, number, number];
   /** True while the driver animates on its own (e.g. a mode change blend): render another frame. */
   animating?: boolean;
+  /**
+   * Vertical field of view to render with (degrees). Without it the rig's fov applies, which
+   * depends on the pose the user left the rig at; a driver that must be a pure function of its own
+   * clock (the Development Simulation's seek) pins it.
+   */
+  fovDeg?: number;
 }
 export type CameraDriver = (
   now: number,
@@ -678,7 +714,16 @@ function build(
     renderer.render(journey.markers, camera);
     renderer.autoClear = autoClear;
   };
+  /** The Development Simulation layer (main scene), see setDevsim. */
+  let devsim: DevsimOverlay | null = null;
+  const dropDevsim = () => {
+    if (!devsim) return;
+    scene.remove(devsim.group);
+    devsim.dispose();
+    devsim = null;
+  };
   undo.push(() => {
+    dropDevsim();
     pendingOverlays?.dispose();
     pendingOverlays = null;
     pendingJourney?.dispose();
@@ -1237,6 +1282,12 @@ function build(
    * towards max range to what the whole slab needs (`vfovFor`).
    */
   const syncFov = (now = performance.now()) => {
+    if (driving && drivenFov !== null) {
+      if (Math.abs(camera.fov - drivenFov) <= 1e-4) return;
+      camera.fov = drivenFov;
+      camera.updateProjectionMatrix();
+      return;
+    }
     const pose = rig.get();
     const aspect = size[0] / Math.max(1, size[1]);
     const k = rig.landingWeight(now);
@@ -1342,6 +1393,7 @@ function build(
           if (overlays) aoSkip.push(overlays.groundGroup, overlays.lineGroup);
           // The journey ribbon is Line2 quads (paint over the ground), not a surface for AO.
           if (journey) aoSkip.push(journey.ribbon);
+          if (devsim?.aoExcluded) for (const o of devsim.aoExcluded()) aoSkip.push(o);
           return aoSkip;
         },
         params,
@@ -1449,6 +1501,8 @@ function build(
   // A camera driver (the journey follow camera): it owns the camera while it returns a pose.
   let driver: CameraDriver | null = null;
   let driving = false;
+  /** The driver's pinned fov (DrivenCamera.fovDeg), or null: the rig's. */
+  let drivenFov: number | null = null;
   const _cur = {
     position: [0, 0, 0] as [number, number, number],
     look: [0, 0, 0] as [number, number, number],
@@ -1465,6 +1519,7 @@ function build(
       _cur.look[2] = controls.target.z;
       pose = driver(now, _cur);
     }
+    drivenFov = pose?.fovDeg ?? null;
     if (!pose) {
       if (driving) {
         driving = false;
@@ -1600,6 +1655,7 @@ function build(
         (2 * dist * Math.tan((camera.fov * RAD) / 2)) / Math.max(1, size[1]),
       );
     }
+    devsim?.beforeRender(camera, size, now);
     aimBokeh();
     const tRender = performance.now();
     // The scene pass always draws into the same target (ITER2 AC-D18). The composer ping-pongs its
@@ -1932,6 +1988,11 @@ function build(
       driver = d;
       requestRender();
     },
+    releaseCameraDriver(d) {
+      if (disposed || driver !== d) return;
+      driver = null;
+      requestRender();
+    },
     cameraDriven: () => driving,
     setOverlays(o) {
       if (disposed) return;
@@ -2011,9 +2072,29 @@ function build(
         compileRoot(j.markers, null, false, j.markers),
       ]).then(attach, attach);
     },
+    setDevsim(l) {
+      if (disposed) {
+        l?.dispose();
+        return;
+      }
+      if (l === devsim) return;
+      dropDevsim();
+      if (l) {
+        runPatches(l.group);
+        devsim = l;
+        scene.add(l.group);
+        swapped = true;
+      }
+      requestRender();
+    },
     setDecorClock(c) {
       if (disposed) return;
       decorClock = c;
+      requestRender();
+    },
+    releaseDecorClock(c) {
+      if (disposed || decorClock !== c) return;
+      decorClock = null;
       requestRender();
     },
     addMaterialPatch(patch) {

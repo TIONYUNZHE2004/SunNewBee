@@ -54,8 +54,8 @@ data/seed/elmina/ (committed GeoJSON + site.json)        config/profiles/*.yaml
         │ load_world()                                            │
         ▼                                                         ▼
 packages/spatial  World (graph, places, claims, flood, centres, waste) → evaluate → routing / flood / sim
-        │ 10 tools: townshiplens_spatial.tools.TOOLS (deterministic facts + Evidence + verification requests)
-        ├──────────────► apps/api (FastAPI REST: /layers, /places, /routes, /scenarios, /briefings, /verification-requests, /evidence, /kpis …)
+        │ 21 tools: townshiplens_spatial.tools.TOOLS (deterministic facts + Evidence + verification requests)
+        ├──────────────► apps/api (FastAPI REST: /layers, /places, /routes, /scenarios, /briefings, /verification-requests, /evidence, /kpis, /developments/simulate …)
         ▼
 packages/agent  PydanticAI agent → tools → forced `final_answer` → validate.py (ModelRetry) → template fallback
         │ run_turn() streams ChatEvents
@@ -72,7 +72,7 @@ apps/api POST /chat (SSE) ──► apps/web: parseSse → useChatStream → cha
 - **Flood scenarios** (`baseline`, `stage_p1m` … `stage_p5m`) are precomputed by `data/scripts/build_flood.py`. The method is REM, relative elevation above mapped OSM drainage, on Copernicus GLO-30 (ADR 0010 + amendment). Classes are `likely_flooded` (FAIL) and `possible` (UNKNOWN). A scenario can only add FAIL/UNKNOWN; it never upgrades anything to PASS.
 - **Agent ↔ UI contract:**
   - SSE event types: `text.delta`, `answer.draft` (provisional summary, replaced by the checked text), `answer.check` (validator verdict per attempt), `tool.call`, `tool.result`, `scene.intent`, `citation`, `uncertainty`, `disclaimer`, `verification.requested`, `error`, `done`.
-  - Scene intents: `camera.fly_to`, `place.focus`, `route.highlight`, `flood.set_level`, `layer.toggle`.
+  - Scene intents: `camera.fly_to`, `place.focus`, `route.highlight`, `flood.set_level`, `layer.toggle`, `development.play` (carries the Development Simulation plan for the web player).
   - The agent never touches the scene directly. Each renderer adapts intents from the zustand `sceneStore`.
 - **Model choice is `.env` only:**
   - `LLM_PROVIDER=mock|openrouter`; an empty value means mock without a key.
