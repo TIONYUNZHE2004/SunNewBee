@@ -7,7 +7,8 @@ import type { DevelopmentPlan } from "../../../devsim/types";
  * cannot arrive through chat yet, so `?devsim=provisional` in a dev build starts the Development
  * Simulation with a fixture plan (`plan.elmina.json` when present, else the provisional one). When FE's driver has not installed `window.__devsim`
  * yet, a minimal `{seek, play, pause, total, acts, facts, probe}` and a playback loop stand in.
- * Never active in production builds or tests.
+ * `&setpieces=preC7` also attaches the pre-C7 `lorry_route` and `schedule` dump (C9 set pieces:
+ * Raya hold, monsoon rain, lorry route) to the plan. Never active in production builds or tests.
  */
 export function devDemoRequested(search: string = location.search): boolean {
   return import.meta.env.DEV && new URLSearchParams(search).get("devsim") === "provisional";
@@ -23,9 +24,22 @@ export function startDevDemo(): () => void {
     fixtures["../../../devsim/fixtures/plan.elmina.json"] ??
     fixtures["../../../devsim/fixtures/plan.provisional.json"];
   if (!load) return () => {};
-  void load().then((m) => {
+  const withSetPieces = new URLSearchParams(location.search).get("setpieces") === "preC7";
+  const extras = import.meta.glob<{
+    default: { lorry_route: unknown; schedule: unknown; playground: unknown };
+  }>("./fixtures/setPieces.preC7.elmina.json");
+  const loadExtras = withSetPieces ? extras["./fixtures/setPieces.preC7.elmina.json"] : undefined;
+  void Promise.all([load(), loadExtras?.()]).then(([m, x]) => {
     if (!live) return;
-    const plan = m.default as DevelopmentPlan;
+    const base = m.default as DevelopmentPlan;
+    const plan = x
+      ? ({
+          ...base,
+          lorry_route: x.default.lorry_route,
+          schedule: x.default.schedule,
+          playground: x.default.playground,
+        } as DevelopmentPlan)
+      : base;
     useDevsim.getState().start(plan, "dev: provisional fixture");
     const w = window as unknown as { __devsim?: unknown };
     if (w.__devsim) return; // FE's driver owns playback

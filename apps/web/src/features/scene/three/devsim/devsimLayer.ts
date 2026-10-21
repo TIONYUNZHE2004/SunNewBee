@@ -5,9 +5,11 @@ import { setTreeCut } from "../assets/treeCut";
 import type { Clearance } from "../clearance";
 import type { DevsimOverlay } from "../engine";
 import type { LocalFrame } from "../frame";
+import { devsimAoWeight } from "./devsimView";
 import { dayness } from "./ease";
 import { inRing, type SiteGeom, siteGeom, TOWER_STOREY_M } from "./geom";
 import { onStage, screenRect, toScreen } from "./project";
+import { craneAt, type SetPiecesAt, setPiecesAt } from "./setPieces";
 import { stateAt } from "./state";
 
 /** Everything a part needs for one frame. */
@@ -17,6 +19,8 @@ export interface DevsimFrame {
   t: number;
   /** 0 by day, 1 at night (from the sun elevation). */
   night: number;
+  /** Construction set pieces at t (`setPieces.ts`); the layer always sets it, tests may leave it out. */
+  sp?: SetPiecesAt;
 }
 
 /** A piece of the devsim scene (tower, site kit, cast): posed from the frame state. */
@@ -33,6 +37,8 @@ export interface DevsimPart {
   aoExcluded?(): readonly THREE.Object3D[];
   /** Per-frame screen work (name tags). */
   project?(camera: THREE.Camera, size: readonly [number, number]): void;
+  /** Fields for `window.__tl.demo.state()` ("bld"; spec §7, AC-W3/W4). */
+  demoState?(): object;
   dispose(): void;
 }
 
@@ -57,6 +63,8 @@ export interface DevsimLayer extends DevsimOverlay {
   towerTopM(): number;
   /** The scene part of `window.__devsim.probe()`. */
   probe(): SceneProbe;
+  /** Every part's demo-hook fields merged (`registerDemoState("bld", …)`). */
+  demoState(): Record<string, unknown>;
 }
 
 export interface DevsimLayerOpts {
@@ -117,6 +125,8 @@ export function labelFits(p: [number, number] | null, size: readonly [number, nu
  */
 export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
   const geom = siteGeom(o.plan, o.frame, o.closedEdge, o.roads);
+  // warm the per-plan set piece tables (crane slew) now, not on the first played frame
+  craneAt(o.plan, 0);
   const group = new THREE.Group();
   group.name = "devsim";
   group.userData.decorative = true;
@@ -170,9 +180,35 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
   const onStageOrNull = (p: [number, number] | null, size: readonly [number, number]) =>
     onStage(p, size) ? p : null;
 
+  /**
+   * Instanced meshes with no instances still cost a draw call per pass (C10p): hidden for the
+   * render, and shown again before parts pose the next frame, so a part's own `visible` is kept.
+   */
+  const emptyHidden: THREE.Object3D[] = [];
+  const restoreEmpty = () => {
+    for (const m of emptyHidden) m.visible = true;
+    emptyHidden.length = 0;
+  };
+  const hideEmpty = (root: THREE.Object3D) => {
+    if (!root.visible) return;
+    const m = root as THREE.InstancedMesh;
+    if (m.isInstancedMesh && m.count === 0) {
+      m.visible = false;
+      emptyHidden.push(m);
+      return;
+    }
+    for (const c of root.children) hideEmpty(c);
+  };
+
   const apply = () => {
     if (!s) return;
-    const f: DevsimFrame = { s, t, night: 1 - dayness(s.sun.elevation) };
+    restoreEmpty();
+    const f: DevsimFrame = {
+      s,
+      t,
+      night: 1 - dayness(s.sun.elevation),
+      sp: setPiecesAt(o.plan, t, s),
+    };
     for (const p of parts) p.update(f);
   };
 
@@ -253,6 +289,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
     },
     beforeRender(camera, size) {
       if (disposed || !s) return;
+      restoreEmpty();
       for (const p of parts) p.project?.(camera, size);
       const top = tower?.topM() ?? 0;
       if (top > 0) for (const c of corners) if (c[1] !== 0) c[1] = top;
@@ -307,8 +344,15 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       renderedT = t;
       lastTower = towerRect;
       lastSpeaker = speaker;
+      hideEmpty(group);
     },
     aoExcluded: () => parts.flatMap((p) => p.aoExcluded?.() ?? []),
+    aoWeight: devsimAoWeight,
+    demoState() {
+      const out: Record<string, unknown> = {};
+      for (const p of parts) if (p.demoState) Object.assign(out, p.demoState());
+      return out;
+    },
     probe() {
       if (!seen || !s) return {};
       // One entry per agent in a stable order (index i is the same agent in every frame); an agent
