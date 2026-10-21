@@ -11,7 +11,12 @@ import { reducedMotion } from "../cesium/controls/cameraOps";
 import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
-import { createMotionUniforms, type MotionUniforms } from "./assets/roleMaterial";
+import {
+  createMotionUniforms,
+  FOLIAGE_GRADE,
+  foliageGradeFor,
+  type MotionUniforms,
+} from "./assets/roleMaterial";
 import { currentTreeCut } from "./assets/treeCut";
 import { fitSteps, fogReachM } from "./cameraFit";
 import {
@@ -2164,6 +2169,7 @@ function build(
       if (aoPass) aoPass.blendIntensity = p.aoBlend;
       GROUND_GRADE.value = p.groundGrade;
       ROAD_GRADE.value = p.roadGrade;
+      FOLIAGE_GRADE.value = foliageGradeFor(p.groundGrade);
       lastPreset = p;
       syncBloom();
       applyFog(scene, p, fogRange, fogReachM(fit, fogRange));
