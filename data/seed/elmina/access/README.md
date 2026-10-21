@@ -13,6 +13,6 @@ Demo facts are placeholders until the field visit (`evidence_type: "team_survey_
 Route `lakeside-mall` -> `osm-way-910487880`, profile `wheelchair`. Fastest walk 2076 m / 29.7 min crosses the real OSM steps `seg-1346147887-0` (placeholder `step_count` 3) at 1153 m. Wheelchair route 2168 m / 31.0 min (+1.3 min), 62% footway/path by length.
 
 - 57 edges of both routes carry placeholder `step_count`, `incline_pct`, `width_m`, `covered` and (crossings) `kerb` claims; values are deterministic per edge.
-- Unchecked on purpose: `incline_pct` on `seg-909868196-4` (60 m from 906 m).
+- Unchecked on purpose: `incline_pct` on `seg-909868196-4` (60 m from 906 m), the stretch of 12 candidates whose check would confirm the most sampled wheelchair trips (N = 0).
 - Covered (placeholder): seg-1346147882-1, seg-1318133037-0, seg-1318133035-0, seg-1343835668-1, seg-1343835668-0. Steepest incline (4.5 %): `seg-909875982-0`.
 - Seating: no OSM bench within 15 m, so none is claimed.
