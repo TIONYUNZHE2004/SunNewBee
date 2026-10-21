@@ -724,6 +724,14 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
   `map-ui/RolloutTag` (top right) always says "simulation, not a forecast".
 - **Pure helpers** are in `whatif/rolloutModel`.
 
+**Flood impact and road closures (T-027):**
+- **Flood impact.** `lib/api.useFloodImpact` reads `GET /scenarios/{id}/affected`; `flood/impactModel.impactSummary` turns it into counts and markers ("!" likely flooded, "⚠" cut off, both "indicative"; path length only, never a depth).
+  - `flood/FloodImpact.FloodImpactCard` sits in the flood note; it skips its notes when the scenario disclaimer already carries them.
+  - The Stylised 3D view draws the markers (`three/overlays/markers.ts`, kind `impact`, only while the flood layer is on); the List view lists them (`FloodImpactList`). Cesium and Mapbox don't draw them yet.
+- **Road closures (Management).** `closures/ClosurePanel` (under the What-if Lab) posts the T-026 contract to `POST /closures/simulate` (`closures/closureSimModel`). A 404/405 says "not available on this server yet" instead of guessing.
+  - The result card and the Stylised map show the course in red and detours by pressure band (low/medium/high). Pressure is for managers only.
+- **Resident route card.** `assistant/RouteSummary` names an active closure on the trip (`closures/routeClosures`: title and Malaysia-time window, matched from the answer's `closure` uncertainty items). It never shows pressure.
+
 **Clay look and tilt-shift (journey Phase B, display only):**
 - **Clay tokens.** `scene/three/shared/clayTokens.ts` (`CLAY_PALETTE`, `CLAY`) is the one table of surface colours, roughness and sheen; layer code imports colours only from it (AC-B1). Fact geometry keeps OSM footprints and `display_height_m`; rounding is cosmetic.
 - **Tilt-shift.** `scene/three/tiltShift.ts` (`TILT_SHIFT`) drives a `BokehPass` focused on the follow target (`Engine.setFocusPoint`), else the camera target. High quality only; off with the FX toggle off or under `prefers-reduced-motion`.

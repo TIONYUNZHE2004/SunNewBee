@@ -29,7 +29,7 @@ export function ImpactGlyph({ kind }: { kind: ImpactKind }) {
  * likely flooded paths, with the two notes every river answer carries. Every number is the
  * API's; the labels are the API's markers' ("indicative"), never "safe", never a depth.
  */
-export function FloodImpactCard() {
+export function FloodImpactCard({ notes = true }: { notes?: boolean }) {
   const scenarioId = useScene((s) => s.scenarioId);
   const q = useFloodImpact(scenarioId);
   const s = impactSummary(q.data);
@@ -57,9 +57,11 @@ export function FloodImpactCard() {
           <strong>{s.pathLength}</strong> of mapped paths likely flooded
         </span>
       </p>
-      <p className="m-0 text-fg-soft">
-        {INDICATIVE_NOTE} {FLASH_FLOOD_NOTE}
-      </p>
+      {notes && (
+        <p className="m-0 text-fg-soft">
+          {INDICATIVE_NOTE} {FLASH_FLOOD_NOTE}
+        </p>
+      )}
     </section>
   );
 }
