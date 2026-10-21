@@ -3,6 +3,7 @@ import { registerProbe } from "../../../devsim/anchors";
 import { useDevsim } from "../../../devsim/devsimStore";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import type { Tier } from "../../shared/quality";
+import { type Road, roadsFromWalk } from "../../shared/roads";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { CameraDriver, Engine } from "../engine";
 import { releaseSlots } from "../engineSlots";
@@ -32,6 +33,11 @@ export function closedEdgeOf(plan: DevelopmentPlan, accessData: unknown): number
     return f.geometry.coordinates as number[][];
   }
   return null;
+}
+
+/** The carriageways of the walk layer (streets and major roads, as the stylised city draws them). */
+export function streetsOf(accessData: unknown): Road[] {
+  return roadsFromWalk(accessData).filter((r) => r.kind === "major" || r.kind === "residential");
 }
 
 export interface DevsimSceneMountProps {
@@ -126,6 +132,7 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
       plan,
       frame,
       closedEdge: closedEdgeOf(plan, accessData),
+      roads: streetsOf(accessData),
       clearance: () => engine.clearance?.() ?? null,
       fps: () => fps,
       flowSamples: () => bus.getState().driver?.samples() ?? null,

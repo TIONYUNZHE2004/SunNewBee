@@ -5,7 +5,7 @@ import type { RoleUniforms } from "../assets/roleMaterial";
 import { DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
 import { ease, span } from "./ease";
-import { along, distToLine, lengthOf, type SiteGeom, type XZ } from "./geom";
+import { along, distToLine, laneAt, lengthOf, type SiteGeom, type XZ } from "./geom";
 import { kitMesh, kitPalettes, place } from "./kit";
 
 const NOOP = () => {};
@@ -14,11 +14,9 @@ const CRANE_TOP_M = 50;
 const STACKS = 5;
 const LORRIES = 3;
 const QUEUE = 8;
-/** School-run queue: centre-to-centre gap, how far a car creeps forward, the lane offset, and the
- * junction crossing kept clear. */
+/** School-run queue: centre-to-centre gap and how far a car creeps forward (the lane is `g.lane`). */
 const QUEUE_GAP_M = 7;
 const QUEUE_CREEP_M = 0.8;
-const QUEUE_LANE_M = 4.5;
 /** The head car's centre, metres up the street from the junction (clear of the crossing). */
 const QUEUE_HEAD_M = 9.5;
 /** Hoarding is kept to the closed edge within this distance of the tower centre. */
@@ -418,14 +416,6 @@ export function createSite(o: SiteOpts): DevsimPart {
     vkit("sedan", Math.ceil(QUEUE / 2), [1.8, 1.45, 4.6], carPal),
     vkit("mpv", Math.floor(QUEUE / 2), [1.8, 1.7, 4.7], carPal),
   ];
-  // the frontage street at the junction: along it (the closed footway's direction), out onto the
-  // carriageway away from the tower; the queue and the lorries stand in the near lane
-  const u = g.street;
-  const lane = g.kerbOut;
-  const onStreet = (d: number, off: number): XZ => [
-    g.junction[0] + u[0] * d + lane[0] * off,
-    g.junction[1] + u[1] * d + lane[1] * off,
-  ];
   // one entry per vehicle in a fixed order (probe: index i is the same vehicle); NaN = not drawn
   const vehiclePts: [number, number, number][] = Array.from({ length: LORRIES + QUEUE }, () => [
     Number.NaN,
@@ -472,36 +462,29 @@ export function createSite(o: SiteOpts): DevsimPart {
       if (detourMesh) detourMesh.visible = t >= 6.5 && s.act === "Construction";
 
       for (const v of vehiclePts) v[0] = Number.NaN;
-      // lorries drive in and park, nose to tail, short of the entrance path
+      // lorries drive in up the lane and park, nose to tail, short of the junction
       let nl = 0;
-      if (s.lorries) {
-        for (let i = 0; i < LORRIES; i++) {
-          const stop = 14 - i * 9;
-          const d = stop - (1 - ease(span(t, 33 + i * 0.6, 35.6 + i * 0.6))) * 120;
-          const p = onStreet(d, 6.5);
-          lorries.set(i, place(_m, p[0], 0.05, p[1], yawZ(u)), i);
-          setPt(i, p[0], 1.5, p[1]);
+      if (s.lorries)
+        lorryPoses(g, t).forEach((v, i) => {
+          if (!v) return;
+          lorries.set(nl, place(_m, v.x, 0.05, v.z, yawZ(v.dir)), i);
+          setPt(i, v.x, 1.5, v.z);
           nl++;
-        }
-      }
+        });
       lorries.setCount(nl);
       // the school-run queue (Daily Life morning)
-      const queueOn = queueShown(t);
       const counts = [0, 0];
-      if (queueOn)
-        for (let i = 0; i < QUEUE; i++) {
-          // creeps toward the junction (-street), facing it
-          const d = queueSlot(i) - Math.max(0, Math.sin((t - 44) * 0.8 - i * 0.4)) * QUEUE_CREEP_M;
-          const p = onStreet(d, QUEUE_LANE_M);
-          const k = i % 2;
-          (cars[k] as (typeof cars)[number]).set(
-            counts[k] as number,
-            place(_m, p[0], 0.05, p[1], yawZ([-u[0], -u[1]])),
-            i,
-          );
-          counts[k] = (counts[k] as number) + 1;
-          setPt(LORRIES + i, p[0], 0.8, p[1]);
-        }
+      queuePoses(g, t).forEach((v, i) => {
+        if (!v) return;
+        const k = i % 2;
+        (cars[k] as (typeof cars)[number]).set(
+          counts[k] as number,
+          place(_m, v.x, 0.05, v.z, yawZ(v.dir)),
+          i,
+        );
+        counts[k] = (counts[k] as number) + 1;
+        setPt(LORRIES + i, v.x, 0.8, v.z);
+      });
       cars.forEach((c, k) => {
         c.setCount(counts[k] as number);
       });
@@ -530,14 +513,60 @@ export function queueSlot(i: number): number {
 /** The school-run queue stands at the junction in the Daily Life morning (screen s). */
 export const queueShown = (t: number) => t >= 44 && t < 52.4;
 
-/** True when (x, z) is on the school-run queue's lane stretch (decorative traffic keeps off it). */
+/** A vehicle's pose: ground point and facing (unit, local x/z). */
+export interface VehiclePose {
+  x: number;
+  z: number;
+  dir: XZ;
+}
+
+/** Body lengths (m): a lorry, and the longest queue car (the MPV). */
+const LORRY_M = 8;
+const CAR_LEN_M = 4.7;
+/** The lorries' parking spots, metres up the lane from the junction (nose to tail, crossing clear). */
+const LORRY_STOPS = [9.5, 19, 28.5];
+
+/**
+ * The Handover lorries at t (pure; index i is lorry i, null = not drawn): they drive in down the
+ * queue's lane toward the junction, one every 0.6 s from 33 s, and park nose to tail, on the
+ * carriageway and in lane (owner fix: they used to come in on a straight line across the lots).
+ * A lorry still further out than the mapped lane is not drawn yet.
+ */
+export function lorryPoses(g: SiteGeom, t: number): (VehiclePose | null)[] {
+  const L = lengthOf(g.lane.pts);
+  return Array.from({ length: LORRIES }, (_, i) => {
+    const stop = LORRY_STOPS[i] as number;
+    const d = stop + (1 - ease(span(t, 33 + i * 0.6, 35.6 + i * 0.6))) * 120;
+    if (d + LORRY_M / 2 > L) return null;
+    const a = laneAt(g.lane, d);
+    return { x: a.p[0], z: a.p[1], dir: a.dir };
+  });
+}
+
+/**
+ * The school-run queue at t (pure; index i is car i, null = not drawn): nose to tail in the lane
+ * up the frontage street, each car facing the junction along the street (owner fix, 4.png), the
+ * whole queue gone when it ends (52.4 s). A slot past the mapped lane's end is left empty.
+ */
+export function queuePoses(g: SiteGeom, t: number): (VehiclePose | null)[] {
+  const L = lengthOf(g.lane.pts);
+  const on = queueShown(t);
+  return Array.from({ length: QUEUE }, (_, i) => {
+    if (!on) return null;
+    // creeps toward the junction
+    const d = queueSlot(i) - Math.max(0, Math.sin((t - 44) * 0.8 - i * 0.4)) * QUEUE_CREEP_M;
+    if (d + CAR_LEN_M / 2 > L) return null;
+    const a = laneAt(g.lane, d);
+    return { x: a.p[0], z: a.p[1], dir: a.dir };
+  });
+}
+
+/** True when (x, z) is in the queue's lane stretch (decorative traffic keeps off it). */
 export function nearQueue(g: SiteGeom, x: number, z: number): boolean {
-  const dx = x - g.junction[0];
-  const dz = z - g.junction[1];
-  const along = dx * g.street[0] + dz * g.street[1];
-  const across = dx * g.kerbOut[0] + dz * g.kerbOut[1];
-  const tail = queueSlot(QUEUE - 1) - 4;
-  return along > tail && along < queueSlot(0) + 6 && Math.abs(across - QUEUE_LANE_M) < 4;
+  const tail = queueSlot(0) + CAR_LEN_M;
+  const pts: XZ[] = [];
+  for (let d = 0; d <= tail; d += 2) pts.push(laneAt(g.lane, d).p);
+  return distToLine(pts, x, z) < 3;
 }
 
 /** True when (x, z) is within `m` metres of the plan's closed edge (people keep off it). */

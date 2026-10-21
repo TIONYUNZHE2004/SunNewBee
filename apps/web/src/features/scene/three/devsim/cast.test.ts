@@ -12,33 +12,36 @@ const at = (t: number) => castAt(t, g, { workersActive: stateAt(t, P).workersAct
 
 describe("devsim cast script", () => {
   it("Halim walks the detour path in Construction, and stands still while he talks", () => {
-    const a = at(17)?.get("halim");
-    const b = at(22.6)?.get("halim");
-    expect(a && b).toBeTruthy();
-    expect(distToLine(g.halimPath, a!.x, a!.z)).toBeLessThan(0.5);
-    expect(distToLine(g.halimPath, b!.x, b!.z)).toBeLessThan(0.5);
-    expect(Math.hypot(a!.x - b!.x, a!.z - b!.z)).toBeGreaterThan(10);
-    expect(at(17).get("halim")?.walk).toBe(true);
-    expect(at(19).get("halim")?.walk).toBe(false);
-    expect(at(22).get("halim")?.walk).toBe(true);
+    const halim = (t: number) => {
+      const p = at(t).get("halim");
+      if (!p) throw new Error(`no Halim at ${t}`);
+      return p;
+    };
+    const a = halim(17);
+    const b = halim(22.6);
+    expect(distToLine(g.halimPath, a.x, a.z)).toBeLessThan(0.5);
+    expect(distToLine(g.halimPath, b.x, b.z)).toBeLessThan(0.5);
+    expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThan(10);
+    expect(halim(17).walk).toBe(true);
+    expect(halim(19).walk).toBe(false);
+    expect(halim(22).walk).toBe(true);
     // he stands at the point the 17.2-21.6 s camera aims at (halimMid)
-    const mid = g.halimPath[Math.floor(g.halimPath.length * 0.5)]!;
-    expect(
-      Math.hypot(at(20)!.get("halim")!.x - mid[0], at(20)!.get("halim")!.z - mid[1]),
-    ).toBeLessThan(0.01);
+    const mid = g.halimPath[Math.floor(g.halimPath.length * 0.5)] ?? [0, 0];
+    expect(Math.hypot(halim(20).x - mid[0], halim(20).z - mid[1])).toBeLessThan(0.01);
   });
 
   it("owner fix: every speaker stands still for their whole bubble (all 7)", () => {
+    expect(P.bubbles).toHaveLength(7);
     for (const b of P.bubbles) {
       const first = at(b.t0).get(b.who);
-      expect(first, `bubble ${b.n} ${b.who}`).toBeTruthy();
+      if (!first) throw new Error(`bubble ${b.n}: ${b.who} not drawn`);
       for (let t = b.t0; t < b.t1; t += 0.05) {
         const p = at(t).get(b.who);
-        expect(p, `bubble ${b.n} at ${t}`).toBeTruthy();
-        expect(Math.hypot(p!.x - first!.x, p!.z - first!.z), `bubble ${b.n} at ${t}`).toBeLessThan(
+        if (!p) throw new Error(`bubble ${b.n}: ${b.who} not drawn at ${t}`);
+        expect(Math.hypot(p.x - first.x, p.z - first.z), `bubble ${b.n} at ${t}`).toBeLessThan(
           1e-6,
         );
-        expect(p!.walk, `bubble ${b.n} at ${t}`).toBe(false);
+        expect(p.walk, `bubble ${b.n} at ${t}`).toBe(false);
       }
     }
   });

@@ -39,9 +39,32 @@ export interface SiteGeom {
   street: XZ;
   /** Unit vector from the junction's footway out onto the carriageway (away from the tower). */
   kerbOut: XZ;
+  /**
+   * The street lane the school-run queue and the Handover lorries stand in (owner fix, 4.png): the
+   * mapped street from the junction outward, following the road centreline (never a straight line
+   * across lots), with the lane offset to the left of a car facing the junction (left-hand traffic).
+   */
+  lane: QueueLane;
   /** Radius of the footprint (centre to farthest corner). */
   radius: number;
   storeys: number;
+}
+
+/** A drawn street centreline (local) and its half width (the stylised road corridor, `roads.ts`). */
+export interface LaneRoad {
+  pts: XZ[];
+  halfW: number;
+}
+
+/** A street lane from the junction outward: centreline, the street's half width, the lane offset. */
+export interface QueueLane {
+  /** Centreline, junction first (local). */
+  pts: XZ[];
+  halfW: number;
+  /** Lane centre's distance from the centreline, to the left of a car facing the junction. */
+  off: number;
+  /** True when it follows mapped streets (false: the straight fallback without road data). */
+  mapped: boolean;
 }
 
 const sub = (a: XZ, b: XZ): XZ => [a[0] - b[0], a[1] - b[1]];
@@ -125,6 +148,8 @@ export function siteGeom(
   plan: DevelopmentPlan,
   frame: LocalFrame,
   closedEdge?: number[][] | null,
+  /** The drawn streets (lon/lat centrelines and widths), for the queue's lane. */
+  roads?: readonly { coords: readonly (readonly number[])[]; widthM: number }[] | null,
 ): SiteGeom {
   const L = (ll: number[]): XZ => frame.toLocal(ll[0] as number, ll[1] as number);
   const ring = plan.site.footprint.map(L);
@@ -166,6 +191,20 @@ export function siteGeom(
   let kerbOut: XZ = [-street[1], street[0]];
   const away = sub(junction, centre);
   if (kerbOut[0] * away[0] + kerbOut[1] * away[1] < 0) kerbOut = [-kerbOut[0], -kerbOut[1]];
+  const byJunction = (c: readonly (readonly number[])[]) =>
+    c.some((p) => {
+      const q = L(p as number[]);
+      return Math.abs(q[0] - junction[0]) < 400 && Math.abs(q[1] - junction[1]) < 400;
+    });
+  const local: LaneRoad[] = (roads ?? [])
+    .filter((r) => r.coords.length >= 2 && byJunction(r.coords))
+    .map((r) => ({ pts: r.coords.map((p) => L(p as number[])), halfW: r.widthM / 2 }));
+  const lane = queueLane(local, junction, street) ?? {
+    pts: [junction, [junction[0] + street[0] * LANE_MAX_M, junction[1] + street[1] * LANE_MAX_M]],
+    halfW: 3,
+    off: 1.5,
+    mapped: false,
+  };
   return {
     ring,
     centre,
@@ -182,6 +221,7 @@ export function siteGeom(
     junction,
     street,
     kerbOut,
+    lane,
     park: L(plan.anchors.park),
     mall: L(plan.anchors.mall),
     radius,
@@ -239,4 +279,112 @@ export function distToLine(pts: readonly XZ[], x: number, z: number): number {
     best = Math.min(best, Math.hypot(x - ax - dx * u, z - az - dz * u));
   }
   return best;
+}
+
+/** How far the lane runs out from the junction (the lorries drive in along it), metres. */
+export const LANE_MAX_M = 140;
+/** The junction must lie on a street (within its corridor plus this margin), metres. */
+const ON_STREET_M = 1.5;
+/** Street ends closer than this join (metres); a turn sharper than ~100 degrees ends the lane. */
+const JOIN_M = 1.5;
+const MIN_TURN_COS = -0.17;
+
+const dirOf = (pts: readonly XZ[]): XZ | null => {
+  for (let i = 1; i < pts.length; i++) {
+    const d = sub(pts[i] as XZ, pts[0] as XZ);
+    if (len(d) > 0.5) return norm(d);
+  }
+  return null;
+};
+const lastDir = (pts: readonly XZ[]): XZ | null => {
+  const n = pts.length;
+  for (let i = n - 2; i >= 0; i--) {
+    const d = sub(pts[n - 1] as XZ, pts[i] as XZ);
+    if (len(d) > 0.5) return norm(d);
+  }
+  return null;
+};
+
+/**
+ * Pure: the lane the school-run queue stands in (owner fix, 4.png: the queue used to stand on a
+ * straight line 4.5 m off the junction's street, across kerbs, verges and lots). From the junction
+ * it takes the street arm best aligned with `prefer` (the frontage street the 48 s camera looks
+ * up), then follows the mapped streets end to end, the straightest way on, up to LANE_MAX_M. The
+ * lane centre sits half the street's half width to the left of a car facing the junction
+ * (Malaysia drives on the left). Null when no street passes the junction.
+ */
+export function queueLane(roads: readonly LaneRoad[], junction: XZ, prefer: XZ): QueueLane | null {
+  let best: { pts: XZ[]; halfW: number; score: number; road: number } | null = null;
+  for (const [ri, r] of roads.entries()) {
+    // the junction's projection onto this street
+    let bi = -1;
+    let bu = 0;
+    let bd = Number.POSITIVE_INFINITY;
+    for (let i = 1; i < r.pts.length; i++) {
+      const a = r.pts[i - 1] as XZ;
+      const b = r.pts[i] as XZ;
+      const dx = b[0] - a[0];
+      const dz = b[1] - a[1];
+      const l2 = dx * dx + dz * dz || 1;
+      const u = Math.max(
+        0,
+        Math.min(1, ((junction[0] - a[0]) * dx + (junction[1] - a[1]) * dz) / l2),
+      );
+      const d = Math.hypot(a[0] + dx * u - junction[0], a[1] + dz * u - junction[1]);
+      if (d < bd) {
+        bd = d;
+        bi = i;
+        bu = u;
+      }
+    }
+    if (bi < 0 || bd > r.halfW + ON_STREET_M) continue;
+    const a = r.pts[bi - 1] as XZ;
+    const b = r.pts[bi] as XZ;
+    const q: XZ = [a[0] + (b[0] - a[0]) * bu, a[1] + (b[1] - a[1]) * bu];
+    const fwd: XZ[] = [q, ...r.pts.slice(bi)];
+    const back: XZ[] = [q, ...r.pts.slice(0, bi).reverse()];
+    for (const pts of [fwd, back]) {
+      const d = dirOf(pts);
+      if (!d || lengthOf(pts) < 4) continue;
+      const score = d[0] * prefer[0] + d[1] * prefer[1];
+      if (!best || score > best.score) best = { pts, halfW: r.halfW, score, road: ri };
+    }
+  }
+  if (!best) return null;
+  const start = best;
+  const pts = [...start.pts];
+  const used = new Set<number>([start.road]);
+  for (let k = 0; k < 40 && lengthOf(pts) < LANE_MAX_M; k++) {
+    const end = pts[pts.length - 1] as XZ;
+    const din = lastDir(pts);
+    if (!din) break;
+    let next: { pts: XZ[]; ri: number; turn: number } | null = null;
+    for (const [ri, r] of roads.entries()) {
+      if (used.has(ri) || r.pts.length < 2) continue;
+      const f = r.pts[0] as XZ;
+      const l = r.pts[r.pts.length - 1] as XZ;
+      const cand =
+        len(sub(f, end)) < JOIN_M ? r.pts : len(sub(l, end)) < JOIN_M ? [...r.pts].reverse() : null;
+      if (!cand) continue;
+      const d0 = dirOf(cand);
+      if (!d0) continue;
+      const turn = din[0] * d0[0] + din[1] * d0[1];
+      if (turn > MIN_TURN_COS && (!next || turn > next.turn)) next = { pts: cand, ri, turn };
+    }
+    if (!next) break;
+    used.add(next.ri);
+    pts.push(...next.pts.slice(1));
+  }
+  return { pts, halfW: start.halfW, off: start.halfW / 2, mapped: true };
+}
+
+/**
+ * Pure: a car's pose `d` metres up the lane from the junction, facing the junction, in the lane
+ * (offset to the car's left of the centreline). `dir` is the facing (unit, local x/z).
+ */
+export function laneAt(lane: QueueLane, d: number): { p: XZ; dir: XZ } {
+  const a = along(lane.pts, d);
+  const f: XZ = [-a.dir[0], -a.dir[1]];
+  const left: XZ = [f[1], -f[0]];
+  return { p: [a.p[0] + left[0] * lane.off, a.p[1] + left[1] * lane.off], dir: f };
 }

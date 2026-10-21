@@ -64,6 +64,8 @@ export interface DevsimLayerOpts {
   frame: LocalFrame;
   /** The plan's closed edge from the walk layer (lon/lat), when found. */
   closedEdge?: number[][] | null;
+  /** The drawn streets (lon/lat centrelines and widths): the school-run queue's lane follows them. */
+  roads?: readonly { coords: readonly (readonly number[])[]; widthM: number }[] | null;
   /** The city's drawn-building grid (cameraInsideBuilding). */
   clearance?: () => Clearance | null;
   /** Decorative flow samples (world points) from the motion layer, for the probe. */
@@ -114,7 +116,7 @@ export function labelFits(p: [number, number] | null, size: readonly [number, nu
  * sample. Decorative: nothing here is a fact.
  */
 export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
-  const geom = siteGeom(o.plan, o.frame, o.closedEdge);
+  const geom = siteGeom(o.plan, o.frame, o.closedEdge, o.roads);
   const group = new THREE.Group();
   group.name = "devsim";
   group.userData.decorative = true;

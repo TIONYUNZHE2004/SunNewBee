@@ -1,15 +1,30 @@
+import { readFileSync } from "node:fs";
 import type * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import elmina from "../../../devsim/fixtures/plan.elmina.json";
 import plan from "../../../devsim/fixtures/plan.provisional.json";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import { createRoleUniforms } from "../assets/roleMaterial";
 import { createFrame } from "../frame";
+import { closedEdgeOf, streetsOf } from "./DevsimSceneMount";
 import { dayness } from "./ease";
-import { siteGeom } from "./geom";
-import { createSite, nearQueue, queueSlot, ribbonGeometry, yardRing } from "./site";
+import { distToLine, siteGeom } from "./geom";
+import {
+  createSite,
+  lorryPoses,
+  nearQueue,
+  queuePoses,
+  queueSlot,
+  ribbonGeometry,
+  yardRing,
+} from "./site";
 import { stateAt } from "./state";
 
 const P = plan as DevelopmentPlan;
+const readJson = (p: string): unknown =>
+  JSON.parse(
+    readFileSync(new URL(`../../../../../../../data/seed/elmina/${p}`, import.meta.url), "utf8"),
+  );
 const geom = siteGeom(P, createFrame([101.5076, 3.1794]));
 const at = (site: ReturnType<typeof createSite>, t: number) => {
   const s = stateAt(t, P);
@@ -24,19 +39,86 @@ describe("devsim site", () => {
     for (let i = 1; i < 8; i++)
       expect(queueSlot(i - 1) - queueSlot(i) - CREEP_M).toBeGreaterThan(CAR_M + 0.8);
     for (let i = 0; i < 8; i++) {
-      const d = queueSlot(i);
-      // the whole queue waits up the +street arm the 48 s camera looks along (F3), and no car
-      // body comes within 3 m of the crossing at the junction, even creeping forward
-      expect(d - CREEP_M - CAR_M / 2).toBeGreaterThan(3);
-      // and the decorative traffic keeps off every queue slot
-      const x = geom.junction[0] + geom.street[0] * d + geom.kerbOut[0] * 4.5;
-      const z = geom.junction[1] + geom.street[1] * d + geom.kerbOut[1] * 4.5;
-      expect(nearQueue(geom, x, z)).toBe(true);
+      // no car body comes within 3 m of the crossing at the junction, even creeping forward
+      expect(queueSlot(i) - CREEP_M - CAR_M / 2).toBeGreaterThan(3);
+    }
+    // and the decorative traffic keeps off every queue car (fallback lane: no road data)
+    for (const v of queuePoses(geom, 47)) {
+      expect(v).not.toBeNull();
+      if (v) expect(nearQueue(geom, v.x, v.z)).toBe(true);
     }
     // the far side of the street is not the queue's lane
     const fx = geom.junction[0] - geom.kerbOut[0] * 6;
     const fz = geom.junction[1] - geom.kerbOut[1] * 6;
     expect(nearQueue(geom, fx, fz)).toBe(false);
+  });
+
+  it("owner fix (4.png): every queue car and lorry is on a mapped street, in lane, facing along it", () => {
+    // the Elmina plan on the committed seed's streets, as the stylised city draws them
+    const ep = elmina as unknown as DevelopmentPlan;
+    const frame = createFrame(ep.anchors.junction as [number, number]);
+    const roads = streetsOf(readJson("base/walk.geojson"));
+    const eg = siteGeom(ep, frame, closedEdgeOf(ep, readJson("base/walk.geojson")), roads);
+    expect(eg.lane.mapped).toBe(true);
+    const local = roads.map((r) => ({
+      pts: r.coords.map((p) => frame.toLocal(p[0], p[1])),
+      halfW: r.widthM / 2,
+    }));
+    // the street a vehicle is on: the nearest street segment within 15 degrees of its heading (a
+    // queue car may stand across a side street's mouth, so the nearest segment can be the side street)
+    const COS15 = Math.cos((15 * Math.PI) / 180);
+    const onStreet = (v: { x: number; z: number; dir: [number, number] }) => {
+      let best = { d: Number.POSITIVE_INFINITY, halfW: 0 };
+      let nearestAny = Number.POSITIVE_INFINITY;
+      for (const r of local)
+        for (let i = 1; i < r.pts.length; i++) {
+          const a = r.pts[i - 1] as [number, number];
+          const b = r.pts[i] as [number, number];
+          const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          if (l < 0.5) continue;
+          const d = distToLine([a, b], v.x, v.z);
+          nearestAny = Math.min(nearestAny, d);
+          const cos = Math.abs((v.dir[0] * (b[0] - a[0]) + v.dir[1] * (b[1] - a[1])) / l);
+          if (cos > COS15 && d < best.d) best = { d, halfW: r.halfW };
+        }
+      return { ...best, nearestAny };
+    };
+    const check = (
+      v: { x: number; z: number; dir: [number, number] },
+      halfWidth: number,
+      what: string,
+    ) => {
+      const n = onStreet(v);
+      // aligned with a street (within 15 degrees) whose carriageway holds the whole body width
+      expect(
+        n.d,
+        `${what}: no street within 15 deg under it (nearest any street ${n.nearestAny.toFixed(2)} m)`,
+      ).toBeLessThanOrEqual(n.halfW - halfWidth);
+      // and in a lane, not on the centreline
+      expect(n.d, what).toBeGreaterThan(0.5);
+    };
+    let cars = 0;
+    for (let t = 44; t < 52.4; t += 0.25)
+      queuePoses(eg, t).forEach((v, i) => {
+        if (!v) return;
+        cars++;
+        check(v, 0.9, `queue car ${i} at ${t}`);
+      });
+    expect(cars).toBeGreaterThan(8 * 30);
+    // all eight cars stand in the queue at 48 s, nose to tail toward the junction
+    const at48 = queuePoses(eg, 48);
+    expect(at48.every((v) => v !== null)).toBe(true);
+    // the queue ends at 52.4 s: no car stays behind
+    expect(queuePoses(eg, 52.4).every((v) => v === null)).toBe(true);
+    expect(queuePoses(eg, 60).every((v) => v === null)).toBe(true);
+    let lorries = 0;
+    for (let t = 33; t < 44; t += 0.25)
+      lorryPoses(eg, t).forEach((v, i) => {
+        if (!v) return;
+        lorries++;
+        check(v, 1.2, `lorry ${i} at ${t}`);
+      });
+    expect(lorries).toBeGreaterThan(3 * 20);
   });
 
   it("the closed edge is found from the provisional routes", () => {
