@@ -6,6 +6,7 @@ import { useChatDraft } from "../chat/chatDraftStore";
 import { useChatStream } from "../chat/useChatStream";
 import { DayPanel } from "../day/DayPanel";
 import { TripChip, TripPlanner } from "../day/TripPlanner";
+import { quietStarters, useDevsimActive } from "../devsim/floodQuiet";
 import { type Profile, useScene } from "../scene/sceneStore";
 import { RisingRiverPanel } from "../whatif/RisingRiverPanel";
 import { WhatIfLab } from "../whatif/WhatIfLab";
@@ -30,7 +31,9 @@ export function AssistantPanel({
   const mode = useMode((s) => s.mode);
   const residentTrip = showsResidentTrip(useAssistantScope().data);
   const copy = copyFor(mode);
-  const starters = STARTERS[mode];
+  // D11: no flood starters, chips or Rising river launcher while a Development Simulation runs.
+  const devsim = useDevsimActive();
+  const starters = devsim ? quietStarters(STARTERS[mode]) : STARTERS[mode];
   const { messages, send, retry, streaming } = useChatStream();
   const text = useChatDraft((s) => s.draft);
   const setText = useChatDraft((s) => s.setDraft);
@@ -108,7 +111,7 @@ export function AssistantPanel({
         <>
           <DayPanel />
           <WhatIfLab />
-          <RisingRiverPanel />
+          {!devsim && <RisingRiverPanel />}
         </>
       )}
       <div
