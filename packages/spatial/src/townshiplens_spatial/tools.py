@@ -8,6 +8,8 @@ import threading
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, replace
+from datetime import datetime
+from typing import Any
 
 import networkx as nx
 
@@ -1920,7 +1922,60 @@ def simulate_event(
         _WM_SLOTS.release()
 
 
+def simulate_closure(
+    ctx: Ctx,
+    name: str,
+    reason: str,
+    closures: list[dict[str, Any]],
+    profiles: list[str] | None = None,
+    at: str | None = None,
+) -> ToolResult:
+    """Management only: hypothetical closures, pressure and numbered suggestions.
+
+    Each closure has segment_ids or road_names (including road stretches), starts_at
+    and ends_at as ISO datetimes. `at` defaults to the first start; only active windows
+    apply. Never use pressure in resident route answers. No writes or traffic counts.
+    """
+    from . import events
+
+    if not _WM_SLOTS.acquire(blocking=False):
+        return ToolResult(ok=False, warnings=["world-model solver busy; try again shortly"])
+    try:
+        spec = events.ClosureScenario(name=name, reason=reason, closures=closures)
+        instant = datetime.fromisoformat(at.replace("Z", "+00:00")) if at else None
+        result = events.simulate_closure(
+            ctx.world,
+            spec,
+            tuple(profiles) if profiles is not None else events.DEFAULT_PROFILES,
+            instant,
+        )
+        return ToolResult(
+            ok=True,
+            data=result.model_dump(mode="json"),
+            evidence=[
+                Evidence(
+                    id=result.evidence_id,
+                    element_id="closure",
+                    attribute="closure_simulation",
+                    value={
+                        "trips_total": result.trips_total,
+                        "trips_affected": result.trips_affected,
+                        "trips_no_route": result.trips_no_route,
+                    },
+                    status="indicative",
+                    source_type="Mapped roads and sample journeys",
+                )
+            ],
+            warnings=[result.disclaimer, result.weights_note, *result.warnings],
+        )
+    except ValueError as exc:
+        return ToolResult(ok=False, warnings=[str(exc)])
+    finally:
+        _WM_SLOTS.release()
+
+
 TOOLS["simulate_event"] = simulate_event
+TOOLS["simulate_closure"] = simulate_closure
 
 
 # Development Simulation (developer lens, ADR 0014). `devsim.build_development_plan` is imported

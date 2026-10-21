@@ -1,4 +1,4 @@
-{"meta": {"message": "Can I push a stroller from Car Park B to the kiosk without stairs?", "profile": "stroller", "scenario_id": null, "world": "tiny", "world_fingerprint": "2d9add2b3df0e62c5969f675a838e5e5363865303f182c2b8db8821b9bec2a5d", "model": "mock-scripted", "recorded_at": "2026-10-21T11:49:02+00:00"}}
+{"meta": {"message": "Can I push a stroller from Car Park B to the kiosk without stairs?", "profile": "stroller", "scenario_id": null, "world": "tiny", "world_fingerprint": "8bb29a98d2ad38923ac23466d2c6c49870a73fcb2e077ea9de242eba1135f9c2", "model": "mock-scripted", "recorded_at": "2026-10-21T15:29:41+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "4 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "kiosk", "types": ["facility"], "limit": 5, "near_place": "park-b"}}
@@ -42,4 +42,4 @@
 {"type": "citation", "ref": 11, "evidence_id": "ev-seg-cf.width_m", "element_id": "seg-cf", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-18", "source_type": "team_survey_placeholder", "photo_url": null}
 {"type": "citation", "ref": 12, "evidence_id": "ev-rt-d46b5311.walkways", "element_id": "rt-d46b5311", "attribute": "route_walkways", "status": "reported", "verified_at": null, "source_type": "mapped walk graph (not a sidewalk survey)", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "seg-cf", "attribute": "incline_pct", "note": "Stroller: incline not checked yet (limit 8.3%) on an unnamed ramp"}, {"element_id": "route", "attribute": "demo_values", "note": "Some segment facts are demo values, not yet surveyed"}]}
-{"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}
+{"type": "done", "message_id": "86a7840c74b7", "answer_status": "partial", "model": "mock-scripted"}

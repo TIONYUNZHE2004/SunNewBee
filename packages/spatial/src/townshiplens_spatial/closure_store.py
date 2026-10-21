@@ -63,19 +63,42 @@ class ClosureStore:
         note: str | None,
         event_name: str | None = None,
     ) -> list[Closure]:
-        """Store a whole course atomically; reject an end not after its start.
+        """Store one named course atomically, preserving the legacy caller contract."""
+        return self.create_windows(
+            windows=[(element_ids, starts_at, ends_at)],
+            reason=reason,
+            note=note,
+            event_name=event_name,
+        )
 
-        A failed insert leaves no partial event.
-        """
-        if not element_ids:
-            raise ValueError("at least one element is required")
-        element_id = element_ids[0]
-        probe = Closure(id="-", element_id=element_id, reason=reason, starts_at=starts_at)
-        end = Closure(
-            id="-", element_id=element_id, reason=reason, starts_at=starts_at, ends_at=ends_at
-        ).ends_at
-        if end is not None and end <= probe.starts_at:
-            raise ValueError("ends_at must be after starts_at")
+    def create_windows(
+        self,
+        *,
+        windows: list[tuple[list[str], datetime, datetime | None]],
+        reason: str,
+        note: str | None = None,
+        event_name: str | None = None,
+    ) -> list[Closure]:
+        """Validate every window before atomically inserting all its segment closures."""
+        probes = []
+        for element_ids, starts_at, ends_at in windows:
+            if not element_ids:
+                raise ValueError("at least one element is required")
+            for element_id in dict.fromkeys(element_ids):
+                probe = Closure(
+                    id="-",
+                    element_id=element_id,
+                    reason=reason,
+                    starts_at=starts_at,
+                    ends_at=ends_at,
+                    note=note,
+                    event_name=event_name,
+                )
+                if probe.ends_at is not None and probe.ends_at <= probe.starts_at:
+                    raise ValueError("ends_at must be after starts_at")
+                probes.append(probe)
+        if not probes:
+            raise ValueError("at least one window is required")
         with self._lock, self.db:
             n = (
                 self.db.execute(
@@ -84,20 +107,19 @@ class ClosureStore:
                 + 1
             )
             ids = []
-            for i, element_id in enumerate(dict.fromkeys(element_ids)):
+            for i, probe in enumerate(probes):
                 cid = f"cl-{n + i:04d}"
                 ids.append(cid)
                 self.db.execute(
                     "INSERT INTO closures "
                     "(id,element_id,reason,starts_at,ends_at,note,created_by,source,"
-                    "created_at,event_name) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    "created_at,event_name) VALUES (?,?,?,?,?,?,?,?,?,?)",
                     (
                         cid,
-                        element_id,
+                        probe.element_id,
                         reason,
                         probe.starts_at.isoformat(),
-                        end.isoformat() if end else None,
+                        probe.ends_at.isoformat() if probe.ends_at else None,
                         note,
                         "staff",
                         "staff_report",

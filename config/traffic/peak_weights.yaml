@@ -1,0 +1,38 @@
+# Assumptions for sample trips, never observed demand. Times use the site's time zone.
+weights_note: "Peak weights are an assumed travel pattern, not measured."
+default_weight: 1
+peaks:
+  - types: [school, kindergarten]
+    days: [0, 1, 2, 3, 4]
+    windows: [["07:00", "08:00"], ["13:00", "14:00"]]
+    weight: 3
+  - types: [mall, shop, shops, work]
+    days: [0, 1, 2, 3, 4]
+    windows: [["17:00", "19:00"]]
+    weight: 2
+  - types: [park, playground]
+    days: [0, 1, 2, 3, 4]
+    windows: [["17:00", "19:00"]]
+    weight: 2
+  - types: [park, playground]
+    days: [5, 6]
+    windows: [["07:00", "10:00"]]
+    weight: 2
+  - types: [clinic]
+    days: [0, 1, 2, 3, 4]
+    windows: [["09:00", "12:00"]]
+    weight: 2
+  - types: [place_of_worship]
+    days: [4]
+    windows: [["12:30", "14:00"]]
+    weight: 2
+capacity:
+  secondary: 4
+  tertiary: 3
+  unclassified: 2
+  residential: 1
+  service: 0.5
+  others: 1
+bands:
+  low_below: 1
+  high_above: 3

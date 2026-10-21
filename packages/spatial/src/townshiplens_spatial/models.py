@@ -64,7 +64,7 @@ def site_tz(name: str | None = None):
         return timezone(timedelta(hours=8))
 
 
-ClosureReason = Literal["works", "event", "flooding", "other"]
+ClosureReason = Literal["works", "event", "accident", "flooding", "other"]
 
 
 def _utc(v: Any) -> Any:
@@ -104,7 +104,7 @@ class Closure(BaseModel):
         if self.source == "whatif":
             return "Closed in this what-if (not a real closure)"
         until = fmt_day(self.ends_at, tz) if self.ends_at else "further notice"
-        reason = f"event ({self.event_name})" if self.event_name else self.reason
+        reason = f"{self.reason} ({self.event_name})" if self.event_name else self.reason
         return f"Closed: {reason} until {until}"
 
 
