@@ -299,10 +299,25 @@ def _suggestions(world, detours, cut_off, summary, closed):
         )
         if boundaries:
             node = boundaries[0]
+            names = sorted(
+                {
+                    world.edges[eid].name
+                    for data in world.graph[node].values()
+                    for eid in data
+                    if world.edges[eid].name
+                }
+            )
+            junction = (
+                f"the junction of {names[0]} and {names[1]}"
+                if len(names) > 1
+                else f"the mapped junction on {names[0]}"
+                if names
+                else "the mapped closure-boundary junction"
+            )
             suggestions.append(
                 EventSuggestion(
                     kind="crossing_point",
-                    text=f"Review keeping one crossing point open at mapped junction {node}: "
+                    text=f"Review keeping one crossing point open at {junction}: "
                     f"{len(cut_off)} mapped places lose centre access. Access is not established "
                     "until the alternative is assessed.",
                     basis=f"places_cut_off count={len(cut_off)}; mapped_junction={node}",
@@ -416,8 +431,7 @@ def _simulate(world, spec, profiles, at, legacy):
                     per_road = {}
                     for eid in set(a.segment_ids) - set(b.segment_ids):
                         edge = world.edges[eid]
-                        key = edge.name or "Unnamed paths", edge.osm_tags.get("highway", "unknown")
-                        per_road.setdefault(key, set()).add(eid)
+                        per_road.setdefault(edge.name or "Unnamed paths", set()).add(eid)
                     weight = traffic.trip_weight(
                         world.places[j.to_id].type, at, world.site.timezone
                     )
@@ -435,10 +449,10 @@ def _simulate(world, spec, profiles, at, legacy):
                 segment_ids=sorted(ids),
                 trips=count,
                 weighted_trips=weighted,
-                road_class=road_class,
-                pressure=traffic.pressure(weighted, road_class),
+                road_class=_detour_class(world, ids),
+                pressure=traffic.pressure(weighted, _detour_class(world, ids)),
             )
-            for (name, road_class), (ids, count, weighted) in roads.items()
+            for name, (ids, count, weighted) in roads.items()
         ],
         key=lambda r: (-r.weighted_trips, r.name, r.road_class),
     )
@@ -480,3 +494,10 @@ def _simulate(world, spec, profiles, at, legacy):
     if legacy:
         return EventImpact(event=legacy, **common)
     return ClosureImpact(event=spec, at=at, **common)
+
+
+def _detour_class(world, ids):
+    """A mixed-class named road uses its most restrictive sampled segment capacity."""
+    classes = {world.edges[eid].osm_tags.get("highway", "unknown") for eid in ids}
+    capacity = traffic.config().capacity
+    return min(classes, key=lambda cls: (capacity.get(cls, capacity["others"]), cls))

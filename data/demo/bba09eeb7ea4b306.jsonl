@@ -1,7 +1,7 @@
-{"meta": {"message": "Can I get to the lakeside mall with a stroller?", "profile": "stroller", "scenario_id": null, "world": "elmina", "world_fingerprint": "671125dadbf37fc932937de4722cf83664dfcc4e0255b877bcc0ab81d16930f3", "model": "mock-scripted", "recorded_at": "2026-10-21T15:28:15+00:00"}}
+{"meta": {"message": "Can I get to the lakeside mall with a stroller?", "profile": "stroller", "scenario_id": null, "world": "elmina", "world_fingerprint": "c486e98ddeac7b86dbb00a25f1051d7892ff60aa60e7a4445625b1321b8859a6", "model": "mock-scripted", "recorded_at": "2026-10-21T15:42:55+00:00"}}
 {"type": "answer.draft", "attempt": 1, "delta": "Please name the exact start and destination before I select a route."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Please name the exact start and destinat"}
 {"type": "text.delta", "delta": "ion before I select a route."}
 {"type": "uncertainty", "level": "high", "items": []}
-{"type": "done", "message_id": "cc416c9e3566", "answer_status": "cannot_answer", "model": "mock-scripted"}
+{"type": "done", "message_id": "6fc99b7e8b75", "answer_status": "cannot_answer", "model": "mock-scripted"}

@@ -1951,7 +1951,8 @@ def simulate_closure(
         )
         return ToolResult(
             ok=True,
-            data=result.model_dump(mode="json"),
+            # The management agent also reads a flat reason when choosing closure wording.
+            data={**result.model_dump(mode="json"), "reason": spec.reason},
             evidence=[
                 Evidence(
                     id=result.evidence_id,

@@ -3,8 +3,10 @@ marathon, 7-11 am"); the engine wants segment ids and a time window. Both are re
 deterministically, so the model never invents segment ids or dates."""
 
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from typing import Literal
 
+from pydantic import BaseModel, Field
 from townshiplens_spatial import place_search
 from townshiplens_spatial.events import MAX_SEGMENTS
 from townshiplens_spatial.models import site_tz
@@ -14,6 +16,36 @@ _TIME = re.compile(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$", re.IGNORECASE)
 
 class CourseError(ValueError):
     """A course or window the engine cannot run: the message is for the model to relay."""
+
+
+ClosureReason = Literal["event", "works", "accident", "flooding", "other"]
+
+
+class ClosureInput(BaseModel):
+    """One closure as the model passes it (T-026): roads as staff name them, local times."""
+
+    road_names: list[str] = Field(default_factory=list)
+    segment_ids: list[str] = Field(default_factory=list)
+    start: str
+    end: str
+    day: str | None = None
+
+
+# Weekday words (EN / BM / 中文) -> Monday=0; "next Tuesday" and "Selasa depan" use the same rule.
+_WEEKDAYS = {
+    **{
+        d: i
+        for i, d in enumerate(
+            ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+        )
+    },
+    **{
+        d: i for i, d in enumerate(("isnin", "selasa", "rabu", "khamis", "jumaat", "sabtu", "ahad"))
+    },
+    **{f"{p}{c}": i for p in ("周", "星期", "礼拜") for i, c in enumerate("一二三四五六日")},
+    "星期天": 6,
+    "礼拜天": 6,
+}
 
 
 _BETWEEN = re.compile(r"^(.+?)\s+between\s+(.+?)\s+and\s+(.+)$", re.IGNORECASE)
@@ -150,17 +182,38 @@ def _clock(value: str, meridiem: str | None) -> tuple[int, int]:
     return hour, minute
 
 
-def event_window(start: str, end: str, day: str | None, tz: str | None) -> tuple[str, str]:
-    """ISO start and end in the site's time zone. `day` is YYYY-MM-DD (default: today there);
-    "7" / "07:00" / "7am" times; a bare start borrows the end's am/pm ("7-11 am")."""
-    zone = site_tz(tz)
+def _day(day: str | None, today: date) -> date:
+    """YYYY-MM-DD, "today" / "tomorrow", or a weekday (EN/BM/中文, "next" ignored): the next
+    such day, today included."""
+    if not day:
+        return today
+    word = re.sub(r"\b(?:next|this|coming|depan|ini|hari)\b|下|这|本", " ", day.strip().lower())
+    word = word.strip()
+    if word in ("today", "", "今天"):
+        return today
+    if word in ("tomorrow", "esok", "明天"):
+        return today + timedelta(days=1)
+    if word in _WEEKDAYS:
+        return today + timedelta(days=(_WEEKDAYS[word] - today.weekday()) % 7)
     try:
-        on = date.fromisoformat(day) if day else datetime.now(zone).date()
+        return date.fromisoformat(day)
     except ValueError as exc:
-        raise CourseError(f"Give the day as YYYY-MM-DD, not {day!r}.") from exc
+        raise CourseError(f"Give the day as YYYY-MM-DD or a weekday, not {day!r}.") from exc
+
+
+def event_window(
+    start: str, end: str, day: str | None, tz: str | None, today: date | None = None
+) -> tuple[str, str]:
+    """ISO start and end in the site's time zone. `day` is YYYY-MM-DD, a weekday or "tomorrow"
+    (default: today there); "7" / "07:00" / "7am" times; a bare start borrows the end's am/pm
+    ("7-11 am")."""
+    zone = site_tz(tz)
+    on = _day(day, today or datetime.now(zone).date())
     end_half = (_TIME.match(end.strip()) or [None] * 4)[3]
-    sh, sm = _clock(start, end_half)
     eh, em = _clock(end, None)
+    sh, sm = _clock(start, end_half)
+    if (sh, sm) >= (eh, em):  # "9-5 pm" is 9 am to 5 pm; "7-11 am" keeps the borrowed am
+        sh, sm = _clock(start, None)
     starts = datetime(on.year, on.month, on.day, sh, sm, tzinfo=zone)
     ends = datetime(on.year, on.month, on.day, eh, em, tzinfo=zone)
     if ends <= starts:

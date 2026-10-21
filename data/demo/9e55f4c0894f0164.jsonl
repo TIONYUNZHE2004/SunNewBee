@@ -1,4 +1,4 @@
-{"meta": {"message": "Where can I drop off recycling nearby?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "671125dadbf37fc932937de4722cf83664dfcc4e0255b877bcc0ab81d16930f3", "model": "mock-scripted", "recorded_at": "2026-10-21T15:27:43+00:00"}}
+{"meta": {"message": "Where can I drop off recycling nearby?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "c486e98ddeac7b86dbb00a25f1051d7892ff60aa60e7a4445625b1321b8859a6", "model": "mock-scripted", "recorded_at": "2026-10-21T15:42:20+00:00"}}
 {"type": "tool.call", "id": "find_waste_points-0", "name": "find_waste_points", "args": {"type": "recycling_drop_off", "near_place": "lakeside-mall"}}
 {"type": "tool.result", "id": "find_waste_points-0", "name": "find_waste_points", "summary": "0 result(s)"}
 {"type": "tool.call", "id": "find_waste_points-1", "name": "find_waste_points", "args": {"type": null, "near_place": "lakeside-mall"}}
@@ -20,4 +20,4 @@
 {"type": "citation", "ref": 2, "evidence_id": "ev-wp-prog-osm-way-866543394.status", "element_id": "wp-prog-osm-way-866543394", "attribute": "status", "status": "unknown", "verified_at": null, "source_type": null, "photo_url": null}
 {"type": "citation", "ref": 3, "evidence_id": "ev-wp-osm-node-12001761367.status", "element_id": "wp-osm-node-12001761367", "attribute": "status", "status": "unknown", "verified_at": null, "source_type": null, "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Not confirmed yet: Waste Basket (unnamed, OSM), Central Park community garden (programme site); check before you go"}, {"element_id": "answer", "attribute": "caveat", "note": "Check with MBSA (Majlis Bandaraya Subang Jaya) for official recycling drop-off locations"}]}
-{"type": "done", "message_id": "acf2451a337b", "answer_status": "partial", "model": "mock-scripted"}
+{"type": "done", "message_id": "2014338c0d81", "answer_status": "partial", "model": "mock-scripted"}

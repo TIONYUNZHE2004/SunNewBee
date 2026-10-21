@@ -181,12 +181,32 @@ EVENT_NOTE = {
 _EVENT_SAID = re.compile(r"not traffic counts|bukan kiraan trafik|并非交通流量", re.IGNORECASE)
 
 
-def event_note(ans: FinalAnswer, rec: TurnRecord, lang: str = "en") -> str | None:
+# T-026: the closure engine's own notes (fixed contract strings), in the answer's language.
+CLOSURE_NOTES = {
+    "Detour pressure, estimated from mapped road class and sample trips, not traffic counts.": {
+        "ms": "Tekanan lencongan dianggarkan daripada kelas jalan yang dipetakan dan perjalanan "
+        "sampel, bukan kiraan trafik.",
+        "zh": "绕行压力根据已绘制的道路等级和样本出行估算，并非交通流量统计。",
+    },
+    "Peak weights are an assumed travel pattern, not measured.": {
+        "ms": "Pemberat waktu puncak ialah corak perjalanan andaian, bukan diukur.",
+        "zh": "高峰权重是假设的出行模式，并非实测。",
+    },
+}
+
+
+def event_notes(ans: FinalAnswer, rec: TurnRecord, lang: str = "en") -> list[str]:
+    """What an event or closure answer's numbers are; a closure simulation carries its own
+    disclaimer and peak-weights note (T-026), an event simulation the T-025 line."""
     if not rec.events or ans.answer_status == "cannot_answer":
-        return None
-    if _EVENT_SAID.search(" ".join([ans.summary, *ans.caveats])):
-        return None
-    return EVENT_NOTE.get(lang, EVENT_NOTE["en"])
+        return []
+    said = " ".join([ans.summary, *ans.caveats])
+    last = rec.events[-1]
+    if not last.get("weights_note"):
+        return [] if _EVENT_SAID.search(said) else [EVENT_NOTE.get(lang, EVENT_NOTE["en"])]
+    notes = [n for n in (last.get("disclaimer"), last.get("weights_note")) if n]
+    out = [CLOSURE_NOTES.get(n, {}).get(lang, n) for n in notes]
+    return [n for n in out if n.rstrip(".") not in said]
 
 
 def outside_note(ans: FinalAnswer, rec: TurnRecord, world, lang: str = "en") -> str | None:
@@ -321,7 +341,7 @@ def _answer_events(
     ]
     if missing:
         ans = ans.model_copy(update={"caveats": [*ans.caveats, *missing]})
-    for note in (flash_flood_note(ans, rec, lang), event_note(ans, rec, lang)):
+    for note in (flash_flood_note(ans, rec, lang), *event_notes(ans, rec, lang)):
         if note:
             ans = ans.model_copy(update={"caveats": [*ans.caveats, note]})
     if note := outside_note(ans, rec, ctx.world, lang):

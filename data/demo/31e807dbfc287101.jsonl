@@ -1,4 +1,4 @@
-{"meta": {"message": "In the storm rehearsal, what happens to my trip from Car Park B to SK Denai Alam by car leaving at 7:30?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "671125dadbf37fc932937de4722cf83664dfcc4e0255b877bcc0ab81d16930f3", "model": "mock-scripted", "recorded_at": "2026-10-21T15:27:08+00:00"}}
+{"meta": {"message": "In the storm rehearsal, what happens to my trip from Car Park B to SK Denai Alam by car leaving at 7:30?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "c486e98ddeac7b86dbb00a25f1051d7892ff60aa60e7a4445625b1321b8859a6", "model": "mock-scripted", "recorded_at": "2026-10-21T15:41:52+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "sk denai alam", "types": null, "limit": 5, "near_place": null}}
@@ -26,4 +26,4 @@
 {"type": "citation", "ref": 1, "evidence_id": "ev-mytrip-storm", "element_id": "my-trip", "attribute": "storm trip", "status": "indicative", "verified_at": null, "source_type": "rehearsal", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "A rehearsal on the township model, not a forecast. On a real storm day, follow official MBSA / JPS / NADMA guidance"}, {"element_id": "answer", "attribute": "caveat", "note": "Flash floods from heavy rain are not shown"}]}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not. Flash floods from heavy rain are not shown.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
-{"type": "done", "message_id": "b751fb29b969", "answer_status": "answered", "model": "mock-scripted"}
+{"type": "done", "message_id": "603b29c37097", "answer_status": "answered", "model": "mock-scripted"}

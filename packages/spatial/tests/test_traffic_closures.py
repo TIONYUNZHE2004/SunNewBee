@@ -144,7 +144,8 @@ def test_two_way_rule_is_based_on_mapped_direction(pressured):
 def test_crossing_rule_names_a_mapped_junction_and_new_cutoff_count(world):
     result = events.simulate_closure(world, scenario("seg-ab"), ("default",))
     suggestion = next(s for s in result.suggestions if s.kind == "crossing_point")
-    assert any(n in suggestion.text for n in world.graph)
+    assert "mapped closure-boundary junction" in suggestion.text
+    assert any(f"mapped_junction={n}" in suggestion.basis for n in world.graph)
     assert f"count={len(result.places_cut_off)}" in suggestion.basis
     assert {p.id for p in result.places_cut_off} == {"park-b"}
 
@@ -247,6 +248,7 @@ def test_management_closure_tool_returns_weights_pressure_and_evidence_without_w
     assert result.ok and result.evidence[0].id == result.data["evidence_id"]
     assert result.evidence[0].status == "indicative"
     assert result.data["event"]["reason"] == "works" and result.data["detour_roads"]
+    assert result.data["reason"] == "works"
     assert result.data["weights_note"] in result.warnings
     assert world.closures == [] and ctx.vrs.list("all") == []
     assert not tools.simulate_closure(ctx, **(kwargs | {"reason": "invented"})).ok
@@ -268,3 +270,20 @@ def test_static_road_snaps_reuse_geometry_but_invalidate_changed_road_membership
     changed = routing._road_nodes(world, world.profiles["drive"])
     assert changed is not roads and "n-e" in changed
     assert routing._targets(world, "toilet-1", world.profiles["drive"]) == ["n-e"]
+
+
+def test_mixed_class_named_road_counts_each_rerouted_trip_once(world):
+    for eid, road_class in [("seg-be", "residential"), ("seg-ef", "secondary")]:
+        world.edges[eid].name = "Garden Loop"
+        world.edges[eid].osm_tags = {"highway": road_class}
+    result = events.simulate_closure(world, scenario("seg-bc"), ("default",))
+    rows = [r for r in result.detour_roads if r.name == "Garden Loop"]
+    assert len(rows) == 1
+    road = rows[0]
+    assert set(road.segment_ids) == {"seg-be", "seg-ef"}
+    assert road.trips == sum(
+        t.affected and bool({"seg-be", "seg-ef"}.intersection(t.segment_ids)) for t in result.trips
+    )
+    assert road.weighted_trips == road.trips  # off-peak fixture destinations
+    assert road.road_class == "residential"
+    assert road.pressure == traffic.pressure(road.weighted_trips, "residential")

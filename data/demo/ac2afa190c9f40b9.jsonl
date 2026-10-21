@@ -1,8 +1,8 @@
-{"meta": {"message": "Where can I go?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "world_fingerprint": "671125dadbf37fc932937de4722cf83664dfcc4e0255b877bcc0ab81d16930f3", "model": "mock-scripted", "recorded_at": "2026-10-21T15:28:15+00:00"}}
+{"meta": {"message": "Where can I go?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "world_fingerprint": "c486e98ddeac7b86dbb00a25f1051d7892ff60aa60e7a4445625b1321b8859a6", "model": "mock-scripted", "recorded_at": "2026-10-21T15:42:54+00:00"}}
 {"type": "answer.draft", "attempt": 1, "delta": "Please name your starting place before I select an evacuation route."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Please name your starting place before I"}
 {"type": "text.delta", "delta": " select an evacuation route."}
 {"type": "uncertainty", "level": "high", "items": []}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not. Flash floods from heavy rain are not shown.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
-{"type": "done", "message_id": "46bd912cad43", "answer_status": "cannot_answer", "model": "mock-scripted"}
+{"type": "done", "message_id": "1230238d70f3", "answer_status": "cannot_answer", "model": "mock-scripted"}
