@@ -5,6 +5,22 @@
 - Written 21 Oct 2026 for a **fresh Claude Code session**. Every file:line below was checked on `main` at `2bc9011a`; re-check before editing, since line numbers drift.
 - One final owner gate (spec §9). No phase gates. Where something is unclear, decide, log a ruling, and keep going.
 
+## Time box: 15 hours (owner, 21 Oct 2026)
+
+The owner gave this run **15 hours of wall-clock time**. A full run of every task to every AC is estimated at 18–22 h, so work in this priority order. A lower tier starts only once the higher tier is merged and green on `feat/demo-polish`.
+
+| Tier | Tasks | Budget | Notes |
+|---|---|---|---|
+| **P0 — both demos play end to end** | A1, A2, A3; B1–B11; C1, C2, C5, C6, C7, C8, C11, C12 | ~8 h | A2 riders go on the **existing** two-wheeler models if A4 is not ready yet. |
+| **P1 — building impact and look** | A4 (Malaysian vehicles); C3 + C4 (sources, schedule, cost); C9 (Hari Raya hold, monsoon rain, scaffold and netting, lorry route); C10 (move-in) | ~4.5 h | C3 cap: 1 h of research. A figure not found in that hour becomes a labelled assumption, or "Estimate unavailable". |
+| **P2 — if time remains** | C9 piling rig; C13 full building e2e beyond the core checks; AC-P1/P2 measurements; full comparison sheet (V2) | ~1 h | If time runs out, V2 shrinks to the 45 s recordings plus a short list of differences. |
+| **Always** | V1 checklist + V3 report | last ~1.5 h | **Stop feature work at hour 13.5**, whatever tier you are in. |
+
+Rules:
+- Keep a running clock in the ledger: start time, plus the elapsed time at every merge.
+- At hours 5, 9 and 12, compare progress with the tier budgets. If a tier is over budget by more than 1 h, cut that tier's remaining tasks to their core (log each cut as a ruling) instead of borrowing time from V1/V3.
+- The final report lists every task as done / partly done (what is missing) / not started, and every AC as PASS / FAIL / NOT RUN.
+
 ---
 
 ## 0. Context primer (read before any task)
