@@ -10,6 +10,7 @@ import {
   type RoleUniforms,
 } from "../assets/roleMaterial";
 import { markUsed } from "../assets/uploadRange";
+import { bokehDepthMaterial } from "../tiltShift";
 import {
   AGENT_LIFT_M,
   type Agent,
@@ -381,6 +382,22 @@ export function createMotionLayer(
     return mt;
   };
   const wrappers: THREE.BufferGeometry[] = [];
+  // A3: the bokeh depth render draws each agent at its instance matrix and leaves out the faded
+  // ones (iFade < 0.5), as the colour pass does (one twin for every agent mesh)
+  const bokehDepth = bokehDepthMaterial();
+  bokehDepth.name = "tl_agent_depth";
+  bokehDepth.customProgramCacheKey = () => "tl_agent_depth";
+  bokehDepth.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace("void main() {", "attribute float iFade;\nvarying float vTlFade;\nvoid main() {")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvTlFade = iFade;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("void main() {", "varying float vTlFade;\nvoid main() {")
+      .replace(
+        "#include <alphatest_fragment>",
+        "if (vTlFade < 0.5) discard;\n#include <alphatest_fragment>",
+      );
+  };
 
   // Capacity per (kind, variant): every bucket of a variant can hold all its agents.
   const perVariant = new Map<string, number>();
@@ -429,6 +446,7 @@ export function createMotionLayer(
       mesh.raycast = NOOP;
       mesh.userData.decorative = true;
       mesh.userData.lod = lod;
+      mesh.userData.bokehDepth = bokehDepth;
       group.add(mesh);
       buckets[lod] = { mesh, pal, fade, n: 0 };
     });
@@ -810,6 +828,7 @@ export function createMotionLayer(
         g.dispose();
       }
       for (const mt of materials.values()) mt.dispose();
+      bokehDepth.dispose();
       crowd?.dispose();
       lights?.dispose();
       group.clear();

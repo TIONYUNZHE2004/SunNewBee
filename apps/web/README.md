@@ -742,7 +742,7 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
 
 **Clay look and tilt-shift (journey Phase B, display only):**
 - **Clay tokens.** `scene/three/shared/clayTokens.ts` (`CLAY_PALETTE`, `CLAY`) is the one table of surface colours, roughness and sheen; layer code imports colours only from it (AC-B1). Fact geometry keeps OSM footprints and `display_height_m`; rounding is cosmetic.
-- **Tilt-shift.** `scene/three/tiltShift.ts` (`TILT_SHIFT`) drives a `BokehPass` focused on the follow target (`Engine.setFocusPoint`), else the camera target. High quality only; off with the FX toggle off or under `prefers-reduced-motion`.
+- **Tilt-shift.** `scene/three/tiltShift.ts` (`TILT_SHIFT`) drives a `BokehPass` focused on the follow target (`Engine.setFocusPoint`), else the camera target. High quality only; off with the FX toggle off or under `prefers-reduced-motion`. Nothing nearer than the focus is blurred (`SLAB_FACTOR_GLSL` keeps only the far blur, `cocAt` mirrors it; demo polish A3), and the decorative agents and crowd wear depth twins (`userData.bokehDepth`: the crowd's skinned pose, the agents' fade) in the bokeh depth render, so near people never ghost.
 - **Pinned sun.** `?sun=pinned` (acceptance, `sunClock.ts`) and `?demo=1` light the scene at 10:30 MYT on a fixed date so evidence is reproducible; normal users keep the real clock. A pinned Day/Dusk/Night theme still wins for the mood.
 - Decorative details (street dressing, crowd, cars) stay labelled "Decorative details are illustrative." and never cause a journey event.
 

@@ -1321,6 +1321,7 @@ function build(
   let focusSet = false;
   let tierNow: Tier = tier;
   const bokehSkip: THREE.Object3D[] = [];
+  const bokehAnimated: THREE.Object3D[] = [];
   const focusNow = (out: THREE.Vector3) =>
     focusSet ? out.copy(focusPoint) : out.copy(controls.target);
   const focusTmp = new THREE.Vector3();
@@ -1418,14 +1419,26 @@ function build(
     // drawn after it (overlay pass, renderJourneyMarkers) and are never blurred.
     bokehPass = null;
     if (spec.dof && dofWanted) {
-      bokehPass = new CityBokehPass(scene, camera, () => {
-        bokehSkip.length = 0;
-        bokehSkip.push(sky.mesh);
-        if (currentTreeCut.value) for (const o of decorCuttable()) bokehSkip.push(o);
-        if (overlays) bokehSkip.push(overlays.lineGroup);
-        if (journey) bokehSkip.push(journey.ribbon);
-        return bokehSkip;
-      });
+      bokehPass = new CityBokehPass(
+        scene,
+        camera,
+        () => {
+          bokehSkip.length = 0;
+          bokehSkip.push(sky.mesh);
+          if (currentTreeCut.value) for (const o of decorCuttable()) bokehSkip.push(o);
+          if (overlays) bokehSkip.push(overlays.lineGroup);
+          if (journey) bokehSkip.push(journey.ribbon);
+          return bokehSkip;
+        },
+        () => {
+          // A3 (AC-L12): the crowd and agents write depth in their drawn pose (their depth twins)
+          bokehAnimated.length = 0;
+          if (motionLayer) bokehAnimated.push(motionLayer.group);
+          // the devsim cast's crowd too (its renderers carry the same twins; other meshes untouched)
+          if (devsim) bokehAnimated.push(devsim.group);
+          return bokehAnimated;
+        },
+      );
       aimBokeh();
       passes.push(bokehPass);
     }

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { Tier } from "../../shared/quality";
 import { patchDecorCut } from "../assets/treeCut";
 import { clayMaterial } from "../shared/clayTokens";
+import { bokehDepthMaterial } from "../tiltShift";
 import { PEOPLE_VISIBLE_M } from "./agents";
 import type { CrowdKit } from "./crowdBake";
 
@@ -133,6 +134,38 @@ export function patchCrowdShader(
 }
 
 /**
+ * The crowd's hooks on a depth shader (demo polish A3, AC-L12): the same skinning vertex stage as
+ * `patchCrowdShader`, so the bokeh depth render draws each person in their animated pose (not the
+ * bind pose), and fragments of a person faded out at a path end (< 0.5) write no depth.
+ */
+export function patchCrowdDepthShader(
+  shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> },
+  u: Record<string, { value: unknown }>,
+): void {
+  Object.assign(shader.uniforms, u);
+  for (const c of [
+    "void main() {",
+    "#include <skinbase_vertex>",
+    "#include <skinnormal_vertex>",
+    "#include <skinning_vertex>",
+  ])
+    if (!shader.vertexShader.includes(c)) throw new Error(`crowd depth shader: ${c} missing`);
+  if (!shader.fragmentShader.includes("#include <alphatest_fragment>"))
+    throw new Error("crowd depth shader: alphatest_fragment missing");
+  shader.vertexShader = shader.vertexShader
+    .replace("void main() {", VERT_DECL)
+    .replace("#include <skinbase_vertex>", VERT_SKINBASE)
+    .replace("#include <skinnormal_vertex>", VERT_SKINNORMAL)
+    .replace("#include <skinning_vertex>", VERT_SKINNING);
+  shader.fragmentShader = shader.fragmentShader
+    .replace("void main() {", "varying float vTlFade;\nvoid main() {")
+    .replace(
+      "#include <alphatest_fragment>",
+      "if (vTlFade < 0.5) discard;\n#include <alphatest_fragment>",
+    );
+}
+
+/**
  * The crowd's LOD bands (R-J7, superseding P4's "hidden beyond 300 m"): the manifest's bands with the
  * last (LOD1) stretched to PEOPLE_VISIBLE_M (800 m), so far crowds stay visible at up to 2.5x; hidden
  * beyond. LOD0 keeps the manifest's 60 m.
@@ -198,6 +231,11 @@ export function createCrowdRenderer(
     tlCrowdPalSize: { value: new THREE.Vector2(m.roles.length, m.looks.length) },
   };
   material.onBeforeCompile = (shader) => patchCrowdShader(shader, uniforms);
+  // A3: the bokeh pass's depth render draws the crowd posed (its own program: `tl_crowd_depth`)
+  const depth = bokehDepthMaterial(material.side);
+  depth.name = "tl_crowd_depth";
+  depth.customProgramCacheKey = () => "tl_crowd_depth";
+  depth.onBeforeCompile = (shader) => patchCrowdDepthShader(shader, uniforms);
   // Decorative people: the journey's decorative occluder cut (never the hero).
   patchDecorCut(material);
 
@@ -217,6 +255,7 @@ export function createCrowdRenderer(
     bm.raycast = () => {};
     bm.userData.decorative = true;
     bm.userData.crowd = true;
+    bm.userData.bokehDepth = depth;
     bm.userData.lod = lod;
     // For the acceptance crowd report: look id and true standing height per slot.
     bm.userData.lookIds = looks.map((l) => m.looks[l]?.id ?? "");
@@ -298,6 +337,7 @@ export function createCrowdRenderer(
       for (const bm of meshes) bm.dispose();
       inst.dispose();
       fadeTex.dispose();
+      depth.dispose();
       material.dispose();
       group.clear();
     },
