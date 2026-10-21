@@ -36,3 +36,15 @@ def test_course_access_is_not_an_ordinary_disconnection(world):
         t.before_m is not None and t.no_route for t in result.trips if not t.on_closed_course
     )
     assert any("start or end on the course" in w for w in result.warnings)
+
+
+def test_disconnected_unnamed_stretches_do_not_share_pressure_group(world):
+    # Two separated unnamed areas joined only through a named road.
+    for edge in world.edges.values():
+        edge.name = "Main Road"
+    world.edges["seg-ab"].name = None
+    world.edges["seg-fd"].name = None
+    groups = events._unnamed_stretches(world)
+    assert groups["seg-ab"] != groups["seg-fd"]
+    assert all("unnamed path near Main Road" in value for value in groups.values())
+    assert events._unnamed_stretches(world) == groups

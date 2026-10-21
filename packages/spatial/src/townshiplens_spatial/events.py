@@ -10,10 +10,12 @@ from statistics import median
 from time import perf_counter
 from typing import Literal, Self
 
+import networkx as nx
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from . import closure_roads, flood, traffic, twm
 from .direction import direction_rule
+from .geo import haversine_m
 from .models import ClosureReason
 from .routing import _road_nodes, _targets, route_batch
 from .sim import ORIGIN_TYPES, snapshot_world
@@ -357,6 +359,45 @@ def _suggestions(world, detours, cut_off, summary, closed):
     return suggestions
 
 
+def _unnamed_stretches(world):
+    """Static connected unnamed stretches, never one township-wide fictitious road."""
+    signature = tuple((e.id, e.name) for e in world.edges.values())
+    cached = world.graph.graph.get("_closure_unnamed_stretches")
+    if cached and cached[0] == signature:
+        return cached[1]
+    graph = nx.Graph()
+    named = {}
+    for edge in world.edges.values():
+        if edge.name:
+            for node in (edge.from_node, edge.to_node):
+                named.setdefault(node, set()).add(edge.name)
+        else:
+            graph.add_edge(edge.from_node, edge.to_node)
+    labels = {}
+    components = sorted(nx.connected_components(graph), key=lambda nodes: min(nodes))
+    for i, nodes in enumerate(components, 1):
+        adjacent = sorted({name for node in nodes for name in named.get(node, ())})
+        if adjacent:
+            near = adjacent[0]
+        elif named:
+            coords = [world.node_coords[n] for n in nodes]
+            centre = [sum(x[k] for x in coords) / len(coords) for k in (0, 1)]
+            node = min(named, key=lambda n: (haversine_m(centre, world.node_coords[n]), n))
+            near = min(named[node])
+        else:
+            near = None
+        label = (
+            f"unnamed path near {near} (stretch {i})"
+            if near
+            else f"unnamed path (mapped stretch {i}; no named road nearby)"
+        )
+        for node in nodes:
+            labels[node] = label
+    result = {e.id: labels[e.from_node] for e in world.edges.values() if not e.name}
+    world.graph.graph["_closure_unnamed_stretches"] = (signature, result)
+    return result
+
+
 def simulate_closure(
     world: World,
     spec: ClosureScenario,
@@ -407,6 +448,7 @@ def _simulate(world, spec, profiles, at, legacy):
     limit = twm.MAX_JOURNEYS // len(profiles)
     trips = []
     roads = {}
+    unnamed = _unnamed_stretches(world)
     cut_off = {}
     demo = False
     with route_batch():
@@ -451,7 +493,7 @@ def _simulate(world, spec, profiles, at, legacy):
                     per_road = {}
                     for eid in set(a.segment_ids) - set(b.segment_ids):
                         edge = world.edges[eid]
-                        per_road.setdefault(edge.name or "Unnamed paths", set()).add(eid)
+                        per_road.setdefault(edge.name or unnamed[eid], set()).add(eid)
                     weight = traffic.trip_weight(
                         world.places[j.to_id].type, at, world.site.timezone
                     )
@@ -524,7 +566,7 @@ def _simulate(world, spec, profiles, at, legacy):
         evidence_id=f"ev-event-{digest}" if legacy else f"ev-closure-{digest}",
         weights_note=traffic.config().weights_note,
         timing_ms=round((perf_counter() - started) * 1000, 2),
-        warnings=warnings,
+        warnings=list(dict.fromkeys(warnings)),
     )
     if legacy:
         return EventImpact(event=legacy, **common)

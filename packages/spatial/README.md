@@ -493,8 +493,10 @@ Detour roads group newly used segments by mapped name, counting each rerouted sa
 trip once per road. For a mixed-class road, `road_class` is the newly used segment class
 with the lowest capacity, a conservative bottleneck assumption. `weighted_trips` sums
 the destination/time weights;
-`trips` is the unweighted count. Unnamed segments are “Unnamed paths”; absent classes
-are `unknown` and use the `others` capacity. Rows sort by weighted trips, name, class.
+`trips` is the unweighted count. Unnamed segments group into connected stretches,
+each labelled “unnamed path near <nearest named road> (stretch N)”. Each stretch
+has its own pressure; absent classes are `unknown` and use the `others` capacity.
+Rows sort by weighted trips, name, class. Duplicate warnings are removed.
 Pressure = weighted trips / class capacity: secondary 4, tertiary 3, unclassified 2,
 residential 1, service 0.5, others 1. Bands are low <1, medium 1–3, high >3.
 The disclaimer is “Detour pressure, estimated from mapped road class and sample trips,

@@ -1967,7 +1967,9 @@ def simulate_closure(
                     source_type="Mapped roads and sample journeys",
                 )
             ],
-            warnings=[result.disclaimer, result.weights_note, *result.warnings],
+            warnings=list(
+                dict.fromkeys([result.disclaimer, result.weights_note, *result.warnings])
+            ),
         )
     except ValueError as exc:
         return ToolResult(ok=False, warnings=[str(exc)])
