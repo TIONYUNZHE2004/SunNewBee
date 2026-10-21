@@ -154,6 +154,7 @@ test("AC-W345: building set pieces, move-in and bubble speakers via the bld hook
     if (s.topFloor > 0)
       check(Math.abs(s.scaffoldTop - (s.topFloor + 1) * 3.2) <= 0.5, `W4 scaffold top at ${t}`);
     if (s.floorsBuilt > 0 && s.floorsBuilt < 30) check(s.netting, `W4 netting at ${t}`);
+    if (s.floorsBuilt >= 30) check(!s.netting, `W4 netting off once topped out at ${t}`);
   }
   check(lorrySeen > 10 && lorryMax <= 3, "W4 lorries within 3 m of the route");
   out.w4 = { rig, lorrySeen, lorryMaxDistM: lorryMax, scaffold };
