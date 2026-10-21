@@ -1975,6 +1975,14 @@ def simulate_development(ctx: Ctx, brief: str = "") -> ToolResult:
             "before_m": f.detour.before_m,
             "after_m": f.detour.after_m,
         }
+    # The hoarding impact headline (routing engine, demo polish C7): quotable as computed facts.
+    im = plan.impact
+    facts |= {
+        "homes_considered": im.homes_considered,
+        "homes_2min_plus": im.homes_2min_plus,
+        "max_extra_min": im.max_extra_min,
+        "wheelchair_links_cut": im.wheelchair_links_cut,
+    }
     head = {"brief": {"storeys": plan.site.storeys, "homes": plan.site.homes}}
     return ToolResult(
         ok=True,

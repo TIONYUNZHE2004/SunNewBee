@@ -23,7 +23,9 @@ recipe as the prototype.
 from __future__ import annotations
 
 import argparse
+import calendar
 import dataclasses
+import itertools
 import json
 import math
 import re
@@ -42,6 +44,9 @@ from .day import population
 from .day import spotlight as spot
 from .devsim_models import (
     Act,
+    Banner,
+    BriefRow,
+    BriefSection,
     Bubble,
     DevelopmentBrief,
     DevelopmentEntrance,
@@ -53,9 +58,12 @@ from .devsim_models import (
     DevsimLabels,
     DevsimUnavailable,
     DevsimWalk,
-    EndCard,
-    EndCardItem,
+    EstimateSource,
+    ImpactBrief,
+    MonsoonSetPiece,
+    Schedule,
     SpotlightCast,
+    TimedTag,
 )
 from .models import LonLat, Place, Route
 from .world import World
@@ -64,6 +72,8 @@ PARCEL_OSM = "way/1564861412"  # OSM landuse=construction lot beside Lakeside Ma
 KANOPI_OSM = "way/1314193194"  # the real Kanopi Residences lot: the tower stays clear of it
 MALL_BUILDING = "w1308938137"  # Elmina Lakeside Mall's building footprint
 # Places, looked up by exact name (ids may change with place scoping).
+MALL_LABEL = "Lakeside Mall"  # copy name of the mall walk arriving at the mall place
+CAR_PARK_LABEL = "Lakeside Mall (Car Park B)"  # ... arriving at its Car Park B (ruling R18)
 TARGET_NAME = "Lakeside Mall Car Park B"  # the detour walk's destination (spec §5.1: park-b)
 PARK_NAME = "Elmina Urban Park"
 MALL_NAME = "Elmina Lakeside Mall"
@@ -457,7 +467,16 @@ def compute_facts(world: World, site: DevelopmentSite) -> DevsimFacts:
     tw = tower_world(world, site)
     with routing.eval_memo():
         park_walk = _walk(tw, TOWER_PLACE, park)
-        mall_walk = _walk(tw, TOWER_PLACE, mall)
+        mall_route = _first_any(tw, TOWER_PLACE, mall_arrivals)
+    if mall_route is None:
+        raise DevsimUnavailable("no walk from the tower to the mall")
+    mall_walk = DevsimWalk(
+        m=round(mall_route.distance_m),
+        min=max(1, _round_min(walk_minutes(world, mall_route))),
+        path=_route_path(mall_route),
+        arrival_id=mall_route.to_place,
+        label=MALL_LABEL if mall_route.to_place == mall else CAR_PARK_LABEL,
+    )
     return DevsimFacts(
         detour=_detour(world, site, lay, mall_arrivals),
         park=park_walk,
@@ -471,6 +490,7 @@ def compute_facts(world: World, site: DevelopmentSite) -> DevsimFacts:
 COLOURS = {
     "halim": "#5c6bc0",
     "farid": "#ef8f5a",
+    "worker": "#f2a516",
     "meiling": "#e8644f",
     "zainab": "#37a07a",
     "arjun": "#c4900f",
@@ -478,6 +498,7 @@ COLOURS = {
 BASELINE_NAMES = {
     "halim": "Pak Cik Halim",
     "farid": "Farid",
+    "worker": "Site worker",
     "meiling": "Mei Ling",
     "zainab": "Mak Cik Zainab",
     "arjun": "Arjun",
@@ -553,6 +574,14 @@ def build_cast(
             colour=COLOURS["farid"],
         ),
         SpotlightCast(
+            id="worker",
+            name="Site worker",
+            role="site worker",
+            persona="Works on the tower site through the build",
+            home="site",
+            colour=COLOURS["worker"],
+        ),
+        SpotlightCast(
             id="meiling",
             name=BASELINE_NAMES["meiling"],
             role="new resident",
@@ -580,27 +609,49 @@ def build_cast(
     return pop.households, cast
 
 
-# ---- BE4: beats, copy and check ----------------------------------------------------------------
+# ---- BE4: beats, copy and check (demo polish spec §6.3: the 45 s building timeline) -----------
 ACTS = [
-    Act(name="Brief", t0=0, t1=4),
-    Act(name="Construction", t0=4, t1=32),
-    Act(name="Handover", t0=32, t1=44),
-    Act(name="Daily Life", t0=44, t1=63),
-    Act(name="Summary", t0=63, t1=66),
+    Act(name="Brief", t0=0, t1=3),
+    Act(name="Construction", t0=3, t1=27),
+    Act(name="Handover", t0=27, t1=33),
+    Act(name="Daily Life", t0=33, t1=45),
 ]
-TOTAL_S = 66.0
+TOTAL_S = 45.0
+# Spec §6.3 windows (screen s).
+MONTHS_FROM = 3.0  # months start advancing
+RAYA_HOLD = (11.0, 13.0)  # Hari Raya hold: the month stands still
+MONSOON_SLOW = (18.5, 23.0)  # the slow monsoon stretch
+HANDOVER_AT = 27.0  # the handover month is reached
+DETOUR_TAG = (4.0, 9.5)
+LORRY_TAG = (8.5, 12.5)
+HANDOVER_BANNER = (27.0, 30.5)
+DATA_ORDER_SLOW = 2  # monsoon months play this much slower in the data-order fallback
+EXTRA_MIN = 2  # "2+ min longer" (devsim_impact.EXTRA_MIN)
+SENSITIVE_M = 50  # lorry-route sensitive radius (devsim_impact.SENSITIVE_M)
 BUBBLE1_SIDE = "Footpath closed lah, must walk the other side now"
 # Truthful without the side claim (used when the detour stays on the lot's side).
 BUBBLE1_PLAIN = "Footpath closed lah, must walk the long way now"
 BUBBLE1_NO_DETOUR = "Footpath closed lah, so leceh"
-END_TITLE = "What residents raised"
-END_LEGEND = (
-    "ROUTE ENGINE numbers come from the mapped walk network. SIMULATED marks invented reactions."
+WORKER_LINE = "Hujan lagi, crane stop."
+BRIEF_TITLE = "Impact brief"
+BRIEF_SUBTITLE = (
+    "Hypothetical tower on a real parcel · facts from the world model, estimates labelled"
 )
+FLOOD_NOTE = "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance."
+UNCHECKED_NOTE = "? = a path on the way is not checked yet (did not count for or against)"
+GAP_NOTE = "gap = no mapped connection (data gap)"
+BLOCKED_NOTE = "blocked = every mapped path crosses a known barrier"
+MONTH_ABBR = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+SCHOOLISH = ("school", "kindergarten")
 
 
 def _n(v: int) -> str:
     return f"{v:,}"
+
+
+def _month_label(iso: str) -> str:
+    """ "2029-03-21" -> "Mar 2029"."""
+    return f"{MONTH_ABBR[int(iso[5:7]) - 1]} {iso[:4]}"
 
 
 def _mall_line(mins: int) -> tuple[str, str]:
@@ -613,6 +664,7 @@ def _mall_line(mins: int) -> tuple[str, str]:
 
 
 def _bubbles(facts: DevsimFacts) -> list[Bubble]:
+    """Seven bubbles in time order (§6.3). The school-run complaint is gone (no envelope)."""
     d = facts.detour
     if d is None:
         b1_text, b1_tag = BUBBLE1_NO_DETOUR, None
@@ -621,17 +673,18 @@ def _bubbles(facts: DevsimFacts) -> list[Bubble]:
         b1_tag = f"ROUTE ENGINE · +{d.detour_min} min walk · {_n(d.before_m)} → {_n(d.after_m)} m"
     p, m = facts.park, facts.mall
     mall_text, mall_tone = _mall_line(m.min)
+    mall_to = f" to {m.label}" if m.label else ""
     rows = [
-        (1, "halim", 18.4, 21.4, "neg", b1_text, b1_tag),
-        (2, "farid", 23.4, 26.2, "neg", "So noisy lah", None),
-        (3, "meiling", 35.4, 38.2, "pos", "We got our keys!", None),
-        (4, "halim", 40.2, 43.2, "pos", "Eh, new neighbours ah? Welcome!", None),
-        (5, "meiling", 47.6, 50.4, "neg", "School run jam again… haiz", None),
+        (1, "halim", 5.5, 9.0, "neg", b1_text, b1_tag),
+        (2, "farid", 14.0, 16.5, "neg", "So noisy lah", None),
+        (3, "worker", 19.5, 22.5, "neg", WORKER_LINE, None),
+        (4, "meiling", 28.5, 31.5, "pos", "We got our keys!", None),
+        (5, "halim", 31.0, 33.0, "pos", "Eh, new neighbours ah? Welcome!", None),
         (
             6,
             "zainab",
-            53.2,
-            56.2,
+            34.0,
+            37.0,
             "pos",
             f"Park in {p.min} min, love it",
             f"ROUTE ENGINE · {_n(p.m)} m · {p.min} min walk",
@@ -639,52 +692,17 @@ def _bubbles(facts: DevsimFacts) -> list[Bubble]:
         (
             7,
             "arjun",
-            58.6,
-            61.6,
+            36.5,
+            39.0,
             mall_tone,
             mall_text,
-            f"ROUTE ENGINE · {_n(m.m)} m · {m.min} min walk",
+            f"ROUTE ENGINE · {_n(m.m)} m · {m.min} min walk{mall_to}",
         ),
     ]
     return [
         Bubble(n=n, who=who, t0=t0, t1=t1, tone=tone, text=text, tag=tag)
         for n, who, t0, t1, tone, text, tag in rows
     ]
-
-
-def _end_card(facts: DevsimFacts) -> EndCard:
-    items = []
-    if (d := facts.detour) is not None:
-        items.append(
-            EndCardItem(
-                text=(
-                    "Building work closes the footpath beside the site: the walk to the mall gets "
-                    f"about {d.detour_min} min longer ({_n(d.before_m)} m → {_n(d.after_m)} m)."
-                ),
-                badges=["ROUTE ENGINE"],
-            )
-        )
-    items.append(
-        EndCardItem(
-            text="Parents complain about the morning school-run jam at the junction.",
-            badges=["SIMULATED"],
-        )
-    )
-    items.append(
-        EndCardItem(
-            text=(
-                f"Residents like having Urban Park {facts.park.min} min and the mall "
-                f"{facts.mall.min} min away on foot."
-            ),
-            badges=["ROUTE ENGINE", "SIMULATED"],
-        )
-    )
-    return EndCard(
-        title=END_TITLE,
-        subtitle=DevsimLabels().end_card_subtitle,
-        items=items,
-        legend=END_LEGEND,
-    )
 
 
 def _anchors(world: World, site: DevelopmentSite, facts: DevsimFacts) -> DevsimAnchors:
@@ -708,6 +726,11 @@ def _anchors(world: World, site: DevelopmentSite, facts: DevsimFacts) -> DevsimA
     fx, fy = fp.x - lay.centre.x, fp.y - lay.centre.y
     fl = math.hypot(fx, fy)
     farid = fr.ll(fp.x + fx / fl * 5, fp.y + fy / fl * 5)
+    # The site worker: inside the hoarding, beside the tower on the side away from the street.
+    off = TOWER_HALF[1] + 6
+    wp = Point(lay.centre.x - fx / fl * off, lay.centre.y - fy / fl * off)
+    if not lay.site_area.contains(wp):
+        wp = nearest_points(lay.site_area.buffer(-1), wp)[0]
     # The junction: where the entrance path meets the street (nearest point on a street).
     snap = Point(fr.xy(site.entrance.path[-1]))
     streets = [
@@ -732,6 +755,7 @@ def _anchors(world: World, site: DevelopmentSite, facts: DevsimFacts) -> DevsimA
     return DevsimAnchors(
         halim_path=halim,
         farid=farid,
+        worker=fr.ll(wp.x, wp.y),
         junction=fr.ll(jp.x, jp.y),
         park=list(park),
         mall=fr.ll(mp.x, mp.y),
@@ -739,10 +763,298 @@ def _anchors(world: World, site: DevelopmentSite, facts: DevsimFacts) -> DevsimA
 
 
 def build_beats(world: World, site: DevelopmentSite, facts: DevsimFacts):
-    """(acts, bubbles, end card, anchors) per spec §4.2, §4.3 and §4.5, with facts substituted."""
-    return list(ACTS), _bubbles(facts), _end_card(facts), _anchors(world, site, facts)
+    """(acts, bubbles, anchors) per spec §6.3, with facts substituted."""
+    return list(ACTS), _bubbles(facts), _anchors(world, site, facts)
 
 
+# ---- C7: month keys, tags, banners, Impact Brief -----------------------------------------------
+def _month_of(start: str, iso: str) -> float:
+    """Fractional month of a date: months after the start of the start month."""
+    y0, m0 = int(start[:4]), int(start[5:7])
+    y, m, d = int(iso[:4]), int(iso[5:7]), int(iso[8:10])
+    return (y - y0) * 12 + (m - m0) + (d - 1) / calendar.monthrange(y, m)[1]
+
+
+def month_keys(schedule: Schedule) -> tuple[list[tuple[float, float]], str]:
+    """Playback second -> fractional project month (ruling R25; the prototype's `KEYS` shape).
+
+    Baseline (the spec §6.3 windows): months 0 -> Hari Raya over 3-11 s, a hold at the Raya date
+    11-13 s, on to the monsoon set piece's first month by 18.5 s, slowly through it to 23 s
+    (ending at least a month before the handover point, so 23-27 s still advances), and the
+    handover point (the handover date, inside the last month) at 27 s, held to the end. When
+    the data puts Hari Raya after the monsoon stretch starts, "data-order": months advance over
+    3-27 s with monsoon months played slower and the 2 s Raya hold at the Raya date. The same
+    rules as the web's `schedulePlayback.buildPlayback`."""
+    h = min(_month_of(schedule.start, schedule.handover), schedule.months_total - 1e-6)
+    rp, mp = schedule.raya_set_piece, schedule.monsoon_set_piece
+    raya = _month_of(schedule.start, rp.date) if rp else None
+    mon = (mp.months[0].month_index, mp.months[-1].month_index + 1) if mp and mp.months else None
+    head = [(0.0, 0.0), (MONTHS_FROM, 0.0)]
+    tail = [(HANDOVER_AT, h), (TOTAL_S, h)]
+
+    def out(keys):
+        return [(round(t, 4), round(m, 4)) for t, m in keys]
+
+    if (raya is None or raya < (mon[0] if mon else h)) and (mon is None or mon[0] < h):
+        keys = list(head)
+        if raya is not None:
+            keys += [(RAYA_HOLD[0], raya), (RAYA_HOLD[1], raya)]
+        if mon is not None:
+            # Minor (fix round 1): the slow stretch ends at least a month before the handover
+            # point, so 23-27 s still advances and the handover month is reached at 27 s.
+            end = min(mon[1], h - 1)
+            if end <= mon[0]:
+                end = (mon[0] + h) / 2
+            keys += [(MONSOON_SLOW[0], mon[0]), (MONSOON_SLOW[1], end)]
+        return out(keys + tail), "baseline"
+    hold = 0.0 if raya is None else RAYA_HOLD[1] - RAYA_HOLD[0]
+
+    def weight(a: float, b: float) -> float:
+        if b <= a:
+            return 0.0
+        if mon is None:
+            return b - a
+        inside = max(0.0, min(b, mon[1]) - max(a, mon[0]))
+        return b - a - inside + inside * DATA_ORDER_SLOW
+
+    per = (HANDOVER_AT - MONTHS_FROM - hold) / weight(0, h)
+    stops = sorted({0.0, h, *(mon or ()), *(() if raya is None else (raya,))})
+    stops = [m for m in stops if 0 <= m <= h]
+    keys, t = list(head), MONTHS_FROM
+    for a, b in itertools.pairwise(stops):
+        t += weight(a, b) * per
+        keys.append((t, b))
+        if raya is not None and b == raya:
+            t += hold
+            keys.append((t, b))
+    keys.append((TOTAL_S, h))
+    return out(keys), "data-order"
+
+
+def _point_on(path: list[LonLat], along_m: float | None = None) -> LonLat:
+    """A point on a lon/lat path: `along_m` metres from its start, else its middle."""
+    fr = _Frame(path[0][0], path[0][1])
+    line = fr.line(path)
+    p = line.interpolate(line.length / 2 if along_m is None else min(along_m, line.length))
+    return fr.ll(p.x, p.y)
+
+
+def _tags(world: World, impact, lorry, facts: DevsimFacts) -> list[TimedTag]:
+    out = []
+    edge = facts.detour.edge_id if facts.detour else (impact.closed_edges or [None])[0]
+    if edge is not None:
+        coords = [list(c[:2]) for c in world.edges[edge].coords]
+        if impact.homes_2min_plus:
+            text = (
+                f"Footpath closed · {impact.homes_2min_plus} homes walk {EXTRA_MIN}+ min longer"
+                f" · up to +{impact.max_extra_min} min"
+            )
+        else:
+            text = f"Footpath closed · no nearby home walks {EXTRA_MIN}+ min longer"
+        out.append(
+            TimedTag(
+                kind="detour",
+                t0=DETOUR_TAG[0],
+                t1=DETOUR_TAG[1],
+                title="Detour",
+                text=text,
+                at=_point_on(coords),
+            )
+        )
+    # Ruling R16: the tag names the first sensitive place on the route and its kind; it never
+    # claims a school that is not there.
+    if lorry.sensitive:
+        s = lorry.sensitive[0]
+        text = f"Passes a {s.type}: {s.name}"
+        if s.type in SCHOOLISH:
+            text += f" · {lorry.school_run_note}"
+        at = _point_on(lorry.path, s.along_m)
+    else:
+        text = f"{_n(lorry.distance_m)} m from the main road to the site gate"
+        at = _point_on(lorry.path)
+    out.append(
+        TimedTag(
+            kind="lorry", t0=LORRY_TAG[0], t1=LORRY_TAG[1], title="Lorry route", text=text, at=at
+        )
+    )
+    return out
+
+
+def _wet_range(mp: MonsoonSetPiece) -> list[int]:
+    wet = [m.wet_days for m in mp.months]
+    return sorted({min(wet), max(wet)})
+
+
+def _set_piece_stage(sch: Schedule, mp: MonsoonSetPiece) -> str:
+    """The phase the monsoon set piece starts in ("fit-out" for the R25 band on Elmina)."""
+    first = mp.months[0].month
+    for ph in sch.phases:
+        if ph.start[:7] <= first < ph.end[:7]:
+            return ph.name
+    return sch.phases[-1].name
+
+
+def _monsoon_lost_a_month(mp: MonsoonSetPiece) -> int:
+    lost = [m.days_lost for m in mp.months if m.days_lost > 0]
+    return _round_min(sum(lost) / len(lost)) if lost else 0
+
+
+def _banners(site: DevelopmentSite, sch: Schedule) -> list[Banner]:
+    out = []
+    if (rp := sch.raya_set_piece) is not None:
+        out.append(
+            Banner(
+                kind="raya",
+                t0=RAYA_HOLD[0],
+                t1=RAYA_HOLD[1],
+                title=f"Hari Raya Aidilfitri · site closed ~{rp.days} days",
+                text=f"Most workers travel home · schedule +{rp.days} working days (assumption)",
+                badges=["CALENDAR", "ESTIMATE"],
+            )
+        )
+    if (mp := sch.monsoon_set_piece) is not None:
+        wet = "–".join(str(v) for v in _wet_range(mp))
+        if per := _monsoon_lost_a_month(mp):
+            text = (
+                f"Rain stops the crane on wet days · {wet} wet days a month"
+                f" · ~{per} days lost a month"
+            )
+        else:  # ruling R36: the staged band falls outside structure work (no days lost now)
+            text = (
+                f"{wet} wet days a month (typical) · {_set_piece_stage(sch, mp)} stage: rain adds"
+                f" no schedule days now · structure work lost ~{sch.rain_days_lost} days to rain"
+            )
+        out.append(
+            Banner(
+                kind="monsoon",
+                t0=MONSOON_SLOW[0],
+                t1=MONSOON_SLOW[1],
+                title="Northeast monsoon",
+                text=text,
+                badges=["CALENDAR", "ESTIMATE"],
+            )
+        )
+    out.append(
+        Banner(
+            kind="handover",
+            t0=HANDOVER_BANNER[0],
+            t1=HANDOVER_BANNER[1],
+            title=f"Handover · keys to ~{site.homes} homes",
+            text="Hoarding down · footpath reopens",
+        )
+    )
+    return out
+
+
+def _cost_m(rm: int) -> int:
+    return _round_min(rm / 1_000_000)
+
+
+def _stage_m(scenario: str) -> int:
+    """ "stage_p3m" -> 3 (the river-rise scenario in metres)."""
+    m = re.fullmatch(r"stage_p(\d+)m", scenario)
+    if m is None:
+        raise ValueError(f"not a river-rise scenario: {scenario}")
+    return int(m.group(1))
+
+
+def _brief(impact, lorry, sch: Schedule, flood, matrix) -> ImpactBrief:
+    side_row = None
+    if impact.best_side is not None:
+        if len(impact.options) > 1:
+            best = next(o for o in impact.options if o.side == impact.best_side)
+            label = "Best hoarding side"
+            value = f"{best.side} ({best.homes_2min_plus} homes {EXTRA_MIN}+ min longer)"
+        else:  # one hoarded side: nothing to compare
+            label, value = "Hoarded side", impact.best_side
+        side_row = BriefRow(key="best_side", label=label, value=value, badges=["ROUTE"])
+    if lorry.sensitive:
+        s = lorry.sensitive[0]
+        value = s.name + (f" · {lorry.school_run_note}" if s.type in SCHOOLISH else "")
+        lorry_row = BriefRow(
+            key="lorry", label=f"Lorry route passes a {s.type}", value=value, badges=["ROUTE"]
+        )
+    else:
+        lorry_row = BriefRow(
+            key="lorry",
+            label="Lorry route",
+            value=f"{_n(lorry.distance_m)} m · no school or park within {SENSITIVE_M} m",
+            badges=["ROUTE"],
+        )
+    construction = [
+        BriefRow(
+            key="homes_2min_plus",
+            label=f"Homes with a {EXTRA_MIN}+ min longer walk",
+            value=f"{impact.homes_2min_plus} of {impact.homes_considered}"
+            f" · up to +{impact.max_extra_min} min",
+            badges=["ROUTE"],
+        ),
+        BriefRow(
+            key="wheelchair_links_cut",
+            label="Step-free links cut (wheelchair)",
+            value=f"{impact.wheelchair_links_cut} homes",
+            badges=["ROUTE"],
+        ),
+        *([side_row] if side_row else []),
+        lorry_row,
+        BriefRow(
+            key="duration",
+            label="Duration",
+            value=f"{sch.months_total} months · handover {_month_label(sch.handover)}",
+            badges=["ESTIMATE"],
+        ),
+        BriefRow(
+            key="days_lost",
+            label="Days lost: holidays · Hari Raya · rain",
+            value=f"{sch.holiday_days_lost} · {sch.raya_shutdown_days} · {sch.rain_days_lost}",
+            badges=["CALENDAR", "ESTIMATE"],
+        ),
+        BriefRow(
+            key="cost",
+            label="Construction cost",
+            value=f"RM {_cost_m(sch.cost_total_rm)} M",
+            badges=["ESTIMATE"],
+        ),
+    ]
+    # Ruling R17: "not cut up to +{max} m" quotes the highest scenario actually checked.
+    if flood.cut_from_scenario is not None:
+        cut = f"+{_stage_m(flood.cut_from_scenario)} m scenario"
+    elif flood.scenarios_checked:
+        cut = f"Not cut up to +{_stage_m(flood.scenarios_checked[-1])} m"
+    else:
+        cut = "No river-rise scenario mapped"
+    handover = [
+        BriefRow(
+            key="flood_cut", label="Walk to the main road cut from", value=cut, badges=["FLOOD"]
+        )
+    ]
+    ev = flood.evacuation
+    if ev is not None:
+        label = (
+            "Nearest official evacuation centre"
+            if ev.source == "official_pps"
+            else "Nearest evacuation candidate (OSM, not official)"
+        )
+        value = f"{ev.name} · {ev.min} min walk"
+    else:
+        label, value = "Nearest evacuation candidate", "None on the mapped walk network"
+    handover.append(BriefRow(key="evacuation", label=label, value=value, badges=["ROUTE"]))
+    values = {c.value for r in matrix.rows for c in r.cells if isinstance(c.value, str)}
+    notes = [UNCHECKED_NOTE] if "?" in values else []
+    notes += [GAP_NOTE] if "gap" in values else []
+    notes += [BLOCKED_NOTE] if "blocked" in values else []
+    return ImpactBrief(
+        title=BRIEF_TITLE,
+        subtitle=BRIEF_SUBTITLE,
+        sections=[
+            BriefSection(key="construction", title="During construction", rows=construction),
+            BriefSection(key="handover", title="At handover", rows=handover, notes=[FLOOD_NOTE]),
+            BriefSection(key="daily_life", title="Daily life (walk minutes)", rows=[], notes=notes),
+        ],
+    )
+
+
+# ---- check -------------------------------------------------------------------------------------
 DIGITS = re.compile(r"\d(?:[\d,]*\d)?")
 BANNED = re.compile(
     r"\b(?:safe(?:ly|ty)?|selamat|depths?|flood(?:s|ed|ing)?)\b|安全", re.IGNORECASE
@@ -756,23 +1068,66 @@ def fact_numbers(facts: DevsimFacts) -> set[int]:
     return vals
 
 
+def plan_names(plan: DevelopmentPlan) -> list[str]:
+    """Place names the copy may quote (data, not numbers): removed before digits are read."""
+    names = {s.name for s in plan.lorry_route.sensitive}
+    names |= {r.target.name for r in plan.access_matrix.rows}
+    names |= {c.label for r in plan.access_matrix.rows for c in r.cells}
+    if plan.facts.mall.label:
+        names.add(plan.facts.mall.label)
+    if plan.flood.evacuation is not None:
+        names.add(plan.flood.evacuation.name)
+    return sorted((n for n in names if n), key=len, reverse=True)
+
+
 def expected_numbers(plan: DevelopmentPlan) -> dict[str, list[int] | tuple[list[int], ...]]:
-    """Per copy slot, the fact values it must quote, in order (a tuple lists the allowed
-    alternatives). Slots not listed must hold no digits."""
+    """Per copy slot, the values it must quote, in order (a tuple lists the allowed
+    alternatives), recomputed from the plan's data fields. Slots not listed hold no digits."""
     f, d = plan.facts, plan.facts.detour
     out: dict[str, list[int] | tuple[list[int], ...]] = {
         "bubble 6": [f.park.min],
         "bubble 6 tag": [f.park.m, f.park.min],
         "bubble 7": ([f.mall.min], []),  # "Mall's right downstairs!" quotes none
         "bubble 7 tag": [f.mall.m, f.mall.min],
+        "labels hypothetical": [plan.site.storeys, plan.site.homes],
     }
-    items = plan.end_card.items
     if d is not None:
         out["bubble 1 tag"] = [d.detour_min, d.before_m, d.after_m]
-        if items:
-            out["end card item 1"] = [d.detour_min, d.before_m, d.after_m]
-    if items:
-        out[f"end card item {len(items)}"] = [f.park.min, f.mall.min]
+    im, lr, sch, fl = plan.impact, plan.lorry_route, plan.schedule, plan.flood
+    note = [int(x) for x in re.findall(r"\d+", lr.school_run_note)]
+    school = bool(lr.sensitive) and lr.sensitive[0].type in SCHOOLISH
+    out["tag detour"] = (
+        [im.homes_2min_plus, EXTRA_MIN, im.max_extra_min] if im.homes_2min_plus else [EXTRA_MIN]
+    )
+    out["tag lorry"] = (note if school else []) if lr.sensitive else [lr.distance_m]
+    if (rp := sch.raya_set_piece) is not None:
+        out["banner raya"] = [rp.days, rp.days]
+    if (mp := sch.monsoon_set_piece) is not None:
+        per = _monsoon_lost_a_month(mp)
+        out["banner monsoon"] = [*_wet_range(mp), per if per else sch.rain_days_lost]
+    out["banner handover"] = [plan.site.homes]
+    rows: dict[str, list[int]] = {
+        "homes_2min_plus": [EXTRA_MIN, im.homes_2min_plus, im.homes_considered, im.max_extra_min],
+        "wheelchair_links_cut": [im.wheelchair_links_cut],
+        "lorry": (note if school else []) if lr.sensitive else [lr.distance_m, SENSITIVE_M],
+        "duration": [sch.months_total, int(sch.handover[:4])],
+        "days_lost": [sch.holiday_days_lost, sch.raya_shutdown_days, sch.rain_days_lost],
+        "cost": [_cost_m(sch.cost_total_rm)],
+        "evacuation": [fl.evacuation.min] if fl.evacuation is not None else [],
+    }
+    if im.best_side is not None:
+        best = next((o for o in im.options if o.side == im.best_side), None)
+        rows["best_side"] = (
+            [best.homes_2min_plus, EXTRA_MIN] if best is not None and len(im.options) > 1 else []
+        )
+    if fl.cut_from_scenario is not None:
+        rows["flood_cut"] = [_stage_m(fl.cut_from_scenario)]
+    elif fl.scenarios_checked:
+        rows["flood_cut"] = [_stage_m(fl.scenarios_checked[-1])]
+    else:
+        rows["flood_cut"] = []
+    for k, v in rows.items():
+        out[f"brief {k}"] = v
     return out
 
 
@@ -783,30 +1138,172 @@ def plan_texts(plan: DevelopmentPlan) -> list[tuple[str, str]]:
         out.append((f"bubble {b.n}", b.text))
         if b.tag:
             out.append((f"bubble {b.n} tag", b.tag))
-    for i, it in enumerate(plan.end_card.items, 1):
-        out.append((f"end card item {i}", it.text))
-    for k in ("title", "subtitle", "legend"):
-        out.append((f"end card {k}", getattr(plan.end_card, k)))
+    for t in plan.tags:
+        out.append((f"tag {t.kind}", f"{t.title} · {t.text}"))
+    for b in plan.banners:
+        out.append((f"banner {b.kind}", f"{b.title} · {b.text}"))
+    out.append(("brief title", f"{plan.brief.title} · {plan.brief.subtitle}"))
+    for s in plan.brief.sections:
+        out.append((f"brief section {s.key}", s.title))
+        for r in s.rows:
+            out.append((f"brief {r.key}", f"{r.label} · {r.value}"))
+        for i, n in enumerate(s.notes, 1):
+            out.append((f"brief {s.key} note {i}", n))
+    out.append(("labels hypothetical", plan.labels.hypothetical))
     return out
+
+
+def _impact_errors(plan: DevelopmentPlan) -> list[str]:
+    errs = []
+    im, hs = plan.impact, plan.impact.homes
+    if im.homes_considered != len(hs):
+        errs.append("impact: homes_considered is not the number of homes")
+    if im.homes_2min_plus != sum(1 for h in hs if h.extra_min >= EXTRA_MIN or h.cut_off):
+        errs.append("impact: homes_2min_plus does not count the homes")
+    if im.max_extra_min != max((h.extra_min for h in hs), default=0):
+        errs.append("impact: max_extra_min is not the largest extra walk")
+    if im.wheelchair_links_cut != sum(1 for h in hs if h.wheelchair_cut):
+        errs.append("impact: wheelchair_links_cut does not count the homes")
+    if im.options:
+        best = min(im.options, key=lambda o: (o.homes_2min_plus, o.max_extra_min, o.side))
+        if im.best_side != best.side:
+            errs.append("impact: best_side is not the option with the fewest homes 2+ min longer")
+    elif im.best_side is not None:
+        errs.append("impact: best_side without options")
+    if (d := plan.facts.detour) is not None:
+        row = next((h for h in hs if h.home_id == d.home_id), None)
+        if row is None or row.extra_min != d.detour_min:
+            errs.append("impact: Halim's home row does not show his detour minutes")
+    lr = plan.lorry_route
+    if lr.distance_m <= 0 or lr.minutes < 1 or lr.status == "confirmed":
+        errs.append("lorry route: distance, minutes or status out of range")
+    order = sorted(lr.sensitive, key=lambda s: (s.along_m, s.distance_m, s.place_id))
+    if lr.sensitive != order or any(s.distance_m > SENSITIVE_M for s in lr.sensitive):
+        errs.append("lorry route: sensitive places are not ordered along the route within 50 m")
+    return errs
+
+
+def _schedule_errors(plan: DevelopmentPlan) -> list[str]:
+    errs = []
+    s, n = plan.schedule, plan.schedule.months_total
+    series = (s.months, s.floors_by_month, s.cost_by_month, s.days_lost_by_month)
+    if any(len(x) != n for x in series):
+        errs.append("schedule: a monthly series is not months_total long")
+    for name in ("floors_by_month", "cost_by_month", "days_lost_by_month"):
+        if any(b < a for a, b in itertools.pairwise(getattr(s, name))):
+            errs.append(f"schedule: {name} goes down")
+    if s.floors_by_month and s.floors_by_month[-1] != s.storeys:
+        errs.append("schedule: the last month does not top out")
+    if s.cost_by_month and s.cost_by_month[-1] != s.cost_total_rm:
+        errs.append("schedule: the cost S-curve does not end at the total")
+    total = s.holiday_days_lost + s.raya_shutdown_days + s.rain_days_lost
+    if s.days_lost_by_month and abs(s.days_lost_by_month[-1] - total) > 0.5:
+        errs.append("schedule: days lost by month do not add up to the totals")
+    if s.holiday_days_lost != len(s.holidays_lost):
+        errs.append("schedule: holiday_days_lost is not the lost holidays")
+    if s.raya_set_piece is not None and s.raya_set_piece.days != s.raya_shutdown_days:
+        errs.append("schedule: the Raya set piece is not the shutdown length")
+    if [r.id for r in plan.estimate_sources] != s.source_ids:
+        errs.append("estimate_sources are not the schedule's source rows")
+    keys = plan.month_keys
+    if (
+        not keys
+        or keys[0] != (0.0, 0.0)
+        or keys[-1][0] != plan.total_s
+        or any(b[0] < a[0] or b[1] < a[1] for a, b in itertools.pairwise(keys))
+        or any(m > n for _, m in keys)
+    ):
+        errs.append("month_keys: not monotone from (0, 0) to the end")
+    elif plan.month_keys_mode == "baseline":
+        at = dict(keys)
+        if at.get(HANDOVER_AT) != keys[-1][1] or at.get(MONTHS_FROM) != 0:
+            errs.append("month_keys: the handover month is not reached at 27 s")
+        if s.raya_set_piece is not None and at.get(RAYA_HOLD[0]) != at.get(RAYA_HOLD[1]):
+            errs.append("month_keys: no hold at Hari Raya")
+    return errs
+
+
+def _flood_matrix_errors(plan: DevelopmentPlan) -> list[str]:
+    errs = []
+    fl = plan.flood
+    if fl.cut_from_scenario is not None and fl.cut_from_scenario not in fl.scenarios_checked:
+        errs.append("flood: cut_from_scenario was not checked")
+    if (fl.cut_from_scenario is None) != (not fl.cut_edges):
+        errs.append("flood: cut edges disagree with cut_from_scenario")
+    if fl.evacuation is not None and fl.evacuation.min < 1:
+        errs.append("flood: evacuation walk out of range")
+    mx = plan.access_matrix
+    if [r.target.kind for r in mx.rows] != ["park", "mall", "clinic", "school"]:
+        errs.append("access matrix: rows are not park, mall, clinic, school")
+    words = {"partly_unverified": "?", "no_data": "gap", "blocked": "blocked"}
+    for r in mx.rows:
+        if [c.profile for c in r.cells] != mx.profiles:
+            errs.append(f"access matrix {r.target.kind}: not one cell per profile")
+        for c in r.cells:
+            want = words.get(c.status)
+            if want is not None and c.value != want:
+                errs.append(f"access matrix {r.target.kind}/{c.profile}: must show {want}")
+            if want is None and not (isinstance(c.value, int) and c.value >= 1 and c.m):
+                errs.append(f"access matrix {r.target.kind}/{c.profile}: minutes missing")
+    by = {r.target.kind: r for r in mx.rows}
+    if "default" in mx.profiles and {"park", "mall"} <= set(by):
+        i = mx.profiles.index("default")
+        for kind, walk in (("park", plan.facts.park), ("mall", plan.facts.mall)):
+            c = by[kind].cells[i]
+            if isinstance(c.value, int) and (c.value, c.m) != (walk.min, walk.m):
+                errs.append(f"facts.{kind} is not the access matrix's default {kind} walk")
+        if by["mall"].cells[i].arrival_id != plan.facts.mall.arrival_id:
+            errs.append("facts.mall arrives elsewhere than the matrix mall walk (ruling R18)")
+    return errs
+
+
+def _resident_errors(plan: DevelopmentPlan) -> list[str]:
+    from .devsim_residents import N_NEIGHBOUR, N_TOWER, check_line
+
+    errs = []
+    mx, rs = plan.access_matrix, plan.residents.residents
+    if [r.side for r in rs] != ["tower"] * N_TOWER + ["neighbour"] * N_NEIGHBOUR:
+        errs.append("residents: not 20 tower then 20 neighbours")
+    rows = {h.home_id: h for h in plan.impact.homes}
+    for r in rs:
+        for phase in ("construction", "handover", "daily_life"):
+            bad = check_line(getattr(r.lines, phase), r.facts)
+            errs += [f"resident {r.id} {phase}: {e}" for e in bad]
+        if r.side == "tower" and r.facts.profile in mx.profiles:
+            i = mx.profiles.index(r.facts.profile)
+            want = {row.target.kind: row.cells[i].value for row in mx.rows}
+            if {w.kind: w.value for w in r.facts.walks} != want:
+                errs.append(f"resident {r.id}: walks are not the access matrix's")
+        if r.side == "neighbour" and r.facts.extra_walk_min is not None:
+            row = rows.get(r.facts.home_id or "")
+            if row is None or row.extra_min != r.facts.extra_walk_min:
+                errs.append(f"resident {r.id}: extra walk is not their home's hoarding row")
+    return errs
 
 
 def check_plan(plan: DevelopmentPlan) -> list[str]:
     """Reasons the plan's copy may not be shown (empty list = fine).
 
-    Each copy slot quotes exactly its own facts, in order (`expected_numbers`; thousands
-    separators removed): bubble 6 the park minutes, bubble 7 the mall minutes, each tag and
-    end-card item its own fields; every other slot (bubbles 1-5, titles) holds no digits at all.
-    No banned words (spec §3) anywhere in the copy, the labels or the cast; no numbers spelled
-    out in words."""
+    Each copy slot (bubbles, tags, banners, Impact Brief rows and notes, the hypothetical label)
+    quotes exactly its own values, in order (`expected_numbers`, recomputed from the plan's data;
+    thousands separators and quoted place names removed); every other slot holds no digits. No
+    banned words (spec §3) anywhere in the copy, the labels or the cast; no numbers spelled out
+    in words. The data behind the copy agrees with itself (impact counts, schedule series, month
+    keys, flood, matrix vs facts), and every resident line passes `devsim_residents.check_line`
+    against that resident's facts."""
     errs = []
     expected = expected_numbers(plan)
+    names = plan_names(plan)
     for where, text in plan_texts(plan):
-        got = [int(m.group(0).replace(",", "")) for m in DIGITS.finditer(text)]
+        bare = text
+        for nm in names:
+            bare = re.sub(re.escape(nm), " ", bare, flags=re.IGNORECASE)
+        got = [int(m.group(0).replace(",", "")) for m in DIGITS.finditer(bare)]
         want = expected.get(where, [])
         options = want if isinstance(want, tuple) else (want,)
         if got not in options:
             errs.append(f"{where}: numbers {got} are not the computed facts {list(options)}")
-        if m := spot.NUMBER_WORDS.search(text):
+        if m := spot.NUMBER_WORDS.search(bare):
             errs.append(f"{where}: number in words {m.group(0)!r}")
     for b in plan.bubbles:
         if 1 <= b.n <= 5 and re.search(r"\d", b.text):
@@ -817,6 +1314,10 @@ def check_plan(plan: DevelopmentPlan) -> list[str]:
     for where, text in [*plan_texts(plan), *extra]:
         if m := BANNED.search(text):
             errs.append(f"{where}: banned word {m.group(0)!r}")
+    errs += _impact_errors(plan)
+    errs += _schedule_errors(plan)
+    errs += _flood_matrix_errors(plan)
+    errs += _resident_errors(plan)
     return errs
 
 
@@ -828,11 +1329,27 @@ def build_development_plan(world: World, brief: DevelopmentBrief | None = None) 
     """The whole Development Simulation plan for this world (deterministic).
 
     Raises DevsimUnavailable when the world lacks the parcel or the facts can't be computed."""
+    # Imported here: these modules import devsim (ruling R-C1d).
+    from . import devsim_impact as di
+    from . import devsim_schedule as ds
+    from .devsim_residents import build_residents
+
     brief = brief or DevelopmentBrief()
     site = place_tower(world, brief)
+    lay = _layout(world, site)
     facts = compute_facts(world, site)
     households, cast = build_cast(world, site)
-    acts, bubbles, end_card, anchors = build_beats(world, site, facts)
+    acts, bubbles, anchors = build_beats(world, site, facts)
+    impact = di.hoarding_impact(world, site, lay)
+    lorry = di.lorry_route(world, site, lay)
+    sch = ds.schedule(site.storeys, site.homes)
+    flood = di.flood_exposure(world, site, lay)
+    matrix = di.daily_life_matrix(world, site)
+    residents = build_residents(
+        world, site, lay=lay, detour_home=facts.detour.home_id if facts.detour else None
+    )
+    keys, mode = month_keys(sch)
+    by_id = {s.id: s for s in ds.SOURCES}
     plan = DevelopmentPlan(
         world=world.site.id,
         site=site,
@@ -841,9 +1358,34 @@ def build_development_plan(world: World, brief: DevelopmentBrief | None = None) 
         households=households,
         acts=acts,
         bubbles=bubbles,
+        tags=_tags(world, impact, lorry, facts),
+        banners=_banners(site, sch),
         anchors=anchors,
-        end_card=end_card,
-        labels=DevsimLabels(),
+        impact=impact,
+        lorry_route=lorry,
+        schedule=sch,
+        estimate_sources=[
+            EstimateSource(
+                id=i,
+                value=by_id[i].value,
+                unit=by_id[i].unit,
+                kind=by_id[i].kind,
+                label=by_id[i].label,
+            )
+            for i in sch.source_ids
+        ],
+        month_keys=keys,
+        month_keys_mode=mode,
+        flood=flood,
+        access_matrix=matrix,
+        residents=residents,
+        brief=_brief(impact, lorry, sch, flood, matrix),
+        labels=DevsimLabels(
+            hypothetical=(
+                f"Hypothetical tower · not an SDP project · {site.storeys} storeys"
+                f" · ~{site.homes} homes"
+            )
+        ),
         total_s=TOTAL_S,
     )
     if errs := check_plan(plan):

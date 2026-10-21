@@ -50,9 +50,9 @@ from .world import World
 log = logging.getLogger(__name__)
 
 IMPACT_RADIUS_M = 500.0
-EXTRA_MIN = 2  # "2 min or more longer"
-MALL_LABEL = "Lakeside Mall"  # the mall reached at the mall place itself
-CAR_PARK_LABEL = "Lakeside Mall (Car Park B)"  # the mall reached at its Car Park B
+EXTRA_MIN = devsim.EXTRA_MIN  # "2 min or more longer"
+MALL_LABEL = devsim.MALL_LABEL  # the mall reached at the mall place itself
+CAR_PARK_LABEL = devsim.CAR_PARK_LABEL  # the mall reached at its Car Park B
 COMPASS = (
     "north",
     "north-east",
@@ -378,7 +378,7 @@ def hoarding_impact(world: World, site: DevelopmentSite, lay=None) -> HoardingIm
 # ---- C2: lorry route ---------------------------------------------------------------------------
 LORRY_PROFILE = "drive"
 SENSITIVE_TYPES = ("school", "kindergarten", "park", "playground")
-SENSITIVE_M = 50.0
+SENSITIVE_M = float(devsim.SENSITIVE_M)
 GATE_PLACE = "devsim-gate"
 ROAD_PLACE = "devsim-main-road"
 MAX_ROAD_TRIES = 8

@@ -13,9 +13,11 @@ from pydantic import BaseModel
 
 from .models import LonLat, RouteStatus
 
-CastHome = Literal["tower", "existing"]
+CastHome = Literal["tower", "existing", "site"]
 BubbleTone = Literal["pos", "neg"]
-EndCardBadge = Literal["ROUTE ENGINE", "SIMULATED"]
+BriefBadge = Literal["ROUTE", "FLOOD", "ESTIMATE", "CALENDAR"]
+TagKind = Literal["detour", "lorry"]
+BannerKind = Literal["raya", "monsoon", "handover"]
 
 
 class DevsimUnavailable(Exception):
@@ -66,18 +68,22 @@ class DevsimWalk(BaseModel):
     m: int
     min: int
     path: list[LonLat]
+    # The place the walk ends at, and how copy names it ("Lakeside Mall (Car Park B)" when the
+    # mall walk arrives at the car park, ruling R18). None for the park walk.
+    arrival_id: str | None = None
+    label: str | None = None
 
 
 class DevsimFacts(BaseModel):
     detour: DevsimDetour | None = None  # None when no >= 2-min detour exists (spec §13)
     park: DevsimWalk  # tower entrance -> Elmina Urban Park
-    mall: DevsimWalk  # tower entrance -> Lakeside Mall
+    mall: DevsimWalk  # tower entrance -> Lakeside Mall or its Car Park B, the nearer (R18)
     profile: str  # routing profile, "default"
     provenance: str  # "routing engine, default profile"
 
 
 class SpotlightCast(BaseModel):
-    id: str  # "halim", "farid", "meiling", "zainab", "arjun"
+    id: str  # "halim", "farid", "worker", "meiling", "zainab", "arjun"
     name: str
     role: str
     persona: str
@@ -86,7 +92,7 @@ class SpotlightCast(BaseModel):
 
 
 class Bubble(BaseModel):
-    n: int  # 1-based, spec §4.3 order
+    n: int  # 1-based, in time order (demo polish spec §6.3)
     who: str  # SpotlightCast.id
     t0: float
     t1: float
@@ -96,27 +102,16 @@ class Bubble(BaseModel):
 
 
 class Act(BaseModel):
-    name: str  # Brief | Construction | Handover | Daily Life | Summary
+    name: str  # Brief | Construction | Handover | Daily Life
     t0: float
     t1: float
-
-
-class EndCardItem(BaseModel):
-    text: str
-    badges: list[EndCardBadge]
-
-
-class EndCard(BaseModel):
-    title: str
-    subtitle: str
-    items: list[EndCardItem]
-    legend: str
 
 
 class DevsimAnchors(BaseModel):
     halim_path: list[LonLat]  # the stretch of the detour Halim walks
     farid: LonLat
-    junction: LonLat  # school-run queue
+    worker: LonLat  # the site worker's spot inside the hoarding, beside the tower
+    junction: LonLat  # where the entrance path meets the street
     park: LonLat
     mall: LonLat
 
@@ -124,25 +119,8 @@ class DevsimAnchors(BaseModel):
 class DevsimLabels(BaseModel):
     simulation: str = "Simulation · illustrative"
     decorative: str = "Decorative details are illustrative."
-    hypothetical: str = "Hypothetical development · not an SDP project · 30 storeys · ~500 homes"
-    end_card_subtitle: str = "Simulated reactions · Hypothetical development · not an SDP project"
-
-
-class DevelopmentPlan(BaseModel):
-    """Everything the Development Simulation player needs (spec §4–§5)."""
-
-    provisional: bool = False  # True only for the prototype-derived web fixture
-    world: str  # site id, "elmina"
-    site: DevelopmentSite
-    facts: DevsimFacts
-    cast: list[SpotlightCast]
-    households: int  # tower household count
-    acts: list[Act]
-    bubbles: list[Bubble]
-    anchors: DevsimAnchors
-    end_card: EndCard
-    labels: DevsimLabels
-    total_s: float = 66
+    hypothetical: str = "Hypothetical tower · not an SDP project · 30 storeys · ~500 homes"
+    simulated: str = "Simulated reactions"
 
 
 # ---- Demo polish impact outputs (spec 2026-10-21 demo polish §6.1; C7 wires them into the plan) --
@@ -328,7 +306,9 @@ class MonsoonMonth(BaseModel):
 
 
 class MonsoonSetPiece(BaseModel):
-    """The first northeast-monsoon stretch during structure work."""
+    """The northeast-monsoon stretch the playback stages (ruling R25): the first band that starts
+    after the Hari Raya set piece and before handover, else the band containing Hari Raya.
+    `days_lost` per month counts structure work only, so it is 0 in a fit-out month."""
 
     start_month: str  # "YYYY-MM"
     end_month: str  # "YYYY-MM", inclusive
@@ -361,6 +341,9 @@ class Schedule(BaseModel):
     monsoon_bands: list[MonsoonBand]
     raya_set_piece: RayaSetPiece | None
     monsoon_set_piece: MonsoonSetPiece | None
+    # Cumulative working days lost (holidays + the Raya shutdown + rain) by the end of each month,
+    # 0.1-day precision; the last entry is the unrounded total of the three.
+    days_lost_by_month: list[float]
     source_ids: list[str]  # SOURCES rows the estimate used
     label: str = "ESTIMATE"
     source_line: str
@@ -416,3 +399,96 @@ class SimResidents(BaseModel):
     seed: int
     label: str = "Simulated reactions"
     note: str = "Lines are written for the simulation; every number comes from the world model."
+
+
+# ---- C7: the 45 s plan (demo polish spec §6.1-§6.3) ---------------------------------------------
+EstimateKind = Literal["gazetted", "benchmark", "climatology", "assumption"]
+
+
+class EstimateSource(BaseModel):
+    """A row of docs/04-architecture/devsim-estimates-sources.md (`devsim_schedule.SOURCES`)."""
+
+    id: str
+    value: float
+    unit: str
+    kind: EstimateKind
+    label: str
+
+
+class TimedTag(BaseModel):
+    """A map tag shown for a window: the detour (hoarding impact) and the lorry route (R16)."""
+
+    kind: TagKind
+    t0: float
+    t1: float
+    title: str  # "Detour" | "Lorry route"
+    text: str
+    at: LonLat
+
+
+class Banner(BaseModel):
+    """The set-piece banners: Hari Raya hold, monsoon stretch, handover."""
+
+    kind: BannerKind
+    t0: float
+    t1: float
+    title: str
+    text: str
+    badges: list[BriefBadge] = []
+
+
+class BriefRow(BaseModel):
+    key: str  # stable id, e.g. "homes_2min_plus"
+    label: str
+    value: str
+    badges: list[BriefBadge]
+
+
+class BriefSection(BaseModel):
+    key: Literal["construction", "handover", "daily_life"]
+    title: str  # During construction | At handover | Daily life (walk minutes)
+    rows: list[BriefRow]  # daily_life has none: the web draws `access_matrix` as the table
+    notes: list[str] = []
+
+
+class ImpactBrief(BaseModel):
+    """The Impact Brief panel (from 33 s). Replaces the 66 s end card: every value is a computed
+    fact (ROUTE, FLOOD) or a labelled ESTIMATE / CALENDAR figure; check_plan reads every digit."""
+
+    title: str
+    subtitle: str
+    sections: list[BriefSection]
+
+
+MonthKey = tuple[float, float]
+
+
+class DevelopmentPlan(BaseModel):
+    """Everything the Development Simulation player needs (spec 2026-10-21 §6)."""
+
+    provisional: bool = False  # True only for the prototype-derived web fixture
+    world: str  # site id, "elmina"
+    site: DevelopmentSite
+    facts: DevsimFacts
+    cast: list[SpotlightCast]
+    households: int  # tower household count
+    acts: list[Act]
+    bubbles: list[Bubble]
+    tags: list[TimedTag]
+    banners: list[Banner]
+    anchors: DevsimAnchors
+    impact: HoardingImpact
+    lorry_route: LorryRoute
+    schedule: Schedule
+    estimate_sources: list[EstimateSource]  # the SOURCES rows in schedule.source_ids, in order
+    # Playback second -> fractional project month (month m = m months after the start of the start
+    # month), piecewise linear; ruling R25 windows (Raya hold 11-13 s, monsoon 18.5-23 s,
+    # handover month at 27 s).
+    month_keys: list[MonthKey]
+    month_keys_mode: Literal["baseline", "data-order"]
+    flood: FloodExposure
+    access_matrix: DailyLifeMatrix
+    residents: SimResidents
+    brief: ImpactBrief
+    labels: DevsimLabels
+    total_s: float = 45

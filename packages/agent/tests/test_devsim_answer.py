@@ -28,8 +28,7 @@ from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
 FIXTURE = (
-    Path(__file__).resolve().parents[3]
-    / "apps/web/src/features/devsim/fixtures/plan.provisional.json"
+    Path(__file__).resolve().parents[3] / "apps/web/src/features/devsim/fixtures/plan.elmina.json"
 )
 SEED = ROOT / "data/seed/elmina"
 HAS_DEVSIM = importlib.util.find_spec("townshiplens_spatial.devsim") is not None
@@ -198,6 +197,31 @@ async def test_a_plan_number_is_allowed_only_when_the_tool_returned_it(ctx, monk
     assert validate_answer(ok, rec) == []
 
 
+async def test_the_hoarding_headline_is_quotable_and_checked(ctx, monkeypatch):  # C7
+    """The impact headline is in the tool facts, so the validator allows exactly those numbers;
+    the plan's flood exposure is not, and flood wording stays out of the answer."""
+    monkeypatch.setattr(tools, "_build_development_plan", lambda w, b: _plan())
+    rec = await _recorded(ctx)
+    im = _plan().impact
+    f = rec.developments[-1]["facts"]
+    assert (f["homes_2min_plus"], f["homes_considered"], f["max_extra_min"]) == (
+        im.homes_2min_plus,
+        im.homes_considered,
+        im.max_extra_min,
+    )
+    assert f["wheelchair_links_cut"] == im.wheelchair_links_cut
+    ans = _answer(rec)
+    line = (
+        f" While the hoarding is up, {im.homes_2min_plus} of {im.homes_considered} nearby homes"
+        f" walk up to {im.max_extra_min} min longer."
+    )
+    assert validate_answer(ans.model_copy(update={"summary": ans.summary + line}), rec) == []
+    wrong = line.replace(f"{im.homes_2min_plus} of", f"{im.homes_2min_plus + 7} of")
+    assert validate_answer(ans.model_copy(update={"summary": ans.summary + wrong}), rec)
+    flood = " The walk to the main road floods from the +1 m scenario."
+    assert validate_answer(ans.model_copy(update={"summary": ans.summary + flood}), rec)
+
+
 @pytest.mark.parametrize("drop", [ILLUSTRATIVE, "illustrative", "not an SDP project", LINE])
 async def test_missing_honesty_phrases_fail(ctx, mode, drop):
     rec = await _recorded(ctx)
@@ -259,7 +283,17 @@ def test_the_committed_brief_replay_carries_no_banned_words():
     assert path.exists(), "brief replay not recorded"
     rows = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
     assert rows[0]["meta"]["world"] == "elmina"
-    hits = [s for row in rows for s in _strings(row) if BANNED_IN_REPLAY.search(s)]
+    # The plan's flood-exposure block (demo polish C7, the Impact Brief's FLOOD row: an
+    # indicative scenario) is data the player labels itself; the brief copy and the answer
+    # around it still say no flood word.
+    for row in rows[1:]:
+        if row.get("type") == "scene.intent" and (plan := row["intent"].get("plan")):
+            assert plan["flood"]["disclaimer"] == "Indicative scenario, not a forecast."
+            plan.pop("flood")
+    allowed = {"FLOOD", "flood_cut"}
+    hits = [
+        s for row in rows for s in _strings(row) if s not in allowed and BANNED_IN_REPLAY.search(s)
+    ]
     assert hits == []
     intents = [r["intent"] for r in rows[1:] if r.get("type") == "scene.intent"]
     assert [i["kind"] for i in intents] == ["development.play"] and intents[0]["plan"]
