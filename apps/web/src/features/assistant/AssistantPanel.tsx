@@ -4,6 +4,7 @@ import { showsResidentTrip, useAssistantScope } from "../../lib/api";
 import { Icon } from "../../ui/icons";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { useChatStream } from "../chat/useChatStream";
+import { ClosurePanel } from "../closures/ClosurePanel";
 import { DayPanel } from "../day/DayPanel";
 import { TripChip, TripPlanner } from "../day/TripPlanner";
 import { quietStarters, useDevsimActive } from "../devsim/floodQuiet";
@@ -111,6 +112,7 @@ export function AssistantPanel({
         <>
           <DayPanel />
           <WhatIfLab />
+          <ClosurePanel />
           {!devsim && <RisingRiverPanel />}
         </>
       )}

@@ -54,6 +54,7 @@ export function useOverlays({
   const pathStatus = useSceneSettings((s) => s.pathStatus);
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const whatIf = useScene((s) => s.whatIf);
+  const closureSim = useScene((s) => s.closureSim);
   const gapsQ = useGaps(profile, gapsOn && accessVisible);
   // Flood tint, waste points, place markers and evacuation centres share the overlay pass.
   const floodLens = useScene((s) => s.lensVisible.flood);
@@ -123,6 +124,7 @@ export function useOverlays({
       gapsOn,
       route: routeOn && !journeyOn ? (route?.geojson ?? null) : null,
       whatIf,
+      closureSim,
       water: waterQ.data ?? null,
       floodEdges: floodQ.data ?? null,
       floodOn,
@@ -151,6 +153,7 @@ export function useOverlays({
     devsimOn,
     route,
     whatIf,
+    closureSim,
     waterQ.data,
     floodQ.data,
     floodOn,
