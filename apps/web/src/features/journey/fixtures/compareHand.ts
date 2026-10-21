@@ -16,19 +16,17 @@ export function handCompare(over: Partial<CompareIntent> = {}): CompareIntent {
       { edge_id: `${id}-e1`, eval: "PASS" },
       { edge_id: `${id}-e2`, eval: "PASS" },
     ],
-    geometry: {
-      type: "LineString",
-      coordinates: [
-        [101.5, 3.18],
-        [101.501, 3.181],
-      ],
-    },
+    coordinates: [
+      [101.5, 3.18],
+      [101.501, 3.181],
+    ],
     demo_evidence: true,
   });
   return {
     kind: "route.compare",
-    from: { id: "pl-car-park-b", name: "Car Park B" },
-    to: { id: "pl-playground", name: "Playground" },
+    route_id: "rt-rec",
+    from_place: { id: "pl-car-park-b", name: "Car Park B" },
+    to_place: { id: "pl-playground", name: "Playground" },
     status: "partly_unverified",
     profile: "wheelchair",
     same_path: false,
@@ -64,15 +62,15 @@ export function handCompare(over: Partial<CompareIntent> = {}): CompareIntent {
       },
     },
     extra_minutes: 1.7,
-    // flight at 17.6 s: (17.6 - 3) * 20 = 292 m
+    // unchecked tag at 13.6 s: (13.6 - 3) * 20 = 212 m; the ticket then flies at 17.6 s
     unchecked: [
-      { edge_id: "rt-rec-e2", attribute: "incline_pct", start_m: 292, end_m: 332, length_m: 40 },
+      { edge_id: "rt-rec-e2", attribute: "incline_pct", start_m: 212, end_m: 252, length_m: 40 },
     ],
     pois: [
       { kind: "kerb", at_m: 0, value: "flush", evidence_ids: ["ev-k"], demo: true },
       { kind: "covered_start", at_m: 30, value: true, evidence_ids: ["ev-c"], demo: true },
       { kind: "incline", at_m: 146, value: 4, evidence_ids: ["ev-i"], demo: true },
-      { kind: "unknown", at_m: 292, value: null, evidence_ids: [], demo: false },
+      { kind: "unknown", at_m: 212, value: null, evidence_ids: [], demo: false },
       { kind: "seating", at_m: 330, value: "bench", evidence_ids: ["ev-s"], demo: true },
       { kind: "arrival", at_m: 520, value: null, evidence_ids: [], demo: false },
     ],

@@ -9,6 +9,7 @@ import {
   T_END,
 } from "./compareTimeline";
 import { asCompareIntent, type CompareIntent } from "./compareTypes";
+import elmina from "./fixtures/compare.elmina.json";
 import { handCompare } from "./fixtures/compareHand";
 
 /** Spec §5.4 rows as beat windows (the reasons card and overview run to the end). */
@@ -39,16 +40,29 @@ const ROUTE_TIED: BeatId[] = [
   "tag-rest",
 ];
 
-/** AC-N3 at unit level for any payload: beats, walkers, stop. */
-function checkBeats(c: CompareIntent) {
+/**
+ * AC-N3 at unit level for any payload: beats, walkers, stop. `absent`: rows the payload has no
+ * fact for (no beat at all); `offBaseline`: route-tied rows whose raw time is known to miss the
+ * ±1.5 s window (coordinator ruling), checked for the clamp instead.
+ */
+function checkBeats(c: CompareIntent, opts: { absent?: BeatId[]; offBaseline?: BeatId[] } = {}) {
   const tl = buildCompareTimeline(c);
   const byId = new Map(tl.beats.map((b) => [b.id, b]));
   for (const [id, a] of TABLE) {
     const beat = byId.get(id);
+    if (opts.absent?.includes(id)) {
+      expect(beat, `${id} has no fact, so no beat`).toBeUndefined();
+      continue;
+    }
     expect(beat, id).toBeDefined();
     if (!beat) continue;
-    // route-tied beats land within ±1.5 s of the table, from the route facts themselves (unclamped)
-    if (ROUTE_TIED.includes(id)) {
+    if (opts.offBaseline?.includes(id)) {
+      expect(Math.abs((beat.raw ?? a) - a), `${id} raw ${beat.raw}`).toBeGreaterThan(
+        BEAT_TOLERANCE_S,
+      );
+      expect(Math.abs(beat.t0 - a), `${id} clamped`).toBeCloseTo(BEAT_TOLERANCE_S, 5);
+    } else if (ROUTE_TIED.includes(id)) {
+      // route-tied beats land within ±1.5 s of the table, from the route facts themselves (unclamped)
       expect(Math.abs((beat.raw ?? Number.NaN) - a), `${id} raw ${beat.raw}`).toBeLessThanOrEqual(
         BEAT_TOLERANCE_S,
       );
@@ -182,17 +196,23 @@ describe("buildCompareTimeline edge cases", () => {
   });
 });
 
-// The recorded Elmina corridor fixture (task B6, lane be-nav) activates this block once committed.
-const recorded = import.meta.glob("./fixtures/compare.elmina.json", {
-  eager: true,
-  import: "default",
-});
-const elmina = Object.values(recorded)[0] as unknown;
-
-describe.skipIf(!elmina)("recorded Elmina compare fixture (AC-N3, unit level)", () => {
-  it("every §5.4 beat lands within ±1.5 s of the baseline", () => {
-    const c = asCompareIntent(elmina);
+// The recorded Elmina corridor fixture (task B6, lane be-nav): the real `route.compare` intent.
+describe("recorded Elmina compare fixture (AC-N3, unit level)", () => {
+  const c = asCompareIntent(elmina);
+  it("reads as a playable compare", () => {
     expect(c).not.toBeNull();
-    if (c) checkBeats(c);
+    expect(c?.recommended?.coordinates.length).toBeGreaterThan(1);
+  });
+  it("every §5.4 beat lands within ±1.5 s of the baseline, except the rulings' rows", () => {
+    if (!c) throw new Error("fixture unreadable");
+    // R28: the first crossing (kerb) is at 29 % of the route, ~10.4 s; the clamp keeps its window.
+    // R29: no OSM bench within 15 m, so no seating POI and no rest beat.
+    const tl = checkBeats(c, { absent: ["tag-rest"], offBaseline: ["tag-kerb"] });
+    const kerb = tl.beats.find((b) => b.id === "tag-kerb");
+    expect(kerb?.raw).toBeCloseTo(10.4, 1);
+    expect(kerb?.t0).toBeCloseTo(4.5, 5);
+    // R30 / AC-N5: the ticket counter turns at 19.4 s on the corridor too
+    expect(compareStateAt(tl, 19.3).counters.tickets).toBe(0);
+    expect(compareStateAt(tl, 19.5).counters.tickets).toBe(1);
   });
 });

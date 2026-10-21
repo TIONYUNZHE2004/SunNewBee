@@ -9,7 +9,14 @@ import type { CompareIntent } from "../compareTypes";
 import { handCompare } from "../fixtures/compareHand";
 import { CompareListSection } from "./CompareListSection";
 import { CompareOverlay } from "./CompareOverlay";
-import { GREETINGS, greetingFor, SIMULATED_RESIDENT, toastText, uncheckedTagText } from "./copy";
+import {
+  GREETINGS,
+  greetingFor,
+  reasonRows,
+  SIMULATED_RESIDENT,
+  toastText,
+  uncheckedTagText,
+} from "./copy";
 
 vi.mock("../../scene/useMapStyle", async (orig) => ({
   ...(await orig<typeof import("../../scene/useMapStyle")>()),
@@ -192,6 +199,47 @@ describe("ticket (AC-N5)", () => {
     at(20);
     expect(beat("ticket-toast")?.textContent).toBe(toastText(c));
     expect(beat("ticket-flight") ?? beat("tickets-chip")).not.toBeNull();
+  });
+});
+
+describe("coordinator rulings on the corridor (R29, R30)", () => {
+  it("R30: N = 0 also keeps only the toast's first sentence", () => {
+    const c = handCompare({ confirm_n: 0 });
+    expect(toastText(c)).toBe(
+      "Survey ticket queued for staff · Incline on 40 m of the recommended path is not checked yet.",
+    );
+  });
+
+  it("R29: no seating POI: no rest tag at any time; a null rest count reads Not checked yet", () => {
+    const base = handCompare();
+    const c = handCompare({
+      pois: base.pois.filter((p) => p.kind !== "seating"),
+      reasons: {
+        fastest: base.reasons.fastest ? { ...base.reasons.fastest, rest_stops: null } : null,
+        recommended: base.reasons.recommended
+          ? { ...base.reasons.recommended, rest_stops: null }
+          : null,
+      },
+    });
+    expect(reasonRows(c).find((r) => r.label === "Rest stop on the way")).toEqual({
+      label: "Rest stop on the way",
+      fastest: "Not checked yet",
+      recommended: "Not checked yet",
+    });
+    show(c);
+    for (let t = 0; t <= 45; t += 0.5) {
+      at(t);
+      expect(beat("tag-rest")).toBeNull();
+    }
+  });
+
+  it("the stop tag is labelled demo from the POIs when the payload has no route-level flag", () => {
+    const base = handCompare();
+    const strip = (r: typeof base.fastest) => (r ? { ...r, demo_evidence: undefined } : null);
+    show(handCompare({ fastest: strip(base.fastest), recommended: strip(base.recommended) }));
+    at(20);
+    expect(beat("tag-stop")).toHaveTextContent("3 steps");
+    expect(beat("tag-stop")).toHaveTextContent("Demo value · not surveyed");
   });
 });
 

@@ -119,11 +119,12 @@ export function CompareOverlay() {
         copy =
           b.poi !== undefined
             ? poiTag(c, b.poi)
-            : { key: "Arrived", text: c.to.name || c.to.id, tone: "ok" };
+            : { key: "Arrived", text: c.to_place.name || c.to_place.id, tone: "ok" };
       else if (b.poi !== undefined) copy = poiTag(c, b.poi);
       if (copy) tags.push([b.id, b.side, copy]);
     }
-  const greeting = split && on.has("greeting") ? greetingFor(`${c.from.id}>${c.to.id}`) : null;
+  const greeting =
+    split && on.has("greeting") ? greetingFor(`${c.from_place.id}>${c.to_place.id}`) : null;
   const unplaced = (side: BeatSide) => tags.filter(([id, s]) => s === side && !point(id));
   const column = (side: "L" | "R") => {
     const items = unplaced(side);

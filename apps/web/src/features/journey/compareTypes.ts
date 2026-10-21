@@ -3,10 +3,10 @@
  * profile's recommended route, with the stop point, known-fact reasons, unchecked stretches, POIs
  * and the survey ticket.
  *
- * Mirrors `CompareResult` (packages/spatial/src/townshiplens_spatial/models.py) plus what the
- * intent adds for the web: `from` / `to` names and each route's `geometry` + `segments`. Kept in
- * this one file so it can be aligned with the generated `SceneIntent` once the agent intent (B4)
- * lands in `packages/api-client`; until then `asCompareIntent` reads an intent loosely.
+ * Mirrors the agent's `RouteCompare` wire model (packages/agent events.py, generated as
+ * `components["schemas"]["RouteCompare"]` in packages/api-client): `SceneIntent.compare` on a
+ * `route.compare` intent, with `from_place` / `to_place` and each route's `coordinates` +
+ * `segments`. `asCompareIntent` reads it loosely so a malformed intent never throws.
  */
 
 export type CompareStatus = "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
@@ -22,7 +22,8 @@ export interface CompareSegment {
   edge_id: string;
   /** PASS | FAIL | UNKNOWN under the route's own profile. */
   eval: string;
-  [k: string]: unknown;
+  /** Not on the wire today; read when present (B8 stop edge length). */
+  length_m?: number;
 }
 
 export interface CompareRoute {
@@ -31,11 +32,13 @@ export interface CompareRoute {
   distance_m: number;
   est_minutes: number;
   segments: CompareSegment[];
-  /** GeoJSON LineString, coordinates [lon, lat]. */
-  geometry: { type: "LineString"; coordinates: [number, number][] };
-  evidence_ids?: string[];
+  /** [lon, lat] in travel order. */
+  coordinates: [number, number][];
+  /**
+   * Not on the wire: the payload has no route-level evidence type. Tests may set it; when absent
+   * the copy falls back to the POIs' demo flags (copy.ts `stopIsDemo`).
+   */
   demo_evidence?: boolean;
-  [k: string]: unknown;
 }
 
 /** The first known FAIL along the fastest route under the requested profile. */
@@ -56,8 +59,8 @@ export interface ReasonSet {
   min_width_m: number | null;
   covered_share: number | null;
   rest_stops: number | null;
-  distance_m: number | null;
-  minutes: number | null;
+  distance_m: number;
+  minutes: number;
 }
 
 export interface UncheckedStretch {
@@ -87,8 +90,10 @@ export interface CompareVr {
 
 export interface CompareIntent {
   kind: "route.compare";
-  from: ComparePlace;
-  to: ComparePlace;
+  /** The intent's `route_id` (= `recommended.id`); null when the intent carries none. */
+  route_id: string | null;
+  from_place: ComparePlace;
+  to_place: ComparePlace;
   status: CompareStatus;
   profile: CompareProfile;
   same_path: boolean;
@@ -108,28 +113,25 @@ const num = (x: unknown): number | null => (typeof x === "number" && Number.isFi
 
 function route(x: unknown): CompareRoute | null {
   if (!isObj(x) || typeof x.id !== "string" || num(x.distance_m) === null) return null;
-  const g = x.geometry as { coordinates?: unknown } | undefined;
-  if (!isObj(g) || !Array.isArray(g.coordinates)) return null;
+  if (!Array.isArray(x.coordinates)) return null;
   return {
     ...(x as unknown as CompareRoute),
+    est_minutes: num(x.est_minutes) ?? 0,
     segments: Array.isArray(x.segments) ? (x.segments as CompareSegment[]) : [],
   };
 }
 
-function place(x: unknown, fallbackId: unknown): ComparePlace {
-  const id = typeof fallbackId === "string" ? fallbackId : "";
-  if (isObj(x))
-    return {
-      id: typeof x.id === "string" ? x.id : id,
-      name: typeof x.name === "string" ? x.name : "",
-    };
-  return { id, name: "" };
+function place(x: unknown): ComparePlace {
+  if (!isObj(x)) return { id: "", name: "" };
+  return {
+    id: typeof x.id === "string" ? x.id : "",
+    name: typeof x.name === "string" ? x.name : "",
+  };
 }
 
 /**
- * A `route.compare` scene intent, or null for any other intent. Read loosely: the generated
- * `SceneIntent` learns this kind only when the API client is regenerated. The compare fields may
- * sit on the intent itself or under `compare` (whichever the agent settles on).
+ * A `route.compare` scene intent, or null for any other intent. The payload sits under
+ * `intent.compare` (B4); a payload handed in flat (tests, the hook) is read the same way.
  */
 export function asCompareIntent(i: unknown): CompareIntent | null {
   if (!isObj(i) || i.kind !== "route.compare") return null;
@@ -141,8 +143,9 @@ export function asCompareIntent(i: unknown): CompareIntent | null {
   const list = <T>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : []);
   return {
     kind: "route.compare",
-    from: place(i.from ?? d.from, recommended?.from_place),
-    to: place(i.to ?? d.to, recommended?.to_place),
+    route_id: typeof i.route_id === "string" ? i.route_id : (recommended?.id ?? null),
+    from_place: place(d.from_place),
+    to_place: place(d.to_place),
     status: (d.status as CompareStatus) ?? recommended?.status ?? "no_data",
     profile: (d.profile as CompareProfile) ?? "wheelchair",
     same_path: d.same_path === true,
