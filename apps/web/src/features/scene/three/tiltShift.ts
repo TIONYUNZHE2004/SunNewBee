@@ -119,17 +119,61 @@ function plainParams(distM: number): { aperture: number; maxblur: number } {
   return { aperture: Math.min(aperture, maxblur / (TILT_SHIFT.bandK * d)), maxblur };
 }
 
-/** BokehShader blur distance with an in-focus slab of half depth `slab` (m) around the focus. */
+/**
+ * BokehShader blur distance with an in-focus slab of half depth `slab` (m) around the focus, and
+ * no blur at all in front of the focus (demo polish A3, AC-L11): `focus + viewZ` is positive for a
+ * fragment nearer than the focus, so `min(0, ...)` keeps only the far blur. Near people and cars
+ * stay sharp instead of being smeared into (and mixed with) the background behind them.
+ */
 export const SLAB_FACTOR_GLSL =
-  "float factor = sign( focus + viewZ ) * max( 0.0, abs( focus + viewZ ) - slab );";
+  "float factor = min( 0.0, sign( focus + viewZ ) * max( 0.0, abs( focus + viewZ ) - slab ) );";
 
-/** The blur (UV) the patched shader gives a fragment at `depth` (pure; tests and docs). */
+/**
+ * The circle of confusion (blur, UV) the patched shader gives a fragment at view depth `depth`:
+ * 0 at every depth nearer than the focus, then `(depth - focus - slab) x aperture` up to `maxblur`.
+ * Mirrors SLAB_FACTOR_GLSL (pure; tests and docs).
+ */
+export function cocAt(
+  depth: number,
+  p: { focus: number; aperture: number; maxblur: number; slab: number },
+): number {
+  if (!(depth > p.focus)) return 0;
+  return Math.min(p.maxblur, Math.max(0, depth - p.focus - p.slab) * p.aperture);
+}
+
+/** The blur (UV) the patched shader gives a fragment at `depth` (`cocAt` with the focus apart). */
 export function blurAt(
   p: { aperture: number; maxblur: number; slab: number },
   focus: number,
   depth: number,
 ): number {
-  return Math.min(p.maxblur, Math.max(0, Math.abs(depth - focus) - p.slab) * p.aperture);
+  return cocAt(depth, { ...p, focus });
+}
+
+/**
+ * The depth twin an animated mesh wears in the bokeh pass's depth render (`userData.bokehDepth`):
+ * the crowd's skinned pose (crowdRenderer.ts) or a fading agent's discard (motionLayer.ts), so the
+ * depth silhouette matches the colour one. RGBA-packed like BokehPass's own depth material, and not
+ * replaced by the scene's override material (`allowOverride` false).
+ */
+export function bokehDepthMaterial(side: THREE.Side = THREE.FrontSide): THREE.MeshDepthMaterial {
+  const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side });
+  m.blending = THREE.NoBlending;
+  m.allowOverride = false;
+  return m;
+}
+
+/** Meshes under `roots` that carry a bokeh depth twin, with it. */
+export function bokehDepthMeshes(
+  roots: readonly THREE.Object3D[],
+  out: { mesh: THREE.Mesh; depth: THREE.Material }[] = [],
+): { mesh: THREE.Mesh; depth: THREE.Material }[] {
+  for (const r of roots)
+    r.traverse((o) => {
+      const d = o.userData.bokehDepth as THREE.Material | undefined;
+      if (d && (o as THREE.Mesh).isMesh) out.push({ mesh: o as THREE.Mesh, depth: d });
+    });
+  return out;
 }
 
 const tmp = new THREE.Vector3();
@@ -145,13 +189,16 @@ export function focusDepth(camera: THREE.PerspectiveCamera, point: THREE.Vector3
  * BokehPass whose depth render leaves out `skip()` objects (Line2 batches: overlay lines and the
  * journey ribbon draw garbage quads under the depth override material). Hidden for the pass, then
  * restored; the colour image is the composer's, so the lines are still drawn (with the depth of
- * the surface under them).
+ * the surface under them). Meshes under `animated()` (the decorative crowd and agents, demo polish
+ * A3 / AC-L12) wear their `userData.bokehDepth` twin for the depth render instead of the override
+ * (whose plain vertex stage would draw the crowd's bind pose), so their depth matches their colour.
  */
 export class CityBokehPass extends BokehPass {
   constructor(
     scene: THREE.Scene,
     camera: THREE.Camera,
     private readonly skip: () => readonly THREE.Object3D[],
+    private readonly animated: () => readonly THREE.Object3D[] = () => [],
   ) {
     super(scene, camera, {
       focus: 100,
@@ -184,6 +231,8 @@ export class CityBokehPass extends BokehPass {
   }
 
   private readonly hidden: THREE.Object3D[] = [];
+  private readonly twins: { mesh: THREE.Mesh; depth: THREE.Material }[] = [];
+  private readonly worn: (THREE.Material | THREE.Material[])[] = [];
 
   override render(...args: Parameters<BokehPass["render"]>): void {
     // reused every frame (no array per render, final review)
@@ -191,11 +240,20 @@ export class CityBokehPass extends BokehPass {
     hidden.length = 0;
     for (const o of this.skip()) if (o.visible) hidden.push(o);
     for (const o of hidden) o.visible = false;
+    const twins = bokehDepthMeshes(this.animated(), this.twins);
+    const worn = this.worn;
+    for (const t of twins) {
+      worn.push(t.mesh.material);
+      t.mesh.material = t.depth;
+    }
     try {
       super.render(...args);
     } finally {
+      for (const [i, t] of twins.entries()) t.mesh.material = worn[i] as THREE.Material;
       for (const o of hidden) o.visible = true;
       hidden.length = 0;
+      twins.length = 0;
+      worn.length = 0;
     }
   }
 }

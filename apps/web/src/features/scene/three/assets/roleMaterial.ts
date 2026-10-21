@@ -257,6 +257,12 @@ export function createRoleMaterial(opts: {
    * material; the program is shared (`_bv` key).
    */
   bevel?: BevelBox;
+  /**
+   * Instanced only: a per-instance opacity attribute `iFade` (0..1) multiplies the material opacity
+   * (demo polish A1: a decorative agent fades out at its path end). Its own program (`_fd` key); a
+   * mesh drawn with it must carry the attribute.
+   */
+  fade?: boolean;
 }): THREE.MeshStandardMaterial {
   const { instanced, uniforms } = opts;
   /**
@@ -279,8 +285,9 @@ export function createRoleMaterial(opts: {
   mat.name = "tl_role";
   const baseKey = instanced ? "tl_role_i" : "tl_role_s";
   const bevel = opts.bevel;
+  const fade = instanced && opts.fade === true;
   mat.customProgramCacheKey = () =>
-    `${moving || parked ? `${baseKey}_${kind}` : baseKey}${flicker ? "_fl" : ""}${glassGlow === 1 ? "" : `_g${glassGlow}`}${bevel ? "_bv" : ""}`;
+    `${moving || parked ? `${baseKey}_${kind}` : baseKey}${flicker ? "_fl" : ""}${glassGlow === 1 ? "" : `_g${glassGlow}`}${bevel ? "_bv" : ""}${fade ? "_fd" : ""}`;
   if (bevel) mat.userData.bevel = { box: bevel, ...BUILDING_SHADER_BEVEL };
   // carries the journey's decorative occluder cut (the engine also keeps it out of the post passes'
   // depth while the cut is on)
@@ -401,6 +408,17 @@ void main() {`,
           "#include <normal_fragment_maps>",
           `#include <normal_fragment_maps>
 ${BEVEL_FRAGMENT}`,
+        );
+    }
+    if (fade) {
+      vs = vs
+        .replace("void main() {", "attribute float iFade;\nvarying float vTlFade;\nvoid main() {")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\nvTlFade = iFade;");
+      fs = fs
+        .replace("void main() {", "varying float vTlFade;\nvoid main() {")
+        .replace(
+          "#include <alphatest_fragment>",
+          "diffuseColor.a *= vTlFade;\nif (diffuseColor.a < 0.004) discard;\n#include <alphatest_fragment>",
         );
     }
     shader.vertexShader = vs;
