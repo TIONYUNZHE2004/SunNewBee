@@ -28,6 +28,10 @@ const BULLET = /^[•\-*]\s+(.*)$/;
 const HEADING = /^(Worth knowing):$/;
 /** A step's trailing note: "(not checked yet)." or "(likely OK, estimated from map data)". */
 const NOTE = /^(.*?)\s*\(([^()]+)\)(\.?)$/;
+/** Only a status note becomes a tag; any other parenthetical ("(6 mapped one-way detour
+ * segments; staff approval needed)") is part of the step's words. */
+const STATUS_NOTE =
+  /not checked|unverified|likely|estimated|verified|no known barrier|demo|blocked|closed|flood|data gap|staff report/i;
 
 export function statusTone(value: string): StatusTone {
   const v = value.toLowerCase();
@@ -41,7 +45,7 @@ export function statusTone(value: string): StatusTone {
 function step(body: string): Step {
   if (body.startsWith("…")) return { text: body, elided: true };
   const m = NOTE.exec(body);
-  if (!m?.[1] || !m[2]) return { text: body };
+  if (!m?.[1] || !m[2] || !STATUS_NOTE.test(m[2])) return { text: body };
   return { text: `${m[1]}${m[3] ?? ""}`, note: m[2] };
 }
 

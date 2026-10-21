@@ -1,73 +1,17 @@
 // @vitest-environment jsdom
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { newQueryClient, renderWithClient } from "../../test/helpers";
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
+import { emptyAssistant, reduceIntent } from "../chat/chatReducer";
 import { useScene } from "../scene/sceneStore";
-import { ClosurePanel } from "./ClosurePanel";
+import { ClosureResult } from "./ClosureResult";
 import { SIM_RESULT } from "./fixtures";
 
-const access = {
-  type: "FeatureCollection",
-  features: [
-    {
-      type: "Feature",
-      properties: { id: "seg-ab", name: "Persiaran Garcinia", type: "street" },
-      geometry: {
-        type: "LineString",
-        coordinates: [
-          [101.5, 3.1],
-          [101.51, 3.1],
-        ],
-      },
-    },
-    {
-      type: "Feature",
-      properties: { id: "seg-bc", name: "Persiaran Tamarind", type: "street" },
-      geometry: {
-        type: "LineString",
-        coordinates: [
-          [101.51, 3.1],
-          [101.51, 3.11],
-        ],
-      },
-    },
-  ],
-};
-
-function seeded() {
-  const qc = newQueryClient();
-  qc.setQueryData(["layer", "access", "default", null], access);
-  return qc;
-}
-
-const reply = (status: number, body: unknown) =>
-  vi.fn(async () => new Response(JSON.stringify(body), { status }));
-
 beforeEach(() => useScene.getState().reset());
-afterEach(() => vi.unstubAllGlobals());
 
-async function openAndFill() {
-  const user = userEvent.setup();
-  renderWithClient(<ClosurePanel />, seeded());
-  await user.click(screen.getByRole("button", { name: /Road closures/ }));
-  await user.type(screen.getByLabelText(/Road or stretch/), "Persiaran Garcinia");
-  return user;
-}
-
-describe("ClosurePanel (T-027)", () => {
-  it("runs the request and shows the result with pressure for managers", async () => {
-    const fetchMock = reply(200, SIM_RESULT);
-    vi.stubGlobal("fetch", fetchMock);
-    const user = await openAndFill();
-    await user.click(screen.getByRole("button", { name: "Simulate" }));
-    const card = await screen.findByTestId("closure-result");
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("/api/closures/simulate");
-    expect(JSON.parse(String(init.body))).toMatchObject({
-      reason: "works",
-      closures: [{ road_names: ["Persiaran Garcinia"] }],
-    });
+describe("ClosureResult (T-027 card, shown under a management answer since T-028)", () => {
+  it("shows the engine's numbers and pressure, each suggestion once, its basis in words", () => {
+    render(<ClosureResult r={SIM_RESULT} />);
+    const card = screen.getByTestId("closure-result");
     expect(card).toHaveTextContent("7 of 63 sample trips change route");
     expect(card).toHaveTextContent("3 trips newly without a mapped route");
     expect(card).toHaveTextContent("data gaps, not the closure");
@@ -81,36 +25,19 @@ describe("ClosurePanel (T-027)", () => {
     expect(card).toHaveTextContent("not traffic counts");
     expect(card).toHaveTextContent("Peak weights are an assumed travel pattern, not measured.");
     expect(card.textContent).not.toMatch(/\bsafe\b|minutes? of delay|vehicles/i);
-    // the map gets the course in red and the detour by pressure
-    const sim = useScene.getState().closureSim?.geojson.features as {
-      properties: Record<string, string>;
-    }[];
-    expect(sim.map((f) => f.properties)).toEqual([
-      { closure: "course" },
-      { closure: "detour", pressure: "high" },
-    ]);
   });
 
-  it("says plainly when the backend has not landed", async () => {
-    vi.stubGlobal("fetch", reply(404, { detail: "Not Found" }));
-    const user = await openAndFill();
-    await user.click(screen.getByRole("button", { name: "Simulate" }));
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Closure simulation is not available on this server yet.",
-    );
-    expect(screen.queryByTestId("closure-result")).toBeNull();
-  });
-
-  it("asks for a road before simulating, and can add a second closure", async () => {
-    const fetchMock = reply(200, SIM_RESULT);
-    vi.stubGlobal("fetch", fetchMock);
-    const user = userEvent.setup();
-    renderWithClient(<ClosurePanel />, seeded());
-    await user.click(screen.getByRole("button", { name: /Road closures/ }));
-    await user.click(screen.getByRole("button", { name: "Simulate" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Name a road or a stretch");
-    await user.click(screen.getByRole("button", { name: "Add closure" }));
-    expect(screen.getByLabelText(/closure 2/)).toBeVisible();
-    await waitFor(() => expect(fetchMock).not.toHaveBeenCalled());
+  it("a closure.show intent puts the result on the answer and on the map", () => {
+    const intent = { kind: "closure.show", closure: SIM_RESULT } as never;
+    expect(reduceIntent(emptyAssistant("a"), intent).closure).toBe(SIM_RESULT);
+    useScene.getState().applyIntent(intent);
+    expect(useScene.getState().closureSim?.result).toBe(SIM_RESULT);
+    // a later route answer is never drawn under the older closure lines
+    useScene.getState().applyIntent({
+      kind: "route.highlight",
+      route_id: "r1",
+      geojson: { type: "LineString", coordinates: [] },
+    } as never);
+    expect(useScene.getState().closureSim).toBeNull();
   });
 });

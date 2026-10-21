@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bannerParts, describeUncertainty, groupUncertainty } from "./uncertainty";
+import { bannerParts, describeUncertainty, groupUncertainty, unverifiedItems } from "./uncertainty";
 
 describe("describeUncertainty", () => {
   it("prefers note text", () => {
@@ -51,5 +51,19 @@ describe("groupUncertainty", () => {
     expect(groupUncertainty(["a", "b", "a", "c", "a", "b"])).toEqual(["a (x3)", "b (x2)", "c"]);
     expect(groupUncertainty(["a", "a "])).toEqual(["a", "a "]);
     expect(groupUncertainty([])).toEqual([]);
+  });
+});
+
+describe("unverifiedItems", () => {
+  it("drops the answer's own notes (caveat, whatif) and keeps unverified facts", () => {
+    const items = [
+      { attribute: "caveat", note: "a" },
+      { attribute: "whatif", note: "b" },
+      { attribute: "incline", note: "c" },
+      { attribute: "closure", note: "d" },
+      { attribute: "demo_values", note: "e" },
+    ];
+    expect(unverifiedItems(items).map((i) => i.note)).toEqual(["c", "d", "e"]);
+    expect(unverifiedItems(undefined)).toEqual([]);
   });
 });

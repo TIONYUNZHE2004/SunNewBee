@@ -1,61 +1,15 @@
 import type { Schemas } from "@tl/api-client";
 
 /**
- * T-026 closure simulation: `POST /closures/simulate`, typed from the generated client. If a
- * server doesn't have the route yet, the panel says so instead of guessing.
+ * T-026 closure simulation results, typed from the generated client. A management answer brings
+ * one in its `closure.show` intent (T-028: the chat replaces the closure form): the result card
+ * under the answer and the map lines come from here.
  */
 
-export const CLOSURE_REASONS = [
-  ["event", "Event"],
-  ["works", "Road works"],
-  ["accident", "Accident"],
-  ["flooding", "Flooding"],
-  ["other", "Other"],
-] as const satisfies readonly (readonly [Schemas["ClosureScenario"]["reason"], string])[];
-export type ClosureReason = (typeof CLOSURE_REASONS)[number][0];
-export type ClosureSimRequest = Schemas["SimulateClosureBody"];
 export type ClosureImpact = Schemas["ClosureImpact"];
 export type DetourRoad = Schemas["DetourRoad"];
 export type ClosureSuggestion = Schemas["EventSuggestion"];
 export type Pressure = DetourRoad["pressure"];
-
-/** One closure row in the form: roads as typed ("Persiaran X" or "X between A and B"). */
-export interface ClosureRow {
-  roads: string;
-  day: string; // YYYY-MM-DD, Malaysia date
-  start: string; // HH:MM
-  end: string; // HH:MM
-}
-
-export const SITE_OFFSET = "+08:00"; // Malaysia: no daylight saving
-
-/** Validate the form and build the contract body, or say what to fix. */
-export function buildSimRequest(
-  name: string,
-  reason: ClosureReason,
-  rows: ClosureRow[],
-): { body: ClosureSimRequest } | { error: string } {
-  if (rows.length === 0) return { error: "Add at least one closure" };
-  const closures: ClosureSimRequest["closures"] = [];
-  for (const [i, r] of rows.entries()) {
-    const n = rows.length > 1 ? ` (closure ${i + 1})` : "";
-    const roads = r.roads
-      .split(/[;\n]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (roads.length === 0) return { error: `Name a road or a stretch${n}` };
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(r.day)) return { error: `Pick a day${n}` };
-    if (!/^\d{2}:\d{2}$/.test(r.start) || !/^\d{2}:\d{2}$/.test(r.end))
-      return { error: `Give a start and an end time${n}` };
-    if (r.end <= r.start) return { error: `The end must be after the start${n}` };
-    closures.push({
-      road_names: roads,
-      starts_at: `${r.day}T${r.start}:00${SITE_OFFSET}`,
-      ends_at: `${r.day}T${r.end}:00${SITE_OFFSET}`,
-    });
-  }
-  return { body: { name: name.trim() || "Closure", reason, closures } };
-}
 
 /** Detour pressure colours (managers only): legend green / amber / orange; the course is red. */
 export const PRESSURE_STYLE: Readonly<
@@ -157,39 +111,4 @@ export function closureFeatures(r: ClosureImpact, edges: readonly Edge[]) {
     ),
   ];
   return { type: "FeatureCollection" as const, features: feats.filter((f) => f !== null) };
-}
-
-export type SimOutcome =
-  | { ok: true; result: ClosureImpact }
-  | { ok: false; unavailable: boolean; message: string };
-
-/** POST /closures/simulate. A 404 or 405 means the backend has not landed: say so plainly. */
-export async function simulateClosures(
-  body: ClosureSimRequest,
-  fetcher: typeof fetch = fetch,
-): Promise<SimOutcome> {
-  let res: Response;
-  try {
-    res = await fetcher("/api/closures/simulate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return { ok: false, unavailable: false, message: "We could not reach the service." };
-  }
-  if (res.status === 404 || res.status === 405)
-    return {
-      ok: false,
-      unavailable: true,
-      message: "Closure simulation is not available on this server yet.",
-    };
-  if (!res.ok) {
-    const detail = await res
-      .json()
-      .then((j: { detail?: unknown }) => (typeof j.detail === "string" ? j.detail : null))
-      .catch(() => null);
-    return { ok: false, unavailable: false, message: detail ?? "The simulation could not run." };
-  }
-  return { ok: true, result: (await res.json()) as ClosureImpact };
 }

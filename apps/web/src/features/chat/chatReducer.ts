@@ -1,4 +1,5 @@
 import type { ChatEvent, components } from "@tl/api-client";
+import type { ClosureImpact } from "../closures/closureSimModel";
 import type { TripMeta } from "../day/tripModel";
 import type { JourneyPlan } from "../journey/timeline";
 
@@ -46,6 +47,8 @@ export interface AssistantMessage {
   trip?: TripMeta;
   /** The answer came with a playable trip (journey.play); `plan` is this answer's own trip, so its Watch button never plays another answer's. */
   journey?: { routeId: string; startTime: string; plan: JourneyPlan };
+  /** A management closure simulation (closure.show): the result card under the answer. */
+  closure?: ClosureImpact;
   /** done.model; "...+template" means the checked data was worded without the AI. */
   model?: string;
   done: boolean;
@@ -139,6 +142,7 @@ export function reduceIntent(m: AssistantMessage, i: SceneIntent): AssistantMess
       },
     };
   if (i.kind === "flood.set_level" && i.scenario_id) return { ...m, scenarioId: i.scenario_id };
+  if (i.kind === "closure.show" && i.closure) return { ...m, closure: i.closure };
   if (i.kind === "journey.play" && i.journey)
     return {
       ...m,

@@ -6,11 +6,13 @@ import {
   useLayer,
   useScenarioWater,
 } from "../../../../lib/api";
+import { closureFeatures } from "../../../closures/closureSimModel";
 import { useDevsim } from "../../../devsim/devsimStore";
 import { impactSummary } from "../../../flood/impactModel";
 import { gapsActive } from "../../../gaps/gapModel";
 import { useJourney } from "../../../journey/journeyStore";
 import { type LonLat, pointFeatures } from "../../geo";
+import { parseLayer } from "../../list/listModel";
 import { useSceneSettings } from "../../sceneSettingsStore";
 import { useScene } from "../../sceneStore";
 import type { Engine } from "../engine";
@@ -54,7 +56,15 @@ export function useOverlays({
   const pathStatus = useSceneSettings((s) => s.pathStatus);
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const whatIf = useScene((s) => s.whatIf);
-  const closureSim = useScene((s) => s.closureSim);
+  const closureResult = useScene((s) => s.closureSim);
+  // the closure answer's course and detours, drawn on the access layer's own edge geometry
+  const closureSim = useMemo(
+    () =>
+      closureResult && accessData
+        ? { geojson: closureFeatures(closureResult.result, parseLayer(accessData).edges) }
+        : null,
+    [closureResult, accessData],
+  );
   const gapsQ = useGaps(profile, gapsOn && accessVisible);
   // Flood tint, waste points, place markers and evacuation centres share the overlay pass.
   const floodLens = useScene((s) => s.lensVisible.flood);

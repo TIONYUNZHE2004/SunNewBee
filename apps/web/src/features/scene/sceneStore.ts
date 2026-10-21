@@ -2,6 +2,7 @@ import type { SceneIntent } from "@tl/api-client";
 import { create } from "zustand";
 import { useMode } from "../../app/modeStore";
 import { loadProfile, saveProfile } from "../../lib/profileStore";
+import type { ClosureImpact } from "../closures/closureSimModel";
 import { isDemoPreset } from "../demo/demoFlag";
 import { installDevsimHook } from "../devsim/devsimHook";
 import { useDevsim } from "../devsim/devsimStore";
@@ -61,7 +62,8 @@ export interface SceneState {
   /** A what-if diff (imagined, never a real route): before/after lines and imagined changes. */
   whatIf: { geojson: { type: string; features: unknown[] } } | null;
   /** T-026 closure simulation on the map (Management): course and detour lines, by pressure. */
-  closureSim: { geojson: { type: string; features: unknown[] } } | null;
+  /** The closure result a management answer showed (closure.show): map lines by pressure. */
+  closureSim: { result: ClosureImpact } | null;
   setClosureSim: (c: SceneState["closureSim"]) => void;
   /** Rising-river rollout playback: synthetic residents on the map (simulation, not a forecast). */
   rollout: { on: boolean; stage: number; playing: boolean };
@@ -247,6 +249,7 @@ export const useScene = create<SceneState>((set) => ({
           if (i.route_id && i.geojson) {
             next.route = { id: i.route_id, geojson: i.geojson as unknown as GeoJSON.LineString };
             next.whatIf = null; // a real route is never drawn under an older imagined diff
+            next.closureSim = null; // nor under an older closure simulation
             if (dropTrip) next.journey = null;
           }
           break;
@@ -255,6 +258,9 @@ export const useScene = create<SceneState>((set) => ({
             next.whatIf = {
               geojson: i.geojson as unknown as { type: string; features: unknown[] },
             };
+          break;
+        case "closure.show":
+          next.closureSim = i.closure ? { result: i.closure } : null;
           break;
         case "river.rollout":
           next.rollout = { on: true, stage: 0, playing: true };
