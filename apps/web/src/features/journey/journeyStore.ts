@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useDevsim } from "../devsim/devsimStore";
 import type { HeroClip, HeroContact } from "../scene/three/characters/hero";
 import type { FiledVr } from "./cardContent";
 import type { CameraProbe } from "./three/cameraProbe";
@@ -130,6 +131,9 @@ export const useJourney = create<JourneyStore>((set) => ({
         : { vrs: [...s.vrs, { element_id, attribute }] },
     ),
   load: (plan) => {
+    // one simulation at a time (every path: journey.play, Watch the trip): a trip stops a
+    // Development Simulation, so the two never share the engine's camera and clock slots
+    if (useDevsim.getState().status !== "idle") useDevsim.getState().stop();
     journeyHero.current = null;
     set({ plan, timeline: buildTimeline(plan), t: 0, playing: false });
   },

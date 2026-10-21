@@ -4,7 +4,8 @@ import { useDevsim } from "../../../devsim/devsimStore";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import type { Tier } from "../../shared/quality";
 import type { RoleUniforms } from "../assets/roleMaterial";
-import type { Engine } from "../engine";
+import type { CameraDriver, Engine } from "../engine";
+import { releaseSlots } from "../engineSlots";
 import type { LocalFrame } from "../frame";
 import { createFrameStats } from "../frameStats";
 import type { CrowdKit } from "../motion/crowdBake";
@@ -165,12 +166,14 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
     };
     applyFlow();
     // The devsim camera (§4.4 beats from StateAt.camera), clamped out of every building (Q2).
-    engine.setCameraDriver?.(() => {
+    const driver: CameraDriver = () => {
       const st = l.state();
       if (!st) return null;
       return devsimCamera(st, frame, l.geom, l.towerTopM(), engine.clearance?.() ?? null);
-    });
-    engine.setDecorClock?.(() => flowSeconds(useDevsim.getState().t, plan));
+    };
+    const clock = () => flowSeconds(useDevsim.getState().t, plan);
+    engine.setCameraDriver?.(driver);
+    engine.setDecorClock?.(clock);
     const unsub = useDevsim.subscribe((s, prev) => {
       if (s.t !== prev.t && s.plan === plan) {
         l.setT(s.t);
@@ -186,8 +189,8 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
       unsub();
       unprobe();
       if (w.__devsimLayer === l) delete w.__devsimLayer;
-      engine.setDecorClock?.(null);
-      engine.setCameraDriver?.(null);
+      // only its own slots: a trip that took them meanwhile keeps its camera and clock
+      releaseSlots(engine, { driver, clock });
       bus.getState().driver?.setFlow(null);
       offFrame();
       stats.dispose();

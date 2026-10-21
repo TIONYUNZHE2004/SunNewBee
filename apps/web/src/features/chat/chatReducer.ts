@@ -1,6 +1,5 @@
 import type { ChatEvent, components } from "@tl/api-client";
 import type { TripMeta } from "../day/tripModel";
-import { asDevsimIntent } from "../devsim/intent";
 import type { JourneyPlan } from "../journey/timeline";
 
 export type Citation = components["schemas"]["Citation"];
@@ -47,8 +46,6 @@ export interface AssistantMessage {
   trip?: TripMeta;
   /** The answer came with a playable trip (journey.play); `plan` is this answer's own trip, so its Watch button never plays another answer's. */
   journey?: { routeId: string; startTime: string; plan: JourneyPlan };
-  /** The answer started a Development Simulation (development.play); `inlined`: the server sent the plan. */
-  devsim?: { briefText: string; inlined: boolean };
   /** done.model; "...+template" means the checked data was worded without the AI. */
   model?: string;
   done: boolean;
@@ -151,8 +148,6 @@ export function reduceIntent(m: AssistantMessage, i: SceneIntent): AssistantMess
         plan: i.journey,
       },
     };
-  const dev = asDevsimIntent(i);
-  if (dev) return { ...m, devsim: { briefText: dev.brief_text, inlined: !!dev.plan } };
   if (i.kind === "day.trip" && i.geojson) {
     // a resident's own rehearsed trip: the strip shows the engine's departures (Cycle 20)
     const meta = (i.geojson as { meta?: TripMeta }).meta;

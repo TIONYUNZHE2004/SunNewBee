@@ -122,11 +122,9 @@ describe("intent wiring", () => {
   it("an inlined plan plays at once and drops a shown trip", () => {
     useJourney.setState({ plan: { route_id: "r" } as never });
     useScene.getState().applyIntent({ kind: "development.play", brief_text: "b", plan } as never);
-    expect(useScene.getState().devsim?.brief_text).toBe("b");
     expect(useJourney.getState().plan).toBeNull();
     expect(d()).toMatchObject({ status: "ready", playing: true, t: 0, briefText: "b" });
     useScene.getState().stopDevsim();
-    expect(useScene.getState().devsim).toBeNull();
     expect(d().status).toBe("idle");
   });
 
@@ -174,7 +172,60 @@ describe("intent wiring", () => {
       journey: { route_id: "r1", start_time: "09:00", events: [], spans: [], profile: "default" },
     } as never);
     expect(d().status).toBe("idle");
-    expect(useScene.getState().devsim).toBeNull();
+  });
+
+  it("a trip loaded any other way (Watch the trip) stops the simulation too", () => {
+    useScene.getState().applyIntent({ kind: "development.play", brief_text: "b", plan } as never);
+    useJourney.getState().load({
+      route_id: "r1",
+      start_time: "09:00",
+      events: [],
+      spans: [],
+      profile: "default",
+    } as never);
+    expect(d().status).toBe("idle");
+  });
+
+  it("a later answer's map intent hands the map back, even after the run has ended (I3)", () => {
+    const later = [
+      { kind: "camera.fly_to", center: [101.5, 3.1], range_m: 800 },
+      { kind: "place.focus", place_id: "p1" },
+      {
+        kind: "route.highlight",
+        route_id: "r9",
+        geojson: {
+          type: "LineString",
+          coordinates: [
+            [101.5, 3.1],
+            [101.51, 3.11],
+          ],
+        },
+      },
+      { kind: "flood.set_level", scenario_id: "stage_p1m" },
+    ];
+    for (const i of later) {
+      useScene.getState().applyIntent({ kind: "development.play", brief_text: "b", plan } as never);
+      d().seek(plan.total_s); // the end card, paused
+      d().pause();
+      useScene.getState().applyIntent(i as never);
+      expect(d().status, i.kind).toBe("idle");
+    }
+    // a map intent of the answer that started it (same answer id) leaves it running, in any order
+    useScene
+      .getState()
+      .applyIntent({ kind: "development.play", brief_text: "b", plan } as never, "a1");
+    useScene.getState().applyIntent(later[0] as never, "a1");
+    expect(d().status).toBe("ready");
+    useScene.getState().applyIntent(later[1] as never, "a2"); // the next answer's
+    expect(d().status).toBe("idle");
+    // a layer toggle (not a map move) leaves it running
+    useScene.getState().applyIntent({ kind: "development.play", brief_text: "b", plan } as never);
+    useScene.getState().applyIntent({ kind: "layer.toggle", lens: "access" } as never);
+    expect(d().status).toBe("ready");
+    // an intent without geometry moves nothing either
+    useScene.getState().applyIntent({ kind: "route.highlight", route_id: "r9" } as never);
+    useScene.getState().applyIntent({ kind: "camera.fly_to" } as never);
+    expect(d().status).toBe("ready");
   });
 });
 
@@ -221,7 +272,6 @@ describe("journey.play while the plan is still loading", () => {
       journey: { route_id: "r1", start_time: "09:00", events: [], spans: [], profile: "default" },
     } as never);
     expect(d().status).toBe("idle");
-    expect(useScene.getState().devsim).toBeNull();
     release(json(plan));
     await new Promise((r) => setTimeout(r, 0));
     expect(d()).toMatchObject({ status: "idle", plan: null, playing: false });

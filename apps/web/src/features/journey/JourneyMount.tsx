@@ -6,7 +6,8 @@ import { setTreeCut } from "../scene/three/assets/treeCut";
 import { VFOV_DEG } from "../scene/three/cameraRig";
 import { preloadHeroModel } from "../scene/three/characters/glbHero";
 import type { Clearance } from "../scene/three/clearance";
-import type { Engine } from "../scene/three/engine";
+import type { CameraDriver, Engine } from "../scene/three/engine";
+import { releaseSlots } from "../scene/three/engineSlots";
 import type { LocalFrame } from "../scene/three/frame";
 import {
   elementPoint,
@@ -244,13 +245,15 @@ export function JourneyMount({
   useEffect(() => {
     if (!engine?.setDecorClock || !plan) return;
     let started = false;
-    engine.setDecorClock(() => {
+    const clock = () => {
       const s = useJourney.getState();
       if (s.plan !== plan || !s.timeline) return null;
       if (!started && (s.playing || s.t > 0)) started = true;
       return started ? s.t : null;
-    });
-    return () => engine.setDecorClock?.(null);
+    };
+    engine.setDecorClock(clock);
+    // only its own clock: a Development Simulation that took the slot meanwhile keeps it
+    return () => releaseSlots(engine, { clock });
   }, [engine, plan]);
 
   const { viewport, miniMapRef } = useMapInsets(hostRef, !!plan && !!engine, () =>
@@ -365,7 +368,7 @@ export function JourneyMount({
     });
     // Each frame: the journey camera, then the cutaway around her for the camera that will draw,
     // and (following her) the decorative tree cut between the camera and her chest.
-    engine.setCameraDriver((now, current) => {
+    const driver: CameraDriver = (now, current) => {
       const p = ctl.driver(now, current);
       const h = journeyHero.current;
       setCut(
@@ -385,7 +388,8 @@ export function JourneyMount({
         following && p && h ? { a: p.position, b: [h.x, HERO_CHEST_Y, h.z], c: el } : null,
       );
       return p;
-    });
+    };
+    engine.setCameraDriver(driver);
     // Without the engine's material patch hook (tests), building materials get the (inactive)
     // cutaway here, ahead of need.
     const patch = () => applyCutaway(engine.pickView().roots);
@@ -453,7 +457,7 @@ export function JourneyMount({
       clearInterval(patchTimer);
       setCut(NO_CUT);
       setTreeCut(null);
-      engine.setCameraDriver?.(null);
+      releaseSlots(engine, { driver }); // only its own: devsim may hold the slot by now
       engine.setFocusPoint?.(null);
       journeyCamera.current = null;
       if (sceneRef.current === scene) sceneRef.current = null;

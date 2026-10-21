@@ -87,7 +87,7 @@ export function useChatStream() {
             }
             if (ev.type === "scene.intent") {
               const { intent } = ev;
-              useScene.getState().applyIntent(intent);
+              useScene.getState().applyIntent(intent, aid);
               patch(aid, (m) => reduceIntent(m, intent));
             }
             if (ev.type === "verification.requested") {

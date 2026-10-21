@@ -187,6 +187,11 @@ export interface Engine {
    */
   setDecorClock?(c: (() => number | null) | null): void;
   /**
+   * Removes `c` only if it is still the decorative clock: a stale cleanup (journey and devsim share
+   * the one slot) never clears another owner's clock.
+   */
+  releaseDecorClock?(c: () => number | null): void;
+  /**
    * A material patch run on every layer before it is compiled or first drawn (the city, the asset
    * instances, decor slots): e.g. the journey building cutaway, injected ahead of need so no
    * program is compiled twice. Runs at once on what is already drawn, then the scene is
@@ -227,6 +232,8 @@ export interface Engine {
    * or returns `animating` to get the next one.
    */
   setCameraDriver?(d: CameraDriver | null): void;
+  /** Removes `d` only if it is still the camera driver (see `releaseDecorClock`). */
+  releaseCameraDriver?(d: CameraDriver): void;
   /** True while the last frame's camera came from the driver. */
   cameraDriven?(): boolean;
   /**
@@ -1981,6 +1988,11 @@ function build(
       driver = d;
       requestRender();
     },
+    releaseCameraDriver(d) {
+      if (disposed || driver !== d) return;
+      driver = null;
+      requestRender();
+    },
     cameraDriven: () => driving,
     setOverlays(o) {
       if (disposed) return;
@@ -2078,6 +2090,11 @@ function build(
     setDecorClock(c) {
       if (disposed) return;
       decorClock = c;
+      requestRender();
+    },
+    releaseDecorClock(c) {
+      if (disposed || decorClock !== c) return;
+      decorClock = null;
       requestRender();
     },
     addMaterialPatch(patch) {
