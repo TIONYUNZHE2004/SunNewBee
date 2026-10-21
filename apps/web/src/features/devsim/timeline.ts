@@ -40,7 +40,7 @@ const MOVERS = 8;
 const LORRIES_AT = 33;
 /** Hoarding comes down over 1.6 s after Handover starts. */
 const HOARDING_OFF = HAND[0] + 1.6;
-/** The envelope flies for this long after bubble 5 ends; the feedback counter steps when it lands. */
+/** An envelope flies for this long after its bubble ends; the feedback counter steps when it lands. */
 export const ENVELOPE_FLIGHT_S = 1.2;
 /** The "What residents raised" card shows from here. */
 export const END_CARD_AT = 63.3;
@@ -396,10 +396,50 @@ export function cameraAt(t: number, plan: DevelopmentPlan): StateAt["camera"] {
 }
 
 // ---------- the frame ----------
-/** Bubble 5 (the school-run complaint): its end launches the envelope. */
+/** One end-card item's envelope: it flies from the speaker when `afterBubble` ends and the
+ * feedback counter steps when it lands. */
+export interface FeedbackBeat {
+  /** Index into `plan.end_card.items`. */
+  item: number;
+  /** The bubble whose end launches the envelope. */
+  afterBubble: number;
+  /** Launch and landing (screen s). */
+  t0: number;
+  t1: number;
+}
+
+/**
+ * Owner ruling (2026-10-21, after the product video): the Resident feedback counter counts what
+ * residents raised, so it ends equal to the end card's item count. Each end-card item files one
+ * envelope when its beat is spoken: the footpath item after Halim's bubble 1, the school-run item
+ * after Mei Ling's bubble 5, the park and mall item after Arjun's bubble 7 (the last bubble when
+ * the plan has no bubble 7). Derived from `plan.end_card.items`, so a plan without the detour item
+ * (spec §13) files one fewer envelope. Sorted by landing time.
+ */
+const beatsCache = new WeakMap<DevelopmentPlan, FeedbackBeat[]>();
+export function feedbackBeats(plan: DevelopmentPlan): FeedbackBeat[] {
+  const hit = beatsCache.get(plan);
+  if (hit) return hit;
+  const byN = (n: number) => plan.bubbles.find((b) => b.n === n);
+  const last = [...plan.bubbles].sort((a, b) => a.t1 - b.t1).at(-1);
+  const out: FeedbackBeat[] = [];
+  plan.end_card.items.forEach((it, item) => {
+    const n = /footpath/i.test(it.text) ? 1 : /school-run/i.test(it.text) ? 5 : 7;
+    const b = byN(n) ?? last;
+    if (!b) return;
+    // rounded to the ms, so the counter steps exactly at the landing second
+    const t1 = Math.round((b.t1 + ENVELOPE_FLIGHT_S) * 1000) / 1000;
+    out.push({ item, afterBubble: b.n, t0: b.t1, t1 });
+  });
+  out.sort((a, b) => a.t1 - b.t1);
+  beatsCache.set(plan, out);
+  return out;
+}
+
+/** Bubble 5 (the school-run complaint): its end launches that item's envelope. */
 export function envelopeWindow(plan: DevelopmentPlan): [number, number] | null {
-  const b = plan.bubbles.find((x) => x.n === 5);
-  return b ? [b.t1, b.t1 + ENVELOPE_FLIGHT_S] : null;
+  const b = feedbackBeats(plan).find((x) => x.afterBubble === 5);
+  return b ? [b.t0, b.t1] : null;
 }
 
 /** Everything one frame needs at screen second t (clamped to [0, total]). Deterministic. */
@@ -412,7 +452,8 @@ export function stateAt(tIn: number, plan: DevelopmentPlan): StateAt {
   const cons = t >= CON[0] && t < CON[1] - 0.4;
   const w = cons ? workAt(t) : 0;
   const lit = occupiedShare(t);
-  const env = envelopeWindow(plan);
+  const beats = feedbackBeats(plan);
+  const flying = beats.find((b) => t >= b.t0 && t < b.t1);
   return {
     act: actAt(t, plan.acts).name,
     simClock: simClockAt(t),
@@ -434,8 +475,10 @@ export function stateAt(tIn: number, plan: DevelopmentPlan): StateAt {
     bubbles: plan.bubbles
       .filter((b) => t >= b.t0 && t < b.t1)
       .map((b) => ({ n: b.n, who: b.who, text: b.text, tag: b.tag ?? null })),
-    feedbackCount: env && t >= env[1] ? 1 : 0,
-    envelope: env && t >= env[0] && t < env[1] ? { progress: ease(span(t, env[0], env[1])) } : null,
+    feedbackCount: beats.filter((b) => t >= b.t1).length,
+    envelope: flying
+      ? { progress: ease(span(t, flying.t0, flying.t1)), from: flying.afterBubble }
+      : null,
     camera: cameraAt(t, plan),
     flow: flowAt(t),
     endCard: t >= END_CARD_AT,

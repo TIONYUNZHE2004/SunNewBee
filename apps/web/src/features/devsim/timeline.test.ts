@@ -6,6 +6,7 @@ import {
   dayMinutes,
   dayness,
   END_CARD_AT,
+  feedbackBeats,
   floorsAt,
   stateAt,
   sunAt,
@@ -167,14 +168,48 @@ describe("occupancy, windows and feedback", () => {
     expect(stateAt(66, plan).occupancy).toBe(488);
   });
 
-  it("AC-F5: the envelope flies after bubble 5 and the feedback counter steps 0 -> 1 when it lands", () => {
-    const b5 = plan.bubbles.find((b) => b.n === 5);
-    const t1 = b5?.t1 ?? 0;
-    expect(stateAt(t1 - 0.1, plan)).toMatchObject({ feedbackCount: 0, envelope: null });
-    expect(stateAt(t1 + 0.6, plan).feedbackCount).toBe(0);
-    expect(stateAt(t1 + 0.6, plan).envelope?.progress).toBeGreaterThan(0);
-    expect(stateAt(t1 + 1.2, plan)).toMatchObject({ feedbackCount: 1, envelope: null });
-    expect(stateAt(66, plan).feedbackCount).toBe(1);
+  it("AC-F5 (owner ruling): one envelope per end-card item; the counter goes 0 -> 1 -> 2 -> 3", () => {
+    // item 1 after Halim's bubble 1, item 2 at 51.6 s (bubble 5), item 3 after Arjun's bubble 7
+    expect(feedbackBeats(plan).map((b) => [b.item, b.afterBubble, b.t1])).toEqual([
+      [0, 1, 22.6],
+      [1, 5, 51.6],
+      [2, 7, 62.8],
+    ]);
+    const count = (t: number) => stateAt(t, plan).feedbackCount;
+    expect(count(18)).toBe(0);
+    expect(count(21.3)).toBe(0);
+    expect(stateAt(22, plan).envelope).toMatchObject({ from: 1 });
+    expect(stateAt(22, plan).envelope?.progress).toBeGreaterThan(0);
+    expect(count(22)).toBe(0);
+    expect(count(22.6)).toBe(1);
+    expect(stateAt(23, plan).envelope).toBeNull();
+    expect(count(50.3)).toBe(1);
+    expect(stateAt(51, plan).envelope).toMatchObject({ from: 5 });
+    expect(count(51.6)).toBe(2);
+    expect(count(61.5)).toBe(2);
+    expect(stateAt(62.2, plan).envelope).toMatchObject({ from: 7 });
+    expect(count(62.8)).toBe(3);
+    // it ends equal to the end card's item count, which shows after the last envelope lands
+    expect(count(END_CARD_AT)).toBe(plan.end_card.items.length);
+    expect(count(66)).toBe(plan.end_card.items.length);
+    for (const b of feedbackBeats(plan)) expect(b.t1).toBeLessThan(END_CARD_AT);
+    // monotone: never steps back
+    let prev = 0;
+    for (const t of range(0, 66, 0.1)) {
+      expect(count(t)).toBeGreaterThanOrEqual(prev);
+      prev = count(t);
+    }
+  });
+
+  it("AC-F5: without the detour item (spec §13) the counter drops it too", () => {
+    const noDetour: DevelopmentPlan = {
+      ...plan,
+      end_card: { ...plan.end_card, items: plan.end_card.items.slice(1) },
+    };
+    expect(feedbackBeats(noDetour).map((b) => b.afterBubble)).toEqual([5, 7]);
+    expect(stateAt(30, noDetour).feedbackCount).toBe(0);
+    expect(stateAt(51.6, noDetour).feedbackCount).toBe(1);
+    expect(stateAt(66, noDetour).feedbackCount).toBe(2);
   });
 
   it("hoarding stands through Construction and comes down early in Handover; lorries in Handover", () => {

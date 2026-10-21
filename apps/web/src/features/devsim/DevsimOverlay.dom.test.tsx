@@ -110,19 +110,34 @@ describe("DevsimOverlay", () => {
     expect(Number.parseFloat(b.style.top)).toBeGreaterThanOrEqual(120);
   });
 
-  it("AC-F5: the envelope flies and Resident feedback goes 0 -> 1", () => {
+  it("AC-F5 (owner ruling): an envelope per end-card item; Resident feedback goes 0 -> 1 -> 2 -> 3", () => {
     d().start(plan, "b");
     render(<DevsimOverlay viewport={vp} />);
+    const count = () => screen.getByTestId("devsim-feedback-count");
+    at(20);
+    expect(count()).toHaveTextContent("0");
+    at(22);
+    expect(screen.getByTestId("devsim-envelope")).toBeInTheDocument();
+    expect(count()).toHaveTextContent("0");
+    at(23);
+    expect(screen.queryByTestId("devsim-envelope")).toBeNull();
+    expect(count()).toHaveTextContent("1");
     at(49);
-    expect(screen.getByTestId("devsim-feedback-count")).toHaveTextContent("0");
+    expect(count()).toHaveTextContent("1");
     expect(screen.queryByTestId("devsim-envelope")).toBeNull();
     at(51);
     expect(screen.getByTestId("devsim-envelope")).toBeInTheDocument();
-    expect(screen.getByTestId("devsim-feedback-count")).toHaveTextContent("0");
+    expect(count()).toHaveTextContent("1");
     at(52);
     expect(screen.queryByTestId("devsim-envelope")).toBeNull();
-    expect(screen.getByTestId("devsim-feedback-count")).toHaveTextContent("1");
-    expect(screen.getByRole("status", { name: "Resident feedback: 1" })).toBeInTheDocument();
+    expect(count()).toHaveTextContent("2");
+    at(62.2);
+    expect(screen.getByTestId("devsim-envelope")).toBeInTheDocument();
+    at(66);
+    expect(count()).toHaveTextContent("3");
+    expect(screen.getByRole("status", { name: "Resident feedback: 3" })).toBeInTheDocument();
+    // the counter equals the end card's items
+    expect(screen.getAllByTestId("devsim-end-item")).toHaveLength(3);
   });
 
   it("the end card copy equals spec §4.5", () => {

@@ -153,8 +153,10 @@ export interface StateAt {
   lorries: boolean;
   movers: { queueProgress: number };
   bubbles: { n: number; who: string; text: string; tag?: string | null }[];
+  /** End-card items filed so far (owner ruling: ends equal to `plan.end_card.items.length`). */
   feedbackCount: number;
-  envelope: { progress: number } | null;
+  /** The envelope in flight: progress 0..1 and the bubble (n) whose speaker sent it. */
+  envelope: { progress: number; from?: number } | null;
   /** target: [lon, lat, h]; offset: [east, north, up] metres. */
   camera: { target: [number, number, number]; offset: [number, number, number] };
   flow: { timeScale: number; peopleDensity: number; vehicleDensity: number };
