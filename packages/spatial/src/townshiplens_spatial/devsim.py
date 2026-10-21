@@ -779,8 +779,9 @@ def month_keys(schedule: Schedule) -> tuple[list[tuple[float, float]], str]:
     """Playback second -> fractional project month (ruling R25; the prototype's `KEYS` shape).
 
     Baseline (the spec §6.3 windows): months 0 -> Hari Raya over 3-11 s, a hold at the Raya date
-    11-13 s, on to the monsoon set piece's first month by 18.5 s, slowly through it to 23 s, and
-    the handover point (the handover date, inside the last month) at 27 s, held to the end. When
+    11-13 s, on to the monsoon set piece's first month by 18.5 s, slowly through it to 23 s
+    (ending at least a month before the handover point, so 23-27 s still advances), and the
+    handover point (the handover date, inside the last month) at 27 s, held to the end. When
     the data puts Hari Raya after the monsoon stretch starts, "data-order": months advance over
     3-27 s with monsoon months played slower and the 2 s Raya hold at the Raya date. The same
     rules as the web's `schedulePlayback.buildPlayback`."""
@@ -799,7 +800,12 @@ def month_keys(schedule: Schedule) -> tuple[list[tuple[float, float]], str]:
         if raya is not None:
             keys += [(RAYA_HOLD[0], raya), (RAYA_HOLD[1], raya)]
         if mon is not None:
-            keys += [(MONSOON_SLOW[0], mon[0]), (MONSOON_SLOW[1], min(mon[1], h))]
+            # Minor (fix round 1): the slow stretch ends at least a month before the handover
+            # point, so 23-27 s still advances and the handover month is reached at 27 s.
+            end = min(mon[1], h - 1)
+            if end <= mon[0]:
+                end = (mon[0] + h) / 2
+            keys += [(MONSOON_SLOW[0], mon[0]), (MONSOON_SLOW[1], end)]
         return out(keys + tail), "baseline"
     hold = 0.0 if raya is None else RAYA_HOLD[1] - RAYA_HOLD[0]
 
@@ -879,6 +885,15 @@ def _wet_range(mp: MonsoonSetPiece) -> list[int]:
     return sorted({min(wet), max(wet)})
 
 
+def _set_piece_stage(sch: Schedule, mp: MonsoonSetPiece) -> str:
+    """The phase the monsoon set piece starts in ("fit-out" for the R25 band on Elmina)."""
+    first = mp.months[0].month
+    for ph in sch.phases:
+        if ph.start[:7] <= first < ph.end[:7]:
+            return ph.name
+    return sch.phases[-1].name
+
+
 def _monsoon_lost_a_month(mp: MonsoonSetPiece) -> int:
     lost = [m.days_lost for m in mp.months if m.days_lost > 0]
     return _round_min(sum(lost) / len(lost)) if lost else 0
@@ -904,10 +919,10 @@ def _banners(site: DevelopmentSite, sch: Schedule) -> list[Banner]:
                 f"Rain stops the crane on wet days · {wet} wet days a month"
                 f" · ~{per} days lost a month"
             )
-        else:  # the staged band falls in fit-out: rain is only counted against structure work
+        else:  # ruling R36: the staged band falls outside structure work (no days lost now)
             text = (
-                f"{wet} wet days a month (typical) · rain cost the structure work "
-                f"~{sch.rain_days_lost} days in all"
+                f"{wet} wet days a month (typical) · {_set_piece_stage(sch, mp)} stage: rain adds"
+                f" no schedule days now · structure work lost ~{sch.rain_days_lost} days to rain"
             )
         out.append(
             Banner(
@@ -948,12 +963,11 @@ def _brief(impact, lorry, sch: Schedule, flood, matrix) -> ImpactBrief:
     if impact.best_side is not None:
         if len(impact.options) > 1:
             best = next(o for o in impact.options if o.side == impact.best_side)
+            label = "Best hoarding side"
             value = f"{best.side} ({best.homes_2min_plus} homes {EXTRA_MIN}+ min longer)"
-        else:
-            value = f"{impact.best_side} (only side hoarded)"
-        side_row = BriefRow(
-            key="best_side", label="Best hoarding side", value=value, badges=["ROUTE"]
-        )
+        else:  # one hoarded side: nothing to compare
+            label, value = "Hoarded side", impact.best_side
+        side_row = BriefRow(key="best_side", label=label, value=value, badges=["ROUTE"])
     if lorry.sensitive:
         s = lorry.sensitive[0]
         value = s.name + (f" · {lorry.school_run_note}" if s.type in SCHOOLISH else "")
@@ -1150,8 +1164,12 @@ def _impact_errors(plan: DevelopmentPlan) -> list[str]:
         errs.append("impact: max_extra_min is not the largest extra walk")
     if im.wheelchair_links_cut != sum(1 for h in hs if h.wheelchair_cut):
         errs.append("impact: wheelchair_links_cut does not count the homes")
-    if im.best_side is not None and im.best_side not in {o.side for o in im.options}:
-        errs.append("impact: best_side is not an option")
+    if im.options:
+        best = min(im.options, key=lambda o: (o.homes_2min_plus, o.max_extra_min, o.side))
+        if im.best_side != best.side:
+            errs.append("impact: best_side is not the option with the fewest homes 2+ min longer")
+    elif im.best_side is not None:
+        errs.append("impact: best_side without options")
     if (d := plan.facts.detour) is not None:
         row = next((h for h in hs if h.home_id == d.home_id), None)
         if row is None or row.extra_min != d.detour_min:

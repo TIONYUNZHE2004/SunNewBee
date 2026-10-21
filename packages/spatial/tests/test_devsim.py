@@ -280,7 +280,10 @@ def test_month_keys_follow_the_spec_windows():  # ruling R25, spec §6.3
     mon0 = s.monsoon_set_piece.months[0].month_index
     assert plan.month_keys[0] == (0.0, 0.0) and keys[3.0] == 0
     assert keys[11.0] == keys[13.0] == round(raya, 4)
-    assert keys[18.5] == mon0 and keys[23.0] == round(h, 4)
+    assert keys[18.5] == mon0
+    # the slow stretch ends at least a month before handover, so 23-27 s still advances
+    assert keys[23.0] == round(min(s.monsoon_set_piece.months[-1].month_index + 1, h - 1), 4)
+    assert keys[23.0] <= keys[27.0] - 1
     assert keys[27.0] == keys[45.0] == round(h, 4)
     assert int(keys[27.0]) == s.months_total - 1  # the handover month
     assert [t for t, _ in plan.month_keys] == sorted(t for t, _ in plan.month_keys)
@@ -327,6 +330,8 @@ def test_brief_sections_and_copy():  # spec §6.2 Impact Brief, rulings R16, R17
         f"{im.homes_2min_plus} of {im.homes_considered} · up to +{im.max_extra_min} min"
     )
     assert rows["wheelchair_links_cut"].value == f"{im.wheelchair_links_cut} homes"
+    if len(im.options) == 1:  # fix round 1: one side is "Hoarded side", not a comparison
+        assert (rows["best_side"].label, rows["best_side"].value) == ("Hoarded side", im.best_side)
     assert rows["duration"].badges == ["ESTIMATE"] and rows["cost"].badges == ["ESTIMATE"]
     assert rows["cost"].value == f"RM {round(sch.cost_total_rm / 1e6)} M"
     assert rows["days_lost"].value == (
@@ -369,7 +374,11 @@ def test_monsoon_and_raya_banners_quote_the_schedule():  # spec §6.2 set pieces
     wet = sorted({m.wet_days for m in s.monsoon_set_piece.months})
     assert f"{wet[0]}–{wet[-1]} wet days a month" in mon.text
     assert all(m.days_lost == 0 for m in s.monsoon_set_piece.months)  # a fit-out band
-    assert f"~{s.rain_days_lost} days in all" in mon.text
+    # Ruling R36: a band outside structure work says it adds no schedule days now.
+    assert mon.text == (
+        f"{wet[0]}–{wet[-1]} wet days a month (typical) · fit-out stage: rain adds no schedule"
+        f" days now · structure work lost ~{s.rain_days_lost} days to rain"
+    )
     assert hand.title == f"Handover · keys to ~{plan.site.homes} homes"
     assert all(b.badges == ["CALENDAR", "ESTIMATE"] for b in (raya, mon))
 
@@ -608,6 +617,13 @@ def _mutations():
     def sources(p):
         p.estimate_sources = p.estimate_sources[1:]
 
+    def best_side(p):
+        worse = p.impact.options[0].model_copy(
+            update={"side": "south-west", "homes_2min_plus": p.impact.homes_2min_plus + 5}
+        )
+        p.impact.options.append(worse)
+        p.impact.best_side = "south-west"
+
     return [
         impact_count,
         impact_max,
@@ -623,6 +639,7 @@ def _mutations():
         resident_walk,
         neighbour,
         sources,
+        best_side,
     ]
 
 
