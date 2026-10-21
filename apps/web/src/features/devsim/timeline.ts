@@ -223,12 +223,14 @@ export const CAM_KEYS: readonly CamKey[] = [
   },
   { t: 10.4, targetAnchor: "site", h: 26, offset: [-130, -180, 95] },
   { t: 15.4, targetAnchor: "site", h: 34, offset: [-145, -200, 105] },
-  // 3D integration: aimed further along Halim's walk than the prototype (0.55 / 0.6) so he stays
-  // inside the frame on the Elmina plan (AC-C1: he sits right of centre, as in the prototype)
-  { t: 17.2, targetAnchor: { lerp: ["site", "halimMid", 0.72] }, h: 12, offset: [-10, -175, 95] },
-  { t: 21.6, targetAnchor: { lerp: ["site", "halimMid", 0.76] }, h: 10, offset: [0, -150, 82] },
-  { t: 22.8, targetAnchor: "farid", h: 6, offset: [-18, 48, 20] },
-  { t: 26.4, targetAnchor: "farid", h: 7, offset: [-14, 42, 18] },
+  // Gate 2 fix: the tower (left third) and Halim on his detour (right) in one frame, as the
+  // prototype frames them: aimed between them and pulled back from the south-south-west
+  { t: 17.2, targetAnchor: { lerp: ["site", "halimMid", 0.5] }, h: 12, offset: [-20, -200, 105] },
+  { t: 21.6, targetAnchor: { lerp: ["site", "halimMid", 0.55] }, h: 10, offset: [-15, -180, 94] },
+  // Gate 2 fix: from the south-west, over the yard, so no street tree stands between the camera
+  // and Farid (the prototype's north-west view looks through a canopy on the Elmina plan)
+  { t: 22.8, targetAnchor: "farid", h: 4, offset: [-32, -30, 22] },
+  { t: 26.4, targetAnchor: "farid", h: 4, offset: [-28, -27, 19] },
   { t: 28, targetAnchor: "site", h: 45, offset: [-150, -240, 130] },
   { t: 32, targetAnchor: "site", h: 46, offset: [-165, -255, 138] },
   { t: 34.6, targetAnchor: { path: 6 }, h: 3, offset: { entrance: [26, 30, 17] } },
@@ -249,10 +251,12 @@ export const CAM_KEYS: readonly CamKey[] = [
     h: -1.5,
     offset: { entrance: [-22, 19, 21] },
   },
-  { t: 52.8, targetAnchor: "park", h: 2, offset: [-44, -48, 30] },
-  { t: 57, targetAnchor: "park", h: 2, offset: [-38, -42, 26] },
-  { t: 58, targetAnchor: "mall", h: 3, offset: [-50, -40, 30] },
-  { t: 62.4, targetAnchor: "mall", h: 3, offset: [-44, -34, 26] },
+  // Gate 2 fix: the prototype's framing a third closer, so Zainab and Arjun read at the app's
+  // (smaller than the prototype's) people scale
+  { t: 52.8, targetAnchor: "park", h: 1.5, offset: [-30, -33, 21] },
+  { t: 57, targetAnchor: "park", h: 1.5, offset: [-26, -29, 18] },
+  { t: 58, targetAnchor: "mall", h: 2, offset: [-33, -27, 20] },
+  { t: 62.4, targetAnchor: "mall", h: 2, offset: [-29, -23, 17] },
   // 3D integration: 0.72 (prototype 0.9) keeps the tower where the prototype frames it (left third)
   { t: 63.6, targetAnchor: { lerp: ["site", "mall", 0.72] }, h: 20, offset: [-120, -470, 300] },
   { t: 66, targetAnchor: { lerp: ["site", "mall", 0.72] }, h: 20, offset: [-130, -490, 310] },

@@ -11,6 +11,8 @@ export interface DevsimAnchorsState {
   speaker: Rect | null;
   speakerHead: [number, number] | null;
   labelPoint: [number, number] | null;
+  /** The parcel's centre on screen during the Brief overview (the site label hangs above it). */
+  siteLabel: [number, number] | null;
   /**
    * The other Spotlight Residents drawn now (rect and head point), so a bubble keeps off the
    * listener too (e.g. Halim greeting Mei Ling). Empty when none.
@@ -26,6 +28,7 @@ const none = {
   speaker: null,
   speakerHead: null,
   labelPoint: null,
+  siteLabel: null,
   others: [],
 };
 

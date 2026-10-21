@@ -18,8 +18,8 @@ export const WORKERS = 9;
 const MOVE_IN = 36.4;
 const MOVE_GAP = 0.8;
 const SLOT_M = 2.3;
-/** Name tags show only within this camera distance (prototype). */
-const TAG_RANGE_M = 220;
+/** Name tags show only within this camera distance (gate 2: wide enough for Halim at the 19 s beat). */
+const TAG_RANGE_M = 320;
 
 /** Peak opacity of the speaker's backlight glow at full night (Q3: the speaker reads at dusk and night). */
 const GLOW_MAX = 1;

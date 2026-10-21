@@ -341,6 +341,34 @@ export function createSite(o: SiteOpts): DevsimPart {
   const detourMesh =
     g.detour.length >= 2 ? strip(g.detour, DEVSIM_COLOURS.detourStrip, 2.2, 0.32) : null;
 
+  // the lot marker for the Brief overview (prototype: the outlined parcel under its label): a
+  // tinted patch and a dashed outline where the yard will stand; gone once the hoarding is up
+  const lot = new THREE.Group();
+  lot.name = "devsim-lot";
+  group.add(lot);
+  {
+    const shape = new THREE.Shape(ring.map(([x, z]) => new THREE.Vector2(x, -z)));
+    const patch = new THREE.Mesh(
+      own(new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2).translate(0, 0.25, 0)),
+      own(
+        new THREE.MeshStandardMaterial({
+          color: DEVSIM_COLOURS.kerbSand,
+          roughness: 0.9,
+          transparent: true,
+          opacity: 0.75,
+          side: THREE.DoubleSide,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -2,
+        }),
+      ),
+    );
+    patch.raycast = NOOP;
+    patch.receiveShadow = true;
+    lot.add(patch);
+    lot.add(strip([...ring, ring[0] as XZ], DEVSIM_COLOURS.hoardingNavy, 3, 0.3));
+  }
+
   // vehicles: lorries at Handover, the school-run queue in Daily Life
   const vPal = kitPalettes(o.manifest, "vehicles");
   const vkit = (
@@ -409,6 +437,7 @@ export function createSite(o: SiteOpts): DevsimPart {
     vehicles: () => vehiclePts,
     update({ s, t, night }: DevsimFrame) {
       const cons = s.act === "Construction" && s.hoarding;
+      lot.visible = t < 4;
       const fade = ease(span(t, 31.6, 32.4)); // the kit sinks away as Handover begins
       yard.visible = s.hoarding && fade < 1;
       yard.position.y = -3 * fade;

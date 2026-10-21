@@ -4,7 +4,7 @@ import { InSlot } from "../map-ui/mapSlots";
 import { registerDomProbe, useDevsimAnchors } from "./anchors";
 import { Bubble, type BubbleView } from "./Bubble";
 import { BUBBLE_BELOW, BUBBLE_ESTIMATE, placeBubbleBox, speakerKeepClear } from "./bubblePlacement";
-import { ERROR_COPY, LOADING_COPY } from "./copy";
+import { ERROR_COPY, LOADING_COPY, SITE_LABEL } from "./copy";
 import { DevsimHud } from "./DevsimHud";
 import { useDevsim } from "./devsimStore";
 import { EndCard } from "./EndCard";
@@ -116,6 +116,7 @@ export function DevsimOverlay({
   const speakerHead = useDevsimAnchors((s) => s.speakerHead);
   const speakerRect = useDevsimAnchors((s) => s.speaker);
   const others = useDevsimAnchors((s) => s.others);
+  const siteLabel = useDevsimAnchors((s) => s.siteLabel);
   const labelPoint = useDevsimAnchors((s) => s.labelPoint ?? s.towerTop);
   const badgeRef = useRef<HTMLDivElement>(null);
   const ownStage = useRef<HTMLDivElement>(null);
@@ -164,6 +165,22 @@ export function DevsimOverlay({
         </div>
       </InSlot>
       {anchoredLabel && <HypotheticalLabel text={plan.labels.hypothetical} at={anchoredLabel} />}
+      {!showLabel && siteLabel && (
+        <p
+          role="note"
+          data-testid="devsim-site-label"
+          style={{
+            left: `${Math.max(150, Math.min(viewport.w - 150, siteLabel[0]))}px`,
+            top: `${Math.max((viewport.top ?? 0) + 60, Math.min(viewport.h - BELOW, siteLabel[1] - 12))}px`,
+          }}
+          className="pointer-events-none absolute z-20 m-0 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-xl border-2 border-[#2f7fd1] bg-surface px-3 py-1.5 text-sm font-semibold text-fg shadow-[var(--c-shadow)]"
+        >
+          <span className="block text-[10px] uppercase tracking-wide text-fg-soft">
+            {SITE_LABEL.source}
+          </span>
+          <span className="block">{SITE_LABEL.text}</span>
+        </p>
+      )}
       <div className="pointer-events-none absolute right-[calc(var(--panel-w,0px)+1rem)] top-4 z-20 *:pointer-events-auto">
         <FeedbackBadge ref={badgeRef} count={st.feedbackCount} />
       </div>

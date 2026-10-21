@@ -84,6 +84,8 @@ const PROBE_MAX = 20000;
 const CUT_RANGE_M = 260;
 /** It stops this far short of the speaker's chest (cut radius 1.8 m, so ~1 m clear of them). */
 const CUT_STOP_M = 2.8;
+/** The Brief's site label shows until Construction starts (screen s). */
+const SITE_LABEL_UNTIL = 4;
 /** The hypothetical label's box (FE `HypotheticalLabel`, about 300 x 52 px) and a margin. */
 const LABEL_W = 300;
 const LABEL_H = 52;
@@ -158,6 +160,10 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
     cutOn = true;
   };
   let disposed = false;
+  const siteCentre = (camera: THREE.Camera, size: readonly [number, number]) =>
+    toScreen(camera, size, geom.centre[0], 1, geom.centre[1]);
+  const onStageOrNull = (p: [number, number] | null, size: readonly [number, number]) =>
+    onStage(p, size) ? p : null;
 
   const apply = () => {
     if (!s) return;
@@ -283,6 +289,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
           speaker,
           speakerHead: speaker ? head : null,
           labelPoint: labelFits(topPt, size) ? topPt : null,
+          siteLabel: t < SITE_LABEL_UNTIL ? onStageOrNull(siteCentre(camera, size), size) : null,
           others,
         });
       // the probe is computed on demand from this frame's camera (`probe()`)

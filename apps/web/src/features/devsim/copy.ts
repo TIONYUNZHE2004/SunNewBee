@@ -17,6 +17,15 @@ export function splitLabel(label: string): { title: string; detail: string } {
     : { title: label.slice(0, i), detail: label.slice(i + 3) };
 }
 
+/**
+ * The Brief overview's site label (prototype `parcelTag`): the parcel is OSM landuse=construction
+ * beside Lakeside Mall (`plan.site.parcel_id`, spec D3), so it is a mapped fact with its source.
+ */
+export const SITE_LABEL = {
+  source: "OpenStreetMap",
+  text: "Construction lot beside Lakeside Mall",
+};
+
 /** Copy when the simulation cannot play. */
 export const LOADING_COPY = "Preparing the development simulation…";
 export const ERROR_COPY = "The development simulation could not be loaded. Try again.";
