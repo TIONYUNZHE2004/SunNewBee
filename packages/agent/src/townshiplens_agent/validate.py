@@ -630,6 +630,7 @@ def draft_errors(text: str, rec: TurnRecord) -> list[str]:
         *affected_errors(ans, rec),
         *flood_impact_errors(ans, rec),
         *event_errors(ans, rec),
+        *closure_claim_errors(ans, rec),
         *journey_errors(ans, rec),
     ]
 
@@ -808,6 +809,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += affected_errors(ans, rec)
     errs += flood_impact_errors(ans, rec)
     errs += event_errors(ans, rec)
+    errs += closure_claim_errors(ans, rec)
     errs += event_coverage_errors(ans, rec)
     errs += flood_naming_errors(ans, rec)
     errs += measurement_errors(ans, rec)
@@ -1611,10 +1613,90 @@ def event_coverage_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             f"Name the top detour road ({top[0]}) with its number of rerouted sample trips."
         )
     if last.get("suggestions") and not re.search(
-        r"suggest|marshal|sign|crossing point|reschedul|shift the start|cadang|penjaga|建议", full
+        r"suggest|marshal|sign|crossing point|reschedul|shift the start|cadang|syor|pertimbang"
+        r"|penjaga|建议|可考虑|考虑|措施|指示牌|路标|疏导|过街点",
+        full,
     ):
         errs.append("Give the simulation's suggestions, each with the number it comes from.")
+    top_band = (last.get("detour_roads") or [{}])[0].get("pressure")
+    if top_band and not re.search(rf"\b{top_band}\b|{_BAND_WORDS[top_band]}", full):
+        errs.append(
+            f"Give the top detour road's detour pressure band ({top_band}), as the tool "
+            "returned it."
+        )
     return errs
+
+
+# T-026 detour pressure (managers only): the band words per language, and the claim words.
+_BAND_WORDS = {"low": "rendah|低", "medium": "sederhana|中等|中", "high": "tinggi|高"}
+# 中文 band words only next to 压力 ("高压力", "压力为高"): a bare 中 or 高 is in many words.
+_BAND = re.compile(
+    r"\b(low|medium|high)\b|\b(rendah|sederhana|tinggi)\b"
+    r"|(低|中等|中|高)(?:度)?(?:的)?(?:绕行)?压力|压力(?:等级)?(?:为|是|：|:)?\s*(低|中等|中|高)",
+    re.IGNORECASE,
+)
+_BAND_OF = {
+    **{w: b for b, ws in _BAND_WORDS.items() for w in ws.split("|")},
+    "low": "low",
+    "medium": "medium",
+    "high": "high",
+}
+_PRESSURE = re.compile(r"pressure|tekanan|压力", re.IGNORECASE)
+_RESIDENT_PRESSURE = re.compile(r"detour pressure|tekanan lencongan|绕行压力", re.IGNORECASE)
+_VEHICLES = re.compile(
+    r"(?<![\d.,])\d[\d,]*\s+(?:vehicles?|cars?|kenderaan|kereta)\b|\d+\s*辆", re.IGNORECASE
+)
+# Suggestion words -> the kind of suggestion they claim (T-025/T-026 contract kinds).
+_SUGGESTION_KINDS = (
+    ("signpost", r"signpost|papan tanda arah|指示牌|路标"),
+    ("marshal", r"marshal|penjaga lalu lintas|疏导员|交通协管"),
+    ("crossing_point", r"crossing point|titik lintasan|过街点"),
+    ("two_way", r"two-way|dua hala|双向"),
+    ("split", r"\bsplit\b|bahagikan|分段"),
+    ("reschedule", r"reschedul|shift the (?:start )?time|tukar masa|调整时间|改时间"),
+)
+
+
+def closure_claim_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """T-026: detour pressure only for managers and only as the tool banded each road; no
+    vehicle counts; a suggestion only of a kind the tool returned."""
+    if ans.answer_status == "cannot_answer":
+        return []
+    text = " ".join([ans.summary, *ans.steps, *ans.caveats])
+    errs: list[str] = []
+    if rec.panel != "management" and _RESIDENT_PRESSURE.search(text):
+        errs.append("Detour pressure is for managers only: never show it in a resident answer.")
+    if (rec.events or rec.route_closures) and _VEHICLES.search(text):
+        errs.append("There are no traffic counts: never give numbers of vehicles or cars.")
+    if not rec.events:
+        if _RESIDENT_PRESSURE.search(text):
+            errs.append("No detour pressure was computed this turn: do not state one.")
+        return errs
+    roads = {r["name"]: r.get("pressure") for e in rec.events for r in e.get("detour_roads") or []}
+    bands = {b for b in roads.values() if b}
+    for sent in _sentences(text):
+        if not _PRESSURE.search(sent):
+            continue
+        said = {_BAND_OF[next(g for g in m.groups() if g).lower()] for m in _BAND.finditer(sent)}
+        if not said:
+            continue
+        if not bands:
+            errs.append("No detour pressure was computed this turn: do not state one.")
+            break
+        named = {roads[n] for n in roads if n and n.lower() in sent.lower() and roads[n]}
+        if bad := sorted(said - (named or bands)):
+            errs.append(
+                f"Detour pressure {bad} is not what the tool returned for that road: quote each "
+                "road's pressure band as given."
+            )
+    kinds = {s.get("kind") for e in rec.events for s in e.get("suggestions") or []}
+    claimed = {k for k, pat in _SUGGESTION_KINDS if re.search(pat, text, re.IGNORECASE)}
+    # "marshals or signs" is how the marshal suggestion reads; a returned kind is always fine
+    if bad := sorted(claimed - kinds):
+        errs.append(
+            f"Suggestions {bad} were not returned by the simulation: give only its suggestions."
+        )
+    return list(dict.fromkeys(errs))
 
 
 def _plan_numbers(rec: TurnRecord) -> set[int]:
@@ -2038,6 +2120,12 @@ _ISSUES = (
     ("never predict jams, queues or crowds", "predicted traffic jams or crowds"),
     ("Name the top detour road", "left out the detour roads"),
     ("Give the simulation's suggestions", "left out the suggestions"),
+    ("Detour pressure is for managers only", "showed detour pressure to a resident"),
+    ("never give numbers of vehicles", "gave vehicle counts"),
+    ("No detour pressure was computed", "stated a detour pressure no tool gave"),
+    ("is not what the tool returned for that road", "changed a road's detour pressure band"),
+    ("were not returned by the simulation", "suggested something the simulation did not"),
+    ("top detour road's detour pressure band", "left out the detour pressure band"),
     ("places from cut_off_places", "counted cut-off places without naming them"),
     ("places from flooded_places", "counted flooded places without naming them"),
     ("must be called a rehearsal", "did not say it is a rehearsal of synthetic residents"),
