@@ -374,6 +374,15 @@ A Hypothetical Development (about 30 storeys, 500 homes, not an SDP project; ADR
 - `DevsimUnavailable`: the world cannot host the simulation (no parcel, places or streets, as in the tiny fixture). The API returns 404 and the tool returns `available: false`.
 - Dump a plan: `python -m townshiplens_spatial.devsim --dump <path>` from the repo root (`--world` picks the data directory).
 
+Impact facts for the demo-polish building timeline (not yet part of `DevelopmentPlan`; each takes the world and site and is cached per world version):
+
+- `devsim_impact.hoarding_impact(world, site)`: every residential building within 500 m, walking to Lakeside Mall (mall or its Car Park B), Urban Park and the nearest school and clinic before and after the hoarding closes the frontage paths. It reports homes 2+ min longer, the longest extra, wheelchair links cut, one option per hoarded side and `best_side`. It uses one search per target (`walk_tree`, the routing engine's edge costs) and takes about 1.5 s on Elmina.
+- `devsim_impact.lorry_route(world, site)`: the `drive` route from the nearest major road to the site gate, with the schools, kindergartens, parks and playgrounds within 50 m. The school-run time is a labelled assumption.
+- `devsim_impact.flood_exposure(world, site)`: the lowest river-rise scenario the world has at which the entrance's walk to the main road crosses `likely_flooded`, and the nearest evacuation centre with its `osm_candidate` / `official_pps` label.
+- `devsim_impact.daily_life_matrix(world, site)`: walk minutes from the entrance to four targets for default, stroller and wheelchair. A cell is `"?"` (partly unverified), `"gap"` (no_data) or `"blocked"`.
+- `devsim_schedule.schedule(storeys, homes)`: the ESTIMATE schedule and cost. Every constant is a row of [docs/04-architecture/devsim-estimates-sources.md](../../docs/04-architecture/devsim-estimates-sources.md), and a test compares the two.
+- `devsim_residents.build_residents(world, site)`: 40 simulated residents, 20 in the tower and 20 neighbours from the Elmina Day population living in those 500 m homes. Each has facts and three template lines (`devsim_lines.py`) checked by `check_line`.
+
 Computed facts on the Elmina seed (the web copy is built from these):
 
 | Fact | Value |

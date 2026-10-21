@@ -142,7 +142,7 @@ boxes; LOD2 is unchanged. Every LOD0 stays within 2 % of its P3 bounds (pinned i
 | `trees` | 8 | 4000 / 600 / 60 | 300 / 1500 / any |
 | `furniture` | 9 | 800 / 120 | 150 / 300 |
 | `people` | 10 | 1500 / 250 | 80 / 300 |
-| `vehicles` | 9 | cars 3000 / 400; bus and lorry 5000 / 600 | 150 / 1500 |
+| `vehicles` | 10 | cars and two-wheelers 3000 / 400; bus and lorry 5000 / 600 | 150 / 1500 |
 | `construction` | 8 | 6000 / 600 / 60 | 300 / 1500 / any |
 
 Every LOD of a variant spans the same x/z extent and top height, so the bounds hold at every
@@ -152,6 +152,19 @@ span (spec x extent 39.9-41.2); `hoarding_6m` is a blank 6 m panel (x extent 6 +
 no images). Aux B per kit: trees = sway weight; people = limb code (0.25 left leg and right
 arm, 0.75 right leg and left arm, 0.5 the rest); vehicles = lamp code (0.25 headlights at +z,
 0.75 tail lights at -z); everything else 0.
+
+Vehicles (demo polish A2/A4) are generic local-street shapes with descriptive ids, never a make
+or model: `compact_hatch`, `micro_hatch`, `small_sedan`, `mpv`, `pickup` (double cab), `kapchai`
+(underbone moped), `delivery_moto`, `bicycle`, `bus` (12 m single deck) and `lorry` (7 m,
+3-tonne box). The two-wheelers (`Variant.rider`) carry a seated rider (hands on the bars, feet
+on the pegs or pedals; an open-face helmet on the two mopeds) built as one part named `rider`;
+`delivery_moto` adds a plain `delivery_box` (role secondary, no lettering). The join keeps one
+mesh node per LOD, so `build.TAGGED_PARTS` records those parts in the node's glTF extras
+(`{"tl_parts": "rider,delivery_box"}`, kept by the packer) and `test_committed_assets.py` checks
+them on the committed glb. Rider roles in this kit: jacket `secondary`, trousers `dark`, skin
+`accent` (cars use neither slot), so a palette entry is (paint, jacket and box, skin); 6 of the
+10 entries are white, silver or grey paint. The bicycle has a rear lamp only. Brand and model
+names are banned everywhere (`tests/test_brand_names.py`, spec AC-L7).
 
 ## Budgets
 

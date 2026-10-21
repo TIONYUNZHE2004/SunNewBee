@@ -115,8 +115,57 @@ def test_people_are_true_scale():
 
 
 def test_hatchback_and_rain_tree_ranges():
-    assert _within(_variant("vehicles", "hatchback").z_range, 3.7, 4.0)
+    assert _within(_variant("vehicles", "compact_hatch").z_range, 3.7, 4.0)
     assert _within(_variant("trees", "rain_tree").x_range, 15, 25)
+
+
+# Spec A4 (demo polish): generic local-street shapes, (length range m, width, height).
+VEHICLES_A4 = {
+    "compact_hatch": ((3.8, 4.0), 1.7, 1.5),
+    "micro_hatch": ((3.6, 3.8), 1.6, 1.5),
+    "small_sedan": ((4.2, 4.4), 1.7, 1.5),
+    "mpv": ((4.3, 4.5), 1.7, 1.7),
+    "pickup": ((5.15, 5.45), 1.85, 1.8),
+    "kapchai": ((1.75, 2.0), 0.75, 1.6),
+    "delivery_moto": ((1.85, 2.15), 0.75, 1.6),
+    "bicycle": ((1.6, 1.8), 0.6, 1.7),
+    "bus": ((11.5, 12.5), 2.5, 3.2),
+    "lorry": ((6.6, 7.4), 2.2, 3.0),
+}
+TWO_WHEELERS = {"kapchai", "delivery_moto", "bicycle"}
+
+
+def test_vehicles_are_the_a4_kit():
+    vs = specs.ASSETS["vehicles"].variants
+    assert [v.id for v in vs] == list(VEHICLES_A4)
+    for v in vs:
+        rng, w, h = VEHICLES_A4[v.id]
+        assert v.z_range == rng and v.size[0] == w and v.size[1] == h, v.id
+    assert specs.ASSETS["vehicles"].variant_by_group == {"default": "compact_hatch"}
+
+
+def test_every_two_wheeler_has_a_rider():
+    """AC-L5 (spec side): the two-wheelers carry a seated rider; no other vehicle does."""
+    for v in specs.ASSETS["vehicles"].variants:
+        assert v.rider is (v.id in TWO_WHEELERS), v.id
+    for s in specs.ASSETS.values():
+        if s.id != "vehicles":
+            assert not any(v.rider for v in s.variants), s.id
+
+
+def test_vehicle_caps_hold_the_budgets():
+    """AC-L9: cars and two-wheelers <= 3000 / 400, bus and lorry <= 5000 / 600."""
+    for v in specs.ASSETS["vehicles"].variants:
+        caps = (5000, 600) if v.id in ("bus", "lorry") else (3000, 400)
+        assert v.tris == caps, v.id
+
+
+def test_vehicle_paint_is_mostly_white_silver_grey():
+    """Spec A4: the web picks a palette entry uniformly, so ~60 % neutral paint."""
+    pal = specs.palette_for("vehicles")["default"]
+    neutral = sum(p[0] in specs.PAINT_NEUTRAL for p in pal)
+    assert len(pal) == 10 and neutral == 6
+    assert len({p[0] for p in pal}) == len(pal)
 
 
 def test_sizes_sit_inside_their_ranges():
@@ -237,11 +286,11 @@ def _bounds(w: float, h: float, d: float):
 
 
 def test_bounds_errors_ranges_replace_the_size_check_exactly():
-    hatch = _variant("vehicles", "hatchback")
-    assert specs.bounds_errors(hatch, _bounds(1.7, 1.5, 3.85)) == []
+    hatch = _variant("vehicles", "compact_hatch")
+    assert specs.bounds_errors(hatch, _bounds(1.7, 1.5, 3.9)) == []
     errs = specs.bounds_errors(hatch, _bounds(1.7, 1.5, 5.2))
     assert len(errs) == 1 and "z extent" in errs[0]
-    # no slack on a range: 4.1 m is outside (3.7, 4.0) even though size + 1.2 would allow it
+    # no slack on a range: 4.1 m is outside (3.8, 4.0) even though size + 1.2 would allow it
     assert specs.bounds_errors(hatch, _bounds(1.7, 1.5, 4.1))
 
 

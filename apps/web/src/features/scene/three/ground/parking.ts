@@ -45,10 +45,10 @@ export const STALL_STRIDE = 3;
 export const CARS_SHARE = 0.7;
 /** Stalls stay this clear (beyond the ribbon half-width) of a drawn road: the stall's half-diagonal. */
 const RIBBON_CLEAR_M = Math.hypot(STALL_W_M, STALL_D_M) / 2;
-/** Parked variants of the vehicles kit and their shares (hatchback, sedan, MPV). */
+/** Parked variants of the vehicles kit and their shares (compact hatch, small sedan, MPV). */
 const VARIANTS: [string, number][] = [
-  ["hatchback", 0.5],
-  ["sedan", 0.8],
+  ["compact_hatch", 0.5],
+  ["small_sedan", 0.8],
   ["mpv", 1],
 ];
 

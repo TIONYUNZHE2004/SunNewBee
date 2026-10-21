@@ -130,9 +130,11 @@ describe("planParking", () => {
     expect(CARS_SHARE).toBeCloseTo(0.7);
   });
 
-  it("parks hatchbacks, sedans and MPVs of the vehicles kit, all decorative", () => {
+  it("parks compact hatches, small sedans and MPVs of the vehicles kit, all decorative", () => {
     const { cars } = planParking([BIG], tile, frame, 100000, opts);
-    expect(new Set(cars.map((c) => c.variant))).toEqual(new Set(["hatchback", "sedan", "mpv"]));
+    expect(new Set(cars.map((c) => c.variant))).toEqual(
+      new Set(["compact_hatch", "small_sedan", "mpv"]),
+    );
     expect(manifest.assets.vehicles?.decorative).toBe(true);
     for (const c of cars) {
       expect(c.asset).toBe("vehicles");

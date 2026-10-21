@@ -411,10 +411,10 @@ export function createSite(o: SiteOpts): DevsimPart {
     [DEVSIM_COLOURS.slateBlue, DEVSIM_COLOURS.slate, DEVSIM_COLOURS.glass],
     ...vPal,
   ];
-  const lorries = vkit("lorry", LORRIES, [2.4, 3.2, 8], lorryPal);
+  const lorries = vkit("lorry", LORRIES, [2.2, 3.0, 7.0], lorryPal);
   const cars = [
-    vkit("sedan", Math.ceil(QUEUE / 2), [1.8, 1.45, 4.6], carPal),
-    vkit("mpv", Math.floor(QUEUE / 2), [1.8, 1.7, 4.7], carPal),
+    vkit("small_sedan", Math.ceil(QUEUE / 2), [1.7, 1.5, 4.3], carPal),
+    vkit("mpv", Math.floor(QUEUE / 2), [1.7, 1.7, 4.4], carPal),
   ];
   // one entry per vehicle in a fixed order (probe: index i is the same vehicle); NaN = not drawn
   const vehiclePts: [number, number, number][] = Array.from({ length: LORRIES + QUEUE }, () => [
