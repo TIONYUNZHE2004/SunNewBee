@@ -87,10 +87,13 @@ export function kitMesh(o: {
       mesh.count = Math.max(0, Math.min(cap, n));
     },
     dispose() {
-      // detach the library's shared attributes before dispose (it would free their buffers)
-      for (const name of Object.keys(geo.attributes))
-        if (!name.startsWith("iPal")) geo.deleteAttribute(name);
-      geo.setIndex(null);
+      // detach the library's shared attributes before dispose (it would free their buffers); the
+      // fallback box's own attributes stay attached, so dispose frees their GPU buffers
+      if (!own) {
+        for (const name of Object.keys(geo.attributes))
+          if (!name.startsWith("iPal")) geo.deleteAttribute(name);
+        geo.setIndex(null);
+      }
       geo.dispose();
       own?.dispose();
       mat.dispose();
