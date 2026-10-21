@@ -1,21 +1,11 @@
 import { describe, expect, it } from "vitest";
 import provisional from "./fixtures/plan.provisional.json";
-import {
-  CAM_KEYS,
-  CON,
-  dayMinutes,
-  dayness,
-  END_CARD_AT,
-  feedbackBeats,
-  floorsAt,
-  stateAt,
-  sunAt,
-} from "./timeline";
+import { CAM_KEYS, CON, dayMinutes, dayness, floorsAt, stateAt, sunAt } from "./timeline";
 import type { DevelopmentPlan } from "./types";
 
 const plan = provisional as unknown as DevelopmentPlan;
-/** The legacy 66 s fixture has an end card (the 45 s plan from C7 has none). */
-const endCard = plan.end_card as NonNullable<DevelopmentPlan["end_card"]>;
+// The legacy 66 s timeline (plans without a schedule: the fixture the 3D lane's tests still read).
+// The 45 s building timeline is covered in timeline.build.test.ts.
 const range = (a: number, b: number, step: number) => {
   const out: number[] = [];
   for (let t = a; t < b - 1e-9; t += step) out.push(Math.round(t * 1000) / 1000);
@@ -68,10 +58,8 @@ describe("AC-F1 acts and bubbles", () => {
       expect(stateAt(t, plan).bubbles).toEqual([]);
   });
 
-  it("the end card shows only in the Summary", () => {
-    expect(stateAt(END_CARD_AT - 0.1, plan).endCard).toBe(false);
-    expect(stateAt(END_CARD_AT, plan).endCard).toBe(true);
-    expect(stateAt(66, plan).endCard).toBe(true);
+  it("the legacy timeline never shows the Impact Brief", () => {
+    for (const t of [0, 33, 50, 66]) expect(stateAt(t, plan).brief).toBe(false);
   });
 });
 
@@ -168,50 +156,6 @@ describe("occupancy, windows and feedback", () => {
     expect(stateAt(43.5, plan).occupancy).toBe(460);
     expect(stateAt(63, plan).occupancy).toBe(488);
     expect(stateAt(66, plan).occupancy).toBe(488);
-  });
-
-  it("AC-F5 (owner ruling): one envelope per end-card item; the counter goes 0 -> 1 -> 2 -> 3", () => {
-    // item 1 after Halim's bubble 1, item 2 at 51.6 s (bubble 5), item 3 after Arjun's bubble 7
-    expect(feedbackBeats(plan).map((b) => [b.item, b.afterBubble, b.t1])).toEqual([
-      [0, 1, 22.6],
-      [1, 5, 51.6],
-      [2, 7, 62.8],
-    ]);
-    const count = (t: number) => stateAt(t, plan).feedbackCount;
-    expect(count(18)).toBe(0);
-    expect(count(21.3)).toBe(0);
-    expect(stateAt(22, plan).envelope).toMatchObject({ from: 1 });
-    expect(stateAt(22, plan).envelope?.progress).toBeGreaterThan(0);
-    expect(count(22)).toBe(0);
-    expect(count(22.6)).toBe(1);
-    expect(stateAt(23, plan).envelope).toBeNull();
-    expect(count(50.3)).toBe(1);
-    expect(stateAt(51, plan).envelope).toMatchObject({ from: 5 });
-    expect(count(51.6)).toBe(2);
-    expect(count(61.5)).toBe(2);
-    expect(stateAt(62.2, plan).envelope).toMatchObject({ from: 7 });
-    expect(count(62.8)).toBe(3);
-    // it ends equal to the end card's item count, which shows after the last envelope lands
-    expect(count(END_CARD_AT)).toBe(endCard.items.length);
-    expect(count(66)).toBe(endCard.items.length);
-    for (const b of feedbackBeats(plan)) expect(b.t1).toBeLessThan(END_CARD_AT);
-    // monotone: never steps back
-    let prev = 0;
-    for (const t of range(0, 66, 0.1)) {
-      expect(count(t)).toBeGreaterThanOrEqual(prev);
-      prev = count(t);
-    }
-  });
-
-  it("AC-F5: without the detour item (spec §13) the counter drops it too", () => {
-    const noDetour: DevelopmentPlan = {
-      ...plan,
-      end_card: { ...endCard, items: endCard.items.slice(1) },
-    };
-    expect(feedbackBeats(noDetour).map((b) => b.afterBubble)).toEqual([5, 7]);
-    expect(stateAt(30, noDetour).feedbackCount).toBe(0);
-    expect(stateAt(51.6, noDetour).feedbackCount).toBe(1);
-    expect(stateAt(66, noDetour).feedbackCount).toBe(2);
   });
 
   it("hoarding stands through Construction and comes down early in Handover; lorries in Handover", () => {

@@ -19,7 +19,7 @@ import {
 import { inRing, siteGeom, TOWER_STOREY_M } from "./geom";
 import { stateAt } from "./state";
 
-const P = plan as DevelopmentPlan;
+const P = plan as unknown as DevelopmentPlan;
 const frame = createFrame([101.5076, 3.1794]);
 const geom = siteGeom(P, frame);
 

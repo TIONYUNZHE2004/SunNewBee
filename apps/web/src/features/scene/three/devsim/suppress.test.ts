@@ -5,7 +5,7 @@ import type { Placement } from "../assets/fit";
 import { createFrame } from "../frame";
 import { parcelPolys, suppressKits, suppressTracks } from "./suppress";
 
-const P = plan as DevelopmentPlan;
+const P = plan as unknown as DevelopmentPlan;
 const frame = createFrame([101.5076, 3.1794]);
 const sq = (x0: number, y0: number, d: number) => [
   [x0, y0],

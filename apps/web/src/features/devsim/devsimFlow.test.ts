@@ -6,8 +6,7 @@ import { litShareAt, setPieceTiming } from "../scene/three/devsim/setPieces";
 import { collectProbe, hasProbe, registerDomProbe, registerProbe } from "./anchors";
 import { createDevsimHook, installDevsimHook } from "./devsimHook";
 import { useDevsim } from "./devsimStore";
-import elmina from "./fixtures/plan.elmina.json";
-import provisional from "./fixtures/plan.provisional.json";
+import provisional from "./fixtures/plan.elmina.json";
 import { asDevsimIntent, beginDevsim, fetchDevsimPlan } from "./intent";
 import { stateAt } from "./timeline";
 import type { DevelopmentPlan } from "./types";
@@ -34,10 +33,10 @@ describe("store transitions", () => {
     d().pause();
     d().advance(1);
     expect(d().t).toBe(1.5);
-    d().seek(65.9);
+    d().seek(44.9);
     d().play();
     d().advance(1);
-    expect(d()).toMatchObject({ t: 66, playing: false });
+    expect(d()).toMatchObject({ t: 45, playing: false });
     d().play();
     expect(d()).toMatchObject({ t: 0, playing: true });
     d().seek(30);
@@ -88,7 +87,7 @@ describe("window.__devsim", () => {
     expect(hook.total).toBe(0);
     expect(hook.state()).toBeNull();
     d().start(plan, "b");
-    expect(hook.total).toBe(66);
+    expect(hook.total).toBe(45);
     expect(hook.acts.map((a) => a.name)).toContain("Handover");
     expect(hook.facts?.park.min).toBe(plan.facts.park.min);
     hook.play();
@@ -259,7 +258,7 @@ describe("probe window state (Q4)", () => {
 describe("probe expected lit share in schedule mode (C10 review minor 5)", () => {
   it("is the move-in's floor-by-floor share the tower draws, not the legacy timeline's", () => {
     const c7 = {
-      ...(elmina as object),
+      ...(provisional as object),
       lorry_route: pre.lorry_route,
       schedule: pre.schedule,
     } as unknown as DevelopmentPlan;

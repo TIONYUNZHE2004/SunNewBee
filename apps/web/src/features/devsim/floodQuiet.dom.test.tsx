@@ -8,7 +8,7 @@ import { useAttribution } from "../main/useAttribution";
 import { useDevsimAnchors } from "./anchors";
 import { DevsimOverlay } from "./DevsimOverlay";
 import { useDevsim } from "./devsimStore";
-import provisional from "./fixtures/plan.provisional.json";
+import provisional from "./fixtures/plan.elmina.json";
 import { quietAttribution, quietStarters } from "./floodQuiet";
 import type { DevelopmentPlan } from "./types";
 
@@ -60,7 +60,16 @@ describe("no flood content on screen during devsim (D11, AC-H4)", () => {
     await screen.findByText(/OpenStreetMap/);
     for (let t = 0; t <= plan.total_s; t += 1) {
       act(() => d().seek(t));
-      expect(container.textContent ?? "", `t=${t}`).not.toMatch(BANNED);
+      // Ruling C11-a: the Impact Brief's "At handover" flood-exposure rows (spec §6.2, FLOOD badge)
+      // are the one flood content allowed during a run; everything else stays quiet (D11).
+      const rest = container.cloneNode(true) as HTMLElement;
+      for (const el of rest.querySelectorAll('[data-testid="devsim-impact-brief"]')) el.remove();
+      expect(rest.textContent ?? "", `t=${t}`).not.toMatch(BANNED);
+      const brief = container.querySelector('[data-testid="devsim-impact-brief"]');
+      if (brief) {
+        expect(brief.textContent).toContain("Indicative scenario, not a forecast.");
+        expect(brief.textContent ?? "").not.toMatch(/\bsafe\b|selamat|安全|river rises/i);
+      }
     }
     // licence lines stay
     const attr = screen.getByTestId("attribution").textContent ?? "";

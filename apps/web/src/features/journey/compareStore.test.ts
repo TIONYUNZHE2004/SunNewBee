@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDemoHook, resetDemoRegistry } from "../demo/demoHook";
 import { useDevsim } from "../devsim/devsimStore";
-import provisional from "../devsim/fixtures/plan.provisional.json";
+import provisional from "../devsim/fixtures/plan.elmina.json";
 import type { DevelopmentPlan } from "../devsim/types";
 import { COMPARE_TOTAL_S, registerCompareDemo, useCompare } from "./compareStore";
 import { asCompareIntent, isPlayableCompare } from "./compareTypes";

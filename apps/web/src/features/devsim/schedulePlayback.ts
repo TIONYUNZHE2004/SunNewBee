@@ -217,3 +217,54 @@ export function scheduleAt(
     daysLost: lost[i] ?? 0,
   };
 }
+
+/** The plan fields `planPlayback` reads (structural, so this module needs no plan type). */
+export interface PlaybackPlan {
+  schedule: Schedule;
+  month_keys?: readonly (readonly number[])[] | null;
+  month_keys_mode?: "baseline" | "data-order";
+  banners?: readonly { kind: string; t0: number; t1: number }[] | null;
+}
+
+/** Keys usable as sent: at least two, finite, time non-decreasing and month non-decreasing. */
+function validKeys(keys: PlaybackPlan["month_keys"]): MonthKey[] | null {
+  if (!keys || keys.length < 2) return null;
+  const out: MonthKey[] = [];
+  for (const k of keys) {
+    const [t, m] = k as [number, number];
+    if (!Number.isFinite(t) || !Number.isFinite(m)) return null;
+    const prev = out.at(-1);
+    if (prev && (t < prev[0] || m < prev[1])) return null;
+    out.push([t, m]);
+  }
+  return out;
+}
+
+const playbackCache = new WeakMap<object, SchedulePlayback>();
+
+/**
+ * The building playback for a 45 s plan: the plan's own `month_keys` (C7 computes them with the
+ * R25 rules) when present and valid, else `buildPlayback(schedule)`; the Hari Raya and monsoon
+ * windows are the plan's banner windows when it sends them (the banners are what the viewer sees),
+ * else the playback's.
+ */
+export function planPlayback(plan: PlaybackPlan): SchedulePlayback {
+  const hit = playbackCache.get(plan);
+  if (hit) return hit;
+  const built = buildPlayback(plan.schedule);
+  const keys = validKeys(plan.month_keys);
+  const win = (kind: string): [number, number] | null => {
+    const b = plan.banners?.find((x) => x.kind === kind);
+    return b ? [b.t0, b.t1] : null;
+  };
+  const out: SchedulePlayback = keys
+    ? {
+        keys,
+        raya: win("raya") ?? built.raya,
+        monsoon: win("monsoon") ?? built.monsoon,
+        mode: plan.month_keys_mode ?? built.mode,
+      }
+    : built;
+  playbackCache.set(plan, out);
+  return out;
+}

@@ -82,3 +82,48 @@ export const RESIDENT_PHASES = [
 ] as const;
 export const RESIDENT_FACTS_HEAD = "From the world model";
 export const RESIDENT_BACK = (n: number) => `All ${n} residents`;
+
+// ---------- Impact Brief, banners and cards (spec §6.2; AC-W6, W9) ----------
+
+/** Daily-life matrix column heads by route profile. */
+export const PROFILE_HEAD: Record<string, string> = {
+  default: "Walk",
+  stroller: "Stroller",
+  wheelchair: "Wheelchair",
+};
+
+/**
+ * How a daily-life cell reads (honesty: "?" is not checked, never blocked; a gap is a data gap).
+ * `text` is what the table shows, `title` the full reading.
+ */
+export function matrixCellText(v: number | string): {
+  text: string;
+  title: string;
+  unknown: boolean;
+} {
+  if (typeof v === "number") return { text: String(v), title: `${v} min`, unknown: false };
+  if (v === "?") return { text: "?", title: "Not checked yet", unknown: true };
+  if (v === "gap") return { text: "gap", title: "No mapped connection (data gap)", unknown: true };
+  return { text: "barrier", title: "No route past a known barrier", unknown: false };
+}
+
+/** The hoarding impact card (prototype `#hoard`). Rows are the plan's brief rows, verbatim. */
+export const HOARDING_CARD = {
+  title: "Hoarding impact",
+  rows: ["homes_2min_plus", "wheelchair_links_cut", "best_side"] as const,
+  source: (provenance: string) => `Source: ${provenance}`,
+};
+
+/** "stage_p2m" -> "+2 m". */
+export function scenarioLabel(id: string): string {
+  const m = id.match(/stage_p(\d+)m/);
+  return m ? `+${m[1]} m` : id;
+}
+
+export const ROUTE_SOURCE = (provenance: string) => `Source: ${provenance}`;
+export const FLOOD_SOURCE = (checked: string[], disclaimer: string) =>
+  `River-rise scenarios checked: ${checked.map(scenarioLabel).join(", ")}. ${disclaimer} Follow official MBSA / JPS / NADMA guidance.`;
+export const CALENDAR_SOURCE = (n: number, expected: number) =>
+  `Selangor public holidays on the timeline: ${n}${
+    expected > 0 ? ` (${expected} expected dates, not yet gazetted)` : ""
+  }`;

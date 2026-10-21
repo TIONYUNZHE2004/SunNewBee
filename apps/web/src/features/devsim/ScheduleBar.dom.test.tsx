@@ -4,13 +4,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import { honestyViolations } from "../../test/honesty";
 import { ESTIMATE_FOOTNOTE, formatDays, formatRmMillions } from "./copy";
 import { ESTIMATE_STYLE, EstimateHud, estimateTooltip } from "./DevsimHud";
-import estimates from "./fixtures/estimates.preC7.elmina.json";
+import estimates from "./fixtures/plan.elmina.json";
 import type { EstimateSource, Schedule } from "./planTypes";
 import { ScheduleBar } from "./ScheduleBar";
 import { buildPlayback, daysLostByMonth, monthAt, scheduleAt } from "./schedulePlayback";
 
 const schedule = estimates.schedule as unknown as Schedule;
-const sources = estimates.sources as unknown as EstimateSource[];
+const sources = estimates.estimate_sources as unknown as EstimateSource[];
 const playback = buildPlayback(schedule);
 const lost = daysLostByMonth(schedule);
 

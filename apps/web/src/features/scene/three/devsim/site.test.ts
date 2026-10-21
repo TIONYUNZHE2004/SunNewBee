@@ -20,7 +20,7 @@ import {
 } from "./site";
 import { stateAt } from "./state";
 
-const P = plan as DevelopmentPlan;
+const P = plan as unknown as DevelopmentPlan;
 const readJson = (p: string): unknown =>
   JSON.parse(
     readFileSync(new URL(`../../../../../../../data/seed/elmina/${p}`, import.meta.url), "utf8"),

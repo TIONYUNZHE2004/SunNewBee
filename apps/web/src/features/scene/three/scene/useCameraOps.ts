@@ -1,4 +1,5 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
+import { useDevsim } from "../../../devsim/devsimStore";
 import { usePanel } from "../../../main/panelStore";
 import { isWide } from "../../../main/usePanelReserve";
 import { mapPanelOverlapPx } from "../../../main/viewport";
@@ -173,12 +174,14 @@ export function useCameraOps({
     });
   }, [engine, frame, focusPoint]);
 
-  // Look point in the middle of the map area left of the side panel (phones use the sheet).
+  // Look point in the middle of the map area left of the side panel (phones use the sheet), and
+  // left of the devsim Impact Brief while it is on screen (spec 2026-10-21 §6.2, AC-W6).
+  const devsimShift = useDevsim((s) => (s.status === "idle" ? 0 : s.viewShiftPx));
   useEffect(() => {
     if (!engine) return;
     const panel = mapPanelOverlapPx(panelOpen, isWide(), innerWidth);
-    engine.setViewOffset(panel);
-  }, [engine, panelOpen]);
+    engine.setViewOffset(panel + devsimShift);
+  }, [engine, panelOpen, devsimShift]);
 
   // Camera actions (buttons, keyboard, double-click).
   const startRef = useRef<() => Pose>(() => ({
