@@ -259,3 +259,21 @@ Testing:
    - `simulate_development` is in the default scope for live models.
 6. **Laptop.** `DtsApo4Service` held about 2.5 GB, which looks like a leak; a reboot clears it. Teams and WhatsApp desktop were closed at about 11:15, with the owner's go-ahead, to free memory.
 7. **Merging to `main`** is the owner's decision. This run does not merge (spec §14).
+
+### Owner feedback round (2026-10-21 15:45 MPST)
+
+The owner watched the product video and reported three problems. All are fixed in `9b50f3a6..62f98aae` (web only, no agent/spatial source change, so the demo recordings stay valid):
+
+1. **Cars off the road at about 52 s.** These were the school-run queue cars, lined up 4.5 m off the street. The Handover lorries had the same fault. Both now follow the mapped street centreline in the left-hand lane, and the queue clears at 52.4 s. A new test checks that every queue car and lorry is on the carriageway and within 15° of the street.
+2. **Resident feedback showed 1 while the end card listed 3 items.** R28: the badge now counts the end-card items, from the same list, and goes 0→1→2→3 at 22.6, 51.6 and 62.8 s. This supersedes spec AC-F5 ("0→1 at bubble 5").
+3. **Halim's bubble jumped around while he walked.** Every speaker now stands still while their bubble is up, which a test checks for all 7, and bubbles glide instead of jumping. Halim stays "Pak Cik" (owner).
+
+**Checks:**
+- acceptance `owner1` 10/10 (fresh server; Q3 at 19 s is 1.57);
+- vitest 2524/2524 with map keys blanked;
+- lint and typecheck PASS;
+- e2e 34/34.
+
+**New video:** `C:/Users/shaoxian04/AppData/Local/Temp/claude/devsim-owner1/product.webm`. Playback starts about 11 s into the file.
+
+**Known and left:** decorative traffic cars (not the queue) can briefly overlap at junctions, for example around 51 s, because the decorative traffic has no collision avoidance.
