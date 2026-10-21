@@ -91,12 +91,12 @@ export const HALIM_SAYS: readonly [number, number] = [18.4, 21.4];
 /** How far he walks into and out of his standing spot (m, ~5 m/s at the fast-forward clock). */
 const HALIM_WALK_M = 9;
 
-/** Metres along Halim's path to its middle point (the camera's `halimMid`: point floor(n / 2)). */
-export function halimMidM(g: SiteGeom): number {
-  const i = Math.floor(g.halimPath.length * 0.5);
-  return lengthOf(g.halimPath.slice(0, i + 1));
-}
-
+/**
+ * Where Halim stands while he talks, as a share of his path's length: where the old walk had him
+ * at 19 s, the frame gate 2 and Q3 checked (in shot, clear of the street trees, lit against the
+ * road). The path's middle point stood him beside a tree (Q3 contrast 1.29).
+ */
+export const HALIM_STAND_U = (19 - 17.2) / 4.4;
 export interface CastPose {
   x: number;
   z: number;
@@ -172,12 +172,12 @@ export function castAt(
 
   // Construction: Halim on the detour, Farid by the hoarding
   if (t >= 16.6 && t < 23) {
-    // Owner fix (6.png): he stands still while his bubble is up (18.4-21.4 s), at the detour's
-    // middle point the 17.2-21.6 s camera frames (`halimMid`), and walks a few metres before and
-    // after it. He used to cross the whole 180 m stretch in 4.4 s, so the bubble and its ROUTE
-    // ENGINE tag chased him across the screen.
-    const mid = halimMidM(g);
+    // Owner fix (6.png): he stands still while his bubble is up (18.4-21.4 s), where the 17.2-21.6 s
+    // camera frames him (HALIM_STAND_U), and walks a few metres before and after it. He used to
+    // cross the whole 180 m stretch in 4.4 s, so the bubble and its ROUTE ENGINE tag chased him
+    // across the screen.
     const L = lengthOf(g.halimPath);
+    const mid = L * HALIM_STAND_U;
     const d =
       t < HALIM_SAYS[0]
         ? mid - HALIM_WALK_M * (1 - span(t, 16.6, HALIM_SAYS[0]))

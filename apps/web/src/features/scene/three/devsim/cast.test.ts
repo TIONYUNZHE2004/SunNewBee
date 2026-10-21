@@ -2,8 +2,16 @@ import { describe, expect, it } from "vitest";
 import plan from "../../../devsim/fixtures/plan.provisional.json";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import { createFrame } from "../frame";
-import { castAt, castSlots, createCast, MOVERS, tagTextColour, WORKERS } from "./cast";
-import { distToLine, siteGeom } from "./geom";
+import {
+  castAt,
+  castSlots,
+  createCast,
+  HALIM_STAND_U,
+  MOVERS,
+  tagTextColour,
+  WORKERS,
+} from "./cast";
+import { along, distToLine, lengthOf, siteGeom } from "./geom";
 import { stateAt } from "./state";
 
 const P = plan as DevelopmentPlan;
@@ -25,9 +33,9 @@ describe("devsim cast script", () => {
     expect(halim(17).walk).toBe(true);
     expect(halim(19).walk).toBe(false);
     expect(halim(22).walk).toBe(true);
-    // he stands at the point the 17.2-21.6 s camera aims at (halimMid)
-    const mid = g.halimPath[Math.floor(g.halimPath.length * 0.5)] ?? [0, 0];
-    expect(Math.hypot(halim(20).x - mid[0], halim(20).z - mid[1])).toBeLessThan(0.01);
+    // he stands where the old walk had him at 19 s (the gate-checked frame)
+    const stand = along(g.halimPath, lengthOf(g.halimPath) * HALIM_STAND_U).p;
+    expect(Math.hypot(halim(20).x - stand[0], halim(20).z - stand[1])).toBeLessThan(0.01);
   });
 
   it("owner fix: every speaker stands still for their whole bubble (all 7)", () => {
