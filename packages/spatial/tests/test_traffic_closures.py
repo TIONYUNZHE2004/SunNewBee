@@ -233,3 +233,22 @@ def test_road_names_and_stretches_resolve_without_inventing_segments(world):
     window.road_names = ["Invented Road"]
     with pytest.raises(ValueError, match="No mapped road"):
         events.resolve_scenario(world, spec)
+
+
+def test_management_closure_tool_returns_weights_pressure_and_evidence_without_writes(
+    world, tmp_path
+):
+    from townshiplens_spatial import tools
+    from townshiplens_spatial.vr_store import VerificationStore
+
+    ctx = tools.Ctx(world, VerificationStore(str(tmp_path / "vrs.db")))
+    kwargs = scenario("seg-bc").model_dump(mode="json")
+    result = tools.TOOLS["simulate_closure"](ctx, **kwargs, profiles=["default"])
+    assert result.ok and result.evidence[0].id == result.data["evidence_id"]
+    assert result.evidence[0].status == "indicative"
+    assert result.data["event"]["reason"] == "works" and result.data["detour_roads"]
+    assert result.data["weights_note"] in result.warnings
+    assert world.closures == [] and ctx.vrs.list("all") == []
+    assert not tools.simulate_closure(ctx, **(kwargs | {"reason": "invented"})).ok
+    assert not tools.simulate_closure(ctx, **kwargs, at="bad-date").ok
+    assert not tools.simulate_closure(ctx, **kwargs, profiles=[]).ok
