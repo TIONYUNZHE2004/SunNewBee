@@ -198,6 +198,16 @@ export const EFFECT_COLOURS = {
   heroDisc: "#fff3c2",
 } as const;
 
+/**
+ * Navigation compare wheelchair users (B8): the hero's purple baju (Blender palette `baju`) is
+ * recoloured per walker, a shade deeper than its route colour so it reads as cloth. Display only.
+ */
+export const COMPARE_HERO_COLOURS = {
+  heroBaju: "#8a63cc",
+  shirtFastest: "#d06a2c",
+  shirtRecommended: "#24946b",
+} as const;
+
 /** Development Simulation set dressing (hypothetical tower, site kit, cast): display only. */
 export const DEVSIM_COLOURS = {
   white: "#ffffff",

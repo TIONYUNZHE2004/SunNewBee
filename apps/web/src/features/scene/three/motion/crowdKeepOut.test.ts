@@ -7,7 +7,7 @@ import type { CrowdKit } from "./crowdBake";
 import { corridor, HAVE_SEED, routeTiles } from "./crowdCorridor.fixture";
 import { loadCrowdKit } from "./crowdKit";
 import { type HeroXZ, KEEP_OUT_M, polylineDistance } from "./crowdRules";
-import { createMotionLayer } from "./motionLayer";
+import { createMotionLayer, keepOutStats } from "./motionLayer";
 
 /**
  * P8 player test (C-T8): the hero walks the whole D-T4 demo route at the plan's pace (heading
@@ -55,6 +55,8 @@ describe.skipIf(!HAVE_SEED)("P8: crowd keep-out over the full demo playback", ()
     });
     expect(meet.length).toBeGreaterThan(50);
     let hero: HeroXZ | null = null;
+    keepOutStats.snapHides = 0;
+    keepOutStats.maxPushStepM = 0;
     const layer = createMotionLayer(
       meet,
       emptyLib,
@@ -69,6 +71,7 @@ describe.skipIf(!HAVE_SEED)("P8: crowd keep-out over the full demo playback", ()
     const mat = new THREE.Matrix4();
     const pos = new THREE.Vector3();
     const last = new Map<number, THREE.Vector3>();
+    const lastFade = new Map<number, number>();
     let minHero = Infinity;
     let minZone = Infinity;
     let maxJump = 0;
@@ -106,7 +109,12 @@ describe.skipIf(!HAVE_SEED)("P8: crowd keep-out over the full demo playback", ()
         minZone = Math.min(minZone, polylineDistance(pos.x, pos.z, zone));
         if (c.inObstacle(pos.x, pos.z)) intoObstacle++;
         const prev = last.get(i);
-        if (prev) {
+        // Demo polish A1: a person fading at a path end respawns at its start (a planned jump,
+        // drawn at opacity near 0 on both frames). Every step within a lap is scored, the fades
+        // included; only that lap-change step (both frames under 0.15 opacity) is not.
+        const respawn = crowd.fadeOf(i) < 0.15 && (lastFade.get(i) ?? 1) < 0.15;
+        lastFade.set(i, crowd.fadeOf(i));
+        if (prev && !respawn) {
           const j = Math.hypot(pos.x - prev.x, pos.z - prev.z);
           if (j > 0.5) quick++;
           maxJump = Math.max(maxJump, j);
@@ -115,6 +123,9 @@ describe.skipIf(!HAVE_SEED)("P8: crowd keep-out over the full demo playback", ()
       }
     }
     layer.dispose();
+    console.log(
+      `[P8] snap hides ${keepOutStats.snapHides}, largest push step ${keepOutStats.maxPushStepM.toFixed(3)} m, max drawn jump ${maxJump.toFixed(3)} m, > 0.5 m steps ${quick}`,
+    );
     // The hero met people (the test is not vacuous), and none came inside the zone.
     expect(nearby).toBeGreaterThan(100);
     expect(minHero).toBeGreaterThanOrEqual(KEEP_OUT_M);
@@ -125,5 +136,10 @@ describe.skipIf(!HAVE_SEED)("P8: crowd keep-out over the full demo playback", ()
     // longer sweeps it sideways: at most a few > 0.5 m steps per 0.1 s over the walk, none of 1 m.
     expect(maxJump).toBeLessThan(1);
     expect(quick).toBeLessThanOrEqual(4);
+    // A4w carry-over: the keep-out push is continuous (radial at round joints), so the motion
+    // layer's snap hide (a safety net) never fires over the playback, and no push changes by
+    // 0.6 m between 0.1 s frames (the old hide threshold; a 1.56 m switch at a corner tripped it).
+    expect(keepOutStats.snapHides).toBe(0);
+    expect(keepOutStats.maxPushStepM).toBeLessThan(0.6);
   }, 120_000);
 });

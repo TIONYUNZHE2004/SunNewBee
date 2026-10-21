@@ -50,6 +50,18 @@ export const WATER_COLOR = "#1e6fb8";
  */
 export const JOURNEY_RIBBON_STYLE = { casing: "#f2efe8", pinFace: "#f2efe8" } as const;
 
+/**
+ * Navigation compare ribbons (demo polish B8, prototype colours; the overlay pills and tags use the
+ * same): the fastest route orange, the recommended green, a not-checked run purple (UNKNOWN), the
+ * fastest route's stop edge red (a known FAIL).
+ */
+export const COMPARE_RIBBON_STYLE = {
+  fastest: "#e07a3a",
+  recommended: "#2fa97c",
+  unchecked: "#8b7fd6",
+  stop: "#d2544f",
+} as const;
+
 /** Cesium PolylineDash params per patterned status (16-bit on/off mask over dashLength px). */
 export const CESIUM_DASH: Partial<Record<EdgeStatus, { dashLength: number; dashPattern: number }>> =
   {

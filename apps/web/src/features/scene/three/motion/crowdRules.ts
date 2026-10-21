@@ -526,8 +526,26 @@ interface Zone {
   fz: number;
   ox: number;
   oz: number;
+  /** Past a round joint (not an end cap): the zone there is a circle of radius R about (cx, cz). */
+  round: boolean;
+  /** Distance (m) from the segment (its nearest point, cx / cz). */
+  d: number;
+  cx: number;
+  cz: number;
 }
-const newZone = (): Zone => ({ a: 0, s: 0, need: 0, fx: 0, fz: 0, ox: 0, oz: 0 });
+const newZone = (): Zone => ({
+  a: 0,
+  s: 0,
+  need: 0,
+  fx: 0,
+  fz: 0,
+  ox: 0,
+  oz: 0,
+  round: false,
+  d: 0,
+  cx: 0,
+  cz: 0,
+});
 const _zone = newZone();
 const _best = newZone();
 
@@ -549,8 +567,10 @@ function segZone(i: number, x: number, z: number, R: number, out: Zone): Zone {
   const rz = z - az;
   const a = rx * fx + rz * fz;
   const s = rx * fz - rz * fx;
-  const da = a - Math.max(0, Math.min(L, a));
-  const cap = da < 0 ? (i === 0 ? KEEP_OUT_CAP_M : R) : i === spineN - 2 ? KEEP_OUT_CAP_M : R;
+  const ac = Math.max(0, Math.min(L, a));
+  const da = a - ac;
+  const ellipse = da < 0 ? i === 0 : da > 0 && i === spineN - 2;
+  const cap = ellipse ? KEEP_OUT_CAP_M : R;
   const e = da / cap;
   out.a = a;
   out.s = s;
@@ -559,8 +579,15 @@ function segZone(i: number, x: number, z: number, R: number, out: Zone): Zone {
   out.fz = fz;
   out.ox = ax;
   out.oz = az;
+  out.round = da !== 0 && !ellipse;
+  out.cx = ax + fx * ac;
+  out.cz = az + fz * ac;
+  out.d = Math.hypot(da, s);
   return out;
 }
+
+/** How deep (m) a person is in one segment's zone: > 0 inside. */
+const depthOf = (zn: Zone, R: number) => (zn.round ? R - zn.d : zn.need - Math.abs(zn.s));
 
 /**
  * Moves a crowd person out of the keep-out zone around the hero: everything within KEEP_OUT_M
@@ -603,7 +630,7 @@ export function keepOut(
     let depth = 0;
     for (let i = 0; i < spineN - 1; i++) {
       const zn = segZone(i, px, pz, R, _zone);
-      const d = zn.need - Math.abs(zn.s);
+      const d = depthOf(zn, R);
       if (d > depth) {
         depth = d;
         Object.assign(_best, zn);
@@ -624,14 +651,22 @@ export function keepOut(
       out.hidden = true;
       return out;
     }
-    const ns = mem.side * best.need;
-    px = best.ox + best.fx * best.a + best.fz * ns;
-    pz = best.oz + best.fz * best.a - best.fx * ns;
+    if (best.round && best.d > 1e-6) {
+      // A4w carry-over: past a round joint, out along the radius from the joint (the nearest
+      // boundary point). Pushing across the segment instead put a person at a different spot for
+      // each of a joint's two segments, a 1.5 m snap when the deeper one changed.
+      px = best.cx + ((px - best.cx) * R) / best.d;
+      pz = best.cz + ((pz - best.cz) * R) / best.d;
+    } else {
+      const ns = mem.side * best.need;
+      px = best.ox + best.fx * best.a + best.fz * ns;
+      pz = best.oz + best.fz * best.a - best.fx * ns;
+    }
   }
   // Still inside after the pushes (the inside of a sharp bend): not drawn this frame.
   for (let i = 0; i < spineN - 1; i++) {
     const zn = segZone(i, px, pz, R, _zone);
-    if (Math.abs(zn.s) < zn.need - 1e-9) {
+    if (depthOf(zn, R) > 1e-9) {
       out.hidden = true;
       return out;
     }

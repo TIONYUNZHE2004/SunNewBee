@@ -10,6 +10,7 @@ import { PerfOverlay, SlowBanner } from "../cesium/PerfOverlay";
 import { type LonLat, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { createRoleUniforms } from "./assets/roleMaterial";
+import { CompareSceneMount } from "./compare/CompareSceneMount";
 import { DevsimSceneMount } from "./devsim/DevsimSceneMount";
 import { useDevsimSuppress } from "./devsim/suppress";
 import { createEngine } from "./engine";
@@ -305,6 +306,8 @@ export default function ThreeScene({
         footprints={buildings?.buildings}
         factBenches={dressing.benches}
       />
+      {/* Navigation compare: split screen, ribbons, two wheelchair users (demo polish B8). */}
+      <CompareSceneMount engine={engine} frame={frame} hostRef={hostRef} />
       {/* Developer lens Development Simulation: tower, kit, cast, camera (spec §5.3 Scene). */}
       <DevsimSceneMount
         engine={engine}

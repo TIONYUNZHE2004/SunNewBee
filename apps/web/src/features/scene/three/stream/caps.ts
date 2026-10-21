@@ -24,7 +24,7 @@ export const HERO_BOOST = 1.6;
  * KIT_LOD_SCALE-shortened ranges put ring 2 at the coarsest LOD). Measured from
  * `public/city/manifest.json` (P3 kits, as_of 2026-10).
  *  - trees: 1090 / 224 / 42      - construction: 894 / 214 / 44
- *  - people: 598 / 201 / 201     - vehicles: 658 / 349 / 349 (no coarser LOD)
+ *  - people: 598 / 201 / 201     - vehicles: 783 / 361 / 361 (no coarser LOD; A4w re-measure)
  *  - lamps: 144 / 79 / 79 (lamp_single and lamp_double)
  *  - furniture: 97 / 41 / 41
  * Kinds without a kit asset are flat batches: signs (a quad plus a post box) 12, parking (a stall's
@@ -32,9 +32,12 @@ export const HERO_BOOST = 1.6;
  * verges: one cap unit is VERGE_PIECES_PER_CAP grass strip pieces of 2 triangles each (100), plus
  * at ring 0 VERGE_SHRUBS_PER_CAP shrubs (`trees` kit LOD0, shrub_round 70 % / shrub_hedge 30 %:
  * 424 each, so 212). Shrubs are ring 0 only; `planTileVerges` caps both.
+ * vehicles (A4w, the A4 kit with riders on the two-wheelers): the plain mean over the kit's ten
+ * variants, 782.3 / 360.4, rounded up. It bounds both weighted traffic mixes (agents.ts STREET_MIX
+ * 724 / 351, MAJOR_MIX 739 / 360), which tiles.test.ts checks against the manifest.
  * Parked cars (`parked`, Task 10) are vehicles-kit instances of the parked variants (compact_hatch,
- * small_sedan, mpv): the worst of the three per LOD, 696 / 352 (mpv), counted per car (they are capped
- * per tile on their own, not as a share of the stalls).
+ * micro_hatch, small_sedan, mpv; AC-L10): the worst of the four per LOD, 696 / 352 (mpv), counted
+ * per car (they are capped per tile on their own, not as a share of the stalls).
  */
 export const TRIS_PER: Record<StreamKind, Record<0 | 1 | 2, number>> = {
   trees: { 0: 1090, 1: 224, 2: 42 },
@@ -42,7 +45,7 @@ export const TRIS_PER: Record<StreamKind, Record<0 | 1 | 2, number>> = {
   furniture: { 0: 97, 1: 41, 2: 41 },
   construction: { 0: 894, 1: 214, 2: 44 },
   people: { 0: 598, 1: 201, 2: 201 },
-  vehicles: { 0: 658, 1: 349, 2: 349 },
+  vehicles: { 0: 783, 1: 361, 2: 361 },
   signs: { 0: 12, 1: 12, 2: 12 },
   verges: { 0: 212 + 100, 1: 100, 2: 100 },
   parking: { 0: 6, 1: 6, 2: 6 },

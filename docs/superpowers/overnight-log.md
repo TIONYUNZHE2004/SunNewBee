@@ -898,3 +898,10 @@ Logged 2026-10-19 00:50 MPST. The run went from 2026-10-18 about 22:05 to 2026-1
 - Run on `feat/journey-sim` (lanes j-fe, j-fe2, j-data, j-be, j-assets; `--no-ff` merges). Merged: Phase A (camera, overview slab, owner-master-plan boundary), Phase B (clay look, tilt-shift, street dressing, detail bubble), Phase C (hero and crowd GLBs, bone-matrix crowd), Phase D (JourneyPlan, `journey.play`, player, follow camera, cards, journey VRs, `?demo=1` auto-play).
 - Owner sign-off so far: boundary outline, hero modelling sheet and crowd contact sheet ("All agree", 19 Oct). Speed-ups: one combined final gate, lighter reviews.
 - Pending at the gate: full CI checklist, GPU acceptance and fps on the reference laptop, the prototype comparison, owner style and demo checkpoints. Not pushed; answer-key recapture left to the owner.
+
+## 2026-10-21 23:39 +0800 · Demo polish round started
+
+- Executing `docs/superpowers/plans/2026-10-21-demo-polish.md` on `feat/demo-polish` (lanes dp-be-nav, dp-be-dev, dp-3d, dp-assets, dp-fe). Ledger in `.superpowers/sdd/2026-10-21-demo-polish/progress.md`.
+- Disk was at 2.7 GB free; the 12 merged, clean dv-*/j-* worktrees were removed (branches kept).
+- 2026-10-22 02:06 +0800 · Merged so far on `feat/demo-polish`: A1 (junction road graph; AC-L4 live 0 reversals in 60 s, ~63 vehicles / 63 people in view), A2/A4 vehicle kit, A3 DoF, B7/B9/B10 compare web, C1–C6 devsim backend, C3 sources doc, C8/C12. Rulings in the SDD ledger.
+- AC-P1 (B8 split screen, headless, Medium, DPR 1, shared machine, noisy): split median 9.7–10.9 ms, p95 15–18 ms vs single-view journey median 9.3–11.6 ms (one 23.8 ms outlier); AO and DoF are off in split mode. PASS 3/3 settled runs.
