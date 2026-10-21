@@ -145,6 +145,19 @@ describe("motion flow input", () => {
     l.dispose();
   });
 
+  it("a flow update that keeps the same avoid zone never moves a walker (gate 2 pop)", () => {
+    const zone = (x: number) => x > 100 && x < 140;
+    const l = layerOf([road("p", "person")]);
+    l.setFlow({ timeScale: 8, peopleDensity: 2, vehicleDensity: 2, avoid: zone });
+    l.tick(30_000, camera, undefined, true);
+    const before = [...(l.samples().people[0] ?? [])];
+    // Handover: the timeScale and densities change, the zone stays
+    l.setFlow({ timeScale: 8, peopleDensity: 1.5, vehicleDensity: 1.5, avoid: zone });
+    l.tick(30_000, camera, undefined, true);
+    expect([...(l.samples().people[0] ?? [])]).toEqual(before);
+    l.dispose();
+  });
+
   it("people wholly inside the avoid zone are not drawn; vehicles are", () => {
     const l = layerOf([road("p", "person"), road("v", "vehicle", 1)]);
     l.setFlow({ timeScale: 1, peopleDensity: 2, vehicleDensity: 2, avoid: () => true });

@@ -516,6 +516,15 @@ export function createMotionLayer(
       share = Math.min(1, densityFor(w) / DENSITY_PEAK);
     },
     setFlow(f) {
+      // a new avoid zone: clip every person's route now, not lazily on the first frame drawn
+      // (gate 2: a 228 ms first frame after a seek)
+      if (f?.avoid && f.avoid !== routesFor) {
+        routes = new WeakMap();
+        routesFor = f.avoid;
+        for (const s of slots)
+          if (s.agent.kind === "person") routes.set(s.agent, avoidRoute(s.agent, f.avoid));
+        for (const s of crowdSlots) routes.set(s.agent, avoidRoute(s.agent, f.avoid));
+      }
       if (f && flow && anchor && f.timeScale !== anchor.scale) {
         // re-anchor at the last tick so the flow clock stays continuous
         const eff = anchor.eff + (lastWall - anchor.wall) * anchor.scale;
