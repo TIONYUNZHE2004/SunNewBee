@@ -491,32 +491,86 @@ def _fixit(q: str, rets, info: AgentInfo) -> ModelResponse:
 
 _WHATIF = r"\bwhat[- ]if\b|\bimagine\b|\bif (?:we|you|staff) (?:build|add|close|verify)\b"
 # T-025: an event closing roads for a time window ("close Persiaran X for a marathon 7-11 am")
-_EVENT_KIND = r"marathon|fun run|parade|festival|\brace\b|\bevent\b"
-_EVENT = rf"\bclos\w*\b.*(?:{_EVENT_KIND})|(?:{_EVENT_KIND}).*\bclos\w*\b"
+# T-025/T-026: closures for a time window, any reason ("close Persiaran X for a marathon 7-11 am",
+# "road works on Jalan Y next Tuesday 9 am-5 pm", "kerja jalan di ...", "...道路施工").
+_REASON_WORDS = (
+    ("event", r"marathon|fun run|parade|festival|\brace\b|\bevent\b|larian|perarakan|马拉松|游行"),
+    ("works", r"road ?works|\bworks\b|kerja(?:-kerja)? jalan|道路施工|施工|修路"),
+    ("accident", r"accident|crash|kemalangan|事故|车祸"),
+)
+_KINDS = "|".join(p for _, p in _REASON_WORDS)
+_CLOSE = r"\bclos\w*|\btutup\b|封闭|封路|关闭"
+_AFFECT = r"affect|impact|terjejas|kesan|影响"
+_EVENT = rf"(?:{_CLOSE}).*(?:{_KINDS})|(?:{_KINDS}).*(?:{_CLOSE}|{_AFFECT})"
+_WEEKDAY = (
+    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|isnin|selasa|rabu|khamis|"
+    r"jumaat|sabtu|ahad|tomorrow|esok|明天|(?:周|星期|礼拜)[一二三四五六日天]"
+)
+_ROAD = re.compile(
+    r"((?:persiaran|jalan|lebuh|lorong|bulatan)\s[^,，?？。:：]*?)(?="
+    r"\s+(?:for|during|from|on|next|this|at|depan|pada|untuk|dari|between)\b"
+    rf"|\s+(?:{_WEEKDAY})\b|\s+\d{{1,2}}(?::\d\d)?\s*(?:am|pm|-|–|to)"
+    r"|道路|施工|修路|马拉松|封|[，,?？。:：]|$)"
+)
+
+
+def _clock_words(q: str) -> str:
+    """BM / 中文 clock words as am/pm ("9 pagi-5 petang", "上午9点到下午5点" -> "9am-5pm")."""
+    q = re.sub(r"(\d)\s*pagi\b", r"\1am", q)
+    q = re.sub(r"(\d)\s*(?:petang|malam)\b", r"\1pm", q)
+    q = re.sub(r"(?:上午|早上)(\d{1,2})点", r"\1am", q)
+    q = re.sub(r"(?:下午|晚上)(\d{1,2})点", r"\1pm", q)
+    return re.sub(r"(\d{1,2})点", r"\1", q).replace("到", "-")
 
 
 def _event(q: str, rets, info: AgentInfo) -> ModelResponse:
     if not rets:
+        reason = next((r for r, p in _REASON_WORDS if re.search(p, q)), "other")
         road = re.search(r"\bclos\w*\s+(?:the\s+)?(.+?)\s+(?:for|during|from|on)\b", q)
+        road = (
+            road.group(1)
+            if road and re.match(r"(?:persiaran|jalan|lebuh|lorong|bulatan)\s", road.group(1))
+            else None
+        )
+        plain = re.sub(r"kerja(?:-kerja)? jalan", " ", q)  # "kerja jalan" is road works, not a road
+        road = road or ((m := _ROAD.search(plain)) and m.group(1).strip())
         when = re.search(
             r"(\d{1,2}(?::\d\d)?)\s*(?:am|pm)?\s*(?:-|–|to|until)\s*(\d{1,2}(?::\d\d)?\s*(?:am|pm)?)",
-            q,
+            _clock_words(q),
         )
         if not road or not when:
-            return _cannot("Name the road and the event's start and end times, and I can check it.")
-        kind = re.search(_EVENT_KIND, q).group(0).strip()
+            return _cannot(
+                "Name the road and the closure's start and end times, and I can check it."
+            )
+        start = re.search(r"\d{1,2}(?::\d\d)?\s*(?:am|pm)?", _clock_words(q)[when.start() :])
+        day = (m := re.search(rf"(?:下)?(?:{_WEEKDAY})", q)) and m.group(0)
+        name = {"works": "Road works", "accident": "Accident"}.get(
+            reason,
+            re.search(_KINDS, q).group(0).strip().title() if reason == "event" else "Closure",
+        )
+        closure = {
+            "road_names": [road.title()],
+            "start": start.group(0).replace(" ", ""),
+            "end": when.group(2).replace(" ", ""),
+            **({"day": day} if day else {}),
+        }
+        if "simulate_closure" in {t.name for t in info.function_tools}:
+            return _call("simulate_closure", name=name, reason=reason, closures=[closure])
+        if reason != "event":
+            return _cannot("I can't simulate that closure from our data yet.")
         return _call(
             "simulate_event",
-            name=kind.title(),
-            road_names=[road.group(1).title()],
+            name=name,
+            road_names=closure["road_names"],
             start=when.group(1),
-            end=when.group(2).replace(" ", ""),
+            end=closure["end"],
+            **({"day": day} if day else {}),
         )
     d = _data(rets[-1][1])
     if not isinstance(d, dict):  # unknown, ambiguous or too long a course: relay the reason
         why = " ".join(rets[-1][1].get("warnings") or []) if isinstance(rets[-1][1], dict) else ""
-        return _cannot(why or "I couldn't simulate that event on the township model.")
-    ev = [i for i in _ev_ids(rets) if i.startswith("ev-event-")]
+        return _cannot(why or "I couldn't simulate that closure on the township model.")
+    ev = [i for i in _ev_ids(rets) if i == d.get("evidence_id")]
     return _final(**event_answer(d, ev))
 
 

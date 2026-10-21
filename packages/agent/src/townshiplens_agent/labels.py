@@ -295,6 +295,7 @@ CLOSURE_WORDS = "Closed (staff report)"  # every closure line starts with this (
 _CLOSURE_REASONS = {
     "works": "works",
     "event": "event",
+    "accident": "accident",
     "flooding": "flooding",
     "other": "other reason",
 }
@@ -323,8 +324,8 @@ def closure_line(row: dict) -> str:
     """ "Closed (staff report): Jalan Hopea until 20 Oct 2026 - works". `row` is a closure_row
     (spatial tools); its `ends_at` is already in the site's time zone, so the date is read as is."""
     reason = _CLOSURE_REASONS.get(row.get("reason") or "", "reason not stated")
-    if row.get("event_name"):  # T-025: an event's course closure names the event
-        reason = f"event ({row['event_name']})"
+    if row.get("event_name"):  # T-025/T-026: a named closure: "event (Elmina Marathon)"
+        reason = f"{reason} ({row['event_name']})"
     return f"{CLOSURE_WORDS}: {closure_name(row)} {closure_until(row)} \u2014 {reason}"
 
 
