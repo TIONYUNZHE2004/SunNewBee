@@ -306,7 +306,11 @@ export function createPathBuilder(o: {
           const lenA = (cum[cum.length - 1] as number) - (cum[lastStart] as number);
           const lenB = lengthOf(B);
           if (Math.abs(t1) <= FAR_CORNER_M && Math.abs(t2) <= FAR_CORNER_M) {
-            const r = Math.min(o.fillet, 0.45 * lenA + t1, 0.45 * lenB - t2);
+            // the outside of a corner (the offset lines cross beyond both leg ends): a fillet wider
+            // than the corner's own arc (radius |off| round the node, tangent t1 / -t2 from the
+            // crossing) would cut in toward the centre line (A4w review fix round 1)
+            const outer = t1 > 0 && t2 < 0 ? Math.min(t1, -t2) : Number.POSITIVE_INFINITY;
+            const r = Math.min(o.fillet, 0.45 * lenA + t1, 0.45 * lenB - t2, outer);
             if (r >= 0.3) {
               const P1: P = [aEnd[0] + uA[0] * t1, aEnd[1] + uA[1] * t1];
               const cutA = r - t1;

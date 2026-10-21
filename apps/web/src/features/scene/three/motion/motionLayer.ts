@@ -239,10 +239,11 @@ export function flowShare(density: number): number {
 
 /**
  * A keep-out push changing by more than this between two drawn frames (m) hides the person for that
- * frame: a safety net only. Since the radial push at round joints (A4w) the push is continuous and
- * the demo playback never trips it (crowdKeepOut.test.ts asserts 0); before, it fired at 0.6 m.
+ * frame: a safety net only, kept at the review-round threshold. Since the radial push at round
+ * joints (A4w) the push is continuous and the demo playback never trips it (crowdKeepOut.test.ts
+ * asserts 0 hides and a largest push step under this value).
  */
-const PUSH_SNAP_M = 1;
+const PUSH_SNAP_M = 0.6;
 /**
  * Keep-out counters for tests (crowdKeepOut.test.ts): frames hidden because the push jumped by more
  * than PUSH_SNAP_M, and the largest push change between consecutive frames (m). Display only.

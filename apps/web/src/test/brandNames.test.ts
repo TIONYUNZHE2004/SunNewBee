@@ -9,12 +9,20 @@ import { describe, expect, it } from "vitest";
  * (`src/**`). The Python half (`assets/blender/tests/test_brand_names.py`) scans the asset scripts,
  * specs and glbs. Docs and the spec are not scanned.
  *
- * Matching rule (identifier-aware, so an unrelated word containing a name is judged sensibly):
- * - text is split into identifier tokens: runs of letters and digits, then camelCase / PascalCase
- *   parts (`MyviHatch` -> myvi, hatch; `EX5` stays ex5; `x50` stays x50). A token that equals a
- *   banned name, or its plural (+ "s"), is a hit. So `personAt` (person, at) is no hit, `vios` is.
- * - the long names that are no English word (myvi, bezza, perodua, toyota, hilux, yamaha) are also
- *   hits as a plain substring anywhere (`toyotavios`).
+ * Matching rule (identifier-aware, so an unrelated word containing a name is judged sensibly),
+ * case-insensitive, three kinds of name:
+ * - brand names that are no English word (myvi, bezza, perodua, toyota, hilux, yamaha, honda,
+ *   proton) are hits as a plain substring anywhere: `toyotavios`, `honda2`, `protonx50`,
+ *   `hondaex5`, `"variant_proton": 1`. (So `protonate` is a hit too: no such word is used here.)
+ * - model codes (x50, ex5, y15) are hits as a substring not touching another digit: `protonx50`,
+ *   `EX5`, `y15_rider` hit; `x500`, `0x50` (hex), `1y15` do not.
+ * - names that are also parts of ordinary words (saga, axia, alza, vios, persona) are matched by
+ *   identifier token: text is split into runs of letters and digits, then camelCase / PascalCase
+ *   parts (`MyviHatch` -> myvi, hatch; `SAGA2` stays saga2); a token whose trailing digits are
+ *   stripped equals the name or its plural (+ "s"). So `vios2`, `SAGA2`, `axia1`, `AlzaMpv` and
+ *   `"vios": 1` hit, while `sagacious`, `axial`, `obvious`, `alzado` and `personAt` do not. Limit:
+ *   such a name glued in lower case to another word (`viosmini`) is not seen; substring matching
+ *   would flag ordinary English instead.
  * - coordinator ruling R13 for "persona": banned as a vehicle name only. It is scanned in the
  *   manifests, in the motion and ground code (`scene/three/motion/**`, `scene/three/ground/**`,
  *   where the vehicle variants and parked cars live) and on any source line that talks about
@@ -40,7 +48,18 @@ const BANNED = [
   "ex5",
   "y15",
 ] as const;
-const SUBSTRING = new Set(["myvi", "bezza", "perodua", "toyota", "hilux", "yamaha"]);
+const SUBSTRING = new Set([
+  "myvi",
+  "bezza",
+  "perodua",
+  "toyota",
+  "hilux",
+  "yamaha",
+  "honda",
+  "proton",
+]);
+/** Model codes: a substring not touching another digit. */
+const CODES = new Set(["x50", "ex5", "y15"]);
 /** R13: banned only in a vehicle context. */
 const VEHICLE_ONLY = new Set(["persona"]);
 const VEHICLE_WORDS =
@@ -60,10 +79,14 @@ function bannedIn(line: string, vehicleContext: boolean): string[] {
   const hits = new Set<string>();
   const toks = tokensOf(line);
   const lower = line.toLowerCase();
+  const bare = toks.map((t) => t.replace(/\d+$/, ""));
   for (const name of BANNED) {
     if (VEHICLE_ONLY.has(name) && !ctx) continue;
-    if (toks.some((t) => t === name || t === `${name}s`)) hits.add(name);
-    else if (SUBSTRING.has(name) && lower.includes(name)) hits.add(name);
+    if (SUBSTRING.has(name)) {
+      if (lower.includes(name)) hits.add(name);
+    } else if (CODES.has(name)) {
+      if (new RegExp(`(?<![0-9])${name}(?![0-9])`).test(lower)) hits.add(name);
+    } else if (bare.some((t) => t === name || t === `${name}s`)) hits.add(name);
   }
   return [...hits];
 }
@@ -115,9 +138,30 @@ describe("AC-L7: no brand or model names (web half)", () => {
     expect(bannedIn("two Vios and an EX5", false).sort()).toEqual(["ex5", "vios"]);
     expect(bannedIn("variant: y15_rider", false)).toEqual(["y15"]);
     expect(bannedIn("SAGA", false)).toEqual(["saga"]);
-    // unrelated words that contain a name are no hit
-    expect(bannedIn("const personAt = sagacious + protonate + alzado", false)).toEqual([]);
+    // unrelated words that contain a word-like name are no hit
+    expect(bannedIn("const personAt = sagacious + axial + obvious + alzado", false)).toEqual([]);
     expect(bannedIn("hondas", false)).toEqual(["honda"]);
+    // review fix round 1: digit suffixes and lower-case concatenations
+    for (const [text, want] of [
+      ["vios2", ["vios"]],
+      ["honda2", ["honda"]],
+      ["SAGA2", ["saga"]],
+      ["axia1", ["axia"]],
+      ["proton2", ["proton"]],
+      ["protonx50", ["proton", "x50"]],
+      ["hondaex5", ["honda", "ex5"]],
+      ["AlzaMpv", ["alza"]],
+      ["y15_rider", ["y15"]],
+    ] as const)
+      expect(bannedIn(text, false).sort(), text).toEqual([...want].sort());
+    // model codes never inside a longer number (hex, sizes)
+    expect(bannedIn("const c = 0x50; const w = x500; id1y15", false)).toEqual([]);
+    // JSON keys and values
+    expect(bannedIn('{ "vios": 1, "colour": "white" }', false)).toEqual(["vios"]);
+    expect(bannedIn('  "variant_proton_saga": { "size": [1.7, 1.5, 4.3] },', false).sort()).toEqual(
+      ["proton", "saga"],
+    );
+    expect(bannedIn('"kits": { "kapchai_ex5": {} }', false)).toEqual(["ex5"]);
     // R13: the English word persona is allowed, except about vehicles or in the strict scope
     expect(bannedIn("/** The persona the trip was planned for */", false)).toEqual([]);
     expect(bannedIn('vehicles: { persona: "x" }', false)).toEqual(["persona"]);
