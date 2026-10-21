@@ -239,6 +239,8 @@ export function flowShare(density: number): number {
 
 /** A keep-out push changing by more than this between frames (m) hides the person for that frame. */
 const PUSH_SNAP_M = 0.6;
+/** Vehicle variants without a headlight: no night beam on the road (A2 kit: the bicycle). */
+const NO_BEAM: ReadonlySet<string> = new Set(["bicycle"]);
 
 /** Agents just outside the view still get matrices, so nothing pops in at the edge while panning. */
 const FRUSTUM_MARGIN_M = 50;
@@ -729,8 +731,9 @@ export function createMotionLayer(
         const k = scaleFor(s.agent.kind, d);
         _q.setFromAxisAngle(_y, yaw);
         b.mesh.setMatrixAt(b.n, _m.compose(_p, _q, _s.set(k, k, k)));
-        // night beams only while the car is mostly shown (no beam on a faded-out car)
-        if (s.agent.kind === "vehicle" && fade >= 0.5)
+        // night beams only while the car is mostly shown (no beam on a faded-out car); a bicycle
+        // has no headlight (A2 kit) and throws no car-sized beam (A4w)
+        if (s.agent.kind === "vehicle" && fade >= 0.5 && !NO_BEAM.has(s.agent.variant))
           lights?.add(pose.x, pose.z, yaw, s.halfLengthM, k);
         b.fade.setX(b.n, fade);
         if (watch)

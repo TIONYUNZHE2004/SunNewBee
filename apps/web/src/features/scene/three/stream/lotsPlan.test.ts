@@ -6,7 +6,7 @@ import type { Placement } from "../assets/fit";
 import { parseManifest } from "../assets/manifest";
 import { BOOKMARKS } from "../bookmarks";
 import { createFrame } from "../frame";
-import { CARS_SHARE, STALL_D_M, STALL_STRIDE, STALL_W_M } from "../ground/parking";
+import { CARS_SHARE, PARKED_SHARES, STALL_D_M, STALL_STRIDE, STALL_W_M } from "../ground/parking";
 import { planConstructionSites, sitesOf, TRACK_STRIDE } from "../props/construction";
 import { createSceneBus } from "../scene/sceneBus";
 import { perLayerStats } from "./area";
@@ -106,9 +106,12 @@ describe("planTile parking (Task 10b)", () => {
     const kitCars = kitList(c.kits, "vehicles/");
     expect(kitCars.map((p) => p.id).sort()).toEqual(cars.map((p) => p.id).sort());
     for (const p of kitCars) {
-      expect(["vehicles/compact_hatch", "vehicles/small_sedan", "vehicles/mpv"]).toContain(
-        `${p.asset}/${p.variant}`,
-      );
+      expect([
+        "vehicles/compact_hatch",
+        "vehicles/micro_hatch",
+        "vehicles/small_sedan",
+        "vehicles/mpv",
+      ]).toContain(`${p.asset}/${p.variant}`);
       expect(manifest.assets[p.asset]!.decorative).toBe(true);
     }
     const carIds = new Set(cars.map((p) => p.id));
@@ -123,7 +126,15 @@ describe("planTile parking (Task 10b)", () => {
           tileCap(tier, ring, "parked", t00, frame),
         );
       }
-    expect(TRIS_PER.parked[0]).toBeGreaterThanOrEqual(Math.max(...[676, 676, 696])); // compact_hatch / small_sedan / mpv LOD0
+    // the worst parked variant per LOD, read from the kit (AC-L10's four cars)
+    for (const lod of [0, 1] as const)
+      expect(TRIS_PER.parked[lod]).toBeGreaterThanOrEqual(
+        Math.max(
+          ...Object.keys(PARKED_SHARES).map(
+            (v) => manifest.assets.vehicles!.variants[v]!.lods[lod]!.tris as number,
+          ),
+        ),
+      );
     expect(TILE_CAPS.medium[2].parked).toBe(0);
   });
 
@@ -149,7 +160,7 @@ describe("planTile parking (Task 10b)", () => {
       new URL("../../../../../public/city/kits/vehicles.glb", import.meta.url),
     );
     const json = JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)).toString("utf8"));
-    for (const v of ["compact_hatch", "small_sedan", "mpv"]) {
+    for (const v of Object.keys(PARKED_SHARES)) {
       const node = json.nodes.find((n: { name?: string }) => n.name === `vehicles__${v}__LOD0`);
       const acc = json.accessors[json.meshes[node.mesh].primitives[0].attributes.POSITION];
       expect(acc.max[2] - acc.min[2]).toBeGreaterThan(1.5 * (acc.max[0] - acc.min[0]));

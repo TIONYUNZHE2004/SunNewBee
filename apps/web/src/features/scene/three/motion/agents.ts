@@ -475,10 +475,41 @@ const PAVEMENT_OFFSET_M: [number, number] = [0.3, 0.8];
 /** Heavy vehicles only on major roads. */
 const MAJOR_ONLY = new Set(["bus", "lorry"]);
 const MAJOR_TYPES: ReadonlySet<string> = new Set(["major_road"]);
+/** Bicycles only on streets, never on a major road (AC-L6). */
+const STREET_ONLY = new Set(["bicycle"]);
+const STREET_TYPES: ReadonlySet<string> = new Set(["street"]);
+/**
+ * Street traffic shares (spec §4 A4, AC-L8), in percent of street traffic; `pickVariant` normalises
+ * them (they sum to 98). DECORATIVE: a look of local streets, never a measured traffic count.
+ */
+export const STREET_MIX: Readonly<Record<string, number>> = {
+  compact_hatch: 30,
+  micro_hatch: 12,
+  small_sedan: 20,
+  mpv: 10,
+  pickup: 6,
+  kapchai: 12,
+  delivery_moto: 6,
+  bicycle: 2,
+};
+/** Buses and lorries in the major-road mix, each this share of the street mix total (percent). */
+const MAJOR_HEAVY = 5;
+/**
+ * Major-road mix: the street shares without bicycles (STREET_ONLY), plus bus and lorry at
+ * MAJOR_HEAVY each (ruling A4w: the spec gives no major-road shares). Decorative.
+ */
+export const MAJOR_MIX: Readonly<Record<string, number>> = {
+  ...Object.fromEntries(Object.entries(STREET_MIX).filter(([v]) => !STREET_ONLY.has(v))),
+  bus: MAJOR_HEAVY,
+  lorry: MAJOR_HEAVY,
+};
+/** Bicycles keep to the kerb side: this share of the road width left of the centre line (AC-L6). */
+export const BIKE_LANE_SHARE: readonly [number, number] = [0.36, 0.4];
 
 /**
- * The variant at `rnd` in [0, 1): uniform over `pool` (today), or by `weights` (share per variant id,
- * missing ids weigh 0) when given, so a mix table (A4) can be dropped in. Deterministic.
+ * The variant at `rnd` in [0, 1): by `weights` (share per variant id, missing ids weigh 0; the
+ * shares are normalised over the pool) when given and some pool id has weight, else uniform over
+ * `pool`. Deterministic.
  */
 export function pickVariant(
   pool: readonly string[],
@@ -503,6 +534,8 @@ export function pickVariant(
 const SPEED = {
   street: [8, 11],
   major: [12, 16],
+  /** Bicycles (AC-L6). */
+  bicycle: [4, 5.5],
   walk: [1.2, 1.5],
   jogger: 2.5,
 } as const;
@@ -858,7 +891,9 @@ function slice(pts: P[], s0: number, s1: number): P[] {
 }
 
 /**
- * Vehicles on street/major_road edges (speed 8–11 m/s, major 12–16). People on
+ * Vehicles on street/major_road edges (speed 8–11 m/s, major 12–16), their variant drawn from the
+ * weighted STREET_MIX / MAJOR_MIX (A4w): buses and lorries keep to major roads, bicycles to streets
+ * (4–5.5 m/s, kerb side of the lane: BIKE_LANE_SHARE of the road width). People on
  * footway/path/pedestrian/sidewalk/crossing lines (0.3–0.8 m either side of the line) and on pavement
  * paths beside street/major_road edges (WIDTH_BY_TYPE / 2 + 0.6–1.2 m either side; A-T12 hand-off),
  * walking 1.2–1.5 m/s (jogger 2.5; no cyclists: they would render as walking people). Spawn weight ×3
@@ -945,6 +980,8 @@ export function planAgents(input: AgentsInput): Agent[] {
     e: Edge,
     speed: number,
     types: ReadonlySet<string> | null,
+    /** Bicycles ride the kerb side of the lane (BIKE_LANE_SHARE). */
+    bike = false,
   ) => {
     const pave = kind === "person" && e.pavement;
     const g = kind === "vehicle" || pave ? gV : gP;
@@ -960,13 +997,14 @@ export function planAgents(input: AgentsInput): Agent[] {
     const range =
       kind === "vehicle" ? FILLET_M.vehicle : pave ? FILLET_M.pavement : FILLET_M.person;
     const fillet = lerp(range, hash01(id, "fillet"));
+    const lane = bike ? lerp(BIKE_LANE_SHARE, hash01(id, "lateral")) : LANE_SHARE;
     const window = 2.3 * speed + 2;
     const hashed = hash01(id, "side") < 0.5 ? -1 : 1;
     const sides = kind === "vehicle" ? [1] : [hashed, -hashed];
     for (const side of sides) {
       const offOf = (type: string) => {
         const w = WIDTH_BY_TYPE[type] ?? 6;
-        if (kind === "vehicle") return w * LANE_SHARE;
+        if (kind === "vehicle") return w * lane;
         return side * (pave ? w / 2 + kerb : foot);
       };
       let legFid = ge.fid;
@@ -1102,21 +1140,38 @@ export function planAgents(input: AgentsInput): Agent[] {
     );
     if (n <= 0 || list.length === 0 || variants.length === 0) return;
     list.sort((a, b) => a.prio - b.prio || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    const light = variants.filter((v) => !MAJOR_ONLY.has(v));
+    // A4w: streets take the weighted street mix (no buses or lorries), major roads the major mix
+    // (no bicycles); a kit without these ids falls back to a uniform pick (pickVariant)
+    const streetPool = variants.filter((v) => !MAJOR_ONLY.has(v));
+    const majorPool = variants.filter((v) => !STREET_ONLY.has(v));
     let placed = 0;
     for (const { id, edge: e } of list) {
       if (placed >= n) break;
       const major = e.type === "major_road";
-      const pool = kind === "vehicle" && !major && light.length > 0 ? light : variants;
-      const variant = pickVariant(pool, hash01(id, "variant"));
+      const variant =
+        kind !== "vehicle"
+          ? pickVariant(variants, hash01(id, "variant"))
+          : major
+            ? pickVariant(
+                majorPool.length > 0 ? majorPool : variants,
+                hash01(id, "variant"),
+                MAJOR_MIX,
+              )
+            : pickVariant(
+                streetPool.length > 0 ? streetPool : variants,
+                hash01(id, "variant"),
+                STREET_MIX,
+              );
+      const bike = kind === "vehicle" && STREET_ONLY.has(variant);
       const speed =
         kind === "vehicle"
-          ? lerp(major ? SPEED.major : SPEED.street, hash01(id, "speed"))
+          ? lerp(bike ? SPEED.bicycle : major ? SPEED.major : SPEED.street, hash01(id, "speed"))
           : variant === "jogger"
             ? SPEED.jogger
             : lerp(SPEED.walk, hash01(id, "speed"));
-      // heavy vehicles keep to major roads all the way (MAJOR_ONLY)
-      const walked = walkOf(id, kind, e, speed, MAJOR_ONLY.has(variant) ? MAJOR_TYPES : null);
+      // heavy vehicles keep to major roads all the way (MAJOR_ONLY), bicycles to streets
+      const types = MAJOR_ONLY.has(variant) ? MAJOR_TYPES : bike ? STREET_TYPES : null;
+      const walked = walkOf(id, kind, e, speed, types, bike);
       if (!walked) continue;
       const { pts, uturn, deadEnds, length } = walked;
       // A1: slow through corners and curves (heading turns at most TURN_RATE rad/s), and turn a

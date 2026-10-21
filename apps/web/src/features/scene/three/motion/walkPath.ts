@@ -42,12 +42,23 @@ const dist = (a: P, b: P) => {
   return Math.sqrt(dx * dx + dz * dz);
 };
 
-/** The polyline moved `d` metres to the left of its direction (vertex normals averaged). */
+/**
+ * An interior vertex's offset is stretched (a mitre) so the offset line keeps `d` from both of its
+ * segments, up to this factor (a turn of up to 120 deg); sharper turns are clipped there (A4w: a plain
+ * normal average pulled a lane to d x cos(turn / 2) of the centre line at every bend).
+ */
+const MITRE_MAX = 2;
+
+/**
+ * The polyline moved `d` metres to the left of its direction: vertex normals averaged and mitred
+ * (MITRE_MAX), so every segment keeps `d` from the centre line through a bend.
+ */
 export function offsetLeft(pts: P[], d: number): P[] {
   const n = pts.length;
   return pts.map((p, i) => {
     let lx = 0;
     let lz = 0;
+    let real = 0;
     for (const [a, b] of [
       [i - 1, i],
       [i, i + 1],
@@ -55,13 +66,17 @@ export function offsetLeft(pts: P[], d: number): P[] {
       if (a < 0 || b >= n) continue;
       const dx = pts[b]![0] - pts[a]![0];
       const dz = pts[b]![1] - pts[a]![1];
-      const l = Math.hypot(dx, dz) || 1;
+      const sl = Math.hypot(dx, dz);
+      if (sl > 0) real++;
+      const l = sl || 1;
       // Left of travel with y up: (dz, -dx).
       lx += dz / l;
       lz += -dx / l;
     }
     const l = Math.hypot(lx, lz) || 1;
-    return [p[0] + (lx / l) * d, p[1] + (lz / l) * d];
+    // two unit normals summed: |sum| = 2 cos(turn / 2), so the mitre is 2 / |sum| (1 at the ends)
+    const k = real === 2 ? Math.min(MITRE_MAX, 2 / l) : 1;
+    return [p[0] + (lx / l) * d * k, p[1] + (lz / l) * d * k];
   });
 }
 
@@ -135,6 +150,8 @@ export const ENDED = 2;
 export type AddResult = typeof REJECTED | typeof ADDED | typeof ENDED;
 /** A cut-short leg keeps at least this much (m), else it is rejected. */
 const MIN_KEEP_M = 2;
+/** A mitre corner (legs too short for a fillet) keeps at least this much of either leg (m). */
+const MITRE_KEEP_M = 0.5;
 /** A first leg's blocked start is skipped in steps of this (m). */
 const START_STEP_M = 2;
 
@@ -311,6 +328,22 @@ export function createPathBuilder(o: {
               push(P2);
               legStart = out.length - 1;
               head = cutB > 0 ? Bt.slice(1) : B;
+              joined = true;
+            } else if (lenA > -t1 + MITRE_KEEP_M && lenB > t2 + MITRE_KEEP_M) {
+              // A4w: legs too short for a fillet meet at a mitre corner (the offset lines' crossing
+              // P1) instead of a chord that a cusp drop would pull across the lane
+              const P1: P = [aEnd[0] + uA[0] * t1, aEnd[1] + uA[1] * t1];
+              if (t1 < 0) trimTail(-t1);
+              else push(P1);
+              joinFrom = out.length - 1;
+              const Bt = t2 > 0 ? trimStart(B, t2) : B;
+              if (t2 > 0) {
+                legStart = out.length - 1;
+                head = Bt.slice(1);
+              } else {
+                push(P1);
+                head = B;
+              }
               joined = true;
             }
           }
