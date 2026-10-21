@@ -14,6 +14,12 @@ const CRANE_TOP_M = 50;
 const STACKS = 5;
 const LORRIES = 3;
 const QUEUE = 8;
+/** School-run queue: centre-to-centre gap, how far a car creeps forward, the lane offset, and the
+ * junction crossing kept clear. */
+const QUEUE_GAP_M = 7;
+const QUEUE_CREEP_M = 0.8;
+const QUEUE_LANE_M = 4.5;
+const QUEUE_KEEP_CLEAR_M = 9;
 /** Hoarding is kept to the closed edge within this distance of the tower centre. */
 const CLOSED_REACH_M = 140;
 
@@ -435,6 +441,7 @@ export function createSite(o: SiteOpts): DevsimPart {
   return {
     group,
     vehicles: () => vehiclePts,
+    aoExcluded: () => [lot],
     update({ s, t, night }: DevsimFrame) {
       const cons = s.act === "Construction" && s.hoarding;
       lot.visible = t < 4;
@@ -478,12 +485,12 @@ export function createSite(o: SiteOpts): DevsimPart {
       }
       lorries.setCount(nl);
       // the school-run queue (Daily Life morning)
-      const queueOn = t >= 44 && t < 52.4;
+      const queueOn = queueShown(t);
       const counts = [0, 0];
       if (queueOn)
         for (let i = 0; i < QUEUE; i++) {
-          const d = 15 - i * 6.2 + Math.max(0, Math.sin((t - 44) * 0.8 - i * 0.4)) * 1.5;
-          const p = onStreet(d, 4.5);
+          const d = queueSlot(i) + Math.max(0, Math.sin((t - 44) * 0.8 - i * 0.4)) * QUEUE_CREEP_M;
+          const p = onStreet(d, QUEUE_LANE_M);
           const k = i % 2;
           (cars[k] as (typeof cars)[number]).set(
             counts[k] as number,
@@ -503,6 +510,29 @@ export function createSite(o: SiteOpts): DevsimPart {
       group.clear();
     },
   };
+}
+
+/**
+ * The school-run queue's slot i: metres along the frontage street from the junction. Bumper to
+ * bumper gaps stay open (QUEUE_GAP_M centre to centre for 4.7 m cars, creeping at most
+ * QUEUE_CREEP_M), and the queue keeps the junction crossing clear (gate 2: cars interpenetrated and
+ * Mei Ling stood inside one at the crossing). Pure.
+ */
+export function queueSlot(i: number): number {
+  return 16 - i * QUEUE_GAP_M - (i >= 2 ? QUEUE_KEEP_CLEAR_M : 0);
+}
+
+/** The school-run queue stands at the junction in the Daily Life morning (screen s). */
+export const queueShown = (t: number) => t >= 44 && t < 52.4;
+
+/** True when (x, z) is on the school-run queue's lane stretch (decorative traffic keeps off it). */
+export function nearQueue(g: SiteGeom, x: number, z: number): boolean {
+  const dx = x - g.junction[0];
+  const dz = z - g.junction[1];
+  const along = dx * g.street[0] + dz * g.street[1];
+  const across = dx * g.kerbOut[0] + dz * g.kerbOut[1];
+  const tail = queueSlot(QUEUE - 1) - 4;
+  return along > tail && along < queueSlot(0) + 6 && Math.abs(across - QUEUE_LANE_M) < 4;
 }
 
 /** True when (x, z) is within `m` metres of the plan's closed edge (people keep off it). */

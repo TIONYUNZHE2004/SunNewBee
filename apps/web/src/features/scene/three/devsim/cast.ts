@@ -545,12 +545,13 @@ export function createCast(o: CastOpts): Cast {
       draw();
     },
     people: () => pts,
+    aoExcluded: () => [glow],
     personBox,
     project(camera, size) {
       const moved = !cam || cam.distanceToSquared(camera.position) > 1e-4;
       cam = (cam ?? new THREE.Vector3()).copy(camera.position);
       if (moved) draw(); // display scale follows the camera distance
-      const sb = speaker && glowK > 0.01 ? personBox(speaker) : null;
+      const sb = speaker && glowK > 0.05 ? personBox(speaker) : null;
       if (sb) {
         // a metre behind the speaker from the camera: the body stands in front of the light
         const dx = sb.x - camera.position.x;

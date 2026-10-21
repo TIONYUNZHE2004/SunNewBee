@@ -80,6 +80,8 @@ export interface MotionFlow {
   peopleDensity: number;
   vehicleDensity: number;
   avoid?: (x: number, z: number) => boolean;
+  /** Vehicles inside this zone are not drawn (devsim: the parked school-run queue's lane). */
+  avoidVehicles?: (x: number, z: number) => boolean;
 }
 
 /** World points of the drawn agents, one entry per agent in a fixed order (NaN x: not drawn). */
@@ -561,6 +563,7 @@ export function createMotionLayer(
         const ag = routeOf(s.agent);
         if (!ag) continue;
         poseAt(ag, t, pose);
+        if (s.agent.kind === "vehicle" && flow?.avoidVehicles?.(pose.x, pose.z)) continue;
         if (!keepClear(ag, hero)) continue;
         // ITER2: no decorative vehicle by her route or between the camera and her, no person at the
         // camera's feet (whole agents, never half cut), while a journey hero is shown.

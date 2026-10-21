@@ -15,7 +15,7 @@ import { type Cast, createCast } from "./cast";
 import { devDemoRequested, startDevDemo } from "./devDemo";
 import { createDevsimLayer, type DevsimLayer } from "./devsimLayer";
 import { devsimCamera } from "./devsimView";
-import { createSite, nearClosed } from "./site";
+import { createSite, nearClosed, nearQueue, queueShown } from "./site";
 import { flowSeconds } from "./state";
 import { createTower } from "./tower";
 import { loadWorkerKit } from "./workerKit";
@@ -150,6 +150,7 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
     // position-keeping hand-over would make the frame depend on the seek history).
     const geom = l.geom;
     const avoid = (x: number, z: number) => nearClosed(geom, x, z);
+    const avoidVehicles = (x: number, z: number) => nearQueue(geom, x, z);
     const applyFlow = () => {
       const st = l.state();
       if (!st) return;
@@ -158,6 +159,8 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
         peopleDensity: st.flow.peopleDensity,
         vehicleDensity: st.flow.vehicleDensity,
         avoid,
+        // decorative traffic never drives through the parked school-run queue
+        ...(queueShown(useDevsim.getState().t) ? { avoidVehicles } : {}),
       });
     };
     applyFlow();

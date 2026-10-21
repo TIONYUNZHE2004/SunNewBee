@@ -6,7 +6,7 @@ import { createRoleUniforms } from "../assets/roleMaterial";
 import { createFrame } from "../frame";
 import { dayness } from "./ease";
 import { siteGeom } from "./geom";
-import { createSite, ribbonGeometry, yardRing } from "./site";
+import { createSite, nearQueue, queueSlot, ribbonGeometry, yardRing } from "./site";
 import { stateAt } from "./state";
 
 const P = plan as DevelopmentPlan;
@@ -18,6 +18,26 @@ const at = (site: ReturnType<typeof createSite>, t: number) => {
 const named = (g: THREE.Object3D, n: string) => g.getObjectByName(n) as THREE.Object3D;
 
 describe("devsim site", () => {
+  it("the school-run queue never overlaps and keeps the junction crossing clear (gate 2, 48 s)", () => {
+    const CAR_M = 4.7;
+    const CREEP_M = 0.8;
+    for (let i = 1; i < 8; i++)
+      expect(queueSlot(i - 1) - queueSlot(i) - CREEP_M).toBeGreaterThan(CAR_M + 0.8);
+    for (let i = 0; i < 8; i++) {
+      const d = queueSlot(i);
+      // no car body within 3 m of the crossing at the junction, even creeping forward
+      expect(d - CAR_M / 2 > 3 || d + CREEP_M + CAR_M / 2 < -3).toBe(true);
+      // and the decorative traffic keeps off every queue slot
+      const x = geom.junction[0] + geom.street[0] * d + geom.kerbOut[0] * 4.5;
+      const z = geom.junction[1] + geom.street[1] * d + geom.kerbOut[1] * 4.5;
+      expect(nearQueue(geom, x, z)).toBe(true);
+    }
+    // the far side of the street is not the queue's lane
+    const fx = geom.junction[0] - geom.kerbOut[0] * 6;
+    const fz = geom.junction[1] - geom.kerbOut[1] * 6;
+    expect(nearQueue(geom, fx, fz)).toBe(false);
+  });
+
   it("the closed edge is found from the provisional routes", () => {
     expect(geom.closed.length).toBeGreaterThanOrEqual(2);
     expect(yardRing(geom)).toHaveLength(4);

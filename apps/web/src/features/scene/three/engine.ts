@@ -111,6 +111,8 @@ export interface DevsimOverlay {
     size: readonly [number, number],
     nowMs: number,
   ): void;
+  /** Glows and paint the AO G-buffer must leave out (they would read as solid occluders). */
+  aoExcluded?(): readonly THREE.Object3D[];
   dispose(): void;
 }
 
@@ -1384,6 +1386,7 @@ function build(
           if (overlays) aoSkip.push(overlays.groundGroup, overlays.lineGroup);
           // The journey ribbon is Line2 quads (paint over the ground), not a surface for AO.
           if (journey) aoSkip.push(journey.ribbon);
+          if (devsim?.aoExcluded) for (const o of devsim.aoExcluded()) aoSkip.push(o);
           return aoSkip;
         },
         params,

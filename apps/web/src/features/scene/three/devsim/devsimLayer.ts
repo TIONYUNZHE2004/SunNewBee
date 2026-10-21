@@ -29,6 +29,8 @@ export interface DevsimPart {
   vehicles?(): readonly (readonly [number, number, number])[];
   /** The world box (feet to head) of a Spotlight Resident shown now, by cast id. */
   personBox?(id: string): { x: number; z: number; h: number } | null;
+  /** Objects the AO pass must leave out (additive glows, translucent paint). */
+  aoExcluded?(): readonly THREE.Object3D[];
   /** Per-frame screen work (name tags). */
   project?(camera: THREE.Camera, size: readonly [number, number]): void;
   dispose(): void;
@@ -302,6 +304,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       lastTower = towerRect;
       lastSpeaker = speaker;
     },
+    aoExcluded: () => parts.flatMap((p) => p.aoExcluded?.() ?? []),
     probe() {
       if (!seen || !s) return {};
       // One entry per agent in a stable order (index i is the same agent in every frame); an agent
