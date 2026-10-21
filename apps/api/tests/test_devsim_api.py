@@ -54,7 +54,7 @@ def test_elmina_returns_the_plan(monkeypatch):
     )
     assert r.status_code == 200, r.text
     d = r.json()
-    assert d["world"] == "elmina" and d["provisional"] is False and d["total_s"] == 66
+    assert d["world"] == "elmina" and d["provisional"] is False and d["total_s"] == 45
     assert d["site"]["parcel_id"] == "way/1564861412"
     assert d["site"]["kanopi_clearance_m"] >= 200
     f = d["facts"]
@@ -64,6 +64,7 @@ def test_elmina_returns_the_plan(monkeypatch):
     assert [c["name"] for c in d["cast"]] == [
         "Pak Cik Halim",
         "Farid",
+        "Site worker",
         "Mei Ling",
         "Mak Cik Zainab",
         "Arjun",
@@ -74,10 +75,15 @@ def test_elmina_returns_the_plan(monkeypatch):
         "Construction",
         "Handover",
         "Daily Life",
-        "Summary",
     ]
-    assert d["end_card"]["title"] == "What residents raised"
-    assert set(d["anchors"]) == {"halim_path", "farid", "junction", "park", "mall"}
+    assert "end_card" not in d and d["brief"]["title"] == "Impact brief"
+    # the 45 s plan carries the impact modules (demo polish C7)
+    for k in ("impact", "lorry_route", "schedule", "flood", "access_matrix", "residents"):
+        assert k in d, k
+    assert len(d["residents"]["residents"]) == 40
+    assert d["schedule"]["months_total"] == len(d["schedule"]["days_lost_by_month"])
+    assert d["month_keys"][0] == [0.0, 0.0] and d["month_keys"][-1][0] == 45
+    assert set(d["anchors"]) == {"halim_path", "farid", "worker", "junction", "park", "mall"}
     assert d["labels"]["simulation"] == "Simulation · illustrative"
     # deterministic and cached: the same plan again
     assert c.post("/developments/simulate", json={}).json() == d
