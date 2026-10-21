@@ -32,8 +32,8 @@ export const HERO_BOOST = 1.6;
  * verges: one cap unit is VERGE_PIECES_PER_CAP grass strip pieces of 2 triangles each (100), plus
  * at ring 0 VERGE_SHRUBS_PER_CAP shrubs (`trees` kit LOD0, shrub_round 70 % / shrub_hedge 30 %:
  * 424 each, so 212). Shrubs are ring 0 only; `planTileVerges` caps both.
- * Parked cars (`parked`, Task 10) are vehicles-kit instances of the parked variants (hatchback,
- * sedan, mpv): the worst of the three per LOD, 696 / 352 (mpv), counted per car (they are capped
+ * Parked cars (`parked`, Task 10) are vehicles-kit instances of the parked variants (compact_hatch,
+ * small_sedan, mpv): the worst of the three per LOD, 696 / 352 (mpv), counted per car (they are capped
  * per tile on their own, not as a share of the stalls).
  */
 export const TRIS_PER: Record<StreamKind, Record<0 | 1 | 2, number>> = {

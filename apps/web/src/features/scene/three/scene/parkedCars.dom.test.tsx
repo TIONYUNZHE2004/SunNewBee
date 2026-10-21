@@ -25,7 +25,7 @@ const site = (id: string, x: number): Site => ({
 const car = (id: string, x: number): Placement => ({
   id,
   asset: "vehicles",
-  variant: "sedan",
+  variant: "small_sedan",
   x,
   z: 10,
   yaw: 0,
@@ -37,7 +37,7 @@ const car = (id: string, x: number): Placement => ({
 const content = (x: number, s: Site): TileContent => {
   const cars = [car(`pk:${x}`, x + 5)];
   return {
-    kits: new Map([["vehicles/sedan", cars]]),
+    kits: new Map([["vehicles/small_sedan", cars]]),
     lamps: [],
     agents: [],
     signs: [],
@@ -80,7 +80,8 @@ describe("parked cars (Task 10b ruling: decorative, static, never faded)", () =>
         bus: createSceneBus(),
       }),
     );
-    const ids = (m: Map<string, Placement[]>) => (m.get("vehicles/sedan") ?? []).map((p) => p.id);
+    const ids = (m: Map<string, Placement[]>) =>
+      (m.get("vehicles/small_sedan") ?? []).map((p) => p.id);
     expect(ids(setKits.mock.calls.at(-1)![0])).toEqual(["pk:10", "pk:260"]);
     const calls = setKits.mock.calls.length;
     act(() => useScene.getState().setDay({ on: true }));

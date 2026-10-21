@@ -8,7 +8,7 @@ an uncompressed file (the raw Blender export), for tests.
 import json
 import math
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 Vec3 = tuple[float, float, float]
@@ -29,6 +29,7 @@ class NodeInfo:
     primitives: int
     bounds: tuple[Vec3, Vec3]
     attributes: frozenset[str]
+    extras: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -159,7 +160,9 @@ def read_glb(path: Path) -> GlbInfo:
                             lo[k] = min(lo[k], p[k])
                             hi[k] = max(hi[k], p[k])
         name = node.get("name") or f"node{i}"
-        nodes[name] = NodeInfo(tris, len(prims), (tuple(lo), tuple(hi)), frozenset(attrs))
+        nodes[name] = NodeInfo(
+            tris, len(prims), (tuple(lo), tuple(hi)), frozenset(attrs), dict(node.get("extras", {}))
+        )
     return GlbInfo(
         nodes=nodes,
         materials=[mat.get("name", "") for mat in gltf.get("materials", [])],

@@ -311,7 +311,7 @@ def export_glb(objs: list, path: Path) -> None:
         "export_attributes": False,
         "export_cameras": False,
         "export_lights": False,
-        "export_extras": False,
+        "export_extras": True,  # object custom props only: build.TAGGED_PARTS (`tl_parts`)
         "export_animations": False,
         "export_skins": False,
         "export_morph": False,

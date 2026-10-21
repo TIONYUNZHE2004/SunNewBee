@@ -811,9 +811,10 @@ def _figure(
     reach: tuple[float, float, float] | None = None,
     hip_abs: float | None = None,
     hz0: float = 0.0,
-) -> None:
+) -> tuple[float, float, float, float, float]:
     """A static mid-stride person of height ~H (the caller rescales to exact). `seated` gives
-    explicit leg points per side (cyclist); `reach` is where both hands hold a handle."""
+    explicit leg points per side (cyclist); `reach` is where both hands hold a handle.
+    Returns the head (centre y, centre z, radii x, y, z) for a helmet."""
     n = 8 if lod == 0 else 4
     nt = 8 if lod == 0 else 5
     bs, br = (8, 5) if lod == 0 else (5, 3)
@@ -1020,6 +1021,7 @@ def _figure(
                 [0.012 * H, 0.012 * H],
                 5,
             )
+    return hcy, hz, rx_, ry, rz_
 
 
 STRIDE = {
@@ -1077,27 +1079,89 @@ def _bike(P: _Parts, lod: int) -> None:
         _box(metal, -0.13, -0.07, 0.27, 0.29, -0.04, 0.0)
 
 
-def _rider(P: _Parts, lod: int) -> None:
-    seated = {
+class _Roles:
+    """A `_Parts` view that renames roles: lets one figure dress in another kit's slots."""
+
+    def __init__(self, P: _Parts, roles: dict[str, str]) -> None:
+        self.P, self.roles = P, roles
+
+    def m(self, role: str, aux: float | None = None) -> _Mesh:
+        return self.P.m(self.roles.get(role, role), aux)
+
+
+# Seated poses: legs per side (hip, knee, ankle), both hands at `reach`, hips at `hip_abs`,
+# `hz0` the hip z. The bicycle pose is the people kit cyclist's (feet on the pedals); the
+# moped pose sits on the long seat with the feet on the floor pegs and the hands on the grips.
+BIKE_POSE = dict(
+    seated={
         1.0: ((0.09, 1.0, -0.2), (0.12, 0.66, 0.2), (0.11, 0.32, 0.1)),
         -1.0: ((-0.09, 1.0, -0.2), (-0.12, 0.62, 0.0), (-0.11, 0.26, -0.14)),
-    }
-    _bike(P, lod)
-    _figure(
-        P,
+    },
+    reach=(0.28, 1.04, 0.38),
+    hip_abs=1.0,
+    hz0=-0.2,
+    lean=0.2,
+)
+MOPED_POSE = dict(
+    seated={
+        1.0: ((0.09, 0.93, -0.36), (0.17, 0.8, 0.06), (0.17, 0.34, -0.02)),
+        -1.0: ((-0.09, 0.93, -0.36), (-0.17, 0.8, 0.06), (-0.17, 0.34, -0.02)),
+    },
+    reach=(0.32, 1.01, 0.33),
+    hip_abs=0.93,
+    hz0=-0.36,
+    lean=0.17,
+)
+# Vehicles kit slots for a rider: shirt or jacket `secondary`, trousers `dark`, skin `accent`
+# (cars never use secondary or accent, so the palette's 2nd and 3rd colours dress riders).
+RIDER_ROLES = {"primary": "secondary", "secondary": "dark"}
+
+
+def _seated_rider(
+    P: _Parts, lod: int, *, helmet: bool, pose: dict, roles: dict[str, str] | None = None
+) -> None:
+    """A seated rider (true scale, about 1.7 m standing) with the hands on the bars and the
+    feet on the pegs or pedals of `pose`; `helmet` adds an open-face helmet (role primary,
+    the vehicle paint) with a dark visor."""
+    F = _Roles(P, roles or {})
+    hcy, hz, rx, ry, rz = _figure(
+        F,
         1.7,
         lod,
-        sleeve="short",
-        legs="short",
-        hair="short",
+        sleeve="long" if helmet else "short",
+        legs="long" if helmet else "short",
+        hair="none" if helmet else "short",
         ky=0.8,
-        lean=0.2,
         head_fwd=0.07,
-        seated=seated,
-        reach=(0.28, 1.04, 0.38),
-        hip_abs=1.0,
-        hz0=-0.2,
+        **pose,
     )
+    if helmet:
+        bs, br = (8, 5) if lod == 0 else (6, 3)
+        shell = P.m("primary")
+        _blob(
+            shell,
+            (0, hcy + 0.01, hz - 0.01),
+            (rx * 1.28, ry * 1.2, rz * 1.25),
+            segs=bs,
+            rings=br,
+            floor=hcy - ry * 0.55,
+        )
+        if lod == 0:
+            _box(
+                P.m("dark"),
+                -rx * 0.95,
+                rx * 0.95,
+                hcy + ry * 0.25,
+                hcy + ry * 0.6,
+                hz + rz * 0.9,
+                hz + rz * 1.3,
+            )
+
+
+def _rider(P: _Parts, lod: int) -> None:
+    """The people kit cyclist: the bicycle and a bare-headed seated rider."""
+    _bike(P, lod)
+    _seated_rider(P, lod, helmet=False, pose=BIKE_POSE)
 
 
 def _stroller(P: _Parts, lod: int) -> None:
@@ -1175,69 +1239,77 @@ def _loft(m: _Mesh, secs: Sequence[tuple[float, float, float, float, float]], ca
         m.hexa([a[0], a[1], b[1], b[0], a[3], a[2], b[2], b[3]], skip)
 
 
+# Generic local-street shapes (spec A4), no make or model: L length, hw half width, belt and
+# roof heights, cf/wt/rt/rb windscreen base, windscreen top, roof rear and boot or hatch base
+# as fractions of L from the middle (+ front), ax axle insets, r wheel radius, drop boot drop.
 CARS: dict[str, dict] = {
-    "hatchback": dict(
-        L=3.85,
+    # small 5-door hatch: short bonnet, tall glasshouse, near-vertical hatch
+    "compact_hatch": dict(
+        L=3.9,
         hw=0.78,
-        belt=0.86,
-        roof=1.5,
-        cf=0.2,
-        wt=0.04,
-        rt=-0.3,
-        rb=-0.485,
-        ax=(0.72, 0.68),
+        belt=0.84,
+        roof=1.52,
+        cf=0.24,
+        wt=0.07,
+        rt=-0.33,
+        rb=-0.49,
+        ax=(0.68, 0.64),
         r=0.29,
         drop=0.0,
     ),
-    "city_car": dict(
+    # very small hatch: boxy, the shortest bonnet, upright tail
+    "micro_hatch": dict(
         L=3.7,
-        hw=0.75,
-        belt=0.84,
-        roof=1.48,
-        cf=0.21,
-        wt=0.06,
-        rt=-0.28,
-        rb=-0.48,
-        ax=(0.7, 0.65),
-        r=0.28,
+        hw=0.74,
+        belt=0.82,
+        roof=1.5,
+        cf=0.26,
+        wt=0.09,
+        rt=-0.35,
+        rb=-0.495,
+        ax=(0.6, 0.58),
+        r=0.27,
         drop=0.0,
     ),
-    "sedan": dict(
-        L=4.6,
-        hw=0.82,
-        belt=0.88,
-        roof=1.43,
-        cf=0.18,
-        wt=0.0,
-        rt=-0.16,
-        rb=-0.3,
-        ax=(0.85, 0.9),
-        r=0.31,
-        drop=0.08,
+    # small 4-door sedan with a short boot
+    "small_sedan": dict(
+        L=4.3,
+        hw=0.8,
+        belt=0.86,
+        roof=1.48,
+        cf=0.2,
+        wt=0.03,
+        rt=-0.2,
+        rb=-0.33,
+        ax=(0.76, 0.82),
+        r=0.3,
+        drop=0.06,
     ),
+    # 7-seat MPV: long roof, steep tail
     "mpv": dict(
-        L=4.7,
-        hw=0.82,
+        L=4.4,
+        hw=0.8,
         belt=0.9,
         roof=1.68,
-        cf=0.22,
-        wt=0.12,
-        rt=-0.4,
-        rb=-0.485,
-        ax=(0.85, 0.9),
-        r=0.31,
+        cf=0.23,
+        wt=0.1,
+        rt=-0.42,
+        rb=-0.49,
+        ax=(0.76, 0.8),
+        r=0.3,
         drop=0.0,
     ),
+    # double-cab pickup: long cab, open bed
     "pickup": dict(
-        L=5.25,
+        L=5.3,
         hw=0.9,
         belt=1.0,
-        roof=1.78,
+        roof=1.8,
         cf=0.17,
-        wt=0.05,
-        rt=-0.07,
+        wt=0.07,
+        rt=-0.2,
         rb=None,
-        ax=(1.05, 1.1),
+        ax=(1.0, 1.05),
         r=0.36,
         drop=0.0,
     ),
@@ -1324,132 +1396,169 @@ def _car(v: Variant, lod: int) -> list:
     return P.objs("car")
 
 
-def _motorcycle(v: Variant, lod: int) -> list:
+def _rider_obj(lod: int, *, helmet: bool, pose: dict) -> list:
+    """The seated rider as one object named `rider` (the parts sidecar records it per LOD)."""
+    R = _Parts(0.0)
+    _seated_rider(R, lod, helmet=helmet, pose=pose, roles=RIDER_ROLES)
+    return [core.join(R.objs("rider"), "rider")]
+
+
+def _moped(v: Variant, lod: int) -> list:
+    """An underbone moped (step-through frame, leg shield, long seat over a rear cowl, small
+    wheels) with a helmeted rider; `delivery_moto` adds a plain rear box (role secondary, no
+    lettering) on a rack."""
     P = _Parts(0.0)
     body, dark, metal = P.m("primary"), P.m("dark"), P.m("metal")
     head, tail = P.m("light", 0.25), P.m("light", 0.75)
-    r, wz = 0.3, 0.65
-    n = 12 if lod == 0 else 7
+    r, wz = 0.29, 0.64
+    n = 12 if lod == 0 else 6
     for z in (wz, -wz):
-        _tube(dark, [(-0.055, r, z), (0.055, r, z)], [r, r], n, cap_bottom=True)
-        _tube(
-            metal,
-            [(-0.07, r, z), (0.07, r, z)],
-            [0.13, 0.13],
-            6 if lod == 0 else 4,
-            cap_bottom=True,
-        )
-    for s in (1.0, -1.0):
+        _tube(dark, [(-0.05, r, z), (0.05, r, z)], [r, r], n, cap_bottom=True)
+        if lod == 0:
+            _tube(metal, [(-0.06, r, z), (0.06, r, z)], [0.11, 0.11], 6, cap_bottom=True)
+    for s in (1.0, -1.0) if lod == 0 else (1.0,):  # fork legs (LOD1: one)
         _limb(
             metal,
-            (s * 0.09, r, wz),
-            (s * 0.1, 0.98, 0.4),
+            (s * 0.07 if lod == 0 else 0.0, r, wz),
+            (s * 0.07 if lod == 0 else 0.0, 0.9, 0.46),
             0.02,
-            0.025,
-            n=5 if lod == 0 else 4,
+            0.024,
+            n=5 if lod == 0 else 3,
             rings=0,
         )
-    _tube(metal, [(-0.36, 1.02, 0.38), (0.36, 1.02, 0.38)], [0.016, 0.016], 5)
-    _tube(dark, [(-0.4, 1.02, 0.38), (-0.3, 1.02, 0.38)], [0.022, 0.022], 5)
-    _tube(dark, [(0.3, 1.02, 0.38), (0.4, 1.02, 0.38)], [0.022, 0.022], 5)
-    _box(head, -0.09, 0.09, 0.82, 0.97, 0.38, 0.5)
-    _blob(
-        body,
-        (0, 0.82, 0.1),
-        (0.16, 0.14, 0.3),
-        segs=8 if lod == 0 else 6,
-        rings=4 if lod == 0 else 3,
-    )
-    _box(dark, -0.14, 0.14, 0.76, 0.84, -0.52, -0.05)
-    _box(metal, -0.1, 0.1, 0.28, 0.52, -0.12, 0.22)
-    _limb(metal, (0, 0.34, 0.2), (0, 0.78, 0.36), 0.02, 0.02, n=4, rings=0)
-    _limb(metal, (0, 0.34, -0.1), (0, 0.76, -0.5), 0.02, 0.02, n=4, rings=0)
-    _tube(metal, [(0.15, 0.3, 0.0), (0.17, 0.34, -0.7)], [0.035, 0.03], 6 if lod == 0 else 4)
-    _box(body, -0.1, 0.1, 0.62, 0.66, -0.78, -0.4)
-    if v.id == "delivery_motorcycle":  # a plain rear box, no lettering
-        _box(metal, -0.2, 0.2, 0.84, 0.88, -0.98, -0.34)
-        _box(body, -0.28, 0.28, 0.88, 1.3, -1.0, -0.36)
-        _box(dark, -0.29, 0.29, 1.24, 1.28, -1.01, -0.35)
-        _box(tail, -0.2, 0.2, 0.96, 1.04, -1.03, -1.0)
-    else:
-        _box(tail, -0.08, 0.08, 0.66, 0.72, -0.68, -0.62)
-    return P.objs("moto")
-
-
-def _bus(v: Variant, lod: int) -> list:
-    P = _Parts(0.0)
-    body, glass, dark, metal = P.m("primary"), P.m("glass"), P.m("dark"), P.m("metal")
-    head, tail = P.m("light", 0.25), P.m("light", 0.75)
-    H2 = 5.75
+    bar = 0.34 if lod == 0 else 0.4  # LOD1 has no grips: the bar spans them
+    _tube(metal, [(-bar, 1.0, 0.36), (bar, 1.0, 0.36)], [0.014, 0.014], 5 if lod == 0 else 3)
+    if lod == 0:
+        _tube(dark, [(-0.4, 1.0, 0.36), (-0.3, 1.0, 0.36)], [0.02, 0.02], 5)
+        _tube(dark, [(0.3, 1.0, 0.36), (0.4, 1.0, 0.36)], [0.02, 0.02], 5)
+    _blob(body, (0, 0.97, 0.43), (0.13, 0.07, 0.1), segs=8 if lod == 0 else 5, rings=3)
+    _box(head, -0.07, 0.07, 0.9, 0.99, 0.5, 0.55)
+    # leg shield and front mudguard
+    _loft(body, [(0.44, 0.4, 0.94, 0.15, 0.11), (0.3, 0.32, 0.9, 0.2, 0.14)])
+    _box(body, -0.06, 0.06, 0.6, 0.64, 0.42, 0.86)
+    # underbone frame, floor pegs, engine, swingarm and exhaust
+    if lod == 0:
+        _limb(dark, (0, 0.86, 0.36), (0, 0.38, 0.14), 0.03, 0.03, n=5, rings=0)
+        _limb(dark, (0, 0.38, 0.14), (0, 0.44, -0.16), 0.03, 0.03, n=5, rings=0)
+        _tube(metal, [(-0.24, 0.3, -0.02), (0.24, 0.3, -0.02)], [0.015, 0.015], 4)
+        _limb(metal, (0.12, r + 0.02, -0.5), (0.12, 0.64, -0.36), 0.02, 0.02, n=4, rings=0)
+    _box(metal, -0.12, 0.12, 0.2, 0.45, -0.26, 0.12)
+    _limb(metal, (0.09, r, -wz), (0.09, 0.34, -0.12), 0.025, 0.025, n=4 if lod == 0 else 3, rings=0)
+    _tube(metal, [(0.16, 0.28, 0.05), (0.18, 0.34, -0.74)], [0.035, 0.03], 6 if lod == 0 else 3)
+    # rear cowl, seat, rear mudguard and tail light
     _loft(
         body,
         [
-            (5.7, 0.55, 2.9, 1.2, 1.15),
-            (5.45, 0.45, 3.1, 1.25, 1.2),
-            (-5.45, 0.45, 3.1, 1.25, 1.2),
-            (-5.7, 0.55, 2.9, 1.2, 1.15),
+            (0.02, 0.44, 0.72, 0.12, 0.11),
+            (-0.45, 0.48, 0.83, 0.16, 0.15),
+            (-0.88, 0.62, 0.78, 0.09, 0.08),
+        ]
+        if lod == 0
+        else [(0.02, 0.44, 0.72, 0.12, 0.11), (-0.88, 0.62, 0.8, 0.12, 0.1)],
+    )
+    _box(dark, -0.13, 0.13, 0.82, 0.9, -0.74, -0.02)
+    _box(tail, -0.07, 0.07, 0.66, 0.74, -0.91, -0.87)
+    out: list = []
+    if v.id == "delivery_moto":  # rack and a plain box, no lettering or logo
+        B = _Parts(0.0)
+        _box(metal, -0.17, 0.17, 0.84, 0.88, -1.0, -0.5)
+        _box(B.m("secondary"), -0.27, 0.27, 0.88, 1.32, -1.02, -0.5)
+        _box(B.m("dark"), -0.28, 0.28, 1.27, 1.31, -1.03, -0.49)
+        out += [core.join(B.objs("box"), "delivery_box")]
+    out += _rider_obj(lod, helmet=True, pose=MOPED_POSE)
+    return P.objs("moto") + out
+
+
+def _bicycle(v: Variant, lod: int) -> list:
+    """A street bicycle (the people kit's bike geometry) with a bare-headed rider and a small
+    rear lamp; no headlight (a pedal bike)."""
+    P = _Parts(0.0)
+    _bike(P, lod)
+    _box(P.m("light", 0.75), -0.03, 0.03, 0.76, 0.83, -0.32, -0.29)
+    return P.objs("bike") + _rider_obj(lod, helmet=False, pose=BIKE_POSE)
+
+
+def _bus(v: Variant, lod: int) -> list:
+    """A single-deck city bus, 12 m."""
+    P = _Parts(0.0)
+    body, glass, dark, metal = P.m("primary"), P.m("glass"), P.m("dark"), P.m("metal")
+    head, tail = P.m("light", 0.25), P.m("light", 0.75)
+    H2 = 6.0
+    _loft(
+        body,
+        [
+            (5.95, 0.55, 2.9, 1.2, 1.15),
+            (5.7, 0.45, 3.1, 1.25, 1.2),
+            (-5.7, 0.45, 3.1, 1.25, 1.2),
+            (-5.95, 0.55, 2.9, 1.2, 1.15),
         ],
     )
     wx = 1.225
     for s in (1.0, -1.0):
         if lod == 0:
             for k in range(8):  # windows from the door back
-                z = 3.5 - 1.15 * k
-                _sbox(glass, s, wx, wx + 0.03, 1.35, 2.5, z - 0.5, z + 0.5, bottom=True)
-            _sbox(dark, s, wx, wx + 0.03, 0.6, 2.55, 4.55, 4.62)
+                z = 3.7 - 1.2 * k
+                _sbox(glass, s, wx, wx + 0.03, 1.35, 2.5, z - 0.52, z + 0.52, bottom=True)
+            _sbox(dark, s, wx, wx + 0.03, 0.6, 2.55, 4.8, 4.87)
         else:
-            _sbox(glass, s, wx, wx + 0.03, 1.35, 2.5, -4.6, 4.0, bottom=True)
-    _box(glass, -1.0, 1.0, 1.4, 2.8, 5.62, 5.71, bottom=True)
-    _box(glass, -1.0, 1.0, 1.5, 2.7, -5.71, -5.62, bottom=True)
-    _box(dark, -0.9, 0.9, 2.82, 3.0, 5.62, 5.71)
-    _box(dark, -1.2, 1.2, 0.45, 0.75, 5.65, H2)
-    _box(dark, -1.2, 1.2, 0.45, 0.75, -H2, -5.65)
+            _sbox(glass, s, wx, wx + 0.03, 1.35, 2.5, -4.9, 4.2, bottom=True)
+    _box(glass, -1.0, 1.0, 1.4, 2.8, 5.87, 5.96, bottom=True)
+    _box(glass, -1.0, 1.0, 1.5, 2.7, -5.96, -5.87, bottom=True)
+    _box(dark, -0.9, 0.9, 2.82, 3.0, 5.87, 5.96)
+    _box(dark, -1.2, 1.2, 0.45, 0.75, 5.9, H2)
+    _box(dark, -1.2, 1.2, 0.45, 0.75, -H2, -5.9)
     _box(metal, -0.7, 0.7, 3.1, 3.2, -2.0, 0.6)
     for s in (1.0, -1.0):
-        _sbox(head, s, 0.75, 1.1, 0.8, 0.98, 5.68, H2)
-        _sbox(tail, s, 0.75, 1.1, 0.9, 1.1, -H2, -5.68)
-        _sbox(metal, s, 1.25, 1.55, 1.9, 2.4, 5.2, 5.28)  # mirror arm
-        _sbox(metal, s, 1.5, 1.58, 1.7, 2.5, 5.18, 5.3)
+        _sbox(head, s, 0.75, 1.1, 0.8, 0.98, 5.93, H2)
+        _sbox(tail, s, 0.75, 1.1, 0.9, 1.1, -H2, -5.93)
+        _sbox(metal, s, 1.25, 1.55, 1.9, 2.4, 5.45, 5.53)  # mirror arm
+        _sbox(metal, s, 1.5, 1.58, 1.7, 2.5, 5.43, 5.55)
     n = 16 if lod == 0 else 8
     for s in (1.0, -1.0):
-        for z in (3.9, -3.3):
+        for z in (4.1, -3.5):
             _wheel(dark, metal, s * 1.1, 0.5, z, 0.5, 0.3, n)
     return P.objs("bus")
 
 
 def _lorry(v: Variant, lod: int) -> list:
+    """A 3-tonne box lorry, 7 m: a cab-over cab and a plain cargo box (no lettering)."""
     P = _Parts(0.0)
     body, glass, dark, metal = P.m("primary"), P.m("glass"), P.m("dark"), P.m("metal")
     head, tail = P.m("light", 0.25), P.m("light", 0.75)
-    _box(body, -0.98, 0.98, 0.8, 3.0, 2.4, 3.95)  # cab-over cab
-    _box(glass, -0.82, 0.82, 1.7, 2.7, 3.94, 3.98, bottom=True)
-    _box(dark, -0.6, 0.6, 1.05, 1.5, 3.94, 3.97)
-    _box(dark, -1.0, 1.0, 0.55, 0.85, 3.88, 4.0)
-    _box(dark, -0.9, 0.9, 0.55, 0.85, -4.0, -3.88)
-    _box(body, -1.15, 1.15, 0.95, 3.2, -3.95, 2.25)  # cargo box
-    _box(dark, -0.8, 0.8, 0.6, 0.95, -3.9, 3.8)  # chassis
+    _box(body, -0.95, 0.95, 0.75, 2.7, 2.1, 3.45)  # cab-over cab
+    _box(glass, -0.8, 0.8, 1.55, 2.45, 3.44, 3.48, bottom=True)
+    _box(dark, -0.58, 0.58, 1.0, 1.4, 3.44, 3.47)
+    _box(dark, -0.97, 0.97, 0.5, 0.8, 3.38, 3.5)
+    _box(dark, -0.88, 0.88, 0.5, 0.8, -3.5, -3.38)
+    _box(body, -1.1, 1.1, 0.9, 3.0, -3.45, 1.95)  # cargo box
+    _box(dark, -0.75, 0.75, 0.55, 0.9, -3.4, 3.3)  # chassis
     for s in (1.0, -1.0):
-        _sbox(glass, s, 0.98, 1.01, 1.7, 2.6, 3.0, 3.75, bottom=True)
-        _sbox(head, s, 0.64, 0.94, 0.95, 1.2, 3.93, 4.0)
-        _sbox(tail, s, 0.85, 1.07, 1.05, 1.25, -4.0, -3.95)
-        _sbox(metal, s, 1.0, 1.35, 1.8, 2.3, 3.7, 3.78)
+        _sbox(glass, s, 0.95, 0.98, 1.55, 2.4, 2.6, 3.3, bottom=True)
+        _sbox(head, s, 0.62, 0.9, 0.9, 1.12, 3.43, 3.5)
+        _sbox(tail, s, 0.8, 1.02, 1.0, 1.2, -3.5, -3.45)
+        _sbox(metal, s, 0.95, 1.25, 1.65, 2.1, 3.2, 3.28)
         if lod == 0:
-            for k in range(10):
-                z = -3.6 + k * 0.6
-                _sbox(metal, s, 1.15, 1.18, 1.0, 3.15, z - 0.03, z + 0.03)
+            for k in range(9):
+                z = -3.15 + k * 0.6
+                _sbox(metal, s, 1.1, 1.13, 0.95, 2.95, z - 0.03, z + 0.03)
     n = 16 if lod == 0 else 8
     for s in (1.0, -1.0):
-        _wheel(dark, metal, s * 0.92, 0.5, 2.8, 0.5, 0.3, n)
-        _wheel(dark, metal, s * 0.92, 0.5, -2.4, 0.5, 0.3, n)
-        _wheel(dark, None, s * 0.6, 0.5, -2.4, 0.5, 0.3, n)
+        _wheel(dark, metal, s * 0.88, 0.45, 2.55, 0.45, 0.25, n)
+        _wheel(dark, metal, s * 0.88, 0.45, -2.0, 0.45, 0.25, n)
+        _wheel(dark, None, s * 0.6, 0.45, -2.0, 0.45, 0.25, n)
     return P.objs("lorry")
+
+
+TWO_WHEELERS = ("kapchai", "delivery_moto", "bicycle")
 
 
 def _vehicle_builder(v: Variant, lod: int) -> list:
     if v.id in CARS:
         return _car(v, lod)
-    if v.id in ("motorcycle", "delivery_motorcycle"):
-        return _motorcycle(v, lod)
+    if v.id in ("kapchai", "delivery_moto"):
+        return _moped(v, lod)
+    if v.id == "bicycle":
+        return _bicycle(v, lod)
     if v.id == "bus":
         return _bus(v, lod)
     if v.id == "lorry":

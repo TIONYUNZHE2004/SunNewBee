@@ -64,6 +64,9 @@ def _load_builders() -> None:
 
 
 _SUFFIX = re.compile(r"\.\d{3,}$")
+# Named parts that the joined node records in its glTF extras (`tl_parts`), so a check on the
+# committed glb can see them after the join (the parts sidecar is raw output only).
+TAGGED_PARTS = ("rider", "delivery_box")
 
 
 def part_names(objs) -> list[str]:
@@ -93,9 +96,13 @@ def _build_objects(
             kit.reset_lit_balance()  # each node balances its own lit-window share
             built = BUILDERS[asset_id](v, lod)
             kit.finalize_seeds()  # no-op after a `kit.lit_node` builder
+            names = part_names(built)
             if parts is not None:
-                parts[name] = part_names(built)
+                parts[name] = names
             obj = core.join(built, name)
+            tagged = [t for t in TAGGED_PARTS if t in names]
+            if tagged:  # glTF node extras {"tl_parts": "rider,..."}: kept by the packer
+                obj["tl_parts"] = ",".join(tagged)
             tris = core.tri_count(obj)
             if tris > cap:
                 raise ValueError(f"{name}: {tris} triangles over the cap {cap}")

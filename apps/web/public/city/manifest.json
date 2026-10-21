@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "as_of": "2026-10-19",
+  "as_of": "2026-10-22",
   "roles": [
     "primary",
     "secondary",
@@ -1870,7 +1870,7 @@
     "vehicles": {
       "group": "kit",
       "file": "kits/vehicles.glb",
-      "bytes": 154476,
+      "bytes": 202392,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1889,73 +1889,118 @@
         "scale": 0.02
       },
       "variantByGroup": {
-        "default": "hatchback"
+        "default": "compact_hatch"
       },
       "palettes": {
         "default": [
           [
-            "#d8d6d0",
-            "#62666c",
-            "#8a8f96"
+            "#f2f1ed",
+            "#6a4a6a",
+            "#b9835a"
+          ],
+          [
+            "#eeede8",
+            "#5b5f66",
+            "#9a6844"
+          ],
+          [
+            "#f4f3ef",
+            "#8a4b3c",
+            "#c89670"
+          ],
+          [
+            "#c3c6ca",
+            "#4f6b5a",
+            "#a8744c"
+          ],
+          [
+            "#b9bdc2",
+            "#6b6f75",
+            "#c08a62"
+          ],
+          [
+            "#8d9198",
+            "#8a6a3c",
+            "#a06c48"
+          ],
+          [
+            "#b23a35",
+            "#4b5563",
+            "#b9835a"
+          ],
+          [
+            "#2f5d9c",
+            "#7a5c48",
+            "#9a6844"
+          ],
+          [
+            "#505359",
+            "#7a4a3c",
+            "#c89670"
+          ],
+          [
+            "#8e3444",
+            "#5b5f66",
+            "#a8744c"
           ]
         ]
       },
       "variants": {
-        "hatchback": {
+        "compact_hatch": {
           "size": [
             1.7,
             1.5,
-            3.85
+            3.9
           ],
-          "top": 1.55,
+          "top": 1.57,
           "lods": [
             {
-              "node": "vehicles__hatchback__LOD0",
+              "node": "vehicles__compact_hatch__LOD0",
               "tris": 676,
               "maxM": 150.0
             },
             {
-              "node": "vehicles__hatchback__LOD1",
+              "node": "vehicles__compact_hatch__LOD1",
               "tris": 352,
               "maxM": 1500.0
             }
           ]
         },
-        "city_car": {
+        "micro_hatch": {
           "size": [
             1.6,
             1.5,
             3.7
           ],
-          "top": 1.53,
+          "top": 1.55,
           "lods": [
             {
-              "node": "vehicles__city_car__LOD0",
+              "node": "vehicles__micro_hatch__LOD0",
               "tris": 676,
               "maxM": 150.0
             },
             {
-              "node": "vehicles__city_car__LOD1",
+              "node": "vehicles__micro_hatch__LOD1",
               "tris": 352,
               "maxM": 1500.0
             }
           ]
         },
-        "sedan": {
+        "small_sedan": {
           "size": [
-            1.8,
-            1.45,
-            4.6
+            1.7,
+            1.5,
+            4.3
           ],
-          "top": 1.48,
+          "top": 1.53,
           "lods": [
             {
-              "node": "vehicles__sedan__LOD0",
+              "node": "vehicles__small_sedan__LOD0",
               "tris": 676,
               "maxM": 150.0
             },
             {
-              "node": "vehicles__sedan__LOD1",
+              "node": "vehicles__small_sedan__LOD1",
               "tris": 352,
               "maxM": 1500.0
             }
@@ -1963,9 +2008,9 @@
         },
         "mpv": {
           "size": [
-            1.8,
             1.7,
-            4.7
+            1.7,
+            4.4
           ],
           "top": 1.77,
           "lods": [
@@ -1985,9 +2030,9 @@
           "size": [
             1.85,
             1.8,
-            5.25
+            5.3
           ],
-          "top": 1.83,
+          "top": 1.85,
           "lods": [
             {
               "node": "vehicles__pickup__LOD0",
@@ -2001,42 +2046,62 @@
             }
           ]
         },
-        "motorcycle": {
+        "kapchai": {
           "size": [
             0.75,
-            1.1,
-            1.95
+            1.6,
+            1.88
           ],
-          "top": 1.041,
+          "top": 1.668,
           "lods": [
             {
-              "node": "vehicles__motorcycle__LOD0",
-              "tris": 327,
+              "node": "vehicles__kapchai__LOD0",
+              "tris": 895,
               "maxM": 150.0
             },
             {
-              "node": "vehicles__motorcycle__LOD1",
-              "tris": 235,
+              "node": "vehicles__kapchai__LOD1",
+              "tris": 338,
               "maxM": 1500.0
             }
           ]
         },
-        "delivery_motorcycle": {
+        "delivery_moto": {
           "size": [
             0.75,
-            1.3,
+            1.6,
             2.0
           ],
-          "top": 1.3,
+          "top": 1.668,
           "lods": [
             {
-              "node": "vehicles__delivery_motorcycle__LOD0",
-              "tris": 357,
+              "node": "vehicles__delivery_moto__LOD0",
+              "tris": 925,
               "maxM": 150.0
             },
             {
-              "node": "vehicles__delivery_motorcycle__LOD1",
-              "tris": 265,
+              "node": "vehicles__delivery_moto__LOD1",
+              "tris": 368,
+              "maxM": 1500.0
+            }
+          ]
+        },
+        "bicycle": {
+          "size": [
+            0.6,
+            1.7,
+            1.7
+          ],
+          "top": 1.726,
+          "lods": [
+            {
+              "node": "vehicles__bicycle__LOD0",
+              "tris": 781,
+              "maxM": 150.0
+            },
+            {
+              "node": "vehicles__bicycle__LOD1",
+              "tris": 254,
               "maxM": 1500.0
             }
           ]
@@ -2045,7 +2110,7 @@
           "size": [
             2.5,
             3.2,
-            11.5
+            12.0
           ],
           "top": 3.2,
           "lods": [
@@ -2063,15 +2128,15 @@
         },
         "lorry": {
           "size": [
-            2.4,
-            3.2,
-            8.0
+            2.2,
+            3.0,
+            7.0
           ],
-          "top": 3.2,
+          "top": 3.0,
           "lods": [
             {
               "node": "vehicles__lorry__LOD0",
-              "tris": 956,
+              "tris": 936,
               "maxM": 150.0
             },
             {
