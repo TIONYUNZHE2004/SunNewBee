@@ -9,7 +9,7 @@ import { cameraRangeM, devsimAoWeight } from "./devsimView";
 import { dayness } from "./ease";
 import { inRing, type SiteGeom, siteGeom, TOWER_STOREY_M } from "./geom";
 import { onStage, screenRect, toScreen } from "./project";
-import { craneAt, type SetPiecesAt, setPiecesAt, setPieceTiming } from "./setPieces";
+import { craneAt, moveInAoKeep, type SetPiecesAt, setPiecesAt, setPieceTiming } from "./setPieces";
 import { stateAt } from "./state";
 
 /** Everything a part needs for one frame. */
@@ -374,8 +374,10 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
     aoExcluded: () => parts.flatMap((p) => p.aoExcluded?.() ?? []),
     // One range source (C10p review minor): the beat camera's range, the same number the
     // small-prop shadows switch on (`smallShadows`), so both change on the same frame; the
-    // engine's measured range only before the first frame state.
-    aoWeight: (rangeM) => devsimAoWeight(s ? cameraRangeM(s) : rangeM),
+    // engine's measured range only before the first frame state. Off through the 45 s move-in
+    // (AC-P2, `SET_PIECE_S.moveInAoOff`).
+    aoWeight: (rangeM) =>
+      devsimAoWeight(s ? cameraRangeM(s) : rangeM) * moveInAoKeep(setPieceTiming(o.plan), t),
     demoState() {
       const out: Record<string, unknown> = {};
       for (const p of parts) if (p.demoState) Object.assign(out, p.demoState());

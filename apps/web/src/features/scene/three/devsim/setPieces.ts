@@ -45,6 +45,12 @@ export const SET_PIECE_S = {
     /** Children play at the nearest playground from here on. */
     kidsAt: 32.5,
   },
+  /**
+   * The devsim AO is off over the 45 s move-in (C-align, AC-P2): its door beat is close (~63 m),
+   * so the range fade keeps AO on, and the GTAO normal pass re-draws ~45-75 meshes there (159-186
+   * draws with it, ~112-116 without). Faded in over the wide shot before it (AO already 0 there).
+   */
+  moveInAoOff: [26.6, 27, 33, 33.4] as const,
   /** Monsoon wet beats: every other 1.5 s inside the monsoon window (the 2nd, 4th ... beat). */
   wetBeat: 1.5,
   /** Rain fades in and out over this much of the monsoon window's ends. */
@@ -263,6 +269,13 @@ export function craneAt(plan: DevelopmentPlan, t: number, s?: StateAt): CraneAt 
 }
 
 // ---- per frame ---------------------------------------------------------------------------------
+
+/** The share of AO the move-in leaves (1 outside it, 0 through it; schedule mode only). */
+export function moveInAoKeep(tm: SetPieceTiming, t: number): number {
+  if (tm.mode !== "schedule") return 1;
+  const [a, b, c, d] = SET_PIECE_S.moveInAoOff;
+  return 1 - ease(span(t, a, b)) * (1 - ease(span(t, c, d)));
+}
 
 // ---- move-in (C10) -----------------------------------------------------------------------------
 

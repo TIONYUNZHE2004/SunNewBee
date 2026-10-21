@@ -21,6 +21,7 @@ import {
   smallShadows,
 } from "./devsimView";
 import { inRing, siteGeom, TOWER_STOREY_M } from "./geom";
+import { moveInAoKeep, setPieceTiming } from "./setPieces";
 import { stateAt } from "./state";
 
 const P = plan as unknown as DevelopmentPlan;
@@ -190,8 +191,12 @@ describe("devsim AO and small-prop shadows by range (C10p)", () => {
       const s = l.state() as StateAt;
       // the engine's measured range is ignored once there is a frame state
       const w = l.aoWeight?.(5000) ?? 1;
-      expect(w, `t=${t.toFixed(1)}`).toBe(devsimAoWeight(cameraRangeM(s)));
-      expect(smallShadows(s), `t=${t.toFixed(1)}`).toBe(w > 0);
+      const keep = moveInAoKeep(setPieceTiming(C7), t);
+      expect(w, `t=${t.toFixed(1)}`).toBe(devsimAoWeight(cameraRangeM(s)) * keep);
+      // outside the move-in's AO cut both switch on the same range
+      if (keep === 1) expect(smallShadows(s), `t=${t.toFixed(1)}`).toBe(w > 0);
+      // AC-P2: no AO through the move-in (27-33 s)
+      if (t >= 27 && t <= 33) expect(w, `t=${t.toFixed(1)}`).toBe(0);
     }
     l.dispose();
   });
