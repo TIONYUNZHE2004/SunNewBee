@@ -165,6 +165,7 @@ class HoardingHome(BaseModel):
 
     home_id: str  # building id
     extra_min: int  # the largest rounded extra walk over the four targets (>= 0)
+    extra_target: str | None = None  # the target id of that walk (None when extra_min is 0)
     cut_off: bool = False  # a default route that existed before has none after
     wheelchair_cut: bool = False  # a wheelchair route that existed before has none after
 
@@ -359,3 +360,52 @@ class Schedule(BaseModel):
     source_ids: list[str]  # SOURCES rows the estimate used
     label: str = "ESTIMATE"
     source_line: str
+
+
+# ---- C6: forty simulated residents (devsim_residents.py) ----------------------------------------
+ResidentSide = Literal["tower", "neighbour"]
+PersonaGroup = Literal["older", "parent", "commuter", "wheelchair", "general"]
+WalkValue = int | Literal["?", "gap", "blocked"]
+
+
+class ResidentWalk(BaseModel):
+    kind: TargetKind
+    name: str  # the target's place name
+    value: WalkValue  # minutes for their profile; "?" partly_unverified, "gap" no_data, "blocked"
+
+
+class ResidentFacts(BaseModel):
+    """The only facts a resident's lines may quote (routing engine, their own profile)."""
+
+    profile: str  # wheelchair if a wheelchair user, stroller with a toddler, else default
+    home_id: str | None  # the neighbour's building id (None for the tower)
+    # Construction detour (neighbours): the largest extra walk over the four targets.
+    extra_walk_min: int | None = None
+    extra_walk_to: str | None = None  # that target's name
+    walks: list[ResidentWalk]  # park, mall, clinic, school
+
+
+class ResidentLines(BaseModel):
+    construction: str
+    handover: str
+    daily_life: str
+
+
+class SimResident(BaseModel):
+    id: str  # cast id ("halim") or "t-<resident>" / "n-<resident>"
+    name: str
+    role: str
+    side: ResidentSide
+    group: PersonaGroup
+    colour: str  # "#rrggbb"
+    age: int | None = None
+    tags: list[str] = []  # e.g. "wheelchair", "toddler", "children", "commuter", "cast"
+    facts: ResidentFacts
+    lines: ResidentLines
+
+
+class SimResidents(BaseModel):
+    residents: list[SimResident]  # 20 tower, then 20 neighbours
+    seed: int
+    label: str = "Simulated reactions"
+    note: str = "Lines are written for the simulation; every number comes from the world model."

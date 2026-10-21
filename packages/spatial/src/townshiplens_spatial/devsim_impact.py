@@ -261,17 +261,21 @@ def _compare(world, homes, targets, before, after) -> list[HoardingHome]:
     pace = _pace(world)
     rows = []
     for hid, node in homes:
-        extra, cut, wcut = 0, False, False
+        extra, worst, cut, wcut = 0, None, False, False
         for t in targets:
             b, a = _walk_m(before, t, node), _walk_m(after, t, node)
             if b is not None:
                 if a is None:
                     cut = True
-                else:
-                    extra = max(extra, devsim._round_min(a / pace - b / pace))
+                elif (x := devsim._round_min(a / pace - b / pace)) > extra:
+                    extra, worst = x, t.id
             if _wheelchair_ok(before, t, node) and not _wheelchair_ok(after, t, node):
                 wcut = True
-        rows.append(HoardingHome(home_id=hid, extra_min=extra, cut_off=cut, wheelchair_cut=wcut))
+        rows.append(
+            HoardingHome(
+                home_id=hid, extra_min=extra, extra_target=worst, cut_off=cut, wheelchair_cut=wcut
+            )
+        )
     return rows
 
 

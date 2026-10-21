@@ -477,6 +477,33 @@ def _pick(rs, pred):
     return next((r for r in sorted(rs, key=lambda r: spot._h(r.id)) if pred(r)), None)
 
 
+def tower_population(world: World, site: DevelopmentSite, seed: int = CAST_SEED):
+    """The tower's synthetic households (population generator, seeded), with per-household
+    child counts: (population, children per household, primary-school children per household)."""
+    from .day.schedule import PRIMARY_AGE
+
+    pop = population.synthesize(world, n_residents=round(site.homes * HOUSEHOLD_SIZE), seed=seed)
+    kids: dict[str, int] = {}
+    school: dict[str, int] = {}
+    for r in pop.residents:
+        if r.group == "child":
+            kids[r.household] = kids.get(r.household, 0) + 1
+            if PRIMARY_AGE[0] <= r.age <= PRIMARY_AGE[1]:
+                school[r.household] = school.get(r.household, 0) + 1
+    return pop, kids, school
+
+
+def cast_residents(rs, school: dict[str, int]) -> dict[str, object]:
+    """The generator residents behind the three new residents (None when none matches)."""
+    return {
+        "meiling": _pick(
+            rs, lambda r: r.sex == "f" and r.group == "adult" and school.get(r.household)
+        ),
+        "zainab": _pick(rs, lambda r: r.sex == "f" and r.group == "older" and r.muslim),
+        "arjun": _pick(rs, lambda r: r.sex == "m" and r.group == "adult" and r.commuter),
+    }
+
+
 def build_cast(
     world: World, site: DevelopmentSite, seed: int = CAST_SEED
 ) -> tuple[int, list[SpotlightCast]]:
@@ -486,17 +513,8 @@ def build_cast(
     (`spotlight._role`); their names are the prototype's baseline names, which win over the
     generator's naming (a ruling in the ledger). Halim is an existing neighbour (the detour home)
     and Farid a passer-by; neither lives in the tower."""
-    from .day.schedule import PRIMARY_AGE
-
-    pop = population.synthesize(world, n_residents=round(site.homes * HOUSEHOLD_SIZE), seed=seed)
+    pop, kids, school = tower_population(world, site, seed)
     rs = pop.residents
-    kids: dict[str, int] = {}
-    school: dict[str, int] = {}
-    for r in rs:
-        if r.group == "child":
-            kids[r.household] = kids.get(r.household, 0) + 1
-            if PRIMARY_AGE[0] <= r.age <= PRIMARY_AGE[1]:
-                school[r.household] = school.get(r.household, 0) + 1
 
     def role(r, fallback: str) -> str:
         if r is None:
@@ -504,9 +522,8 @@ def build_cast(
         text = spot._role(r, kids.get(r.household, 0), school.get(r.household, 0))
         return text[0].upper() + text[1:]
 
-    meiling = _pick(rs, lambda r: r.sex == "f" and r.group == "adult" and school.get(r.household))
-    zainab = _pick(rs, lambda r: r.sex == "f" and r.group == "older" and r.muslim)
-    arjun = _pick(rs, lambda r: r.sex == "m" and r.group == "adult" and r.commuter)
+    picks = cast_residents(rs, school)
+    meiling, zainab, arjun = picks["meiling"], picks["zainab"], picks["arjun"]
     cast = [
         SpotlightCast(
             id="halim",
