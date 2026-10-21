@@ -81,7 +81,16 @@ export async function seekShot(page, t) {
       new Promise((res) => {
         window.__devsim.pause?.();
         window.__devsim.seek(s);
-        requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(res)));
+        // at least three frames, then until the 3D view has rendered this t (probe renderedT)
+        let n = 0;
+        const step = () => {
+          n++;
+          const r = window.__devsim.probe?.()?.renderedT;
+          const want = window.__devsim.state?.()?.t ?? s;
+          if (n < 3 || (r !== undefined && r !== want && n < 120)) requestAnimationFrame(step);
+          else res();
+        };
+        requestAnimationFrame(step);
       }),
     t,
   );
