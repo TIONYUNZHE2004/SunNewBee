@@ -2,11 +2,18 @@ import { create } from "zustand";
 import { registerDemo } from "../demo/demoHook";
 import { useDevsim } from "../devsim/devsimStore";
 import { reducedMotion } from "../scene/cesium/controls/cameraOps";
+import {
+  buildCompareTimeline,
+  type CompareState,
+  type CompareTimeline,
+  compareStateAt,
+  T_END,
+} from "./compareTimeline";
 import type { CompareIntent } from "./compareTypes";
 import { useJourney } from "./journeyStore";
 
 /** Length of the compare playback (spec §5.4: reasons card until 45 s). */
-export const COMPARE_TOTAL_S = 45;
+export const COMPARE_TOTAL_S = T_END;
 
 export interface ScreenPoint {
   x: number;
@@ -82,10 +89,37 @@ export const useCompare = create<CompareStore>((set) => ({
     }),
 }));
 
+const timelines = new WeakMap<CompareIntent, CompareTimeline>();
+
+/** The payload's timeline, built once per payload. */
+export function compareTimelineOf(payload: CompareIntent): CompareTimeline {
+  let tl = timelines.get(payload);
+  if (!tl) {
+    tl = buildCompareTimeline(payload);
+    timelines.set(payload, tl);
+  }
+  return tl;
+}
+
+/** Playback state (visible beats, walkers, counters, camera) for the store's t; null without a payload. */
+export function compareStateOf(
+  s: Pick<CompareStore, "payload" | "t" | "reduced">,
+): CompareState | null {
+  return s.payload
+    ? compareStateAt(compareTimelineOf(s.payload), s.t, { reduced: s.reduced })
+    : null;
+}
+
 /** The nav playback's part of `__tl.demo.state()`. */
 export function compareDemoState(): Record<string, unknown> {
   const s = useCompare.getState();
+  const st = compareStateOf(s);
   return {
+    beats: st?.beats ?? [],
+    walkers: st?.walkers ?? null,
+    counters: st?.counters ?? { tickets: 0 },
+    camera: st?.camera ?? null,
+    cut: st?.cut ?? false,
     loaded: !!s.payload,
     t: s.t,
     playing: s.playing,

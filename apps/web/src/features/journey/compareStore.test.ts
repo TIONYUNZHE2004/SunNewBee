@@ -115,6 +115,10 @@ describe("nav demo registration", () => {
     expect(c().playing).toBe(true);
     hook.pause();
     expect(hook.state()).toMatchObject({ key: "nav", loaded: true, t: 17.5, playing: false });
+    expect(hook.state().beats).toEqual(expect.arrayContaining(["tag-unchecked", "tag-stop"]));
+    hook.seek(19.5);
+    expect(hook.state()).toMatchObject({ counters: { tickets: 1 }, camera: "split" });
+    expect(hook.state().beats).toContain("ticket-toast");
     off();
     expect(hook.state()).toMatchObject({ key: "nav", registered: false });
   });
