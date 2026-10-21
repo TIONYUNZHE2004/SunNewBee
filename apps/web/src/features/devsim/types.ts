@@ -188,4 +188,9 @@ export interface Probe {
   fps?: number;
   /** CSS px centre of the §4.4 camera subject, stage-relative (3D fills it; AC-C1). */
   subject?: { x: number; y: number };
+  /**
+   * Screen time of the last frame the 3D view rendered (its rects, samples and subject come from
+   * that frame). A probe right after a seek can still describe the previous frame: compare to `t`.
+   */
+  renderedT?: number;
 }

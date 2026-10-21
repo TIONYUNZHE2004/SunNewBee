@@ -27,7 +27,7 @@ const GLOW_MAX = 1;
 const KEY_RANGE_M = 1.9;
 const KEY_CANDELA = 8;
 /** The glow colour's gain over the token colour (additive light). */
-const GLOW_GAIN = 1.5;
+const GLOW_GAIN = 1.8;
 
 /** A soft round glow (white centre to clear edge), as a small RGBA texture (no canvas: tests run in node). */
 export function glowTexture(n = 64): THREE.DataTexture {
@@ -567,7 +567,7 @@ export function createCast(o: CastOpts): Cast {
         const dz = sb.z - camera.position.z;
         const l = Math.hypot(dx, dz) || 1;
         glow.position.set(sb.x + dx / l, sb.h * 0.55, sb.z + dz / l);
-        glow.scale.set(sb.h * 0.85, sb.h * 1.35, 1);
+        glow.scale.set(sb.h * 0.7, sb.h * 1.35, 1);
         glowMat.opacity = glowK;
         glow.visible = true;
         // the key light: up and towards the camera from the speaker, scaled with their display size

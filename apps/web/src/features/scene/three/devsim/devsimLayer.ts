@@ -126,6 +126,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
   const view = new THREE.PerspectiveCamera();
   const viewSize: [number, number] = [1, 1];
   let seen = false;
+  let renderedT = Number.NaN;
   let lastTower: Rect | null = null;
   let lastSpeaker: Rect | null = null;
   // the footprint's corners at the ground and the top (tops updated in place)
@@ -301,6 +302,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       viewSize[0] = size[0];
       viewSize[1] = size[1];
       seen = true;
+      renderedT = t;
       lastTower = towerRect;
       lastSpeaker = speaker;
     },
@@ -342,6 +344,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
         cameraInsideBuilding: insideBuilding(view.position),
         windowsLitFraction: tower?.litFraction() ?? 0,
         ...(sp ? { subject: { x: sp[0], y: sp[1] } } : {}),
+        renderedT,
         ...(fps !== undefined ? { fps } : {}),
       };
     },
