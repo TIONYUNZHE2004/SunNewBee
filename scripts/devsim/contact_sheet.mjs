@@ -58,13 +58,33 @@ export async function openProduct(browser, url, opts = {}) {
     .first()
     .click();
   await page.getByText(STARTER, { exact: false }).first().click();
-  await page.waitForFunction(() => window.__devsim?.seek, null, { timeout: 120_000 });
+  await page.waitForFunction(() => window.__devsim?.state?.(), null, { timeout: 120_000 });
+  // The 3D canvas mounts after __devsim and autoplay starts once the plan is in: wait for the
+  // canvas, let the tiles settle, then pause (an earlier pause is overridden by autoplay).
+  await page.waitForFunction(
+    () =>
+      Array.from(document.querySelectorAll("canvas")).some(
+        (c) => c.getBoundingClientRect().width > 300 && c.getBoundingClientRect().height > 200,
+      ),
+    null,
+    { timeout: 120_000 },
+  );
+  await page.waitForTimeout(8000);
   await page.evaluate(() => window.__devsim.pause?.());
   return { ctx, page };
 }
 
+/** Pause, seek, let frames render (rects and pixels come from the last rendered frame), shoot. */
 export async function seekShot(page, t) {
-  await page.evaluate((s) => window.__devsim.seek(s), t);
+  await page.evaluate(
+    (s) =>
+      new Promise((res) => {
+        window.__devsim.pause?.();
+        window.__devsim.seek(s);
+        requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(res)));
+      }),
+    t,
+  );
   await page.waitForTimeout(450);
   return page.screenshot({ type: "png" });
 }

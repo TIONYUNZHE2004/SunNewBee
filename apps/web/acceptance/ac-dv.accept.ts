@@ -59,6 +59,7 @@ type Devsim = {
   pause(): void;
   total?: number;
   probe(): Probe;
+  state(): { t: number; playing: boolean } | null;
 };
 type W = { __devsim?: Devsim };
 
@@ -96,15 +97,52 @@ async function startDevsim(page: Page) {
       "window.__devsim is missing: the devsim product is not mounted (did the starter run, is this the Stylised view on the demo server?)",
     );
   }
+  // The plan arrives, then the 3D canvas mounts (after `__devsim`), then autoplay starts: wait for
+  // all three, let the tiles settle, and only then pause (an earlier pause is overridden by autoplay).
+  await page.waitForFunction(() => !!(window as unknown as W).__devsim?.state(), null, {
+    timeout: 120_000,
+  });
+  await page.waitForFunction(
+    () =>
+      Array.from(document.querySelectorAll("canvas")).some(
+        (c) => c.getBoundingClientRect().width > 300 && c.getBoundingClientRect().height > 200,
+      ),
+    null,
+    { timeout: 120_000 },
+  );
+  await page.waitForTimeout(8000);
   await page.evaluate(() => (window as unknown as W).__devsim?.pause());
 }
 
-const seek = (page: Page, t: number) =>
-  page.evaluate((s) => {
-    const d = (window as unknown as W).__devsim as Devsim;
-    d.seek(s);
-    return d.probe();
-  }, t);
+/** Rects of the Spotlight Residents' name tags shown now (stage-relative). */
+type Sample = Probe & { nameTags: Rect[] };
+
+/**
+ * Pause, seek, let three frames render (the scene rects come from the last rendered frame and the
+ * DOM rects from the last React commit), then probe. Paused first, so t cannot run on meanwhile.
+ */
+const seek = (page: Page, t: number): Promise<Sample> =>
+  page.evaluate(
+    ({ s, ox, oy }) => {
+      const d = (window as unknown as W).__devsim as Devsim;
+      d.pause();
+      d.seek(s);
+      return new Promise<Sample>((res) =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              const nameTags = Array.from(document.querySelectorAll("[data-devsim-tag]"))
+                .map((e) => e.getBoundingClientRect())
+                .filter((r) => r.width > 0 && r.height > 0)
+                .map((r) => ({ x: r.left - ox, y: r.top - oy, w: r.width, h: r.height }));
+              res({ ...d.probe(), nameTags });
+            }),
+          ),
+        ),
+      );
+    },
+    { s: t, ox: origin.x, oy: origin.y },
+  );
 
 /** The 3D stage = the largest visible canvas; its page offset, so stage-relative rects map to the page. */
 async function stageBox(page: Page) {
@@ -122,8 +160,15 @@ test.describe.configure({ mode: "serial" });
 
 let page: Page;
 let stage: Rect;
-let origin: { x: number; y: number };
-let sweep: Probe[] = [];
+let origin: { x: number; y: number } = { x: 0, y: 0 };
+let sweep: Sample[] = [];
+/** Each criterion records its verdict here; the last test fails the run if any failed, so one
+ * failing criterion never skips the others (serial mode skips the rest after a failure). */
+const verdicts: Record<string, boolean> = {};
+const record = (k: string, v: Record<string, unknown> & { pass: boolean }) => {
+  results[k] = v;
+  verdicts[k] = v.pass;
+};
 
 test.beforeAll(async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: VIEW, deviceScaleFactor: 1 });
@@ -135,8 +180,13 @@ test.beforeAll(async ({ browser }) => {
   page.on("pageerror", (e) => consoleProblems.push(`pageerror: ${e.message.slice(0, 300)}`));
   await startDevsim(page);
   const b = await stageBox(page);
+  if (!(b.w > 300 && b.h > 200))
+    throw new Error(
+      `the 3D stage has no size (${b.w} x ${b.h}): every on-stage check would be vacuous`,
+    );
   stage = { x: 0, y: 0, w: b.w, h: b.h };
   origin = { x: b.x, y: b.y };
+  results.stage = { ...stage, origin };
   const total = await page.evaluate(() => (window as unknown as W).__devsim?.total ?? 66);
   // One shared 0 -> 66 sweep in 0.25 s steps feeds AC-H3, AC-C2, Q2, Q4 and Q5.
   sweep = [];
@@ -150,14 +200,18 @@ test.afterAll(() => {
 });
 
 test("AC-H3: the hypothetical label is present whenever the tower rect meets the stage", () => {
-  const bad = sweep
-    .filter((p) => p.rects.tower && p.rects.tower.w > 0 && overlaps(p.rects.tower, stage))
-    .filter((p) => !p.rects.hypotheticalLabel)
-    .map((p) => p.t);
-  results["AC-H3"] = { samples: sweep.length, missingLabelAt: bad, pass: bad.length === 0 };
-  expect(bad, "times where the tower is on screen but the hypothetical label is absent").toEqual(
-    [],
+  const onStage = sweep.filter(
+    (p) => p.rects.tower && p.rects.tower.w > 0 && overlaps(p.rects.tower, stage),
   );
+  const bad = onStage.filter((p) => !p.rects.hypotheticalLabel).map((p) => p.t);
+  // never vacuous: the stage has a size and the tower was on it at least once
+  const pass = stage.w > 0 && stage.h > 0 && onStage.length > 0 && bad.length === 0;
+  record("AC-H3", {
+    samples: sweep.length,
+    towerOnStageSamples: onStage.length,
+    missingLabelAt: bad,
+    pass,
+  });
 });
 
 test("AC-C1: the subject centre is within 10% of the stage width of the prototype", async () => {
@@ -165,7 +219,16 @@ test("AC-C1: the subject centre is within 10% of the stage width of the prototyp
   const fails: string[] = [];
   const speakers = ["halim", "farid", "meiling", "zainab", "arjun"];
   for (const t of BASELINE) {
+    // seek here from somewhere else first: the frame at t must not depend on where it came from
+    const pre = await seek(page, t > 33 ? t - 20 : t + 20);
     const p = await seek(page, t);
+    const again = await seek(page, t);
+    const drift =
+      p.subject && again.subject
+        ? Math.hypot(p.subject.x - again.subject.x, p.subject.y - again.subject.y)
+        : 0;
+    if (drift > 2) fails.push(`${t}s not deterministic (${drift.toFixed(1)} px after a re-seek)`);
+    void pre;
     const fx = fixture.probes.find((q) => q.t === t);
     if (!fx) throw new Error(`prototype fixture has no probe at t=${t}`);
     // Both sides are normalised by their own stage width.
@@ -193,8 +256,7 @@ test("AC-C1: the subject centre is within 10% of the stage width of the prototyp
     rows.push({ t, subject: fx.subject.name, via, want, got, distStageWidths: d });
     if (d > 0.1) fails.push(`${t}s (${fx.subject.name}) ${d.toFixed(3)}`);
   }
-  results["AC-C1"] = { rows, fails, pass: fails.length === 0 };
-  expect(fails, "subjects farther than 10% of the stage width from the prototype").toEqual([]);
+  record("AC-C1", { rows, fails, pass: fails.length === 0 });
 });
 
 test("AC-C2: bubbles are inside the stage and clear of the HUD, playback bar and panel", async () => {
@@ -223,16 +285,17 @@ test("AC-C2: bubbles are inside the stage and clear of the HUD, playback bar and
     if (!inside(b, stage)) bad.push(`${p.t}: outside stage`);
     for (const [k, rs] of Object.entries(chrome))
       if (rs.some((r) => overlaps(b, r))) bad.push(`${p.t}: overlaps ${k}`);
+    // the bubble (with its ROUTE ENGINE tag) never covers the speaker or a name tag
+    if (p.rects.speaker && overlaps(b, p.rects.speaker)) bad.push(`${p.t}: covers the speaker`);
+    if (p.nameTags.some((r) => overlaps(b, r))) bad.push(`${p.t}: covers a name tag`);
   }
-  results["AC-C2"] = {
+  record("AC-C2", {
     bubbleSamples: bubbles,
     chromeFound: found,
-    bad: bad.slice(0, 20),
-    pass: bad.length === 0 && bubbles > 0,
-  };
-  expect(bubbles, "bubble samples seen").toBeGreaterThan(0);
-  expect(found.playbackBar, "playback bar found (data-testid devsim-controls)").toBeGreaterThan(0);
-  expect(bad).toEqual([]);
+    badCount: bad.length,
+    bad: bad.slice(0, 30),
+    pass: bad.length === 0 && bubbles > 0 && (found.playbackBar ?? 0) > 0,
+  });
 });
 
 /** Sim-day / sim-night in Construction (10 cycles over 4..32 s; the prototype's sun curve). */
@@ -260,15 +323,18 @@ test("AC-F3: fast-forward flow (moving counts, day >= 2x night, density at the w
   const mean = (x: number[]) => (x.length ? x.reduce((s, v) => s + v, 0) / x.length : 0);
   const onScreen = (pts: [number, number][]) =>
     pts.filter(([x, y]) => x >= 0 && y >= 0 && x <= stage.w && y <= stage.h).length;
-  const wide: { t: number; people: number; vehicles: number }[] = [];
-  for (const t of [10.6, 11, 12, 13, 14, 15]) {
+  const wide: { t: number; day: boolean; people: number; vehicles: number }[] = [];
+  for (let t = 10.6; t <= 15.2 + 1e-9; t += 0.2) {
     const p = await seek(page, t);
-    wide.push({ t, people: onScreen(p.people), vehicles: onScreen(p.vehicles) });
+    const isDay = sunE(t) > 0.25;
+    wide.push({ t, day: isDay, people: onScreen(p.people), vehicles: onScreen(p.vehicles) });
   }
-  const minPeople = Math.min(...wide.map((w) => w.people));
-  const minVehicles = Math.min(...wide.map((w) => w.vehicles));
+  // spec section 7 / AC-F3: the density target is "by day" (night thins the flow on purpose)
+  const days = wide.filter((w) => w.day);
+  const minPeople = days.length ? Math.min(...days.map((w) => w.people)) : 0;
+  const minVehicles = days.length ? Math.min(...days.map((w) => w.vehicles)) : 0;
   const ratio = mean(night) > 0 ? mean(day) / mean(night) : Number.POSITIVE_INFINITY;
-  results["AC-F3"] = {
+  record("AC-F3", {
     meanMovingDay: mean(day),
     meanMovingNight: mean(night),
     ratio,
@@ -276,11 +342,7 @@ test("AC-F3: fast-forward flow (moving counts, day >= 2x night, density at the w
     minPeople,
     minVehicles,
     pass: mean(day) > 0 && ratio >= 2 && minPeople >= 30 && minVehicles >= 20,
-  };
-  expect(mean(day), "something moves by day").toBeGreaterThan(0);
-  expect(ratio, "moving day/night ratio").toBeGreaterThanOrEqual(2);
-  expect(minPeople, "people on screen at the wide shot").toBeGreaterThanOrEqual(30);
-  expect(minVehicles, "vehicles on screen at the wide shot").toBeGreaterThanOrEqual(20);
+  });
 });
 
 test("Q1: average fps >= 30 over a real-time 0 -> 66 s run", async () => {
@@ -303,14 +365,12 @@ test("Q1: average fps >= 30 over a real-time 0 -> 66 s run", async () => {
     return (w.__fps.n / (performance.now() - w.__fps.t0)) * 1000;
   });
   await page.evaluate(() => (window as unknown as W).__devsim?.pause());
-  results.Q1 = { avgFps: fps, pass: fps >= 30 };
-  expect(fps).toBeGreaterThanOrEqual(30);
+  record("Q1", { avgFps: fps, pass: fps >= 30 });
 });
 
 test("Q2: the camera is never inside a building (0.25 s steps)", () => {
   const bad = sweep.filter((p) => p.cameraInsideBuilding).map((p) => p.t);
-  results.Q2 = { samples: sweep.length, insideAt: bad, pass: bad.length === 0 };
-  expect(bad).toEqual([]);
+  record("Q2", { samples: sweep.length, insideAt: bad, pass: bad.length === 0 });
 });
 
 test("Q3: the speaking character stands out from its surroundings at dusk and night", async () => {
@@ -375,26 +435,32 @@ test("Q3: the speaking character stands out from its surroundings at dusk and ni
     rows.push({ t, rect: r, contrastRatio: ratio });
     if (ratio < 1.5) fails.push(`${t}: ${ratio.toFixed(2)}`);
   }
-  results.Q3 = {
+  record("Q3", {
     rows,
     fails,
     pass: fails.length === 0,
     note: "luminance ring check only; the DOM 4.5:1 text-contrast half is not automated here",
-  };
-  expect(fails).toEqual([]);
+  });
 });
 
 test("Q4: no windows lit before t = 32", () => {
   const bad = sweep.filter((p) => p.t < 32 && p.windowsLitFraction > 0).map((p) => p.t);
-  results.Q4 = { litBefore32At: bad, pass: bad.length === 0 };
-  expect(bad).toEqual([]);
+  record("Q4", { litBefore32At: bad, pass: bad.length === 0 });
 });
 
 test("Q5: no console errors or warnings during the sweep", () => {
-  results.Q5 = {
+  record("Q5", {
     count: consoleProblems.length,
     first: consoleProblems.slice(0, 10),
     pass: consoleProblems.length === 0,
-  };
-  expect(consoleProblems).toEqual([]);
+  });
+});
+
+test("verdict: every criterion above passes", () => {
+  const failed = Object.entries(verdicts)
+    .filter(([, ok]) => !ok)
+    .map(([k]) => k);
+  results.verdict = { failed, pass: failed.length === 0 };
+  expect(Object.keys(verdicts).length, "criteria recorded").toBeGreaterThanOrEqual(10);
+  expect(failed, "criteria that failed (details in the results JSON)").toEqual([]);
 });
