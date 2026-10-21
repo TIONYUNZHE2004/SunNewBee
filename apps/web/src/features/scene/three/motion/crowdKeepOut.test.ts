@@ -69,6 +69,7 @@ describe.skipIf(!HAVE_SEED)("P8: crowd keep-out over the full demo playback", ()
     const mat = new THREE.Matrix4();
     const pos = new THREE.Vector3();
     const last = new Map<number, THREE.Vector3>();
+    const lastFade = new Map<number, number>();
     let minHero = Infinity;
     let minZone = Infinity;
     let maxJump = 0;
@@ -106,7 +107,11 @@ describe.skipIf(!HAVE_SEED)("P8: crowd keep-out over the full demo playback", ()
         minZone = Math.min(minZone, polylineDistance(pos.x, pos.z, zone));
         if (c.inObstacle(pos.x, pos.z)) intoObstacle++;
         const prev = last.get(i);
-        if (prev) {
+        // Demo polish A1: a person fading at a path end respawns at its start (a planned jump,
+        // drawn at opacity near 0): steps are scored only while fully shown on both frames.
+        const shown = crowd.fadeOf(i) >= 1 && (lastFade.get(i) ?? 1) >= 1;
+        lastFade.set(i, crowd.fadeOf(i));
+        if (prev && shown) {
           const j = Math.hypot(pos.x - prev.x, pos.z - prev.z);
           if (j > 0.5) quick++;
           maxJump = Math.max(maxJump, j);

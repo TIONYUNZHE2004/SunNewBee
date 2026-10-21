@@ -17,6 +17,7 @@ import {
   densityFor,
   displayScale,
   easedDistance,
+  fadeAt,
   type MoodMix,
   PEOPLE_VISIBLE_M,
   type Pose2,
@@ -40,6 +41,7 @@ import {
   personClear,
   vehicleClear,
 } from "./crowdRules";
+import { nearDeadEnd, uturnSample, uturnTickBegin, uturnTickEnd, uturnWatchOn } from "./uturnWatch";
 import { createVehicleLights } from "./vehicleLights";
 
 /**
@@ -96,13 +98,35 @@ const AVOID_STEP_M = 1;
 /** A clipped route shorter than this is not walked (the person is not drawn). */
 const AVOID_MIN_M = 4;
 
+/** The warp knots up to path metre `s` (the last knot interpolated onto it). */
+function truncateWarp(w: Float32Array, s: number): Float32Array {
+  const k: number[] = [];
+  for (let i = 0; i < w.length; i += 2) {
+    const n = w[i] as number;
+    const a = w[i + 1] as number;
+    if (a < s) {
+      k.push(n, a);
+      continue;
+    }
+    const pn = k[k.length - 2] ?? 0;
+    const pa = k[k.length - 1] ?? 0;
+    k.push(a > pa ? pn + ((n - pn) * (s - pa)) / (a - pa) : pn, s);
+    break;
+  }
+  return Float32Array.from(k);
+}
+
 /**
- * The agent's path without the avoid zone (devsim: the hoarded footway): the longest run of the
- * path outside it, walked as an open path (the person turns round at its ends, `poseAt`), so people
- * stop and turn before the hoarding instead of walking through it or vanishing. The agent itself
- * when the path never enters the zone; null when less than AVOID_MIN_M of it is outside. Pure.
+ * The agent's path without the avoid zone (devsim: the hoarded footway). The agent itself when the
+ * path never enters the zone; null when less than AVOID_MIN_M of it is outside. Pure.
+ * - A fading agent (`ends: "fade"`, demo polish A1) walks its path up to where it first enters the
+ *   zone, fades out there and respawns at its start (the first stretch outside the zone, when its
+ *   start is inside): never turning round in place.
+ * - A hand-made open path keeps the longest run outside the zone and turns round at its ends
+ *   (`poseAt`), so people stop and turn before the hoarding instead of walking through it.
  */
 export function avoidRoute(a: Agent, avoid: (x: number, z: number) => boolean): Agent | null {
+  if (a.ends === "fade") return fadeAvoidRoute(a, avoid);
   const p = a.path;
   const n = p.length / 2;
   if (n < 2) return avoid(p[0] ?? 0, p[1] ?? 0) ? null : a;
@@ -145,6 +169,59 @@ export function avoidRoute(a: Agent, avoid: (x: number, z: number) => boolean): 
   if (!entered) return a;
   if (bestL < AVOID_MIN_M) return null;
   return { ...a, path: new Float32Array(best), length: bestL, offset: a.offset % bestL };
+}
+
+function fadeAvoidRoute(a: Agent, avoid: (x: number, z: number) => boolean): Agent | null {
+  const p = a.path;
+  const n = p.length / 2;
+  if (n < 2) return avoid(p[0] ?? 0, p[1] ?? 0) ? null : a;
+  const run: number[] = [];
+  let runL = 0;
+  let startS = 0;
+  let walked = 0;
+  let entered = false;
+  let done = false;
+  for (let i = 0; i < n - 1 && !done; i++) {
+    const ax = p[i * 2] as number;
+    const az = p[i * 2 + 1] as number;
+    const bx = p[i * 2 + 2] as number;
+    const bz = p[i * 2 + 3] as number;
+    const L = Math.hypot(bx - ax, bz - az);
+    const steps = Math.max(1, Math.ceil(L / AVOID_STEP_M));
+    for (let k = i === 0 ? 0 : 1; k <= steps; k++) {
+      const u = k / steps;
+      const x = ax + (bx - ax) * u;
+      const z = az + (bz - az) * u;
+      if (avoid(x, z)) {
+        entered = true;
+        // in the zone: the stretch so far is the route when long enough, else look past the zone
+        if (runL >= AVOID_MIN_M) {
+          done = true;
+          break;
+        }
+        run.length = 0;
+        runL = 0;
+        continue;
+      }
+      const m = run.length;
+      if (m === 0) startS = walked + L * u;
+      else runL += Math.hypot(x - (run[m - 2] as number), z - (run[m - 1] as number));
+      run.push(x, z);
+    }
+    walked += L;
+  }
+  if (!entered) return a;
+  if (runL < AVOID_MIN_M) return null;
+  const out: Agent = {
+    ...a,
+    path: new Float32Array(run),
+    length: runL,
+    offset: a.offset % runL,
+  };
+  // the slow zones still hold when the route starts at the path's start; else walk it unwarped
+  if (a.warp && startS === 0) out.warp = truncateWarp(a.warp, runL);
+  else delete out.warp;
+  return out;
 }
 
 /** The share of the peak-density plan shown at `density` x the day density. */
@@ -218,6 +295,8 @@ const KIND: Record<Agent["kind"], RoleKind> = { person: "person", vehicle: "vehi
 interface Bucket {
   mesh: THREE.InstancedMesh;
   pal: THREE.InstancedBufferAttribute[];
+  /** Per-instance opacity (demo polish A1: fading at a path end). */
+  fade: THREE.InstancedBufferAttribute;
   n: number;
 }
 interface Slot {
@@ -295,7 +374,7 @@ export function createMotionLayer(
   const materialFor = (kind: Agent["kind"]) => {
     let mt = materials.get(kind);
     if (!mt) {
-      mt = createRoleMaterial({ instanced: true, uniforms, motion, kind: KIND[kind] });
+      mt = createRoleMaterial({ instanced: true, uniforms, motion, kind: KIND[kind], fade: true });
       mt.transparent = true;
       materials.set(kind, mt);
     }
@@ -334,6 +413,9 @@ export function createMotionLayer(
         return at;
       });
       for (const [i, at] of pal.entries()) geo.setAttribute(`iPal${i}`, at);
+      const fade = new THREE.InstancedBufferAttribute(new Float32Array(cap).fill(1), 1);
+      fade.setUsage(THREE.DynamicDrawUsage);
+      geo.setAttribute("iFade", fade);
       wrappers.push(geo);
       const mesh = new THREE.InstancedMesh(geo, materialFor(a.kind), cap);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -348,7 +430,7 @@ export function createMotionLayer(
       mesh.userData.decorative = true;
       mesh.userData.lod = lod;
       group.add(mesh);
-      buckets[lod] = { mesh, pal, n: 0 };
+      buckets[lod] = { mesh, pal, fade, n: 0 };
     });
     const avail = buckets.flatMap((b, i) => (b ? [i] : []));
     const resolve = (vspec?.lods ?? []).map((_l, i) => {
@@ -473,6 +555,8 @@ export function createMotionLayer(
     return v;
   });
   const pose: Pose2 = { x: 0, z: 0, yaw: 0 };
+  /** A fading agent's opacity and lap this tick (fadeAt). */
+  const fo = { opacity: 1, lap: 0 };
   /** The poses of the pure facing (`yawAt`): now and the look-back. */
   const cur: Pose2 = { x: 0, z: 0, yaw: 0 };
   const back: Pose2 = { x: 0, z: 0, yaw: 0 };
@@ -566,12 +650,18 @@ export function createMotionLayer(
       };
       for (const b of allBuckets) b.n = 0;
       lights?.begin();
+      const watch = uturnWatchOn();
+      if (watch) uturnTickBegin(t);
       for (const [si, s] of slots.entries()) {
         if (!densityShown(s.agent.id, shareOf(s.agent.kind))) continue;
         // a person whose path crosses the avoid zone walks the part before it (turning there)
         const ag = routeOf(s.agent);
         if (!ag) continue;
         poseAt(ag, t, pose);
+        const tangent = pose.yaw;
+        // A1: a fading agent at the very end / start of its lap is not drawn at all
+        const fade = fadeAt(ag, t, fo).opacity;
+        if (fade <= 0) continue;
         if (s.agent.kind === "vehicle" && flow?.avoidVehicles?.(pose.x, pose.z)) continue;
         if (!keepClear(ag, hero)) continue;
         // ITER2: no decorative vehicle by her route or between the camera and her, no person at the
@@ -596,7 +686,21 @@ export function createMotionLayer(
         const k = scaleFor(s.agent.kind, d);
         _q.setFromAxisAngle(_y, yaw);
         b.mesh.setMatrixAt(b.n, _m.compose(_p, _q, _s.set(k, k, k)));
-        if (s.agent.kind === "vehicle") lights?.add(pose.x, pose.z, yaw, s.halfLengthM, k);
+        // night beams only while the car is mostly shown (no beam on a faded-out car)
+        if (s.agent.kind === "vehicle" && fade >= 0.5)
+          lights?.add(pose.x, pose.z, yaw, s.halfLengthM, k);
+        b.fade.setX(b.n, fade);
+        if (watch)
+          uturnSample(
+            ag.id,
+            ag.kind,
+            t,
+            pose.x,
+            pose.z,
+            tangent,
+            nearDeadEnd(ag.deadEnds, pose.x, pose.z),
+            fo.lap,
+          );
         const smp = slotSample[si];
         if (smp) {
           smp[0] = pose.x;
@@ -624,7 +728,9 @@ export function createMotionLayer(
           continue;
         }
         poseAt(ag, t, pose);
-        const clear = keepClear(ag, hero) && personClear(pose.x, pose.z, hero, camera);
+        const tangent = pose.yaw;
+        const fade = fadeAt(ag, t, fo).opacity;
+        const clear = fade > 0 && keepClear(ag, hero) && personClear(pose.x, pose.z, hero, camera);
         const d = Math.hypot(pose.x - camera.x, camera.y, pose.z - camera.z);
         const raw = lodFor(d, crowdLods, s.raw);
         s.raw = raw;
@@ -661,10 +767,23 @@ export function createMotionLayer(
           clip.row + f.f0,
           clip.row + f.f1,
           f.t,
+          fade,
         );
+        if (watch)
+          uturnSample(
+            ag.id,
+            "person",
+            t,
+            pose.x,
+            pose.z,
+            tangent,
+            nearDeadEnd(ag.deadEnds, pose.x, pose.z),
+            fo.lap,
+          );
       }
       crowd?.commit();
       lights?.end();
+      if (watch) uturnTickEnd();
       for (const b of allBuckets) {
         const was = b.mesh.count;
         b.mesh.count = b.n;
@@ -672,6 +791,7 @@ export function createMotionLayer(
         if (b.n === 0 && was === 0) continue;
         markUsed(b.mesh.instanceMatrix, b.n);
         for (const a of b.pal) markUsed(a, b.n);
+        markUsed(b.fade, b.n);
       }
     },
     setOpacity(o) {

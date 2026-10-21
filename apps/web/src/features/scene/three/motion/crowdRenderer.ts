@@ -21,8 +21,21 @@ export interface CrowdRenderer {
   meshes: [THREE.BatchedMesh, THREE.BatchedMesh];
   material: THREE.MeshStandardMaterial;
   readonly slots: number;
-  /** Show slot `i` on `lod` with `matrix`, posed between animation rows `row0` / `row1` by `t`. */
-  set(i: number, lod: 0 | 1, matrix: THREE.Matrix4, row0: number, row1: number, t: number): void;
+  /**
+   * Show slot `i` on `lod` with `matrix`, posed between animation rows `row0` / `row1` by `t`, at
+   * `fade` x the material opacity (default 1; demo polish A1: a person fading out at a path end).
+   */
+  set(
+    i: number,
+    lod: 0 | 1,
+    matrix: THREE.Matrix4,
+    row0: number,
+    row1: number,
+    t: number,
+    fade?: number,
+  ): void;
+  /** The slot's per-instance fade (0..1) as last set. */
+  fadeOf(i: number): number;
   hide(i: number): void;
   /** After a tick's set / hide calls: uploads the instance texture when it changed. */
   commit(): void;
@@ -40,6 +53,8 @@ export interface CrowdRenderer {
 
 const VERT_DECL = `uniform highp sampler2D tlCrowdAnim;
 uniform highp sampler2D tlCrowdInst;
+uniform highp sampler2D tlCrowdFade;
+varying float vTlFade;
 uniform vec2 tlCrowdPalSize;
 attribute float crowdRole;
 attribute vec4 crowdBone;
@@ -57,6 +72,7 @@ float tlId = 0.0;
 int tlW = textureSize(tlCrowdInst, 0).x;
 int tlJ = int(tlId + 0.5);
 vec4 tlD = texelFetch(tlCrowdInst, ivec2(tlJ % tlW, tlJ / tlW), 0);
+vTlFade = texelFetch(tlCrowdFade, ivec2(tlJ % tlW, tlJ / tlW), 0).r;
 int tlF0 = int(tlD.x + 0.5);
 int tlF1 = int(tlD.y + 0.5);
 vec4 tlR0 = vec4(0.0);
@@ -95,16 +111,24 @@ export function patchCrowdShader(
   ])
     need(shader.vertexShader, c);
   need(shader.fragmentShader, "#include <color_fragment>");
+  need(shader.fragmentShader, "#include <alphatest_fragment>");
   shader.vertexShader = shader.vertexShader
     .replace("void main() {", VERT_DECL)
     .replace("#include <skinbase_vertex>", VERT_SKINBASE)
     .replace("#include <skinnormal_vertex>", VERT_SKINNORMAL)
     .replace("#include <skinning_vertex>", VERT_SKINNING);
   shader.fragmentShader = shader.fragmentShader
-    .replace("void main() {", "uniform sampler2D tlCrowdPal;\nvarying vec2 vTlPal;\nvoid main() {")
+    .replace(
+      "void main() {",
+      "uniform sampler2D tlCrowdPal;\nvarying vec2 vTlPal;\nvarying float vTlFade;\nvoid main() {",
+    )
     .replace(
       "#include <color_fragment>",
       "#include <color_fragment>\ndiffuseColor.rgb *= texture2D(tlCrowdPal, vTlPal).rgb;",
+    )
+    .replace(
+      "#include <alphatest_fragment>",
+      "diffuseColor.a *= vTlFade;\nif (diffuseColor.a < 0.004) discard;\n#include <alphatest_fragment>",
     );
 }
 
@@ -145,7 +169,21 @@ export function createCrowdRenderer(
   inst.generateMipmaps = false;
   inst.needsUpdate = true;
   const instData = inst.image.data as Float32Array;
+  // Per-instance fade (r), same layout as `inst`; 1 = fully shown.
+  const fadeTex = new THREE.DataTexture(
+    new Float32Array(w * h * 4).fill(1),
+    w,
+    h,
+    THREE.RGBAFormat,
+    THREE.FloatType,
+  );
+  fadeTex.minFilter = THREE.NearestFilter;
+  fadeTex.magFilter = THREE.NearestFilter;
+  fadeTex.generateMipmaps = false;
+  fadeTex.needsUpdate = true;
+  const fadeData = fadeTex.image.data as Float32Array;
   let dirty = false;
+  let fadeDirty = false;
 
   const material = clayMaterial("person", { tinted: true, tier: opts.tier });
   material.name = "tl_crowd";
@@ -155,6 +193,7 @@ export function createCrowdRenderer(
   const uniforms = {
     tlCrowdAnim: { value: kit.anim.texture },
     tlCrowdInst: { value: inst },
+    tlCrowdFade: { value: fadeTex },
     tlCrowdPal: { value: kit.palette },
     tlCrowdPalSize: { value: new THREE.Vector2(m.roles.length, m.looks.length) },
   };
@@ -221,8 +260,12 @@ export function createCrowdRenderer(
     meshes,
     material,
     slots: n,
-    set(i, lod, matrix, row0, row1, t) {
+    set(i, lod, matrix, row0, row1, t, fade = 1) {
       show(i, lod);
+      if (fadeData[i * 4] !== fade) {
+        fadeData[i * 4] = fade;
+        fadeDirty = true;
+      }
       meshes[lod].setMatrixAt(i, matrix);
       const o = i * 4;
       if (instData[o] !== row0 || instData[o + 1] !== row1 || instData[o + 2] !== t) {
@@ -239,18 +282,22 @@ export function createCrowdRenderer(
       meshes[0].visible = count[0] > 0;
       meshes[1].visible = count[1] > 0;
       if (dirty) inst.needsUpdate = true;
+      if (fadeDirty) fadeTex.needsUpdate = true;
       dirty = false;
+      fadeDirty = false;
     },
     drawCalls: () => (count[0] > 0 ? 1 : 0) + (count[1] > 0 ? 1 : 0),
     visible: () => [count[0], count[1]],
     instances: () => instData,
     lookOf: (i) => looks[i] as number,
+    fadeOf: (i) => fadeData[i * 4] as number,
     setOpacity(o) {
       material.opacity = o;
     },
     dispose() {
       for (const bm of meshes) bm.dispose();
       inst.dispose();
+      fadeTex.dispose();
       material.dispose();
       group.clear();
     },

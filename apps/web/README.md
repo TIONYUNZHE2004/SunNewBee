@@ -523,8 +523,24 @@ where they stopped instead of jumping. Every rebuilt agent layer shares one smoo
   cap × mood density (day 1.0, dusk 1.15, night 0.45); in the detail bubble (rings 0–1) people are
   raised to a floor of one per 40 m of street at day density (`PAVEMENT_FLOOR_MAX_RING`, the
   perf-gate knob). No cyclists (they would render as people
-  walking at 4.5 m/s). Agents loop along the edges with no routing or collision, so cars can pass
-  through each other.
+  walking at 4.5 m/s). There is no routing or collision, so cars can pass through each other.
+- **Junction walks (demo polish A1):** `motion/roadGraph.ts` builds a junction graph per walk layer
+  (endpoints snapped within 1 m; one graph for streets, one for footways, cached like the runs). An
+  agent starts on its own chunk and takes a seeded random walk edge by edge for `WALK_S` (120 s) at
+  its speed, staying within `WANDER_M` (250 m) of its chunk: at a node it takes another edge, never
+  the one it came on unless the node is a dead end (degree 1), where it turns back on a half circle.
+  Pavement walkers follow the block corner on their side, so they never cross a carriageway. No
+  choice may reverse the heading within ~2 s (`MAX_NET_TURN`). `motion/walkPath.ts` offsets each leg
+  into the left lane or the pavement side, rounds corners with a 3-6 m fillet (people 1-3 m), drops
+  offset cusps, and slows corners, curves and dead-end U-turns through a distance warp (`Agent.warp`)
+  so `poseAt` stays a pure function of time. Planned agents have `ends: "fade"`: they fade out over
+  `FADE_S` (0.8 s) at the path end (a tile edge, the boundary, a footprint, the end of the walk) and
+  reappear at its start, never turning round in place; a devsim avoid zone cuts the route where it
+  first enters the zone (`avoidRoute`). Per-instance fade: the role material's `fade` option
+  (`iFade` attribute) and the crowd's fade texture. `motion/uturnWatch.ts` is the AC-L1 / AC-L4
+  reversal detector; `__tlAcceptance.uturns(start)` reads the in-app counter
+  (`acceptance/uturns.accept.ts`). Test road sets: the tiny fixture, a 5×5 grid and
+  `motion/fixtures/elmina-hero-walk.json` (cut by `scripts/cut-walk-extract.mjs`).
 - **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD for vehicles. Matrices are rewritten
   each tick, but only for agents in view (with a 50 m margin). Agents beyond their last LOD's `maxM`
   are hidden. Agents cast no shadows and are left out of the AO pass.
