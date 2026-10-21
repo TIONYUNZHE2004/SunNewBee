@@ -6,9 +6,9 @@ import copy
 
 import networkx as nx
 import pytest
-from conftest import TINY
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from tests_support import TINY
 from townshiplens_spatial.compare import compare
 from townshiplens_spatial.models import (
     Claim,
