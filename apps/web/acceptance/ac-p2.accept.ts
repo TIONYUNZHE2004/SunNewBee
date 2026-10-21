@@ -6,26 +6,29 @@ import { HOOK, openScene } from "./support/bookmarks";
 
 /**
  * AC-P2 (demo polish C10): the building move-in at Medium: p95 at most 33 ms, at most 150 draw
- * calls and at most 2.5 M triangles (headless, same machine). PRE-C7: the dev demo plan with the
- * pre-C7 set pieces attached (`?devsim=provisional&setpieces=preC7`, dev build only), so the
- * move-in plays on the schedule windows (27-33 s). Elmina seed, Stylised, Medium.
+ * calls and at most 2.5 M triangles (headless, same machine). The dev demo plan
+ * (`?devsim=provisional`, dev build only) is `plan.elmina.json`, the 45 s building plan (C7), so
+ * the move-in plays on its 27-33 s window. Elmina seed, Stylised, Medium.
  * - display frames: `__tlAcceptance.measure(6, 0)` while the playback runs 27 -> 33 s;
  * - draws / triangles: paused at 27.5, 29, 30.5, 32, 33 s, the last perf sample of a 0.6 s
  *   `measure` at each (every frame forced), the maximum kept;
+ * - the same paused draws / triangles at the close beats (`ACCEPTANCE_P2_CLOSE`, default Halim
+ *   6 s, Farid 15 s, the worker 21 s, Zainab 35 s, Arjun 38 s; reported, not gated: AC-P2 is the
+ *   move-in);
  * - the `bld` hook's move-in counts at 33 s.
  * Run against a dev server (`LLM_PROVIDER=mock pnpm dev`, map keys blank):
  *   ACCEPTANCE_BASE_URL=http://localhost:5185 pnpm --filter @tl/web acceptance -g "AC-P2"
- * Output: ACCEPTANCE_OUT, default `<main checkout>/.superpowers/sdd/2026-10-21-demo-polish/acceptance/C10`.
+ * Output: ACCEPTANCE_OUT, default `<main checkout>/.superpowers/sdd/2026-10-21-demo-polish/acceptance/C-align`.
  */
 function defaultOut(): string {
   const common = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
     encoding: "utf8",
   }).trim();
-  return join(dirname(common), ".superpowers/sdd/2026-10-21-demo-polish/acceptance/C10");
+  return join(dirname(common), ".superpowers/sdd/2026-10-21-demo-polish/acceptance/C-align");
 }
 const OUT = process.env.ACCEPTANCE_OUT ?? defaultOut();
-/** "0": today's plan without the pre-C7 set pieces (the comparison run); output `ac-p2-base.json`. */
-const SET_PIECES = process.env.ACCEPTANCE_P2_SETPIECES !== "0";
+/** The close beats sampled after the move-in (reported only). */
+const CLOSE = (process.env.ACCEPTANCE_P2_CLOSE ?? "6,15,21,35,38").split(",").map(Number);
 
 interface Summary {
   frames: number;
@@ -64,9 +67,7 @@ test("AC-P2: building move-in at Medium (p95, draws, triangles)", async ({ page 
       /* the quality check below fails */
     }
   });
-  await page.goto(
-    `/?acceptance=1&sun=pinned&devsim=provisional${SET_PIECES ? "&setpieces=preC7" : ""}`,
-  );
+  await page.goto("/?acceptance=1&sun=pinned&devsim=provisional");
   await page.locator('[data-testid="three-scene"]').waitFor({ state: "visible", timeout: 60_000 });
   await page.waitForFunction((h) => h in window, HOOK, { timeout: 60_000 });
   await page.waitForFunction(() => !!(window as unknown as W).__devsim, null, {
@@ -88,6 +89,19 @@ test("AC-P2: building move-in at Medium (p95, draws, triangles)", async ({ page 
     await page.waitForTimeout(400);
     const m = await measure(page, 0.6);
     samples.push({
+      t,
+      drawCalls: m.perf?.drawCalls ?? -1,
+      tris: m.perf?.tris ?? -1,
+      p95: m.p95FrameMs,
+    });
+  }
+  // the close beats (reported, not gated)
+  const close: typeof samples = [];
+  for (const t of CLOSE) {
+    await seek(page, t);
+    await page.waitForTimeout(400);
+    const m = await measure(page, 0.6);
+    close.push({
       t,
       drawCalls: m.perf?.drawCalls ?? -1,
       tris: m.perf?.tris ?? -1,
@@ -136,14 +150,13 @@ test("AC-P2: building move-in at Medium (p95, draws, triangles)", async ({ page 
     d?.set("bld");
     return d?.state();
   });
-  const name = SET_PIECES ? "ac-p2" : "ac-p2-base";
+  const name = "ac-p2";
   await page.screenshot({ path: join(OUT, `${name}-33s.png`) });
 
   const maxDraws = Math.max(...samples.map((s) => s.drawCalls));
   const maxTris = Math.max(...samples.map((s) => s.tris));
   const result = {
-    task: `demo polish C10 AC-P2 (${SET_PIECES ? "pre-C7 set pieces on" : "today's"} dev demo plan)`,
-    setPieces: SET_PIECES,
+    task: "demo polish C-align AC-P2 (45 s building plan, dev demo)",
     capturedAt: new Date().toISOString(),
     gpu,
     quality,
@@ -153,6 +166,7 @@ test("AC-P2: building move-in at Medium (p95, draws, triangles)", async ({ page 
     longTasks,
     uncapped,
     samples,
+    close,
     maxDraws,
     maxTris,
     counts,
@@ -161,7 +175,7 @@ test("AC-P2: building move-in at Medium (p95, draws, triangles)", async ({ page 
   writeFileSync(join(OUT, `${name}.json`), `${JSON.stringify(result, null, 2)}\n`);
   console.log(
     `[AC-P2] play p95 ${play.p95FrameMs.toFixed(2)} ms median ${(1000 / play.medianFps).toFixed(2)} ms ` +
-      `(${play.frames} frames); max draws ${maxDraws}; max tris ${maxTris}; ${JSON.stringify(samples)}`,
+      `(${play.frames} frames); max draws ${maxDraws}; max tris ${maxTris}; ${JSON.stringify(samples)}; close ${JSON.stringify(close)}`,
   );
   expect(play.frames).toBeGreaterThan(0);
   expect(maxDraws).toBeGreaterThan(0);

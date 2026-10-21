@@ -95,6 +95,64 @@ const CHILD_LOOKS = [
 /** The ASSETS lane's worker look (if the manifest has one), else the adult man with runtime hat + vest. */
 const WORKER_FALLBACK = "man_office_white";
 
+/**
+ * The 45 s plan's speaker windows (spec 2026-10-21 §6.3), used when the plan lacks a bubble; the
+ * plan's own bubble windows win (`castBeats`), so every bubble has its speaker on stage (AC-W8).
+ */
+export const CAST_S = {
+  halim: [5.5, 9],
+  farid: [14, 16.5],
+  worker: [19.5, 22.5],
+  meiling: [28.5, 31.5],
+  welcome: [31, 33],
+  zainab: [34, 37],
+  arjun: [36.5, 39],
+} as const;
+
+/**
+ * How long each speaker is on stage around their bubble (s, 45 s plan): Halim walks a few metres
+ * in and out of his standing spot, Farid and the worker stand through their shot, Mei Ling (with
+ * the kid) waits at the door from the door shot until the welcome ends, Halim walks over to her
+ * before his welcome, Zainab and Arjun stay at the park and the mall to the end.
+ */
+const STAGE_S = {
+  halimIn: 1.8,
+  halimOut: 1.6,
+  faridIn: 0.4,
+  faridOut: 0.5,
+  workerIn: 1,
+  workerOut: 0.5,
+  doorIn: 0.3,
+  welcomeWalk: 1.4,
+  endIn: 0.5,
+} as const;
+
+type Win = readonly [number, number];
+/** The speaker windows of a 45 s plan, by beat (null: today's 66 s plan, legacy staging). */
+export type CastBeats = { [K in keyof typeof CAST_S]: Win } & { end: number };
+
+/** The 45 s plan's speaker windows from its bubbles (spec §6.3 when one is missing); null in legacy mode. */
+export function castBeats(plan: DevelopmentPlan): CastBeats | null {
+  if (setPieceTiming(plan).mode !== "schedule") return null;
+  const said = (who: string, k = 0): Win | null => {
+    const b = plan.bubbles.filter((x) => x.who === who).sort((a, c) => a.t0 - c.t0)[k];
+    return b ? [b.t0, b.t1] : null;
+  };
+  return {
+    halim: said("halim") ?? CAST_S.halim,
+    farid: said("farid") ?? CAST_S.farid,
+    worker: said("worker") ?? CAST_S.worker,
+    meiling: said("meiling") ?? CAST_S.meiling,
+    welcome: said("halim", 1) ?? CAST_S.welcome,
+    zainab: said("zainab") ?? CAST_S.zainab,
+    arjun: said("arjun") ?? CAST_S.arjun,
+    end: plan.total_s,
+  };
+}
+
+/** A site crew slot (`worker0`..), not the speaking site worker (cast id `worker`). */
+export const isCrew = (id: string) => /^worker\d+$/.test(id);
+
 /** Halim's bubble 1 window (spec §4.3, fixed in the plan builder): he stands still through it. */
 export const HALIM_SAYS: readonly [number, number] = [18.4, 21.4];
 /** How far he walks into and out of his standing spot (m, ~5 m/s at the fast-forward clock). */
@@ -198,9 +256,10 @@ function workerLoopsOf(g: SiteGeom): XZ[][] {
 export function castAt(
   t: number,
   g: SiteGeom,
-  opts: { workersActive: boolean; flowT?: number; moveIn?: CastMoveIn },
+  opts: { workersActive: boolean; flowT?: number; moveIn?: CastMoveIn; beats?: CastBeats | null },
 ): Map<string, CastPose> {
   const o = new Map<string, CastPose>();
+  if (opts.beats) return castAtBuild(t, g, opts, opts.beats, o);
   const toward = (a: XZ, b: XZ) => yawOf([b[0] - a[0], b[1] - a[1]]);
   const inYaw = yawOf([-g.out[0], -g.out[1]]);
   const outYaw = yawOf(g.out);
@@ -226,16 +285,7 @@ export function castAt(
   }
   if (t >= 22.4 && t < 27.5) put("farid", g.farid, toward(g.farid, g.centre), false);
   // workers by day
-  if (opts.workersActive) {
-    const loops = workerLoopsOf(g);
-    const ft = opts.flowT ?? t;
-    loops.forEach((pts, i) => {
-      const L = lengthOf(pts);
-      const d = (ft * 1.3 + i * 7) % L;
-      const a = along(pts, d);
-      put(`worker${i}`, a.p, yawOf(a.dir), true);
-    });
-  }
+  putCrew(o, g, t, opts);
   // Move-in (C10, schedule mode): movers leave the lorries one by one, carry boxes up the
   // entrance path and go in through the door (walking on into the lobby, then not drawn)
   const mv = opts.moveIn?.timing.movers;
@@ -298,6 +348,91 @@ export function castAt(
   return o;
 }
 
+/** The crew between the stacks and the tower (work hours; flow clock). */
+function putCrew(
+  o: Map<string, CastPose>,
+  g: SiteGeom,
+  t: number,
+  opts: { workersActive: boolean; flowT?: number },
+) {
+  if (!opts.workersActive) return;
+  const ft = opts.flowT ?? t;
+  workerLoopsOf(g).forEach((pts, i) => {
+    const L = lengthOf(pts);
+    const a = along(pts, (ft * 1.3 + i * 7) % L);
+    o.set(`worker${i}`, { x: a.p[0], z: a.p[1], yaw: yawOf(a.dir), walk: true });
+  });
+}
+
+/**
+ * The 45 s plan's cast (spec §6.3, C-align): each Spotlight Resident and the site worker is on
+ * stage around their own bubble window (`castBeats`), where the camera beat frames them, so every
+ * bubble anchors to its speaker. Halim on the detour (bubble 1), Farid beside the hoarding, the
+ * worker at `anchors.worker` in the monsoon, Mei Ling and the kid at the door, Halim walking over
+ * to welcome her, Zainab at the park and Arjun at the mall through Daily Life. The crew, movers and
+ * children follow the C9/C10 windows.
+ */
+function castAtBuild(
+  t: number,
+  g: SiteGeom,
+  opts: { workersActive: boolean; flowT?: number; moveIn?: CastMoveIn },
+  b: CastBeats,
+  o: Map<string, CastPose>,
+): Map<string, CastPose> {
+  const S = STAGE_S;
+  const toward = (a: XZ, c: XZ) => yawOf([c[0] - a[0], c[1] - a[1]]);
+  const put = (id: string, p: XZ, yaw: number, walk: boolean) =>
+    o.set(id, { x: p[0], z: p[1], yaw, walk });
+  const pathLen = Math.hypot(g.node[0] - g.door[0], g.node[1] - g.door[1]);
+  const inYaw = yawOf([-g.out[0], -g.out[1]]);
+  const [h0, h1] = b.halim;
+  if (t >= h0 - S.halimIn && t < h1 + S.halimOut) {
+    const L = lengthOf(g.halimPath);
+    const mid = L * HALIM_STAND_U;
+    const d =
+      t < h0
+        ? mid - HALIM_WALK_M * (1 - span(t, h0 - S.halimIn, h0))
+        : mid + HALIM_WALK_M * span(t, h1, h1 + S.halimOut);
+    const a = along(g.halimPath, Math.max(0, Math.min(L, d)));
+    put("halim", a.p, yawOf(a.dir), t < h0 || t > h1);
+  }
+  if (t >= b.farid[0] - S.faridIn && t < b.farid[1] + S.faridOut)
+    put("farid", g.farid, toward(g.farid, g.centre), false);
+  if (t >= b.worker[0] - S.workerIn && t < b.worker[1] + S.workerOut)
+    put("worker", g.worker, toward(g.worker, g.centre), false);
+  putCrew(o, g, t, opts);
+  const mv = opts.moveIn?.timing.movers;
+  if (mv && opts.moveIn)
+    for (let i = 0; i < MOVERS; i++) {
+      const a = moverAt(opts.moveIn.paths[i] as XZ[], mv, i, t);
+      if (!a || a.inside) continue;
+      o.set(`mover${i}`, { x: a.p[0], z: a.p[1], yaw: a.yaw, walk: true, carry: true });
+    }
+  if (opts.moveIn)
+    for (let k = 0; k < KIDS; k++) {
+      const c = kidAt(opts.moveIn.playground, opts.moveIn.timing, k, t);
+      if (c) put(`child${k}`, c.p, c.yaw, c.walk);
+    }
+  // Mei Ling and the kid at the door with their keys; Halim walks over and welcomes them
+  if (t >= b.meiling[0] - S.doorIn && t < b.welcome[1]) {
+    const ml = onPath(g, 4.5, 5.2);
+    const faceSide = yawOf([-g.side[0], -g.side[1]]);
+    put("meiling", ml, faceSide, false);
+    put("kid", onPath(g, 4.5, 6.7), faceSide, false);
+    const k = ease(span(t, b.welcome[0] - S.welcomeWalk, b.welcome[0]));
+    const a = onPath(g, pathLen + 4, 4);
+    const c = onPath(g, 7.2, 4.6);
+    const hp: XZ = [a[0] + (c[0] - a[0]) * k, a[1] + (c[1] - a[1]) * k];
+    put("halim", hp, k >= 1 ? toward(hp, ml) : inYaw, k > 0 && k < 1);
+    if (k >= 1) put("meiling", ml, toward(ml, hp), false);
+  }
+  if (t >= b.zainab[0] - S.endIn && t <= b.end)
+    put("zainab", g.park, toward(g.park, g.centre), false);
+  if (t >= b.arjun[0] - S.endIn && t <= b.end)
+    put("arjun", g.mall, toward(g.centre, g.mall), false);
+  return o;
+}
+
 /** Text colour (#fff or near black) with the better contrast on `hex`. */
 export function tagTextColour(hex: string): string {
   const c = new THREE.Color(hex);
@@ -334,6 +469,7 @@ export function createCast(o: CastOpts): Cast {
   const { geom: g, plan } = o;
   const slots = castSlots(plan);
   const moveIn = castMoveIn(plan, g);
+  const beats = castBeats(plan);
   const group = new THREE.Group();
   group.name = "devsim-cast";
   group.raycast = NOOP;
@@ -430,7 +566,7 @@ export function createCast(o: CastOpts): Cast {
       own(
         new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.castHelmetYellow, roughness: 0.35 }),
       ),
-      WORKERS,
+      WORKERS + 1,
     ),
   );
   const vests = own(
@@ -445,7 +581,7 @@ export function createCast(o: CastOpts): Cast {
           side: THREE.DoubleSide,
         }),
       ),
-      WORKERS,
+      WORKERS + 1,
     ),
   );
   const boxes = own(
@@ -517,7 +653,7 @@ export function createCast(o: CastOpts): Cast {
       if (!p) {
         pt[0] = Number.NaN;
         crowd?.hide(i);
-        if (wcrowd && firstWorker >= 0 && i >= firstWorker) wcrowd.hide(i - firstWorker);
+        if (wcrowd && firstWorker >= 0 && isCrew(id)) wcrowd.hide(i - firstWorker);
         if (ring) ring.visible = false;
         continue;
       }
@@ -532,8 +668,9 @@ export function createCast(o: CastOpts): Cast {
         ring.scale.setScalar(k / 1.55);
       }
       _m.compose(_p.set(p.x, 0.08, p.z), _q.setFromAxisAngle(_y, p.yaw), _s.set(k, k, k));
+      // the crew may use the one-look worker kit; the speaking worker is a crowd body (hat + vest)
       const isWorker = id.startsWith("worker");
-      if (isWorker && wcrowd && wkit) {
+      if (isCrew(id) && wcrowd && wkit) {
         crowd?.hide(i);
         const clip = (p.walk ? wkit.clips.adult_man.walk : wkit.clips.adult_man.idle) ?? null;
         if (clip) {
@@ -638,6 +775,7 @@ export function createCast(o: CastOpts): Cast {
       glowK = speaker ? speakerGlow(s.sun) : 0;
       poses = castAt(tt, g, {
         moveIn,
+        beats,
         // the site is closed over the Hari Raya hold (C9): no workers
         workersActive: s.workersActive && !sp?.hold,
         ...(o.flowT ? { flowT: o.flowT(tt) } : {}),
@@ -655,7 +793,9 @@ export function createCast(o: CastOpts): Cast {
         } else if (t >= 33.6 && legacyMoverK(Math.min(t, 43.99), i) <= -0.4) entered++;
       }
       return {
-        workers: ids.filter((id) => id.startsWith("worker")).length,
+        workers: ids.filter(isCrew).length,
+        /** The Spotlight Residents and the speaking worker drawn now (bubble speakers, AC-W8). */
+        castOn: ids.filter((id) => spotlight.has(id)),
         movers: { walking: ids.filter((id) => id.startsWith("mover")).length, entered },
         kidsAtPlayground: ids.filter((id) => id.startsWith("child")).length,
       };

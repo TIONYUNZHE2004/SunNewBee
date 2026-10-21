@@ -4,16 +4,17 @@
  * screen times live. Pure maths, no Three.js.
  *
  * Two modes:
- * - "schedule": the plan carries `schedule` (C7, 45 s timeline). The Hari Raya hold and the monsoon
- *   stretch come from `buildPlayback(schedule)` (fe `schedulePlayback.ts`, ruling R25 windows), the
- *   piling rig and the lorry route from the spec §6.3 beats below.
+ * - "schedule": the 45 s building plan (C7: `schedule` + `month_keys`; `timeline.isBuildPlan`). The
+ *   Hari Raya hold and the monsoon stretch come from `planPlayback(plan)` (fe `schedulePlayback.ts`:
+ *   the plan's own month keys and banner windows, ruling R25), the piling rig and the lorry route
+ *   from the spec §6.3 beats below.
  * - "legacy": today's 66 s plan (no schedule): no hold, no rain, the crane slews as the timeline
  *   says, the piling rig stands in the first seconds of Construction, the Handover lorries keep
  *   today's lane path. A plan with `lorry_route` but no schedule draws the route over Construction.
  */
 import type { DevelopmentPlanExtras, LorryRoute, Schedule } from "../../../devsim/planTypes";
-import { BUILD_BEATS, buildPlayback } from "../../../devsim/schedulePlayback";
-import { CON } from "../../../devsim/timeline";
+import { BUILD_BEATS, planPlayback } from "../../../devsim/schedulePlayback";
+import { CON, isBuildPlan } from "../../../devsim/timeline";
 import type { DevelopmentPlan, StateAt } from "../../../devsim/types";
 import { ease, span } from "./ease";
 import { stateAt } from "./state";
@@ -121,10 +122,10 @@ const timingCache = new WeakMap<DevelopmentPlan, SetPieceTiming>();
 export function setPieceTiming(plan: DevelopmentPlan): SetPieceTiming {
   const hit = timingCache.get(plan);
   if (hit) return hit;
-  const { lorryRoute, schedule } = planExtras(plan);
+  const { lorryRoute } = planExtras(plan);
   let out: SetPieceTiming;
-  if (schedule) {
-    const pb = buildPlayback(schedule);
+  if (isBuildPlan(plan)) {
+    const pb = planPlayback(plan);
     out = {
       mode: "schedule",
       piling: SET_PIECE_S.piling,

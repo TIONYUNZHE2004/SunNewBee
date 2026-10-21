@@ -3,14 +3,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createDemoHook, registerDemoState, resetDemoRegistry } from "../../../demo/demoHook";
 import { useDevsimAnchors } from "../../../devsim/anchors";
 import elmina from "../../../devsim/fixtures/plan.elmina.json";
-import type { DevelopmentPlanExtras } from "../../../devsim/planTypes";
+import provisional from "../../../devsim/fixtures/plan.provisional.json";
+import { planPlayback } from "../../../devsim/schedulePlayback";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import { createRoleUniforms } from "../assets/roleMaterial";
 import { createFrame } from "../frame";
 import { LIGHT_PRESETS } from "../lighting";
 import { createDevsimLayer, type DevsimPart } from "./devsimLayer";
 import { devsimGrade, rainGrade } from "./devsimView";
-import pre from "./fixtures/setPieces.preC7.elmina.json";
 import { distToLine, lengthOf, siteGeom, TOWER_STOREY_M } from "./geom";
 import { createPilingRig, pileGrid, rigAt } from "./pilingRig";
 import { createRain, RAIN_DROPS } from "./rain";
@@ -29,14 +29,10 @@ import { createSite, moveInRoutePoses, routeTrafficPoses } from "./site";
 import { stateAt } from "./state";
 import { createTower } from "./tower";
 
-/** Today's 66 s Elmina plan, and the same plan with the C7 fields (pre-C7 fixture dump). */
-const LEGACY = elmina as unknown as DevelopmentPlan;
-const C7 = {
-  ...(elmina as object),
-  lorry_route: pre.lorry_route,
-  schedule: pre.schedule,
-} as unknown as DevelopmentPlan & DevelopmentPlanExtras;
-const frame = createFrame(LEGACY.anchors.junction as [number, number]);
+/** The 45 s Elmina building plan (C7), and the legacy 66 s plan (no schedule, no lorry route). */
+const C7 = elmina as unknown as DevelopmentPlan;
+const LEGACY = provisional as unknown as DevelopmentPlan;
+const frame = createFrame(C7.anchors.junction as [number, number]);
 const geom = siteGeom(C7, frame);
 const DEG = Math.PI / 180;
 /** A part's demo-hook fields. */
@@ -53,22 +49,31 @@ afterEach(() => {
 });
 
 describe("set piece timing (adapter)", () => {
-  it("reads the C7 fields in one place; today's plan has neither", () => {
+  it("reads the C7 fields in one place; the legacy plan has neither", () => {
     expect(planExtras(LEGACY)).toEqual({
       lorryRoute: null,
       schedule: null,
       playground: LEGACY.anchors.park,
     });
     const x = planExtras(C7);
-    expect(x.lorryRoute?.path.length).toBe(pre.lorry_route.path.length);
+    expect(x.lorryRoute?.path.length).toBe(C7.lorry_route.path.length);
     expect(x.schedule?.months_total).toBe(27);
+    // the 45 s plan sends no playground: the children use the park anchor (C-align ruling)
+    expect(x.playground).toEqual(C7.anchors.park);
   });
 
-  it("schedule mode: the R25 windows from schedulePlayback (Raya 11-13 s, monsoon 18.5-23 s)", () => {
+  it("schedule mode: the windows are the plan's own (planPlayback: Raya 11-13 s, monsoon 18.5-23 s)", () => {
     const tm = setPieceTiming(C7);
     expect(tm.mode).toBe("schedule");
+    const pb = planPlayback(C7);
+    expect(tm.raya).toEqual(pb.raya);
+    expect(tm.monsoon).toEqual(pb.monsoon);
+    const banner = (k: string) => C7.banners.find((b) => b.kind === k);
+    expect(tm.raya).toEqual([banner("raya")?.t0, banner("raya")?.t1]);
+    expect(tm.monsoon).toEqual([banner("monsoon")?.t0, banner("monsoon")?.t1]);
     expect(tm.raya).toEqual([11, 13]);
     expect(tm.monsoon).toEqual([18.5, 23]);
+    expect(tm.total).toBe(45);
     expect(tm.piling).toEqual([3.5, 8.5]);
     expect(tm.lorryRoute).toEqual([8.5, 27]);
     // wet beats: every other 1.5 s inside the monsoon window
@@ -183,8 +188,8 @@ describe("lorries on the lorry route (AC-W4)", () => {
   const route = geom.lorryRoute;
 
   it("the route is the plan's polyline in local metres", () => {
-    expect(route.length).toBe(pre.lorry_route.path.length);
-    expect(Math.abs(lengthOf(route) - pre.lorry_route.distance_m)).toBeLessThan(15);
+    expect(route.length).toBe(C7.lorry_route.path.length);
+    expect(Math.abs(lengthOf(route) - C7.lorry_route.distance_m)).toBeLessThan(15);
   });
 
   it("construction traffic and move-in lorries stay within 3 m of the route", () => {
@@ -220,7 +225,7 @@ describe("lorries on the lorry route (AC-W4)", () => {
     site.dispose();
   });
 
-  it("today's plan keeps the lane lorries and draws no route", () => {
+  it("the legacy 66 s plan keeps the lane lorries and draws no route", () => {
     const g = siteGeom(LEGACY, frame);
     expect(g.lorryRoute).toEqual([]);
     const site = createSite({ geom: g, roleUniforms: createRoleUniforms() });
@@ -228,6 +233,30 @@ describe("lorries on the lorry route (AC-W4)", () => {
     const s = demo(site) as { lorries: unknown[]; lorryRoute: { drawn: boolean } };
     expect(s.lorryRoute.drawn).toBe(false);
     expect(s.lorries.length).toBeGreaterThan(0);
+    site.dispose();
+  });
+});
+
+describe("site kit on the 45 s plan (spec §6.3 27-30.5 s: hoarding, crane and scaffold go)", () => {
+  it("the crane and yard sink at 27 s, the hoarding by 28 s; no school-run queue", () => {
+    const site = createSite({ geom, roleUniforms: createRoleUniforms() });
+    const byName = (n: string) => site.group.getObjectByName(n) as THREE.Object3D;
+    site.update(frameAt(C7, 26.9));
+    expect(byName("devsim-crane").position.y).toBe(-0);
+    expect(byName("devsim-yard").visible).toBe(true);
+    expect(byName("devsim-hoarding").visible).toBe(true);
+    site.update(frameAt(C7, 27.9));
+    expect(byName("devsim-yard").visible).toBe(false);
+    expect(byName("devsim-crane").position.y).toBeLessThan(-40);
+    site.update(frameAt(C7, 28.1));
+    expect(byName("devsim-hoarding").visible).toBe(false);
+    // the 66 s school-run queue (44-52 s) never shows on the 45 s plan
+    for (let t = 33; t <= 45; t += 0.5) {
+      site.update(frameAt(C7, t));
+      expect(site.vehicles?.().filter((v) => Number.isFinite(v[0])).length ?? 0).toBe(
+        (demo(site) as { lorries: unknown[] }).lorries.length,
+      );
+    }
     site.dispose();
   });
 });
@@ -246,7 +275,7 @@ describe("scaffold and netting (AC-W4)", () => {
     const sc = createScaffold({ geom });
     const tw = createTower({ geom, roleUniforms: createRoleUniforms() });
     let rising = 0;
-    for (let t = 4; t < LEGACY.total_s; t += 0.5) {
+    for (let t = 4; t < C7.total_s; t += 0.5) {
       const f = frameAt(C7, t);
       sc.update(f);
       tw.update(f);

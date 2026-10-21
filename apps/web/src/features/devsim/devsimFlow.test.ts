@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useJourney } from "../journey/journeyStore";
 import { useScene } from "../scene/sceneStore";
-import pre from "../scene/three/devsim/fixtures/setPieces.preC7.elmina.json";
 import { litShareAt, setPieceTiming } from "../scene/three/devsim/setPieces";
 import { collectProbe, hasProbe, registerDomProbe, registerProbe } from "./anchors";
 import { createDevsimHook, installDevsimHook } from "./devsimHook";
@@ -256,25 +255,23 @@ describe("probe window state (Q4)", () => {
 });
 
 describe("probe expected lit share in schedule mode (C10 review minor 5)", () => {
-  it("is the move-in's floor-by-floor share the tower draws, not the legacy timeline's", () => {
-    const c7 = {
-      ...(provisional as object),
-      lorry_route: pre.lorry_route,
-      schedule: pre.schedule,
-    } as unknown as DevelopmentPlan;
-    d().start(c7, "b");
+  it("is the move-in's floor-by-floor share the tower draws, the same as the 45 s timeline's", () => {
+    d().start(plan, "b");
     const hook = createDevsimHook();
-    const tm = setPieceTiming(c7);
+    const tm = setPieceTiming(plan);
     expect(tm.mode).toBe("schedule");
-    let differs = false;
+    let lit = 0;
     for (const t of [27.5, 29, 30.5, 32, 33]) {
       hook.seek(t);
-      const want = litShareAt(tm, t, c7.site.storeys, stateAt(t, c7).windowsLitFraction);
+      const tl = stateAt(t, plan).windowsLitFraction;
+      const want = litShareAt(tm, t, plan.site.storeys, tl);
       const got = hook.probe().expectedWindowsLitFraction;
       expect(got).toBe(want);
-      if (got !== stateAt(t, c7).windowsLitFraction) differs = true;
+      // C11's timeline lights the windows on the same curve, so the HUD and the tower agree
+      expect(got).toBe(tl);
+      if ((got ?? 0) > 0) lit++;
     }
-    expect(differs).toBe(true);
+    expect(lit).toBeGreaterThan(2);
   });
 });
 

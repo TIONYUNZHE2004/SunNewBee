@@ -33,6 +33,11 @@ export interface SiteGeom {
   detour: XZ[];
   halimPath: XZ[];
   farid: XZ;
+  /**
+   * The site worker who speaks the monsoon bubble (C7 `anchors.worker`: inside the hoarding beside
+   * the tower), else the yard centre (today's 66 s plan has no worker anchor).
+   */
+  worker: XZ;
   junction: XZ;
   park: XZ;
   mall: XZ;
@@ -226,6 +231,7 @@ export function siteGeom(
     detour,
     halimPath: plan.anchors.halim_path.map(L),
     farid: L(plan.anchors.farid),
+    worker: plan.anchors.worker ? L(plan.anchors.worker) : yard,
     junction,
     street,
     kerbOut,

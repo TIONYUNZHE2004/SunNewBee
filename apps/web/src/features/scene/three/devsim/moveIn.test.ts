@@ -3,13 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDemoHook, registerDemoState, resetDemoRegistry } from "../../../demo/demoHook";
 import { useDevsimAnchors } from "../../../devsim/anchors";
 import elmina from "../../../devsim/fixtures/plan.elmina.json";
-import type { DevelopmentPlanExtras } from "../../../devsim/planTypes";
+import provisional from "../../../devsim/fixtures/plan.provisional.json";
+import { stateAt } from "../../../devsim/timeline";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import { createRoleUniforms } from "../assets/roleMaterial";
 import { createFrame } from "../frame";
 import { castMoveIn, castSlots, createCast, MOVERS } from "./cast";
 import { createDevsimLayer, type DevsimPart } from "./devsimLayer";
-import pre from "./fixtures/setPieces.preC7.elmina.json";
 import { inRing, siteGeom } from "./geom";
 import {
   BOXES,
@@ -30,14 +30,10 @@ import { litShareAt, moveInCounter, SET_PIECE_S, setPieceTiming } from "./setPie
 import { createSite, yardRing } from "./site";
 import { createTower } from "./tower";
 
-const LEGACY = elmina as unknown as DevelopmentPlan;
-const C7 = {
-  ...(elmina as object),
-  lorry_route: pre.lorry_route,
-  schedule: pre.schedule,
-  playground: pre.playground,
-} as unknown as DevelopmentPlan & DevelopmentPlanExtras;
-const frame = createFrame(LEGACY.anchors.junction as [number, number]);
+/** The 45 s Elmina building plan (C7), and the legacy 66 s plan (no schedule). */
+const C7 = elmina as unknown as DevelopmentPlan;
+const LEGACY = provisional as unknown as DevelopmentPlan;
+const frame = createFrame(C7.anchors.junction as [number, number]);
 
 afterEach(() => {
   useDevsimAnchors.getState().clear();
@@ -210,7 +206,12 @@ describe("move-in (AC-W5, schedule mode)", () => {
     part.dispose();
   });
 
-  it("the HUD counter reads the same lit share x homes", () => {
+  it("the HUD counter reads the same lit share x homes, equal to the 45 s timeline's", () => {
+    for (let t = 26; t <= 45; t += 0.25) {
+      const s = stateAt(t, C7);
+      expect(moveInCounter(C7, t).litShare).toBe(s.windowsLitFraction);
+      expect(moveInCounter(C7, t).occupancy).toBe(s.occupancy);
+    }
     const c = moveInCounter(C7, 33);
     expect(c.litShare).toBeGreaterThanOrEqual(0.85);
     expect(c.occupancy).toBe(Math.round(c.litShare * C7.site.homes));
@@ -239,7 +240,7 @@ describe("move-in (AC-W5, schedule mode)", () => {
   });
 });
 
-describe("move-in on today's 66 s plan (legacy)", () => {
+describe("move-in on the legacy 66 s plan (plan.provisional.json)", () => {
   it("lit windows stay the timeline's (Q4: 0 before Handover); 12 mover slots and 5 children", () => {
     const tm = setPieceTiming(LEGACY);
     for (const t of [10, 31.9, 35, 40]) expect(litShareAt(tm, t, 30, 0.37)).toBe(0.37);

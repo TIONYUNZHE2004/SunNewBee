@@ -518,13 +518,16 @@ export function createSite(o: SiteOpts): DevsimPart {
       const sp = spIn ?? legacySetPieces(s);
       last = sp;
       const cons = s.act === "Construction" && s.hoarding;
+      // the 45 s plan's Handover (spec §6.3 27-30.5 s) or today's 66 s one
+      const build = sp.timing.mode === "schedule";
+      const off = build ? SITE_OFF_S.build : SITE_OFF_S.legacy;
       lot.visible = t < 4;
-      const fade = ease(span(t, 31.6, 32.4)); // the kit sinks away as Handover begins
+      const fade = ease(span(t, off.kit[0], off.kit[1])); // the kit sinks away as Handover begins
       yard.visible = s.hoarding && fade < 1;
       yard.position.y = -3 * fade;
       hoardGroup.visible = s.hoarding;
-      // hoarding sinks over the first 1.6 s of Handover (a quick fade)
-      hoardGroup.position.y = -2.8 * ease(span(t, 32, 33.6));
+      // the hoarding sinks early in Handover (a quick fade)
+      hoardGroup.position.y = -2.8 * ease(span(t, off.hoarding[0], off.hoarding[1]));
       // crane: mast grows to keep the jib 14 m over the tower top; slews by day
       const topNow = Math.max(0, s.floorsBuilt) * 3.2;
       const lift = Math.max(0, topNow + 14 - CRANE_TOP_M);
@@ -547,9 +550,11 @@ export function createSite(o: SiteOpts): DevsimPart {
       // an unlit pool (opacity 0) adds nothing: not drawn (C10p)
       for (const p of pools) p.visible = lit > 0;
       headMat.color.copy(HEAD_OFF).lerp(HEAD_ON, lit);
-      const routesOn = t >= 6 && s.act === "Construction";
+      // the closed footway and the detour: from the hoarding (3.5 s, 45 s plan) while it stands
+      const routesOn = build ? s.hoarding : t >= 6 && s.act === "Construction";
       if (closedMesh) closedMesh.visible = routesOn;
-      if (detourMesh) detourMesh.visible = t >= 6.5 && s.act === "Construction";
+      if (detourMesh)
+        detourMesh.visible = build ? s.hoarding : t >= 6.5 && s.act === "Construction";
       if (routeMesh) routeMesh.visible = sp.routeOn;
 
       for (const v of vehiclePts) v[0] = Number.NaN;
@@ -588,9 +593,9 @@ export function createSite(o: SiteOpts): DevsimPart {
         });
       lorries.setCount(nl);
       mixer.setCount(nm);
-      // the school-run queue (Daily Life morning)
+      // the school-run queue (today's 66 s Daily Life morning; the 45 s plan has no school run)
       const counts = [0, 0];
-      queuePoses(g, t).forEach((v, i) => {
+      (build ? [] : queuePoses(g, t)).forEach((v, i) => {
         if (!v) return;
         const k = i % 2;
         (cars[k] as (typeof cars)[number]).set(
@@ -625,6 +630,16 @@ export function createSite(o: SiteOpts): DevsimPart {
 export function queueSlot(i: number): number {
   return QUEUE_HEAD_M + (QUEUE - 1 - i) * QUEUE_GAP_M;
 }
+
+/**
+ * When the site kit (yard, crane, floodlights) and the hoarding sink away (screen s): on the 45 s
+ * plan as Handover starts (spec §6.3: "27-30.5 s hoarding, crane and scaffold go"; the timeline's
+ * hoarding stands to 28 s), on today's 66 s plan as its Handover begins.
+ */
+export const SITE_OFF_S = {
+  build: { kit: [27, 27.8], hoarding: [27, 28] },
+  legacy: { kit: [31.6, 32.4], hoarding: [32, 33.6] },
+} as const;
 
 /** The school-run queue stands at the junction in the Daily Life morning (screen s). */
 export const queueShown = (t: number) => t >= 44 && t < 52.4;
