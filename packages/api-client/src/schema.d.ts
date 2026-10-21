@@ -507,6 +507,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/layers/road-labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Road Labels Layer
+         * @description Named roads clipped to the township boundary; display only.
+         */
+        get: operations["road_labels_layer_layers_road_labels_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/layers/street_furniture": {
         parameters: {
             query?: never;
@@ -1054,6 +1074,19 @@ export interface components {
             scenario_id: string;
             /** Warnings */
             warnings?: string[];
+        };
+        /** AnimatedTrip */
+        AnimatedTrip: {
+            /** After Coordinates */
+            after_coordinates: number[][];
+            /** Before Coordinates */
+            before_coordinates: number[][];
+            /** From Id */
+            from_id: string;
+            /** Profile */
+            profile: string;
+            /** To Id */
+            to_id: string;
         };
         /**
          * AnswerCheck
@@ -2516,6 +2549,18 @@ export interface components {
             /** Street Name */
             street_name: string | null;
         };
+        /** MarathonAnimation */
+        MarathonAnimation: {
+            /** Course Coordinates */
+            course_coordinates: number[][];
+            /**
+             * Label
+             * @default Simulation · illustrative
+             */
+            label: string;
+            /** Rerouted Trips */
+            rerouted_trips?: components["schemas"]["AnimatedTrip"][];
+        };
         /** MarathonImpact */
         MarathonImpact: {
             /**
@@ -2604,6 +2649,7 @@ export interface components {
         };
         /** MarathonResult */
         MarathonResult: {
+            animation: components["schemas"]["MarathonAnimation"];
             course: components["schemas"]["Course"];
             impact: components["schemas"]["MarathonImpact"];
         };
@@ -2805,6 +2851,19 @@ export interface components {
             };
             /** Stages */
             stages: components["schemas"]["Stage"][];
+        };
+        /** RoadLabel */
+        RoadLabel: {
+            /** Anchor */
+            anchor: number[];
+            /** Bearing Deg */
+            bearing_deg: number;
+            /** Length M */
+            length_m: number;
+            /** Name */
+            name: string;
+            /** Road Class */
+            road_class: string;
         };
         /** RoadSection */
         RoadSection: {
@@ -4694,6 +4753,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    road_labels_layer_layers_road_labels_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadLabel"][];
                 };
             };
         };

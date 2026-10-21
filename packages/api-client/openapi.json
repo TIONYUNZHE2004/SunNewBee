@@ -158,6 +158,51 @@
         "title": "AffectedResult",
         "type": "object"
       },
+      "AnimatedTrip": {
+        "properties": {
+          "after_coordinates": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "After Coordinates",
+            "type": "array"
+          },
+          "before_coordinates": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Before Coordinates",
+            "type": "array"
+          },
+          "from_id": {
+            "title": "From Id",
+            "type": "string"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "to_id": {
+            "title": "To Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_id",
+          "to_id",
+          "profile",
+          "before_coordinates",
+          "after_coordinates"
+        ],
+        "title": "AnimatedTrip",
+        "type": "object"
+      },
       "AnswerCheck": {
         "description": "The validator's verdict on one answer attempt: accepted, or sent back with readable\nreasons (the model then rewrites it). `repairs` counts fact-free fixes applied first.",
         "properties": {
@@ -3999,6 +4044,38 @@
         "title": "Maneuver",
         "type": "object"
       },
+      "MarathonAnimation": {
+        "properties": {
+          "course_coordinates": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Course Coordinates",
+            "type": "array"
+          },
+          "label": {
+            "default": "Simulation \u00b7 illustrative",
+            "title": "Label",
+            "type": "string"
+          },
+          "rerouted_trips": {
+            "items": {
+              "$ref": "#/components/schemas/AnimatedTrip"
+            },
+            "maxItems": 5,
+            "title": "Rerouted Trips",
+            "type": "array"
+          }
+        },
+        "required": [
+          "course_coordinates"
+        ],
+        "title": "MarathonAnimation",
+        "type": "object"
+      },
       "MarathonImpact": {
         "properties": {
           "at": {
@@ -4227,6 +4304,9 @@
       },
       "MarathonResult": {
         "properties": {
+          "animation": {
+            "$ref": "#/components/schemas/MarathonAnimation"
+          },
           "course": {
             "$ref": "#/components/schemas/Course"
           },
@@ -4236,7 +4316,8 @@
         },
         "required": [
           "course",
-          "impact"
+          "impact",
+          "animation"
         ],
         "title": "MarathonResult",
         "type": "object"
@@ -4727,6 +4808,42 @@
           "evidence_id"
         ],
         "title": "RiverRollout",
+        "type": "object"
+      },
+      "RoadLabel": {
+        "properties": {
+          "anchor": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Anchor",
+            "type": "array"
+          },
+          "bearing_deg": {
+            "title": "Bearing Deg",
+            "type": "number"
+          },
+          "length_m": {
+            "title": "Length M",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "road_class": {
+            "title": "Road Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "road_class",
+          "length_m",
+          "anchor",
+          "bearing_deg"
+        ],
+        "title": "RoadLabel",
         "type": "object"
       },
       "RoadSection": {
@@ -8546,6 +8663,29 @@
           }
         },
         "summary": "Gaps Layer"
+      }
+    },
+    "/layers/road-labels": {
+      "get": {
+        "description": "Named roads clipped to the township boundary; display only.",
+        "operationId": "road_labels_layer_layers_road_labels_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoadLabel"
+                  },
+                  "title": "Response Road Labels Layer Layers Road Labels Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Road Labels Layer"
       }
     },
     "/layers/street_furniture": {

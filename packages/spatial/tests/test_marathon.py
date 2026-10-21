@@ -98,3 +98,20 @@ def test_simulation_is_read_only_and_has_evidence(world):
 def test_invalid_or_ambiguous_course_requests_fail(world, kwargs):
     with pytest.raises(ValueError):
         marathon.plan_course(world, "park-b", **{**dict(distance_km=0.3), **kwargs})
+
+
+def test_animation_uses_ordered_course_geometry(world):
+    request = marathon.MarathonRequest(
+        start="park-b",
+        distance_km=0.3,
+        starts_at="2030-01-01T06:00:00+08:00",
+        ends_at="2030-01-01T10:00:00+08:00",
+        profiles=["default"],
+    )
+    result = marathon.simulate_marathon(world, request)
+    animation = result.animation
+    assert animation.label == "Simulation · illustrative"
+    assert animation.course_coordinates[0] == world.node_coords[result.course.start_node]
+    assert animation.course_coordinates[-1] == world.node_coords[result.course.finish_node]
+    assert len(animation.rerouted_trips) <= 5
+    assert marathon._coordinates(world, ["seg-ab", "seg-gh"], "n-a") == []

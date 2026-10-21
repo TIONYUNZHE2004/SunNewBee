@@ -40,3 +40,13 @@ def test_marathon_invalid_input_and_busy_solver():
     finally:
         tools._WM_SLOTS.release()
         tools._WM_SLOTS.release()
+
+
+def test_road_labels_route_precedes_generic_lens_route():
+    world = state.get_ctx().world
+    world.edges["seg-ab"].name = "Main Road"
+    response = TestClient(app).get("/layers/road-labels")
+    assert response.status_code == 200
+    row = response.json()[0]
+    assert row["name"] == "Main Road"
+    assert set(row) == {"name", "road_class", "length_m", "anchor", "bearing_deg"}

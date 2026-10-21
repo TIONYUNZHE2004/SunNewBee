@@ -72,9 +72,24 @@ class MarathonImpact(events.ClosureImpact):
     event: events.CourseScenario
 
 
+class AnimatedTrip(BaseModel):
+    from_id: str
+    to_id: str
+    profile: str
+    before_coordinates: list[list[float]]
+    after_coordinates: list[list[float]]
+
+
+class MarathonAnimation(BaseModel):
+    label: str = "Simulation · illustrative"
+    course_coordinates: list[list[float]]
+    rerouted_trips: list[AnimatedTrip] = Field(default_factory=list, max_length=5)
+
+
 class MarathonResult(BaseModel):
     course: Course
     impact: MarathonImpact
+    animation: MarathonAnimation
 
 
 def _place(world, query):
@@ -359,4 +374,69 @@ def simulate_marathon(world: World, request: MarathonRequest) -> MarathonResult:
         legacy=None,
         max_segments=events.MAX_COURSE_SEGMENTS,
     )
-    return MarathonResult(course=course, impact=MarathonImpact.model_validate(impact.model_dump()))
+    return MarathonResult(
+        course=course,
+        impact=MarathonImpact.model_validate(impact.model_dump()),
+        animation=_animation(baseline, course, impact),
+    )
+
+
+def _coordinates(world, ids, node):
+    coordinates = []
+    for eid in ids:
+        edge = world.edges[eid]
+        if node == edge.from_node:
+            points, node = edge.coords, edge.to_node
+        elif node == edge.to_node:
+            points, node = list(reversed(edge.coords)), edge.from_node
+        else:
+            return []  # Never draw a fabricated connector across a mapping gap.
+        coordinates.extend(points if not coordinates else points[1:])
+    return coordinates
+
+
+def _trip_coordinates(world, ids, place_id, profile):
+    if not ids:
+        return []
+    edge = world.edges[ids[0]]
+    targets = _targets(world, place_id, world.profiles[profile])
+    for node in (edge.from_node, edge.to_node):
+        if node in targets and (line := _coordinates(world, ids, node)):
+            return line
+    return []
+
+
+def _animation(world, course, impact):
+    baseline, digest = events._frozen_baseline(world, impact.at)
+    examples = []
+    with route_batch():
+        for profile in impact.per_profile:
+            journeys = events._journeys(baseline, profile, impact.sample_limit_per_profile, True)
+            states, _ = events._baseline(baseline, digest, profile, journeys)
+            before = {
+                (j.from_id, j.to_id): state for j, state in zip(journeys, states, strict=True)
+            }
+            for trip in impact.trips:
+                if trip.profile != profile or not trip.affected or trip.extra_m is None:
+                    continue
+                old = before[(trip.from_id, trip.to_id)]
+                a = _trip_coordinates(baseline, old.segment_ids, trip.from_id, profile)
+                b = _trip_coordinates(baseline, trip.segment_ids, trip.from_id, profile)
+                if a and b:
+                    examples.append(
+                        AnimatedTrip(
+                            from_id=trip.from_id,
+                            to_id=trip.to_id,
+                            profile=profile,
+                            before_coordinates=a,
+                            after_coordinates=b,
+                        )
+                    )
+                if len(examples) == 5:
+                    break
+            if len(examples) == 5:
+                break
+    return MarathonAnimation(
+        course_coordinates=_coordinates(world, course.segment_ids, course.start_node),
+        rerouted_trips=examples,
+    )

@@ -552,3 +552,15 @@ up to five profiles and the same road edits. It returns `{course, impact}`. The 
 read-only `POST /marathon/plan` takes that request; no event is stored. The spatial
 `tools.simulate_marathon` wrapper is for management only. Label all proposals:
 “Proposed course on mapped roads, not an approved route.”
+
+`GET /layers/road-labels` returns a list of `{name, road_class, length_m, anchor,
+bearing_deg}`. Geometry and length are clipped to the configured display boundary
+(site bbox if none); an unreadable configured boundary fails instead of widening it.
+The anchor is the midpoint of the longest clipped segment; its local tangent sets the
+bearing (clockwise from north). Class comes from that segment's mapped highway tag.
+
+`MarathonResult.animation` contains `course_coordinates` in traversal order and up
+to five `rerouted_trips` with `before_coordinates` / `after_coordinates`, place ids and
+profile. The label is “Simulation · illustrative”. These are example routes from the
+same closure sample, not vehicle/crowd counts. Missing or disconnected geometry is
+omitted, never joined with a fabricated connector.
