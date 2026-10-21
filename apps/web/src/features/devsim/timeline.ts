@@ -206,7 +206,7 @@ export interface CamKey {
   offset: CamOffset;
 }
 
-/** The prototype's `CAM` keyframes, subject for subject (§4.4). */
+/** The prototype's `CAM` keyframes, subject for subject (§4.4), plus two fly-over waypoints. */
 export const CAM_KEYS: readonly CamKey[] = [
   { t: 0, targetAnchor: "site", h: 0, offset: [-200, -520, 520] },
   {
@@ -230,8 +230,14 @@ export const CAM_KEYS: readonly CamKey[] = [
   { t: 21.6, targetAnchor: { lerp: ["site", "halimMid", 0.62] }, h: 8, offset: [-12, -148, 77] },
   // Gate 2 fix: from the south-west, over the yard, so no street tree stands between the camera
   // and Farid (the prototype's north-west view looks through a canopy on the Elmina plan)
+  // F3 (Q6): the Farid shot's camera stands beside the tower's east face, so a straight fly in
+  // from, or out to, the wide shots crossed the footprint and the Q2 clamp popped the camera onto
+  // the roof for ~0.2 s. These two waypoints go up and over: they rise or drop beside the tower
+  // (outside its footprint) and cross it only above its top.
+  { t: 22.3, targetAnchor: "farid", h: 4, offset: [-20, -30, 100] },
   { t: 22.8, targetAnchor: "farid", h: 4, offset: [-32, -30, 22] },
   { t: 26.4, targetAnchor: "farid", h: 4, offset: [-28, -27, 19] },
+  { t: 27, targetAnchor: "farid", h: 4, offset: [-20, -27, 100] },
   { t: 28, targetAnchor: "site", h: 45, offset: [-150, -240, 130] },
   { t: 32, targetAnchor: "site", h: 46, offset: [-165, -255, 138] },
   { t: 34.6, targetAnchor: { path: 6 }, h: 3, offset: { entrance: [26, 30, 17] } },

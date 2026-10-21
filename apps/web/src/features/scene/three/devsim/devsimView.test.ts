@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import elmina from "../../../devsim/fixtures/plan.elmina.json";
 import plan from "../../../devsim/fixtures/plan.provisional.json";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import { createClearance } from "../clearance";
@@ -106,6 +107,23 @@ describe("devsim camera (Q2)", () => {
       expect(grid.topAt(x, z) > y, `city building at t=${t}`).toBe(false);
       expect(top > 0 && y < top && inRing(geom.ring, x, z), `tower at t=${t}`).toBe(false);
     }
+  });
+
+  it("on the Elmina plan the fly never crosses the tower below its top (no clamp pop, Q6)", () => {
+    // The clamp lifts a camera that would be inside the tower onto its roof: correct for Q2 but a
+    // visible pop in motion. The keyframes must route around, so the clamp never has to act.
+    const E = elmina as unknown as DevelopmentPlan;
+    const fr = createFrame([101.5099, 3.1813]); // the Elmina site centre the scene frames on
+    const g = siteGeom(E, fr);
+    const popped: number[] = [];
+    for (let i = 0; i <= E.total_s * 100; i++) {
+      const s = stateAt(i / 100, E);
+      const top = Math.max(0, s.floorsBuilt) * TOWER_STOREY_M;
+      const raw = devsimCamera(s, fr, g, 0, null).position;
+      const cl = devsimCamera(s, fr, g, top, null).position;
+      if (cl[1] !== raw[1]) popped.push(i / 100);
+    }
+    expect(popped).toEqual([]);
   });
 
   it("follows StateAt.camera: target to local, offset east/north/up", () => {

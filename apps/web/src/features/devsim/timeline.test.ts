@@ -223,8 +223,8 @@ describe("flow curve (spec §7)", () => {
 });
 
 describe("camera", () => {
-  it("ports the prototype's 22 keyframes over 0..66", () => {
-    expect(CAM_KEYS).toHaveLength(22);
+  it("ports the prototype's 22 keyframes over 0..66, plus the two fly-over waypoints", () => {
+    expect(CAM_KEYS).toHaveLength(24);
     expect(CAM_KEYS[0]?.t).toBe(0);
     expect(CAM_KEYS[CAM_KEYS.length - 1]?.t).toBe(66);
   });
