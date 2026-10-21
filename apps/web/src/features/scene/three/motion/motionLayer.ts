@@ -61,7 +61,7 @@ export interface YawEntry {
   /** The fading lap the keep-out memory belongs to: a respawn forgets the side (review M2). */
   lap?: number;
   /** The keep-out's last push (m) and its motion time (s): a sudden change is not drawn. */
-  push?: { dx: number; dz: number; t: number };
+  push?: { dx: number; dz: number; t: number; shown: boolean };
 }
 export type YawMemory = Map<string, YawEntry>;
 
@@ -237,8 +237,21 @@ export function flowShare(density: number): number {
   );
 }
 
-/** A keep-out push changing by more than this between frames (m) hides the person for that frame. */
+/**
+ * A keep-out push changing by more than this between two drawn frames (m) hides the person for that
+ * frame: a safety net only, kept at the review-round threshold. Since the radial push at round
+ * joints (A4w) the push is continuous and the demo playback never trips it (crowdKeepOut.test.ts
+ * asserts 0 hides and a largest push step under this value).
+ */
 const PUSH_SNAP_M = 0.6;
+/**
+ * Keep-out counters for tests (crowdKeepOut.test.ts): frames hidden because the push jumped by more
+ * than PUSH_SNAP_M, and the largest push change between consecutive frames (m). Display only.
+ */
+export const keepOutStats = { snapHides: 0, maxPushStepM: 0 };
+
+/** Vehicle variants without a headlight: no night beam on the road (A2 kit: the bicycle). */
+const NO_BEAM: ReadonlySet<string> = new Set(["bicycle"]);
 
 /** Agents just outside the view still get matrices, so nothing pops in at the edge while panning. */
 const FRUSTUM_MARGIN_M = 50;
@@ -595,35 +608,52 @@ export function createMotionLayer(
     if (a.kind !== "person") return true;
     let mem = yawMemory.get(a.id);
     // a respawned person is somewhere else: the side of her path it was held on no longer holds
+    // (an entry without a lap yet, made by the facing, adopts this one without a reset)
     if (mem && mem.lap !== fo.lap) {
+      if (mem.lap !== undefined) {
+        if (mem.keep) mem.keep.side = undefined;
+        // and its last push belongs to the old spot
+        if (mem.push) mem.push.shown = false;
+      }
       mem.lap = fo.lap;
-      if (mem.keep) mem.keep.side = undefined;
     }
     if (!hero) {
       if (mem?.keep) mem.keep.side = undefined;
       return true;
     }
     if (!mem) {
-      mem = { yaw: pose.yaw, at: Number.NaN };
+      // born on this lap: the next frame must not take it for a respawn (review minor)
+      mem = { yaw: pose.yaw, at: Number.NaN, lap: fo.lap };
       yawMemory.set(a.id, mem);
     }
     mem.keep ??= {};
     keepOut(pose.x, pose.z, hero, mem.keep, kept);
-    // The zone's push can switch segment (her path's cap to its side) and move a person by over a
-    // metre in one frame; that frame is not drawn, the next one shows it settled (no visible snap).
+    // The zone's push is continuous (crowdRules keepOut); a frame where it still jumps by over
+    // PUSH_SNAP_M is not drawn, the next one shows it settled (no visible snap). Counted for tests.
     const dx = kept.x - pose.x;
     const dz = kept.z - pose.z;
     const prev = mem.push;
-    mem.push = { dx, dz, t };
+    const shown = !kept.hidden;
+    // the jump against the last frame, when both are drawn and that frame is recent (a person the
+    // keep-out hid reappears where she is: that is not a jump anyone saw)
+    const step =
+      shown && prev?.shown && t > prev.t && t - prev.t < 0.25
+        ? Math.hypot(dx - prev.dx, dz - prev.dz)
+        : 0;
+    // mutate (no per-frame allocation)
+    if (prev) {
+      prev.dx = dx;
+      prev.dz = dz;
+      prev.t = t;
+      prev.shown = shown;
+    } else mem.push = { dx, dz, t, shown };
     pose.x = kept.x;
     pose.z = kept.z;
-    if (
-      prev &&
-      t > prev.t &&
-      t - prev.t < 0.25 &&
-      Math.hypot(dx - prev.dx, dz - prev.dz) > PUSH_SNAP_M
-    )
+    if (step > keepOutStats.maxPushStepM) keepOutStats.maxPushStepM = step;
+    if (step > PUSH_SNAP_M) {
+      keepOutStats.snapHides++;
       return false;
+    }
     return !kept.hidden;
   };
 
@@ -636,6 +666,8 @@ export function createMotionLayer(
         yaw: pose.yaw,
         at: nowMs,
         ...(mem?.keep ? { keep: mem.keep } : {}),
+        ...(mem?.lap !== undefined ? { lap: mem.lap } : {}),
+        ...(mem?.push ? { push: mem.push } : {}),
       };
       yawMemory.set(id, fresh);
       return { yaw: pose.yaw, dt: 0, mem: fresh };
@@ -729,8 +761,9 @@ export function createMotionLayer(
         const k = scaleFor(s.agent.kind, d);
         _q.setFromAxisAngle(_y, yaw);
         b.mesh.setMatrixAt(b.n, _m.compose(_p, _q, _s.set(k, k, k)));
-        // night beams only while the car is mostly shown (no beam on a faded-out car)
-        if (s.agent.kind === "vehicle" && fade >= 0.5)
+        // night beams only while the car is mostly shown (no beam on a faded-out car); a bicycle
+        // has no headlight (A2 kit) and throws no car-sized beam (A4w)
+        if (s.agent.kind === "vehicle" && fade >= 0.5 && !NO_BEAM.has(s.agent.variant))
           lights?.add(pose.x, pose.z, yaw, s.halfLengthM, k);
         b.fade.setX(b.n, fade);
         if (watch)
