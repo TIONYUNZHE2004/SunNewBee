@@ -582,6 +582,28 @@ def has_estimates(record):
     )
 
 
+PLACEHOLDER_SOURCE = "team_survey_placeholder"
+_STEP_FREE = re.compile(r"^(?:step[- ]free|tanpa anak tangga|无台阶)$", re.I)
+_DEMO_VALUES = re.compile(r"demo values|nilai demo|演示数据", re.I)
+
+
+def has_placeholder(record) -> bool:
+    return any(
+        getattr(e, "source_type", None) == PLACEHOLDER_SOURCE for e in record.evidence.values()
+    )
+
+
+def demo_step_free(word: str, clause: str, record) -> bool:
+    """A "step-free" stated on demo values, with the demo qualifier in its own clause, on a
+    turn whose evidence really holds placeholder (demo) facts: the journey line "No known
+    barrier on the step-free path (demo values, not yet surveyed)" (journeys.journey_steps).
+    It rests on placeholder step claims, not on the map estimate. Nothing else is excused by
+    the demo phrase: "accessible", "barrier-free" or "wheelchair-friendly" stay estimate claims,
+    "not yet surveyed" alone is no qualifier, and without placeholder evidence there is no demo
+    value to speak of (review fix round 1, Important 2)."""
+    return bool(_STEP_FREE.match(word) and _DEMO_VALUES.search(clause) and has_placeholder(record))
+
+
 def estimate_text_errors(text, record):
     if not has_estimates(record):
         return []
@@ -595,14 +617,13 @@ def estimate_text_errors(text, record):
             )
             if physical and re.search(
                 r"\blikely\b|\bestimat|\brecorded\b|\bmapped\b|\btagged\b"
-                r"|\banggar|\bmungkin\b|\bkemungkinan\b|可能|估计|估算|记录|direkodkan"
-                # a demo-value fact carries its own qualifier (validate.ESTIMATE_HEDGE does the
-                # same): "No known barrier on the step-free path (demo values, not yet surveyed)"
-                r"|demo values|not yet surveyed|nilai demo|belum ditinjau|演示数据|尚未实地调查",
+                r"|\banggar|\bmungkin\b|\bkemungkinan\b|可能|估计|估算|记录|direkodkan",
                 clause,
                 re.I,
             ):
-                continue  # explicitly estimated or demo-qualified access, never a checked fact
+                continue  # explicitly estimated access, never a checked physical fact
+            if demo_step_free(match.group(), clause, record):
+                continue  # the journey's demo-valued step-free stretch (see demo_step_free)
             if not _ESTIMATE_NEGATIVE.search(clause[: match.start()]):
                 return [
                     "Map estimates are not checked facts: remove positive survey, confirmation "
