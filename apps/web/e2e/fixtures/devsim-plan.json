@@ -4160,6 +4160,15 @@
       }
     ]
   },
+  "playground": {
+    "id": "playground",
+    "name": "Urban Park playground",
+    "lon": 101.51053,
+    "lat": 3.18077,
+    "node_id": "n-31807145_1015102486",
+    "m": 749,
+    "walk_min": 11
+  },
   "labels": {
     "simulation": "Simulation · illustrative",
     "decorative": "Decorative details are illustrative.",

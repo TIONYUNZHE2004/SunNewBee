@@ -463,6 +463,20 @@ class ImpactBrief(BaseModel):
 MonthKey = tuple[float, float]
 
 
+class DevsimPlayground(BaseModel):
+    """The playground nearest the tower entrance on foot (routing engine, default profile): where
+    the move-in children play (spec §6.2, AC-W5). Decorative figures stand there; no copy quotes
+    it today."""
+
+    id: str  # place id
+    name: str
+    lon: float
+    lat: float
+    node_id: str  # its walk node
+    m: int  # default-profile walk from the tower entrance
+    walk_min: int
+
+
 class DevelopmentPlan(BaseModel):
     """Everything the Development Simulation player needs (spec 2026-10-21 §6)."""
 
@@ -490,5 +504,6 @@ class DevelopmentPlan(BaseModel):
     access_matrix: DailyLifeMatrix
     residents: SimResidents
     brief: ImpactBrief
+    playground: DevsimPlayground | None = None  # None when the world has no reachable playground
     labels: DevsimLabels
     total_s: float = 45

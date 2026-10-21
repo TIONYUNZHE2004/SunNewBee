@@ -56,6 +56,7 @@ from .devsim_models import (
     DevsimDetour,
     DevsimFacts,
     DevsimLabels,
+    DevsimPlayground,
     DevsimUnavailable,
     DevsimWalk,
     EstimateSource,
@@ -483,6 +484,32 @@ def compute_facts(world: World, site: DevelopmentSite) -> DevsimFacts:
         mall=mall_walk,
         profile=PROFILE,
         provenance=PROVENANCE,
+    )
+
+
+def nearest_playground(world: World, site: DevelopmentSite) -> DevsimPlayground | None:
+    """The `playground` place with the shortest default walk from the tower entrance (ties by
+    id); None when no playground has a mapped walk."""
+    tw = tower_world(world, site)
+    best = None
+    with routing.eval_memo():
+        for p in sorted(world.places.values(), key=lambda p: p.id):
+            if p.type != "playground" or p.node_id is None:
+                continue
+            r = _first(tw, TOWER_PLACE, p.id)
+            if r is not None and (best is None or r.distance_m < best[0].distance_m):
+                best = (r, p)
+    if best is None:
+        return None
+    r, p = best
+    return DevsimPlayground(
+        id=p.id,
+        name=p.name or "Playground",
+        lon=round(p.coord[0], 7),
+        lat=round(p.coord[1], 7),
+        node_id=p.node_id,
+        m=round(r.distance_m),
+        walk_min=max(1, _round_min(walk_minutes(world, r))),
     )
 
 
@@ -1230,6 +1257,12 @@ def _flood_matrix_errors(plan: DevelopmentPlan) -> list[str]:
         errs.append("flood: cut_from_scenario was not checked")
     if (fl.cut_from_scenario is None) != (not fl.cut_edges):
         errs.append("flood: cut edges disagree with cut_from_scenario")
+    if (pg := plan.playground) is not None:
+        pace = plan.facts.park.m / plan.facts.park.min if plan.facts.park.min else 0
+        # walk_min is the rounded walk at the default pace (the park walk's, within rounding)
+        off = abs(pg.m / pace - pg.walk_min) if pace else 0
+        if pg.walk_min < 1 or pg.m <= 0 or off > 1 + 0.1 * pg.walk_min:
+            errs.append("playground: walk minutes do not match its metres")
     if fl.evacuation is not None and fl.evacuation.min < 1:
         errs.append("flood: evacuation walk out of range")
     mx = plan.access_matrix
@@ -1380,6 +1413,7 @@ def build_development_plan(world: World, brief: DevelopmentBrief | None = None) 
         access_matrix=matrix,
         residents=residents,
         brief=_brief(impact, lorry, sch, flood, matrix),
+        playground=nearest_playground(world, site),
         labels=DevsimLabels(
             hypothetical=(
                 f"Hypothetical tower · not an SDP project · {site.storeys} storeys"

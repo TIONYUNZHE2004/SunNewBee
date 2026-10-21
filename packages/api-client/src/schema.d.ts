@@ -1870,6 +1870,7 @@ export interface components {
              * @enum {string}
              */
             month_keys_mode: "baseline" | "data-order";
+            playground?: components["schemas"]["DevsimPlayground"] | null;
             /**
              * Provisional
              * @default false
@@ -1995,6 +1996,28 @@ export interface components {
              * @default Simulation · illustrative
              */
             simulation: string;
+        };
+        /**
+         * DevsimPlayground
+         * @description The playground nearest the tower entrance on foot (routing engine, default profile): where
+         *     the move-in children play (spec §6.2, AC-W5). Decorative figures stand there; no copy quotes
+         *     it today.
+         */
+        DevsimPlayground: {
+            /** Id */
+            id: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** M */
+            m: number;
+            /** Name */
+            name: string;
+            /** Node Id */
+            node_id: string;
+            /** Walk Min */
+            walk_min: number;
         };
         /** DevsimWalk */
         DevsimWalk: {
