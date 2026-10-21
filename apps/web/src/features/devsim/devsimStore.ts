@@ -10,6 +10,12 @@ export interface DevsimStore {
   playing: boolean;
   status: DevsimStatus;
   briefText: string | null;
+  /**
+   * CSS px the 3D view's look point moves left while the Impact Brief is on screen (spec §6.2: the
+   * tower stays clear of the panel). Written by the overlay, applied by the engine's view offset.
+   */
+  viewShiftPx: number;
+  setViewShift: (px: number) => void;
   /** A `development.play` intent: inlined plan (ready) or none yet (loading, the caller fetches it). */
   start: (plan: DevelopmentPlan | null, briefText: string) => void;
   setPlan: (plan: DevelopmentPlan) => void;
@@ -33,6 +39,7 @@ const idle = {
   playing: false,
   status: "idle" as DevsimStatus,
   briefText: null,
+  viewShiftPx: 0,
 };
 
 const clampT = (plan: DevelopmentPlan, t: number) =>
@@ -44,6 +51,11 @@ export const useDevsim = create<DevsimStore>((set) => ({
     set({ plan, briefText, t: 0, playing: false, status: plan ? "ready" : "loading" }),
   setPlan: (plan) => set({ plan, t: 0, status: "ready" }),
   setStatus: (status) => set({ status }),
+  setViewShift: (px) =>
+    set((s) => {
+      const v = Number.isFinite(px) ? Math.max(0, Math.round(px)) : 0;
+      return v === s.viewShiftPx ? {} : { viewShiftPx: v };
+    }),
   setT: (t) => set((s) => (s.plan ? { t: clampT(s.plan, t) } : {})),
   play: () =>
     set((s) =>

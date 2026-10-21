@@ -5,11 +5,11 @@ import { setTreeCut } from "../assets/treeCut";
 import type { Clearance } from "../clearance";
 import type { DevsimOverlay } from "../engine";
 import type { LocalFrame } from "../frame";
-import { devsimAoWeight } from "./devsimView";
+import { cameraRangeM, devsimAoWeight } from "./devsimView";
 import { dayness } from "./ease";
 import { inRing, type SiteGeom, siteGeom, TOWER_STOREY_M } from "./geom";
 import { onStage, screenRect, toScreen } from "./project";
-import { craneAt, type SetPiecesAt, setPiecesAt } from "./setPieces";
+import { craneAt, moveInAoKeep, type SetPiecesAt, setPiecesAt, setPieceTiming } from "./setPieces";
 import { stateAt } from "./state";
 
 /** Everything a part needs for one frame. */
@@ -141,6 +141,8 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
   let renderedT = Number.NaN;
   let lastTower: Rect | null = null;
   let lastSpeaker: Rect | null = null;
+  let lastWho: string | null = null;
+  let lastHeadOnStage = false;
   // the footprint's corners at the ground and the top (tops updated in place)
   const corners: [number, number, number][] = geom.ring.flatMap(
     ([x, z]): [number, number, number][] => [
@@ -228,14 +230,35 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
     }
     return null;
   };
+  const door: [number, number, number] = [
+    geom.door[0] + geom.out[0] * 5,
+    1.5,
+    geom.door[1] + geom.out[1] * 5,
+  ];
+  /**
+   * The 45 s plan's beat subject (`timeline.ts` BUILD_CAM_KEYS): the site, Halim on the detour,
+   * the tower (lorry route, Raya hold), Farid, the tower again (monsoon, the worker beside it,
+   * topping out), the door for the move-in, and the tower in the Daily Life wide shot.
+   */
+  const buildSubject = (tt: number, towerMid: [number, number, number]) => {
+    if (tt < 3.4) return [geom.centre[0], 0, geom.centre[1]] as [number, number, number];
+    if (tt < 10.4) return personAt("halim") ?? towerMid;
+    if (tt < 13.6) return towerMid;
+    if (tt < 17) return personAt("farid") ?? [geom.farid[0], 1, geom.farid[1]];
+    if (tt < 28.2) return towerMid;
+    if (tt < 33) return door;
+    return towerMid;
+  };
   /**
    * The world centre of the spec §4.4 subject of the camera beat at t (QA lane request: probe
    * `subject`): site, yard, tower, Halim, Farid, entrance, Mei Ling at the junction, Zainab, Arjun,
    * and the tower again for the wide shots.
    */
+  const build = setPieceTiming(o.plan).mode === "schedule";
   const subjectWorld = (tt: number): [number, number, number] | null => {
     const top = Math.max(tower?.topM() ?? 0, TOWER_STOREY_M);
     const towerMid: [number, number, number] = [geom.centre[0], top / 2, geom.centre[1]];
+    if (build) return buildSubject(tt, towerMid);
     if (tt < 3.6) return [geom.centre[0], 0, geom.centre[1]];
     // the yard's work area: the crew between the stacks (30 m behind the tower) and its foot
     if (tt < 10.4) return [geom.centre[0] - geom.out[0] * 18, 3, geom.centre[1] - geom.out[1] * 18];
@@ -344,13 +367,24 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       renderedT = t;
       lastTower = towerRect;
       lastSpeaker = speaker;
+      lastWho = who;
+      lastHeadOnStage = !!speaker && onStage(head, size);
       hideEmpty(group);
     },
     aoExcluded: () => parts.flatMap((p) => p.aoExcluded?.() ?? []),
-    aoWeight: devsimAoWeight,
+    // One range source (C10p review minor): the beat camera's range, the same number the
+    // small-prop shadows switch on (`smallShadows`), so both change on the same frame; the
+    // engine's measured range only before the first frame state. Off through the 45 s move-in
+    // (AC-P2, `SET_PIECE_S.moveInAoOff`).
+    aoWeight: (rangeM) =>
+      devsimAoWeight(s ? cameraRangeM(s) : rangeM) * moveInAoKeep(setPieceTiming(o.plan), t),
     demoState() {
       const out: Record<string, unknown> = {};
       for (const p of parts) if (p.demoState) Object.assign(out, p.demoState());
+      // the bubble's speaker in the last rendered frame: drawn (anchored bubble) and head on stage
+      out.speaker = lastWho
+        ? { who: lastWho, anchored: !!lastSpeaker, headOnStage: lastHeadOnStage }
+        : null;
       return out;
     },
     probe() {

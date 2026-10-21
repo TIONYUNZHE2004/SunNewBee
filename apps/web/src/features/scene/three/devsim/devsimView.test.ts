@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { useDevsim } from "../../../devsim/devsimStore";
 import elmina from "../../../devsim/fixtures/plan.elmina.json";
 import plan from "../../../devsim/fixtures/plan.provisional.json";
 import type { DevelopmentPlan, StateAt } from "../../../devsim/types";
@@ -6,20 +7,24 @@ import { createClearance } from "../clearance";
 import { createFrame } from "../frame";
 import { LIGHT_PRESETS } from "../lighting";
 import { speakerGlow, spotBoost } from "./cast";
+import { createDevsimLayer } from "./devsimLayer";
 import {
+  cameraRangeM,
   DEVSIM_FOV_DEG,
   DEVSIM_SMALL_SHADOW_M,
   devsimAoWeight,
   devsimCamera,
+  devsimCameraDriver,
   devsimGrade,
   devsimMoodSource,
   devsimMoodWeights,
   smallShadows,
 } from "./devsimView";
 import { inRing, siteGeom, TOWER_STOREY_M } from "./geom";
+import { moveInAoKeep, setPieceTiming } from "./setPieces";
 import { stateAt } from "./state";
 
-const P = plan as DevelopmentPlan;
+const P = plan as unknown as DevelopmentPlan;
 const frame = createFrame([101.5076, 3.1794]);
 const geom = siteGeom(P, frame);
 
@@ -172,5 +177,80 @@ describe("devsim AO and small-prop shadows by range (C10p)", () => {
     expect(DEVSIM_SMALL_SHADOW_M).toBe(220);
     expect(smallShadows(at([22, 26, 14]))).toBe(true);
     expect(smallShadows(at([-150, -240, 130]))).toBe(false);
+  });
+
+  it("one range source: the layer's AO weight and the small shadows switch on the same frame", () => {
+    const C7 = elmina as unknown as DevelopmentPlan;
+    const l = createDevsimLayer({
+      plan: C7,
+      frame: createFrame(C7.anchors.junction as [number, number]),
+      anchors: false,
+    });
+    for (let t = 0; t <= C7.total_s; t += 0.1) {
+      l.setT(t);
+      const s = l.state() as StateAt;
+      // the engine's measured range is ignored once there is a frame state
+      const w = l.aoWeight?.(5000) ?? 1;
+      const keep = moveInAoKeep(setPieceTiming(C7), t);
+      expect(w, `t=${t.toFixed(1)}`).toBe(devsimAoWeight(cameraRangeM(s)) * keep);
+      // outside the move-in's AO cut both switch on the same range
+      if (keep === 1) expect(smallShadows(s), `t=${t.toFixed(1)}`).toBe(w > 0);
+      // AC-P2: no AO through the move-in (27-33 s)
+      if (t >= 27 && t <= 33) expect(w, `t=${t.toFixed(1)}`).toBe(0);
+    }
+    l.dispose();
+  });
+});
+
+describe("devsim camera driver (C10p frame loop)", () => {
+  it("is animating only while the playback plays; idle at pause and at the end", () => {
+    const C7 = elmina as unknown as DevelopmentPlan;
+    const fr = createFrame(C7.anchors.junction as [number, number]);
+    const l = createDevsimLayer({ plan: C7, frame: fr, anchors: false });
+    const store = useDevsim.getState;
+    store().start(C7, "test");
+    l.setT(store().t);
+    const drive = devsimCameraDriver({
+      state: () => l.state(),
+      pose: (s) => devsimCamera(s, fr, l.geom, l.towerTopM(), null),
+      playing: () => store().playing,
+    });
+    const cur = {
+      position: [0, 0, 0] as [number, number, number],
+      look: [0, 0, 0] as [number, number, number],
+    };
+    const animating = () => drive(0, cur)?.animating === true;
+    expect(drive(0, cur)).not.toBeNull();
+    expect(animating()).toBe(false);
+    store().play();
+    expect(animating()).toBe(true);
+    store().advance(1);
+    l.setT(store().t);
+    expect(animating()).toBe(true);
+    store().pause();
+    expect(animating()).toBe(false);
+    // play to the end: the store stops playing at total_s, so the driver goes idle
+    store().play();
+    store().seek(C7.total_s - 0.5);
+    store().advance(1);
+    l.setT(store().t);
+    expect(store().t).toBe(C7.total_s);
+    expect(store().playing).toBe(false);
+    expect(animating()).toBe(false);
+    // the pose is the beat camera, pinned fov
+    expect(drive(0, cur)?.fovDeg).toBe(DEVSIM_FOV_DEG);
+    store().stop();
+    l.dispose();
+  });
+
+  it("no frame state: no pose (the rig keeps the camera)", () => {
+    const drive = devsimCameraDriver({
+      state: () => null,
+      pose: () => {
+        throw new Error("not called");
+      },
+      playing: () => true,
+    });
+    expect(drive(0, { position: [0, 0, 0], look: [0, 0, 0] })).toBeNull();
   });
 });

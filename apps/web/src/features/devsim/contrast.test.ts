@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { BADGE_STYLE } from "./EndCard";
+import { BADGE_STYLE } from "./SourceBadge";
 
 const css = readFileSync(
   resolve(dirname(fileURLToPath(import.meta.url)), "../../index.css"),
@@ -80,7 +80,7 @@ describe("Q3 contrast tokens (≥ 4.5:1)", () => {
         expect(worst(t[fg] as string, t[bg] as string)).toBeGreaterThanOrEqual(4.5);
       });
 
-  it("end card source chips", () => {
+  it("source chips (Impact Brief, banners, residents)", () => {
     for (const s of Object.values(BADGE_STYLE))
       expect(worst(s.fg, s.bg)).toBeGreaterThanOrEqual(4.5);
   });

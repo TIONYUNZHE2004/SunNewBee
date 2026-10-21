@@ -1,13 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useJourney } from "../journey/journeyStore";
 import { useScene } from "../scene/sceneStore";
-import pre from "../scene/three/devsim/fixtures/setPieces.preC7.elmina.json";
 import { litShareAt, setPieceTiming } from "../scene/three/devsim/setPieces";
 import { collectProbe, hasProbe, registerDomProbe, registerProbe } from "./anchors";
 import { createDevsimHook, installDevsimHook } from "./devsimHook";
 import { useDevsim } from "./devsimStore";
-import elmina from "./fixtures/plan.elmina.json";
-import provisional from "./fixtures/plan.provisional.json";
+import provisional from "./fixtures/plan.elmina.json";
 import { asDevsimIntent, beginDevsim, fetchDevsimPlan } from "./intent";
 import { stateAt } from "./timeline";
 import type { DevelopmentPlan } from "./types";
@@ -34,10 +32,10 @@ describe("store transitions", () => {
     d().pause();
     d().advance(1);
     expect(d().t).toBe(1.5);
-    d().seek(65.9);
+    d().seek(44.9);
     d().play();
     d().advance(1);
-    expect(d()).toMatchObject({ t: 66, playing: false });
+    expect(d()).toMatchObject({ t: 45, playing: false });
     d().play();
     expect(d()).toMatchObject({ t: 0, playing: true });
     d().seek(30);
@@ -88,7 +86,7 @@ describe("window.__devsim", () => {
     expect(hook.total).toBe(0);
     expect(hook.state()).toBeNull();
     d().start(plan, "b");
-    expect(hook.total).toBe(66);
+    expect(hook.total).toBe(45);
     expect(hook.acts.map((a) => a.name)).toContain("Handover");
     expect(hook.facts?.park.min).toBe(plan.facts.park.min);
     hook.play();
@@ -257,25 +255,23 @@ describe("probe window state (Q4)", () => {
 });
 
 describe("probe expected lit share in schedule mode (C10 review minor 5)", () => {
-  it("is the move-in's floor-by-floor share the tower draws, not the legacy timeline's", () => {
-    const c7 = {
-      ...(elmina as object),
-      lorry_route: pre.lorry_route,
-      schedule: pre.schedule,
-    } as unknown as DevelopmentPlan;
-    d().start(c7, "b");
+  it("is the move-in's floor-by-floor share the tower draws, the same as the 45 s timeline's", () => {
+    d().start(plan, "b");
     const hook = createDevsimHook();
-    const tm = setPieceTiming(c7);
+    const tm = setPieceTiming(plan);
     expect(tm.mode).toBe("schedule");
-    let differs = false;
+    let lit = 0;
     for (const t of [27.5, 29, 30.5, 32, 33]) {
       hook.seek(t);
-      const want = litShareAt(tm, t, c7.site.storeys, stateAt(t, c7).windowsLitFraction);
+      const tl = stateAt(t, plan).windowsLitFraction;
+      const want = litShareAt(tm, t, plan.site.storeys, tl);
       const got = hook.probe().expectedWindowsLitFraction;
       expect(got).toBe(want);
-      if (got !== stateAt(t, c7).windowsLitFraction) differs = true;
+      // C11's timeline lights the windows on the same curve, so the HUD and the tower agree
+      expect(got).toBe(tl);
+      if ((got ?? 0) > 0) lit++;
     }
-    expect(differs).toBe(true);
+    expect(lit).toBeGreaterThan(2);
   });
 });
 

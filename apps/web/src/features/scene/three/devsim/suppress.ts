@@ -30,9 +30,37 @@ export function inPolys(polys: readonly Poly[], x: number, z: number): boolean {
 }
 
 /**
+ * How far outside the parcel outline still counts as on the parcel (m): the city places its
+ * construction hoardings exactly on the boundary (`props/construction.ts`), so a plain inside test
+ * kept about half of them (the grey panels by the tower at the 30 s move-in, C-align).
+ */
+export const PARCEL_EDGE_M = 1.5;
+
+/** True within `m` metres of any ring edge of the polygons. */
+export function nearPolyEdge(polys: readonly Poly[], x: number, z: number, m: number): boolean {
+  for (const p of polys)
+    for (const ring of p)
+      for (let i = 0; i < ring.length; i++) {
+        const a = ring[i] as readonly [number, number];
+        const c = ring[(i + 1) % ring.length] as readonly [number, number];
+        const dx = c[0] - a[0];
+        const dz = c[1] - a[1];
+        const l2 = dx * dx + dz * dz || 1;
+        const u = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / l2));
+        if (Math.hypot(a[0] + dx * u - x, a[1] + dz * u - z) <= m) return true;
+      }
+  return false;
+}
+
+/** On the parcel: inside it, or on its outline (within `PARCEL_EDGE_M`). */
+export function parcelSuppress(polys: readonly Poly[]): Suppress {
+  return (x, z) => inPolys(polys, x, z) || nearPolyEdge(polys, x, z, PARCEL_EDGE_M);
+}
+
+/**
  * While a Development Simulation is shown, the city's own decorative construction dressing on the
  * plan's parcel (the stylised city dresses construction land: kit props and earth tracks) is
- * suppressed, so only the devsim site kit shows there. Null when nothing is suppressed.
+ * suppressed, so only the devsim site kit shows there; that includes the hoardings on its outline. Null when nothing is suppressed.
  */
 export function useDevsimSuppress(frame: LocalFrame | null, landcover: unknown): Suppress | null {
   const plan = useDevsim((s) => s.plan);
@@ -40,7 +68,7 @@ export function useDevsimSuppress(frame: LocalFrame | null, landcover: unknown):
     if (!plan || !frame) return null;
     const polys = parcelPolys(plan, landcover, frame);
     if (polys.length === 0) return null;
-    return (x: number, z: number) => inPolys(polys, x, z);
+    return parcelSuppress(polys);
   }, [plan, frame, landcover]);
 }
 

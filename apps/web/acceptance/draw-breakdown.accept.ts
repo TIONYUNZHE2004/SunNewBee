@@ -1,4 +1,5 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { type Page, test } from "@playwright/test";
 import { HOOK, openScene } from "./support/bookmarks";
 
@@ -8,11 +9,14 @@ import { HOOK, openScene } from "./support/bookmarks";
  * (default the AC-P2 seeks), attributed from `renderer.info` deltas between per-object
  * `onBeforeRender` / `onBeforeShadow` hooks over 4 `measureUncapped` frames; then engine frames
  * against reported frames while it plays 27 -> 33 s. Post-process quads land on the key drawn
- * last in a pass. Output DIAG_OUT (JSON); DIAG_SHOTS=<prefix> also screenshots each seek;
- * DIAG_SP=0 drops the pre-C7 set pieces. Dev server as for AC-P2:
+ * last in a pass. Output DIAG_OUT (JSON, default `test-results/acceptance/draw-breakdown.json`);
+ * DIAG_SHOTS=<prefix> also screenshots each seek. The dev demo plays the 45 s building plan. Dev
+ * server as for AC-P2:
  *   ACCEPTANCE_BASE_URL=http://localhost:5185 pnpm --filter @tl/web acceptance -g "draw breakdown"
  */
-const OUT = process.env.DIAG_OUT ?? "diag.json";
+/** Default under the gitignored acceptance output dir, never a stray file in the package root. */
+const DEFAULT_DIAG_OUT = "test-results/acceptance/draw-breakdown.json";
+const OUT = process.env.DIAG_OUT ?? DEFAULT_DIAG_OUT;
 const SEEKS = (process.env.DIAG_SEEKS ?? "27.5,29,30.5,32,33").split(",").map(Number);
 
 type Devsim = { seek(s: number): void; play(): void; pause(): void; state(): unknown };
@@ -101,9 +105,7 @@ test("draw breakdown: draws and triangles by group", async ({ page }) => {
       localStorage.setItem("tl.quality", "medium");
     } catch {}
   });
-  await page.goto(
-    `/?acceptance=1&sun=pinned&devsim=provisional${process.env.DIAG_SP === "0" ? "" : "&setpieces=preC7"}`,
-  );
+  await page.goto("/?acceptance=1&sun=pinned&devsim=provisional");
   await page.locator('[data-testid="three-scene"]').waitFor({ state: "visible", timeout: 60_000 });
   await page.waitForFunction((h) => h in window, HOOK, { timeout: 60_000 });
   await page.waitForFunction(() => !!(window as unknown as W).__devsim, null, { timeout: 60_000 });
@@ -167,5 +169,6 @@ test("draw breakdown: draws and triangles by group", async ({ page }) => {
     return { engineFrames: f1 - f0, reported: m.frames, p95: m.p95FrameMs, perf: m.perf };
   }, HOOK);
   out.play = play;
+  mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, `${JSON.stringify(out, null, 2)}\n`);
 });
