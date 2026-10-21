@@ -279,3 +279,83 @@ class DailyLifeMatrix(BaseModel):
 
     profiles: list[str]
     rows: list[MatrixRow]  # Urban Park, Lakeside Mall, nearest clinic, nearest school
+
+
+# ---- C4: schedule and cost estimate (devsim_schedule.py) ----------------------------------------
+HolidayStatus = Literal["gazetted", "expected"]
+
+
+class ScheduleHoliday(BaseModel):
+    date: str  # ISO date
+    name: str
+    status: HolidayStatus  # "expected dates" for years whose official list is not yet gazetted
+    month_index: int  # months after the start month (0 = the start month)
+    working_day: bool  # falls on a site working day (Mon-Sat)
+
+
+class SchedulePhase(BaseModel):
+    name: Literal["foundation", "structure", "fit-out"]
+    start: str  # ISO date, inclusive
+    end: str  # ISO date, exclusive (the next phase starts here)
+
+
+class MonsoonBand(BaseModel):
+    start_month: str  # "YYYY-MM"
+    end_month: str  # "YYYY-MM", inclusive
+    start_index: int  # month indices (0 = the start month); the band is clipped to the project
+    end_index: int
+
+
+class RayaSetPiece(BaseModel):
+    """The one Hari Raya Aidilfitri site shutdown the playback stages (the first during structure
+    work). `days` is the assumed shutdown length in working days, beyond the gazetted holidays."""
+
+    date: str  # Hari Raya Aidilfitri, day 1
+    month_index: int
+    days: int
+
+
+class MonsoonMonth(BaseModel):
+    month: str  # "YYYY-MM"
+    month_index: int
+    wet_days: int  # climatology: days with 1.0 mm of rain or more
+    days_lost: float  # wet days x the lost fraction, for the structure work in that month
+
+
+class MonsoonSetPiece(BaseModel):
+    """The first northeast-monsoon stretch during structure work."""
+
+    start_month: str  # "YYYY-MM"
+    end_month: str  # "YYYY-MM", inclusive
+    months: list[MonsoonMonth]
+
+
+class Schedule(BaseModel):
+    """ESTIMATE: an indicative schedule and cost for the Hypothetical Development, from the
+    published benchmarks and labelled assumptions in the sources doc
+    (docs/04-architecture/devsim-estimates-sources.md, `devsim_schedule.SOURCES`). Not an SDP
+    figure, a quotation or a forecast."""
+
+    storeys: int
+    homes: int
+    start: str  # ISO date
+    handover: str  # ISO date: structure end + fit-out
+    months_total: int  # calendar months from the start month to the handover month, inclusive
+    months: list[str]  # "YYYY-MM" for each month index
+    phases: list[SchedulePhase]
+    floors_by_month: list[int]  # floors topped out by the end of each month
+    gfa_m2: int  # homes x net area x common factor
+    rate_rm_per_m2: int
+    cost_total_rm: int
+    cost_by_month: list[int]  # cumulative RM by the end of each month (S-curve), ends at the total
+    holidays: list[ScheduleHoliday]  # every holiday from the start to the handover
+    holiday_days_lost: int  # holidays on structure working days (Mon-Sat), the extended phase
+    holidays_lost: list[str]  # their dates
+    rain_days_lost: int  # rounded; monsoon wet days x lost fraction over the structure work
+    raya_shutdown_days: int  # assumption
+    monsoon_bands: list[MonsoonBand]
+    raya_set_piece: RayaSetPiece | None
+    monsoon_set_piece: MonsoonSetPiece | None
+    source_ids: list[str]  # SOURCES rows the estimate used
+    label: str = "ESTIMATE"
+    source_line: str

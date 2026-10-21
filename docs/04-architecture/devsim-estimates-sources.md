@@ -149,6 +149,7 @@ Source keys: **JPM27** = the official PDF above. **PH** = <https://publicholiday
   - Forum note (context only, not a benchmark source): Lowyat.net thread "Construction Progress for High Rise Property", <https://forum.lowyat.net/topic/3998021>, accessed 2026-10-21. Practitioner posts (Jul 2016) say aluminium formwork runs "around 7 days cycle per floor for typical floor" (fastest heard: 6 days on average), and "for architectural works, it normally take around 7 to 8 months from concrete topping up works". `floor_cycle_days` and `fitout_months` therefore stay `assumption`.
   - International studies give 5 to 11 days per floor, with high-rise flat-slab projects around 6. For a 7-day cycle at 6 working days per week, one storey takes about 1.2 calendar weeks.
   - Working week: Monday to Saturday (6 days, `working_days_per_week`), an assumption. Sundays and public holidays that fall on a working day are not worked.
+  - How the model uses them (`devsim_schedule.py`): foundation and fit-out are calendar durations; only the structure, counted in working days (`floor_cycle_days` x storeys), is extended by holidays on working days, the one Hari Raya shutdown (the first Hari Raya Aidilfitri during structure work) and monsoon rain (each working day of a monsoon month loses wet days x `rain_lost_fraction` / that month's working days).
   - Foundation of 9 months is a modelling choice. Treat the schedule as plus or minus 25 percent.
   - Because durations are assumptions, the UI must show the schedule as an ESTIMATE with its assumptions visible.
 - **Rain.**
