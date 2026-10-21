@@ -76,14 +76,25 @@ def _target_pts(world: World, place_id: str) -> list[tuple[str, list[float]]]:
 
 
 def _road_nodes(world: World, profile) -> set[str]:
+    batch = _ROUTE_BATCH.get()
+    key = ("road_nodes", id(world), profile.id)
+    if batch is not None and key in batch:
+        return batch[key]
     allowed = set(profile.allowed_types or [])
-    return {n for e in world.edges.values() if e.type in allowed for n in (e.from_node, e.to_node)}
+    nodes = {n for e in world.edges.values() if e.type in allowed for n in (e.from_node, e.to_node)}
+    if batch is not None:
+        batch[key] = nodes
+    return nodes
 
 
 def _snap_to_road(world: World, roads: set[str], node: str, coord) -> str | None:
     """Own node if it touches a road, else the nearest road node within SNAP_CAP_M (ties by id)."""
     if node in roads:
         return node
+    batch = _ROUTE_BATCH.get()
+    key = ("snap", id(world), id(roads), node, tuple(coord))
+    if batch is not None and key in batch:
+        return batch[key]
     best: tuple[float, str] | None = None
     for n in sorted(roads):
         xy = world.node_coords.get(n)
@@ -92,7 +103,10 @@ def _snap_to_road(world: World, roads: set[str], node: str, coord) -> str | None
         d = haversine_m(coord, xy)
         if d <= SNAP_CAP_M and (best is None or d < best[0]):
             best = (d, n)
-    return best[1] if best else None
+    result = best[1] if best else None
+    if batch is not None:
+        batch[key] = result
+    return result
 
 
 def _components(world: World) -> dict[str, int]:
@@ -125,10 +139,17 @@ def _disconnected(world: World, profile, sources, targets) -> bool:
 
 def _road_components(world: World, profile) -> dict[str, int]:
     """Component id per node of the static road graph (allowed edge types only, no flood)."""
+    batch = _ROUTE_BATCH.get()
+    key = ("road_components", id(world), profile.id)
+    if batch is not None and key in batch:
+        return batch[key]
     g = nx.Graph()
     allowed = set(profile.allowed_types or [])
     g.add_edges_from((e.from_node, e.to_node) for e in world.edges.values() if e.type in allowed)
-    return {n: i for i, comp in enumerate(nx.connected_components(g)) for n in comp}
+    result = {n: i for i, comp in enumerate(nx.connected_components(g)) for n in comp}
+    if batch is not None:
+        batch[key] = result
+    return result
 
 
 def _road_disconnected(comps: dict[str, int], sources, targets) -> bool:
@@ -262,6 +283,28 @@ def flood_evidence(world: World, element_id: str, scenario_id: str | None) -> li
 # and its evaluation is shared, while a touched edge is a new object and is evaluated afresh.
 # Only set inside `eval_memo()`; a single plan_route call is unchanged.
 _EVAL_MEMO: contextvars.ContextVar[dict | None] = contextvars.ContextVar("eval_memo", default=None)
+_ROUTE_BATCH: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    "route_batch", default=None
+)
+
+
+@contextlib.contextmanager
+def route_batch():
+    """Reuse shortest-path trees for many destinations on an immutable world snapshot.
+
+    The normal router still constructs every route, endpoint check and warning. Only
+    unconstrained Dijkstra searches share work; rest-constrained searches stay unchanged.
+    No world/claim/closure mutation is permitted inside this request-local context.
+    """
+    if _ROUTE_BATCH.get() is not None:
+        yield
+        return
+    token = _ROUTE_BATCH.set({})
+    try:
+        with eval_memo():
+            yield
+    finally:
+        _ROUTE_BATCH.reset(token)
 
 
 @contextlib.contextmanager
@@ -310,20 +353,29 @@ def _evaluate(world, profile, scenario_id, key):
 def _edge_cost(world, profile, scenario_id, allow_unknown, key, evals=None) -> float | None:
     """Search cost of one edge for this profile, or None when the search must not use it."""
     e = world.edges[key]
+    memo = _EVAL_MEMO.get()
+    cache_key = ("cost", id(e), profile.id, scenario_id, allow_unknown)
+    if memo is not None and cache_key in memo:
+        cost, evaluation = memo[cache_key]
+        if evals is not None:
+            evals[key] = evaluation
+        return cost
     res, why = _evaluate(world, profile, scenario_id, key)
     if evals is not None:
         evals[key] = (res, why)
     assessment = _assessment(world, profile, scenario_id, key, (res, why))
     unknown = assessment.level == "unknown" and (res == "UNKNOWN" or bool(e.osm_tags))
-    if res == "FAIL" or (unknown and not allow_unknown):
-        return None
-    w = e.length_m * (
-        UNKNOWN_WEIGHT if unknown else 1.4 if assessment.level == "likely_ok" else 1.0
-    )
-    if e.type == "steps":
-        w *= profile.soft.get("steps_multiplier", 1.0)
-    if profile.allowed_types is None and e.type in ROAD_TYPES:
-        w *= WALK_ROAD_MULTIPLIER
+    w = None
+    if res != "FAIL" and not (unknown and not allow_unknown):
+        w = e.length_m * (
+            UNKNOWN_WEIGHT if unknown else 1.4 if assessment.level == "likely_ok" else 1.0
+        )
+        if e.type == "steps":
+            w *= profile.soft.get("steps_multiplier", 1.0)
+        if profile.allowed_types is None and e.type in ROAD_TYPES:
+            w *= WALK_ROAD_MULTIPLIER
+    if memo is not None:
+        memo[cache_key] = w, (res, why)
     return w
 
 
@@ -408,12 +460,22 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
     Same result as `nx.dijkstra_path` between a temporary super-source and super-target (equal
     costs resolve by insertion order, the first source/target reached wins), without copying the
     whole graph for those two nodes on every call (about half of a seed route's time)."""
+    batch = _ROUTE_BATCH.get()
+    tree_key = ("tree", id(world), profile.id, scenario_id, allow_unknown, tuple(sources))
+    if batch is not None and tree_key in batch:
+        return _tree_path(*batch[tree_key], targets)
     evals: dict[str, tuple] = {}
     chosen: dict[tuple[str, str], str] = {}  # ordered node pair -> chosen edge key
     weight = make_weight(world, profile, scenario_id, allow_unknown, evals, chosen)
+    adjacency = None
+    if batch is not None:
+        weight_key = ("weights", id(world), profile.id, scenario_id, allow_unknown)
+        if weight_key not in batch:
+            batch[weight_key] = evals, chosen, weight, {}
+        evals, chosen, weight, adjacency = batch[weight_key]
     g, goal = world.graph, set(targets)
     seen: dict[str, float] = {}
-    done: set[str] = set()
+    done: dict[str, int] = {}
     pred: dict[str, str] = {}
     tick = itertools.count()
     heap: list[tuple[float, int, str]] = []
@@ -424,23 +486,43 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
         dist, _, v = heapq.heappop(heap)
         if v in done:
             continue
-        done.add(v)
-        if v in goal:
+        done[v] = len(done)
+        if v in goal and batch is None:
             nodes = [v]
             while nodes[-1] in pred:
                 nodes.append(pred[nodes[-1]])
             nodes.reverse()
             keys = [chosen[(u, w)] for u, w in zip(nodes, nodes[1:], strict=False)]
             return nodes, keys, evals
-        for u, data in g[v].items():
-            cost = weight(v, u, data)
+        if adjacency is None:
+            neighbors = ((u, weight(v, u, data)) for u, data in g[v].items())
+        else:
+            if v not in adjacency:
+                adjacency[v] = [(u, weight(v, u, data)) for u, data in g[v].items()]
+            neighbors = adjacency[v]
+        for u, cost in neighbors:
             if cost is None or u in done:
                 continue
             if u not in seen or dist + cost < seen[u]:
                 seen[u] = dist + cost
                 pred[u] = v
                 heapq.heappush(heap, (seen[u], next(tick), u))
+    if batch is not None:
+        batch[tree_key] = done, pred, chosen, evals
+        return _tree_path(done, pred, chosen, evals, targets)
     return None, [], evals
+
+
+def _tree_path(done, pred, chosen, evals, targets):
+    """Pick the first settled target, preserving the ordinary search's tie order."""
+    target = min((t for t in targets if t in done), key=done.__getitem__, default=None)
+    if target is None:
+        return None, [], evals
+    nodes = [target]
+    while nodes[-1] in pred:
+        nodes.append(pred[nodes[-1]])
+    nodes.reverse()
+    return nodes, [chosen[u, v] for u, v in zip(nodes, nodes[1:], strict=False)], evals
 
 
 def _rest_places(
