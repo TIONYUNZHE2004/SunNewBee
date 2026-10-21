@@ -48,9 +48,16 @@ test("AC-L4: no mid-edge U-turns over 60 s at Medium in the hero district", asyn
   await page.waitForFunction((h) => h in window, HOOK, { timeout: 60_000 });
   const quality = await page.evaluate(() => localStorage.getItem("tl.quality"));
   expect(quality).toBe("medium");
-  // The hero district at a mid range that shows streets and pavements (hero-mid, closer in).
+  // The hero district at the `hero-mid` bookmark (800 m): enough streets in view for 40 vehicles
+  // (at 320 m only ~29 were drawn, first run 22 Oct).
   const b = ACCEPTANCE_BOOKMARKS["hero-mid"];
-  const pose = { lon: b.centre[0], lat: b.centre[1], rangeM: 320, pitchDeg: -40, headingDeg: 0 };
+  const pose = {
+    lon: b.centre[0],
+    lat: b.centre[1],
+    rangeM: b.rangeM,
+    pitchDeg: b.pitchDeg,
+    headingDeg: b.headingDeg,
+  };
   await page.evaluate(
     ({ h, p }) => {
       (window as unknown as Record<string, { setPose(p: unknown): void }>)[h]?.setPose(p);
