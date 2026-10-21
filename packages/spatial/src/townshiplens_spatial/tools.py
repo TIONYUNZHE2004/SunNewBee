@@ -2020,7 +2020,9 @@ def compare_routes(
         return ToolResult(ok=False, warnings=[error])
     result = _compare.compare(ctx.world, from_id, to_id, profile, scenario_id)
     warnings = list(result.warnings)
-    if result.recommended is not None and result.unchecked:
+    # Same path: nothing is compared (the UI plays the ordinary walk, and plan_route files that
+    # walk's own requests), so no compare ticket and no N.
+    if result.recommended is not None and result.unchecked and not result.same_path:
         first = result.unchecked[0]
         if file_vrs:
             vr = create_verification_request(

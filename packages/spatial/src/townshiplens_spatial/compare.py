@@ -116,8 +116,30 @@ def compare(
             unchecked=unchecked,
             pois=_pois(world, rec, prof, today, evidence, unchecked, rec_rests),
             evidence=list(evidence.values()),
-            warnings=list(rr.warnings),
+            warnings=_route_warnings(rr.warnings, rec, prof),
         )
+
+
+def _route_warnings(warnings: list[str], rec: Route, prof: Profile) -> list[str]:
+    """plan_route's warnings, with its two per-route notes (map estimates, road centre lines)
+    rewritten for the recommended route: plan_route's own route can be a different one."""
+    own = [
+        w
+        for w in warnings
+        if not (
+            w.startswith("Likely OK sections are estimated")
+            or (w.startswith("About ") and "road centre" in w)
+        )
+    ]
+    notes = []
+    if rec.access_metres.get("likely_ok", 0):
+        notes.append("Likely OK sections are estimated from map data, not checked on site")
+    if prof.allowed_types is None and rec.road_without_mapped_sidewalk_m:
+        notes.append(
+            f"About {rec.road_without_mapped_sidewalk_m:.0f} m follows road centre lines "
+            "without a mapped sidewalk; sidewalk access is not verified"
+        )
+    return notes + own
 
 
 # ---------------------------------------------------------------- unknown-neutral search
