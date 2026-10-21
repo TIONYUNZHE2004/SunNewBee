@@ -165,6 +165,20 @@ describe("ResidentsLayer (AC-W7)", () => {
     expect(btn).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("Escape closes a scripted-open panel when focus is outside it; focus returns to the button", async () => {
+    const user = userEvent.setup();
+    const { to } = setup(40.75);
+    to(41);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(false);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByTestId("devsim-residents-button"));
+    // a user close counts as a touch: no re-open on the next scripted beat
+    play(to, 41, 42);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("Close works from the detail and returns focus to the button", () => {
     const { to } = setup(40.75);
     to(41);

@@ -47,7 +47,6 @@ export function ResidentsLayer({
     prevT.current = t;
   }, [t, playing, data, scriptedId]);
 
-  if (!buttonVisible(t)) return null;
   const touch = () => {
     touched.current = true;
   };
@@ -57,6 +56,20 @@ export function ResidentsLayer({
     setSelected(null);
     buttonRef.current?.focus();
   };
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  // Escape closes the panel wherever focus is (e.g. after a scripted open); the panel's own
+  // handler stops the event first when focus is inside it.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented) closeRef.current();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  if (!buttonVisible(t)) return null;
   return (
     <div data-testid="devsim-residents" className="flex flex-col items-start gap-2">
       <ResidentsButton

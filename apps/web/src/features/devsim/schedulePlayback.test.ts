@@ -147,3 +147,49 @@ describe("scheduleAt and days lost (AC-W2 values)", () => {
     expect(end.costRm).toBe(elmina.cost_total_rm);
   });
 });
+
+describe("R25: monsoon set piece after Raya, reaching the handover month", () => {
+  // C7 picks the first band that starts after Raya and before handover: Nov 2028–Mar 2029 here,
+  // and the handover (2029-03-21, month 26.65) falls inside it.
+  const s: Schedule = {
+    ...elmina,
+    monsoon_set_piece: {
+      start_month: "2028-11",
+      end_month: "2029-03",
+      months: [22, 23, 24, 25, 26].map((i) => ({
+        month: elmina.months[i] as string,
+        month_index: i,
+        wet_days: 12,
+        days_lost: 0,
+      })),
+    },
+  };
+  const p = buildPlayback(s);
+  const h = handoverMonth(s);
+
+  it("stays on the baseline spec windows, the band end clamped to the handover point", () => {
+    expect(h).toBeLessThan(27);
+    expect(p.mode).toBe("baseline");
+    expect(p.raya).toEqual([11, 13]);
+    expect(p.monsoon).toEqual([18.5, 23]);
+    expect(increasing(p.keys)).toBe(true);
+    expect(monthAt(12, p.keys)).toBeCloseTo(monthOf(s, "2028-02-27"), 6);
+    expect(monthAt(18.5, p.keys)).toBe(22);
+    expect(monthAt(23, p.keys)).toBeCloseTo(h, 6);
+    expect(monthAt(27, p.keys)).toBeCloseTo(h, 6);
+  });
+});
+
+describe("days_lost_by_month from the plan (C7)", () => {
+  it("is preferred when present and the right length; the derivation is the fallback", () => {
+    const sent = elmina.months.map((_, i) => i * 2);
+    expect(daysLostByMonth({ ...elmina, days_lost_by_month: sent })).toEqual(sent);
+    expect(scheduleAt({ ...elmina, days_lost_by_month: sent }, 13.5).daysLost).toBe(26);
+    expect(daysLostByMonth({ ...elmina, days_lost_by_month: [1, 2] })).toEqual(
+      daysLostByMonth(elmina),
+    );
+    expect(daysLostByMonth({ ...elmina, days_lost_by_month: null })).toEqual(
+      daysLostByMonth(elmina),
+    );
+  });
+});

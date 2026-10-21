@@ -97,7 +97,7 @@ export function ScheduleBar({ schedule, month }: { schedule: Schedule; month: nu
           const big = h.date === raya;
           return (
             <div
-              key={h.date}
+              key={`${h.date}-${h.name}`}
               data-testid="devsim-holiday-tick"
               data-date={h.date}
               data-status={h.status}

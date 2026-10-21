@@ -90,11 +90,12 @@ export function buildPlayback(
 
   // Baseline: Raya hold, then the monsoon stretch, in the spec's windows.
   const rayaOk = raya === null || raya < (mon ? mon[0] : h);
-  const monOk = mon === null || mon[1] <= h;
+  // A band reaching the handover month ends at the handover point (clamped, not a fallback).
+  const monOk = mon === null || mon[0] < h;
   if (rayaOk && monOk) {
     const keys: MonthKey[] = [...head];
     if (raya !== null) keys.push([beats.raya[0], raya], [beats.raya[1], raya]);
-    if (mon) keys.push([beats.monsoon[0], mon[0]], [beats.monsoon[1], mon[1]]);
+    if (mon) keys.push([beats.monsoon[0], mon[0]], [beats.monsoon[1], Math.min(mon[1], h)]);
     keys.push(...tail);
     return {
       keys,
@@ -159,10 +160,14 @@ export function monthIndex(schedule: Schedule, m: number): number {
 }
 
 /**
- * Cumulative working days lost by the end of each month: holidays on structure working days, the
+ * Cumulative working days lost by the end of each month (`schedule.days_lost_by_month` when the
+ * plan sends it, else derived): holidays on structure working days, the
  * one Hari Raya shutdown (counted in its month) and monsoon rain (the set piece's months).
  */
 export function daysLostByMonth(schedule: Schedule): number[] {
+  // Prefer the plan's own series (C7); the derivation below is the fallback.
+  if (schedule.days_lost_by_month && schedule.days_lost_by_month.length === schedule.months_total)
+    return [...schedule.days_lost_by_month];
   const per = new Array<number>(schedule.months_total).fill(0);
   const add = (i: number, d: number) => {
     if (i >= 0 && i < per.length) per[i] = (per[i] as number) + d;

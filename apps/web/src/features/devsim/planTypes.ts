@@ -90,6 +90,8 @@ export interface Schedule {
   monsoon_bands: MonsoonBand[];
   raya_set_piece?: RayaSetPiece | null;
   monsoon_set_piece?: MonsoonSetPiece | null;
+  /** Cumulative working days lost by the end of each month (C7; optional until it lands). */
+  days_lost_by_month?: number[] | null;
   source_ids: string[];
   /** "ESTIMATE". */
   label: string;

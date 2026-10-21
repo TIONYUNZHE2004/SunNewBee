@@ -92,6 +92,19 @@ describe("ScheduleBar (AC-W1)", () => {
     expect(Number.parseFloat(fill.style.width)).toBeCloseTo(want, 3);
   });
 
+  it("two holidays on one date are two ticks (key is date + name)", () => {
+    const h0 = schedule.holidays[3] as Schedule["holidays"][number];
+    const s: Schedule = {
+      ...schedule,
+      holidays: [...schedule.holidays, { ...h0, name: `${h0.name} (state)` }],
+    };
+    render(<ScheduleBar schedule={s} month={5} />);
+    const same = screen
+      .getAllByTestId("devsim-holiday-tick")
+      .filter((el) => el.dataset.date === h0.date);
+    expect(same).toHaveLength(2);
+  });
+
   it("start and handover labels", () => {
     render(<Frame t={0} />);
     const bar = screen.getByTestId("devsim-schedule-bar");
