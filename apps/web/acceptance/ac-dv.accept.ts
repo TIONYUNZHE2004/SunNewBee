@@ -377,15 +377,19 @@ test("Q3: the speaking character stands out from its surroundings at dusk and ni
   mkdirSync(SHOTS, { recursive: true });
   const rows: unknown[] = [];
   const fails: string[] = [];
-  for (const t of [11, 41, 60, 65]) {
+  // Spec section 9 Q3 is about the speaking character at the dusk and night beats: 19 (dusk),
+  // 37 (night), 41 (dusk), 60 (18:45 dusk). 11 and 65 have no speaker; their tower ring is
+  // recorded for information only (gate 2 used it as a stand-in).
+  const speakerBeats = [19, 37, 41, 60];
+  for (const t of [11, 19, 37, 41, 60, 65]) {
     const p = await seek(page, t);
     await page.waitForTimeout(400);
     const png = await page.screenshot({ path: join(SHOTS, `q3-${GATE}-${t}.png`) });
-    // The speaker if there is one, else the tower (the subject at the wide beats).
-    const r = p.rects.speaker ?? p.rects.tower;
+    const graded = speakerBeats.includes(t);
+    const r = graded ? p.rects.speaker : p.rects.tower;
     if (!r) {
-      rows.push({ t, status: "no speaker or tower rect" });
-      fails.push(`${t}: no rect`);
+      rows.push({ t, status: graded ? "no speaker rect" : "no tower rect" });
+      if (graded) fails.push(`${t}: no speaker rect`);
       continue;
     }
     const ratio = await page.evaluate(
@@ -432,8 +436,8 @@ test("Q3: the speaking character stands out from its surroundings at dusk and ni
       },
       { b64: png.toString("base64"), r, ox: origin.x, oy: origin.y },
     );
-    rows.push({ t, rect: r, contrastRatio: ratio });
-    if (ratio < 1.5) fails.push(`${t}: ${ratio.toFixed(2)}`);
+    rows.push({ t, subject: graded ? "speaker" : "tower (info)", rect: r, contrastRatio: ratio });
+    if (graded && ratio < 1.5) fails.push(`${t}: ${ratio.toFixed(2)}`);
   }
   record("Q3", {
     rows,

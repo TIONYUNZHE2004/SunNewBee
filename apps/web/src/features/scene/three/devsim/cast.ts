@@ -23,8 +23,11 @@ const TAG_RANGE_M = 320;
 
 /** Peak opacity of the speaker's backlight glow at full night (Q3: the speaker reads at dusk and night). */
 const GLOW_MAX = 1;
+/** The speaker's key light: range (m, at the 1.72 m display height) and peak intensity (cd). */
+const KEY_RANGE_M = 1.9;
+const KEY_CANDELA = 8;
 /** The glow colour's gain over the token colour (additive light). */
-const GLOW_GAIN = 1.6;
+const GLOW_GAIN = 1.5;
 
 /** A soft round glow (white centre to clear edge), as a small RGBA texture (no canvas: tests run in node). */
 export function glowTexture(n = 64): THREE.DataTexture {
@@ -293,6 +296,12 @@ export function createCast(o: CastOpts): Cast {
   // drawn before the (transparent) crowd, so the speaker stands in front of their light
   glow.renderOrder = -1;
   group.add(glow);
+  // and a small warm key light in front of them (a porch light), so their own colours lift; one
+  // light for the whole run (added once, so no shader recompiles while it plays), off by day
+  const key = new THREE.PointLight(DEVSIM_COLOURS.headGlow, 0, KEY_RANGE_M, 2);
+  key.name = "devsim-speaker-key";
+  key.castShadow = false;
+  group.add(key);
   let speaker: string | null = null;
   let glowK = 0;
 
@@ -561,7 +570,15 @@ export function createCast(o: CastOpts): Cast {
         glow.scale.set(sb.h * 0.85, sb.h * 1.35, 1);
         glowMat.opacity = glowK;
         glow.visible = true;
-      } else glow.visible = false;
+        // the key light: up and towards the camera from the speaker, scaled with their display size
+        const k = sb.h / 1.72;
+        key.position.set(sb.x - (dx / l) * k, sb.h, sb.z - (dz / l) * k);
+        key.distance = KEY_RANGE_M * k;
+        key.intensity = KEY_CANDELA * glowK * k * k;
+      } else {
+        glow.visible = false;
+        key.intensity = 0;
+      }
       for (const [id, el] of tags) {
         const p = poses.get(id);
         const box = p ? personBox(id) : null;

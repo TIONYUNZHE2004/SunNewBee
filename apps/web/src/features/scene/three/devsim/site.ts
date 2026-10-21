@@ -464,7 +464,7 @@ export function createSite(o: SiteOpts): DevsimPart {
       mixer.mesh.visible = cons;
       // floodlights: on at night while building
       const lit = cons ? night : 0;
-      poolMat.opacity = 0.42 * lit;
+      poolMat.opacity = 0.6 * lit;
       headMat.color.copy(HEAD_OFF).lerp(HEAD_ON, lit);
       const routesOn = t >= 6 && s.act === "Construction";
       if (closedMesh) closedMesh.visible = routesOn;
