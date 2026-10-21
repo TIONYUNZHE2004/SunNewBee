@@ -54,7 +54,7 @@ describe("closure simulation model (T-026, generated types)", () => {
       "8 weighted sample trips on Persiaran Tamarind; residential road capacity 1; tertiary road capacity 3",
     );
     expect(basisWords("places_cut_off count=1; mapped_junction=n-1")).toBe(
-      "1 place cut off; junction n-1",
+      "1 place cut off; one mapped junction on the closure boundary",
     );
     expect(basisWords("trips_affected=40; trips_total=63; active_segments=5")).toBe(
       "40 sample trips affected; 63 sample trips in all; 5 closed segments",

@@ -66,7 +66,7 @@ const BASIS_WORDS: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^weighted_trips=(.+)$/, (m) => `${m[1]} weighted`],
   [/^capacity\[(.+)\]=(.+)$/, (m) => `${m[1]} road capacity ${m[2]}`],
   [/^places_cut_off count=(.+)$/, (m) => `${m[1]} ${m[1] === "1" ? "place" : "places"} cut off`],
-  [/^mapped_junction=(.+)$/, (m) => `junction ${m[1]}`],
+  [/^mapped_junction=.+$/, () => "one mapped junction on the closure boundary"],
   [/^trips_affected=(.+)$/, (m) => `${m[1]} sample trips affected`],
   [/^trips_total=(.+)$/, (m) => `${m[1]} sample trips in all`],
   [/^active_segments=(.+)$/, (m) => `${m[1]} closed segments`],
