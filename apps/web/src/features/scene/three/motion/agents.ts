@@ -475,10 +475,41 @@ const PAVEMENT_OFFSET_M: [number, number] = [0.3, 0.8];
 /** Heavy vehicles only on major roads. */
 const MAJOR_ONLY = new Set(["bus", "lorry"]);
 const MAJOR_TYPES: ReadonlySet<string> = new Set(["major_road"]);
+/** Bicycles only on streets, never on a major road (AC-L6). */
+const STREET_ONLY = new Set(["bicycle"]);
+const STREET_TYPES: ReadonlySet<string> = new Set(["street"]);
+/**
+ * Street traffic shares (spec §4 A4, AC-L8), in percent of street traffic; `pickVariant` normalises
+ * them (they sum to 98). DECORATIVE: a look of local streets, never a measured traffic count.
+ */
+export const STREET_MIX: Readonly<Record<string, number>> = {
+  compact_hatch: 30,
+  micro_hatch: 12,
+  small_sedan: 20,
+  mpv: 10,
+  pickup: 6,
+  kapchai: 12,
+  delivery_moto: 6,
+  bicycle: 2,
+};
+/** Buses and lorries in the major-road mix, each this share of the street mix total (percent). */
+const MAJOR_HEAVY = 5;
+/**
+ * Major-road mix: the street shares without bicycles (STREET_ONLY), plus bus and lorry at
+ * MAJOR_HEAVY each (ruling A4w: the spec gives no major-road shares). Decorative.
+ */
+export const MAJOR_MIX: Readonly<Record<string, number>> = {
+  ...Object.fromEntries(Object.entries(STREET_MIX).filter(([v]) => !STREET_ONLY.has(v))),
+  bus: MAJOR_HEAVY,
+  lorry: MAJOR_HEAVY,
+};
+/** Bicycles keep to the kerb side: this share of the road width left of the centre line (AC-L6). */
+export const BIKE_LANE_SHARE: readonly [number, number] = [0.36, 0.4];
 
 /**
- * The variant at `rnd` in [0, 1): uniform over `pool` (today), or by `weights` (share per variant id,
- * missing ids weigh 0) when given, so a mix table (A4) can be dropped in. Deterministic.
+ * The variant at `rnd` in [0, 1): by `weights` (share per variant id, missing ids weigh 0; the
+ * shares are normalised over the pool) when given and some pool id has weight, else uniform over
+ * `pool`. Deterministic.
  */
 export function pickVariant(
   pool: readonly string[],
@@ -503,6 +534,8 @@ export function pickVariant(
 const SPEED = {
   street: [8, 11],
   major: [12, 16],
+  /** Bicycles (AC-L6). */
+  bicycle: [4, 5.5],
   walk: [1.2, 1.5],
   jogger: 2.5,
 } as const;
@@ -665,37 +698,55 @@ function segsMeet(
   return d1 * d2 <= 0 && d3 * d4 <= 0;
 }
 /**
- * Whether the short step a-b (at most OBSTACLE_STEP_M) crosses an obstacle outline (review fix
- * round 1: a 1 m sample spacing let a path clip a 0.3 m sliver of a footprint corner).
+ * How far along the segment a-b (m) it first meets an obstacle outline (Infinity: never). Review
+ * fix round 1 checked every 1 m step for an outline crossing (a 1 m sample spacing let a path clip a
+ * 0.3 m sliver of a footprint corner); A4w finds the first crossing of the whole segment at once, so
+ * `clearPrefix` cuts at the same sample. A collinear touch counts as met at the segment start.
  */
-function stepCrossesObstacle(
+function firstObstacleHit(
   grids: Map<number, Obstacle[]>[],
   ax: number,
   az: number,
   bx: number,
   bz: number,
-): boolean {
+): number {
   const x0 = Math.min(ax, bx);
   const x1 = Math.max(ax, bx);
   const z0 = Math.min(az, bz);
   const z1 = Math.max(az, bz);
-  const keys = new Set([
-    obstKey(Math.floor(ax / OBST_CELL_M), Math.floor(az / OBST_CELL_M)),
-    obstKey(Math.floor(bx / OBST_CELL_M), Math.floor(bz / OBST_CELL_M)),
-  ]);
+  const ux = bx - ax;
+  const uz = bz - az;
+  const l = Math.hypot(ux, uz);
+  let best = Number.POSITIVE_INFINITY;
+  const i0 = Math.floor(x0 / OBST_CELL_M);
+  const i1 = Math.floor(x1 / OBST_CELL_M);
+  const j0 = Math.floor(z0 / OBST_CELL_M);
+  const j1 = Math.floor(z1 / OBST_CELL_M);
   for (const g of grids)
-    for (const k of keys)
-      for (const o of g.get(k) ?? []) {
-        const b = o.bb;
-        if (x1 < b[0] || x0 > b[2] || z1 < b[1] || z0 > b[3]) continue;
-        for (const ring of o.poly)
-          for (let i = 0; i < ring.length; i++) {
-            const r = ring[i] as P;
-            const q = ring[(i + 1) % ring.length] as P;
-            if (segsMeet(ax, az, bx, bz, r[0], r[1], q[0], q[1])) return true;
-          }
+    for (let ci = i0; ci <= i1; ci++)
+      for (let cj = j0; cj <= j1; cj++) {
+        const list = g.get(obstKey(ci, cj));
+        if (!list) continue;
+        for (const o of list) {
+          const b = o.bb;
+          if (x1 < b[0] || x0 > b[2] || z1 < b[1] || z0 > b[3]) continue;
+          for (const ring of o.poly)
+            for (let i = 0; i < ring.length; i++) {
+              const r = ring[i] as P;
+              const q = ring[(i + 1) % ring.length] as P;
+              if (!segsMeet(ax, az, bx, bz, r[0], r[1], q[0], q[1])) continue;
+              const vx = q[0] - r[0];
+              const vz = q[1] - r[1];
+              const den = cross2(ux, uz, vx, vz);
+              const t =
+                den === 0
+                  ? 0
+                  : Math.max(0, Math.min(1, cross2(r[0] - ax, r[1] - az, vx, vz) / den));
+              if (t * l < best) best = t * l;
+            }
+        }
       }
-  return false;
+  return best;
 }
 /** Carriageway segments (street / major_road centre lines with half their drawn width), gridded. */
 interface Carriage {
@@ -771,41 +822,45 @@ function pavementPointOk(
 }
 
 /**
- * Metres of `pts` from its start that stay clear: every vertex passes `vertexOk` and every vertex
- * and OBSTACLE_STEP_M sample passes `pointOk`. Infinity when all of it is clear. Cut a step short of
- * the first failing sample.
+ * Metres of `pts` from its start that stay clear: every vertex passes `vertexOk`, every vertex and
+ * OBSTACLE_STEP_M sample passes `pointOk`, the first point passes `startOk` and no step between
+ * consecutive samples holds an outline crossing (`segHit`). Infinity when all of it is clear. Cut a
+ * step short of the first failing sample. (A path that starts outside every obstacle and never crosses an outline
+ * stays outside them all, so the obstacle inside test is `startOk`, made once, not per sample.)
  */
 function clearPrefix(
   pts: P[],
   pointOk: ((x: number, z: number) => boolean) | null,
   vertexOk: (x: number, z: number) => boolean,
-  /** Also checked on every step between consecutive samples (an outline crossing). */
-  stepOk?: (ax: number, az: number, bx: number, bz: number) => boolean,
+  /** Metres along a segment to its first outline crossing (Infinity: none); cut at the sample before. */
+  segHit?: (ax: number, az: number, bx: number, bz: number) => number,
+  /** Checked at the first point only. */
+  startOk?: (x: number, z: number) => boolean,
 ): number {
   let walked = 0;
   let prev = 0;
+  const sampled = pointOk !== null || segHit !== undefined;
   for (let i = 0; i < pts.length; i++) {
     const a = pts[i] as P;
     // a vertex out of the boundary: back to the previous vertex (a cut point is a vertex too)
     if (!vertexOk(a[0], a[1])) return prev;
+    if (i === 0 && startOk && !startOk(a[0], a[1])) return 0;
     if (pointOk && !pointOk(a[0], a[1])) return Math.max(prev, walked - OBSTACLE_STEP_M);
     prev = walked;
     const b = pts[i + 1];
     if (!b) break;
     const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (pointOk) {
+    if (sampled) {
       const n = Math.floor(l / OBSTACLE_STEP_M);
-      let px = a[0];
-      let pz = a[1];
+      // the step (k - 1 .. k samples) holding the first outline crossing, if any
+      const hit = segHit ? segHit(a[0], a[1], b[0], b[1]) : Number.POSITIVE_INFINITY;
+      const hitStep = hit <= l ? Math.min(n + 1, Math.floor(hit / OBSTACLE_STEP_M) + 1) : n + 2;
       for (let k = 1; k <= n + 1; k++) {
         const last = k === n + 1;
         const t = last ? 1 : (k * OBSTACLE_STEP_M) / l;
         const qx = a[0] + (b[0] - a[0]) * t;
         const qz = a[1] + (b[1] - a[1]) * t;
-        const stepBad = stepOk ? !stepOk(px, pz, qx, qz) : false;
-        px = qx;
-        pz = qz;
-        if (stepBad || (!last && !pointOk(qx, qz))) {
+        if (k === hitStep || (!last && pointOk !== null && !pointOk(qx, qz))) {
           // the cut point (the last clear sample) becomes a vertex: it must be inside as well
           const tc = ((k - 1) * OBSTACLE_STEP_M) / l;
           const ok = vertexOk(a[0] + (b[0] - a[0]) * tc, a[1] + (b[1] - a[1]) * tc);
@@ -858,7 +913,9 @@ function slice(pts: P[], s0: number, s1: number): P[] {
 }
 
 /**
- * Vehicles on street/major_road edges (speed 8–11 m/s, major 12–16). People on
+ * Vehicles on street/major_road edges (speed 8–11 m/s, major 12–16), their variant drawn from the
+ * weighted STREET_MIX / MAJOR_MIX (A4w): buses and lorries keep to major roads, bicycles to streets
+ * (4–5.5 m/s, kerb side of the lane: BIKE_LANE_SHARE of the road width). People on
  * footway/path/pedestrian/sidewalk/crossing lines (0.3–0.8 m either side of the line) and on pavement
  * paths beside street/major_road edges (WIDTH_BY_TYPE / 2 + 0.6–1.2 m either side; A-T12 hand-off),
  * walking 1.2–1.5 m/s (jogger 2.5; no cyclists: they would render as walking people). Spawn weight ×3
@@ -945,6 +1002,8 @@ export function planAgents(input: AgentsInput): Agent[] {
     e: Edge,
     speed: number,
     types: ReadonlySet<string> | null,
+    /** Bicycles ride the kerb side of the lane (BIKE_LANE_SHARE). */
+    bike = false,
   ) => {
     const pave = kind === "person" && e.pavement;
     const g = kind === "vehicle" || pave ? gV : gP;
@@ -960,13 +1019,14 @@ export function planAgents(input: AgentsInput): Agent[] {
     const range =
       kind === "vehicle" ? FILLET_M.vehicle : pave ? FILLET_M.pavement : FILLET_M.person;
     const fillet = lerp(range, hash01(id, "fillet"));
+    const lane = bike ? lerp(BIKE_LANE_SHARE, hash01(id, "lateral")) : LANE_SHARE;
     const window = 2.3 * speed + 2;
     const hashed = hash01(id, "side") < 0.5 ? -1 : 1;
     const sides = kind === "vehicle" ? [1] : [hashed, -hashed];
     for (const side of sides) {
       const offOf = (type: string) => {
         const w = WIDTH_BY_TYPE[type] ?? 6;
-        if (kind === "vehicle") return w * LANE_SHARE;
+        if (kind === "vehicle") return w * lane;
         return side * (pave ? w / 2 + kerb : foot);
       };
       let legFid = ge.fid;
@@ -976,15 +1036,12 @@ export function planAgents(input: AgentsInput): Agent[] {
         check: (pts: P[]) =>
           clearPrefix(
             pts,
-            kind === "vehicle"
-              ? null
-              : (x, z) =>
-                  !insideObstacle(grids, x, z) &&
-                  (!pave || pavementPointOk(carriages, legFid, legNodes, x, z)),
+            pave ? (x, z) => pavementPointOk(carriages, legFid, legNodes, x, z) : null,
             insidePt,
             kind === "vehicle"
               ? undefined
-              : (ax, az, bx, bz) => !stepCrossesObstacle(grids, ax, az, bx, bz),
+              : (ax, az, bx, bz) => firstObstacleHit(grids, ax, az, bx, bz),
+            kind === "vehicle" ? undefined : (x, z) => !insideObstacle(grids, x, z),
           ),
       });
       // a long first edge is walked only as far as the walk needs (then the agent fades)
@@ -1102,21 +1159,38 @@ export function planAgents(input: AgentsInput): Agent[] {
     );
     if (n <= 0 || list.length === 0 || variants.length === 0) return;
     list.sort((a, b) => a.prio - b.prio || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    const light = variants.filter((v) => !MAJOR_ONLY.has(v));
+    // A4w: streets take the weighted street mix (no buses or lorries), major roads the major mix
+    // (no bicycles); a kit without these ids falls back to a uniform pick (pickVariant)
+    const streetPool = variants.filter((v) => !MAJOR_ONLY.has(v));
+    const majorPool = variants.filter((v) => !STREET_ONLY.has(v));
     let placed = 0;
     for (const { id, edge: e } of list) {
       if (placed >= n) break;
       const major = e.type === "major_road";
-      const pool = kind === "vehicle" && !major && light.length > 0 ? light : variants;
-      const variant = pickVariant(pool, hash01(id, "variant"));
+      const variant =
+        kind !== "vehicle"
+          ? pickVariant(variants, hash01(id, "variant"))
+          : major
+            ? pickVariant(
+                majorPool.length > 0 ? majorPool : variants,
+                hash01(id, "variant"),
+                MAJOR_MIX,
+              )
+            : pickVariant(
+                streetPool.length > 0 ? streetPool : variants,
+                hash01(id, "variant"),
+                STREET_MIX,
+              );
+      const bike = kind === "vehicle" && STREET_ONLY.has(variant);
       const speed =
         kind === "vehicle"
-          ? lerp(major ? SPEED.major : SPEED.street, hash01(id, "speed"))
+          ? lerp(bike ? SPEED.bicycle : major ? SPEED.major : SPEED.street, hash01(id, "speed"))
           : variant === "jogger"
             ? SPEED.jogger
             : lerp(SPEED.walk, hash01(id, "speed"));
-      // heavy vehicles keep to major roads all the way (MAJOR_ONLY)
-      const walked = walkOf(id, kind, e, speed, MAJOR_ONLY.has(variant) ? MAJOR_TYPES : null);
+      // heavy vehicles keep to major roads all the way (MAJOR_ONLY), bicycles to streets
+      const types = MAJOR_ONLY.has(variant) ? MAJOR_TYPES : bike ? STREET_TYPES : null;
+      const walked = walkOf(id, kind, e, speed, types, bike);
       if (!walked) continue;
       const { pts, uturn, deadEnds, length } = walked;
       // A1: slow through corners and curves (heading turns at most TURN_RATE rad/s), and turn a

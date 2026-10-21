@@ -242,3 +242,12 @@ body {
     stroke-dashoffset: 0;
   }
 }
+
+/* Simulated residents button (devsim, prototype #resBtn): a soft lantern ring. */
+@keyframes tl-pulse {
+  50% {
+    box-shadow:
+      0 0 0 8px rgba(245, 197, 24, 0.35),
+      0 6px 20px rgba(44, 42, 58, 0.3);
+  }
+}
