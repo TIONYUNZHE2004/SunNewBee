@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { useEffectiveView } from "../scene/useMapStyle";
+import { exitTrip } from "./exitTrip";
 import { type CamMode, journeyStateOf, useJourney } from "./journeyStore";
 import { useJourneyDriver } from "./useJourneyDriver";
 
@@ -13,7 +14,8 @@ const btn =
   "inline-flex min-h-9 items-center rounded-full border border-line px-3 text-xs text-fg hover:bg-surface-2 focus-visible:outline-2";
 
 /**
- * Player controls (spec §6.4, R-J4): play/pause, restart, scrub with phase ticks, camera mode.
+ * Player controls (spec §6.4, R-J4): play/pause, restart, scrub with phase ticks, camera mode, and
+ * Exit trip (back to the route on the map).
  * Play/Pause and Restart only where the trip plays (the 3D view): the List view has no player.
  */
 export function JourneyControls() {
@@ -62,6 +64,9 @@ export function JourneyControls() {
             </button>
           ))}
         </fieldset>
+        <button type="button" className={btn} onClick={exitTrip}>
+          Exit trip
+        </button>
       </div>
       <div className="relative">
         <input

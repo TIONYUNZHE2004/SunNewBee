@@ -7,11 +7,13 @@ import { JourneyHud } from "./JourneyHud";
 import { JourneyMiniMap } from "./JourneyMiniMap";
 import { useJourney } from "./journeyStore";
 import { SimulationLabel } from "./SimulationLabel";
+import { TripBar } from "./TripBar";
 import { stateAt } from "./timeline";
 
 /**
  * The journey player's DOM overlay (spec §6.4), shown while the journey store holds a plan:
- * - the Simulation label and the HUD in the map's "sim" slot (always visible while loaded);
+ * - the Simulation label, the trip bar (Exit trip; Replay once finished) and the HUD in the map's
+ *   "sim" slot (always visible while loaded);
  * - the mini-map at the top right of the map;
  * - one event card during each event hold, none during dive / walk / pull (AC-D11).
  * `project(eventIndex)` gives the event anchor in `viewport` CSS px (null when behind the camera).
@@ -67,6 +69,7 @@ export function JourneyOverlay({
       <InSlot name="sim">
         <div data-testid="journey-overlay" className="flex flex-col items-start gap-2">
           <SimulationLabel />
+          <TripBar />
           <JourneyHud state={st} covered={timeline.covered} profile={timeline.plan.profile} />
         </div>
       </InSlot>
