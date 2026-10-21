@@ -15,11 +15,14 @@ Pure function of the world: nothing is written (the tool wrapper files the ticke
 
 from __future__ import annotations
 
+import heapq
+import itertools
 import math
 from datetime import date
 from typing import Any
 
 from . import journey, routing
+from .direction import allows_direction
 from .evaluate import _CHECKS, _needs_verification, rest_point_state
 from .models import (
     CompareResult,
@@ -54,56 +57,175 @@ def compare(
         raise ValueError(error)
     prof = world.profiles[profile]
     today = date.today()
-    rr = routing.plan_route(world, from_id, to_id, profile, scenario_id)
-    fr = (
-        rr
-        if profile == "default"
-        else routing.plan_route(world, from_id, to_id, "default", scenario_id)
-    )
-    fast = fr.routes[0] if fr.routes else None
-    rec = rr.routes[0] if rr.routes else None
-    evidence: dict[str, Evidence] = {}
-    if fast is not None:
-        _add(evidence, routing.evidence_for_route(world, fast))
-    if rec is None:
-        # no_data / blocked short-circuit: no stop, no unchecked stretch, no ticket.
+    with routing.eval_memo():
+        # plan_route decides no_data / blocked (and their warnings) exactly as /routes does.
+        rr = routing.plan_route(world, from_id, to_id, profile, scenario_id)
+        fast = _neutral_route(world, from_id, to_id, prof, scenario_id, fastest=True)
+        rec = None
+        if rr.routes:
+            rec = _neutral_route(world, from_id, to_id, prof, scenario_id) or rr.routes[0]
+            if fast is not None and _stop(world, fast, prof, scenario_id, today, {}) is None:
+                # Ruling R21: the shortest walk has no known FAIL for the profile, so it is the
+                # recommendation and there is nothing to compare (same_path).
+                rec = _neutral_route(
+                    world, from_id, to_id, prof, scenario_id, fastest=True, as_profile=True
+                )
+        evidence: dict[str, Evidence] = {}
+        if fast is not None:
+            _add(evidence, routing.evidence_for_route(world, fast))
+        if rec is None:
+            # no_data / blocked short-circuit: no stop, no unchecked stretch, no ticket.
+            fast_reasons = None
+            if fast is not None:
+                rests = _rest_stops(world, fast, today)
+                fast_reasons = _reasons(world, fast, prof, today, evidence, rests)
+            return CompareResult(
+                status=rr.status,
+                profile=profile,
+                same_path=False,
+                fastest=fast,
+                reasons=RouteReasons(fastest=fast_reasons),
+                evidence=list(evidence.values()),
+                warnings=list(rr.warnings),
+            )
+        _add(evidence, routing.evidence_for_route(world, rec))
+        same = fast is not None and _edge_ids(fast) == _edge_ids(rec)
+        if same:
+            fast = rec
+        stop = None
+        if fast is not None and not same:
+            stop = _stop(world, fast, prof, scenario_id, today, evidence)
+        rec_rests = _rest_stops(world, rec, today)
+        rec_reasons = _reasons(world, rec, prof, today, evidence, rec_rests)
+        fast_reasons = rec_reasons
+        if fast is not None and not same:
+            fast_rests = _rest_stops(world, fast, today)
+            fast_reasons = _reasons(world, fast, prof, today, evidence, fast_rests)
+        unchecked = _unchecked(world, rec)
         return CompareResult(
-            status=rr.status,
+            status=rec.status,
             profile=profile,
-            same_path=False,
+            same_path=same,
             fastest=fast,
-            reasons=RouteReasons(
-                fastest=_reasons(world, fast, prof, today, evidence) if fast else None
+            recommended=rec,
+            stop=stop,
+            reasons=RouteReasons(fastest=fast_reasons if fast else None, recommended=rec_reasons),
+            extra_minutes=(
+                round(max(0.0, rec.est_minutes - fast.est_minutes), 1) if fast is not None else None
             ),
+            unchecked=unchecked,
+            pois=_pois(world, rec, prof, today, evidence, unchecked, rec_rests),
             evidence=list(evidence.values()),
             warnings=list(rr.warnings),
         )
-    _add(evidence, routing.evidence_for_route(world, rec))
-    same = fast is not None and _edge_ids(fast) == _edge_ids(rec)
-    if same:
-        fast = rec
-    stop = None
-    if fast is not None and not same:
-        stop = _stop(world, fast, prof, scenario_id, today, evidence)
-    rec_reasons = _reasons(world, rec, prof, today, evidence)
-    fast_reasons = rec_reasons if same else _reasons(world, fast, prof, today, evidence)
-    unchecked = _unchecked(world, rec)
-    return CompareResult(
-        status=rr.status,
-        profile=profile,
-        same_path=same,
-        fastest=fast,
-        recommended=rec,
-        stop=stop,
-        reasons=RouteReasons(fastest=fast_reasons if fast else None, recommended=rec_reasons),
-        extra_minutes=(
-            round(max(0.0, rec.est_minutes - fast.est_minutes), 1) if fast is not None else None
-        ),
-        unchecked=unchecked,
-        pois=_pois(world, rec, prof, today, evidence, unchecked),
-        evidence=list(evidence.values()),
-        warnings=list(rr.warnings),
-    )
+
+
+# ---------------------------------------------------------------- unknown-neutral search
+
+
+def _neutral_cost(world: World, prof: Profile, scenario_id, key: str, by_length: bool):
+    """Search cost of one edge, or None when it is a known FAIL for `prof`.
+
+    Ruling R20 (spec D2, AC-B3): an UNKNOWN edge costs exactly what it would cost as PASS, so no
+    unknown fact can change which route wins; only known FAILs are excluded. `by_length` (the
+    fastest walk, ruling R21) costs plain metres; otherwise only the profile's type preferences
+    apply (steps multiplier, the walking road multiplier), never a claim-based weight.
+    """
+    res, _ = routing._evaluate(world, prof, scenario_id, key)
+    if res == "FAIL":
+        return None
+    e = world.edges[key]
+    w = e.length_m
+    if by_length:
+        return w
+    if e.type == "steps":
+        w *= prof.soft.get("steps_multiplier", 1.0)
+    if prof.allowed_types is None and e.type in routing.ROAD_TYPES:
+        w *= routing.WALK_ROAD_MULTIPLIER
+    return w
+
+
+def _neutral_route(
+    world: World,
+    from_id: str,
+    to_id: str,
+    prof: Profile,
+    scenario_id,
+    *,
+    fastest: bool = False,
+    as_profile: bool = False,
+) -> Route | None:
+    """Cheapest route by `_neutral_cost`, built and evaluated by the normal route builder.
+
+    `fastest`: the length-shortest walk over edges the `default` profile does not FAIL, built as
+    a `default` route (R21). With `as_profile` the same walk is built and evaluated under `prof`
+    (the R21 same-path recommendation). Otherwise: the cheapest walk over edges `prof` does not
+    FAIL, unknown edges costed as PASS (R20)."""
+    search = world.profiles["default"] if fastest else prof
+    build = prof if as_profile or not fastest else search
+    sources = routing._targets(world, from_id, search)
+    targets = set(routing._targets(world, to_id, search))
+    if not sources or not targets:
+        return None
+    g = world.graph
+    seen: dict[str, float] = {}
+    done: set[str] = set()
+    pred: dict[str, tuple[str, str]] = {}
+    tick = itertools.count()
+    heap: list[tuple[float, int, str]] = []
+    for s in dict.fromkeys(sources):
+        seen[s] = 0.0
+        heapq.heappush(heap, (0.0, next(tick), s))
+    end = None
+    while heap:
+        dist, _, v = heapq.heappop(heap)
+        if v in done:
+            continue
+        done.add(v)
+        if v in targets:
+            end = v
+            break
+        for u, data in g[v].items():
+            if u in done:
+                continue
+            best = None
+            for key in data:  # MultiGraph: data = {edge_id: attrs}
+                if not allows_direction(world.edges[key], search.id, v):
+                    continue
+                c = _neutral_cost(world, search, scenario_id, key, fastest)
+                if c is not None and (best is None or c < best[0]):
+                    best = (c, key)
+            if best is not None and (u not in seen or dist + best[0] < seen[u]):
+                seen[u] = dist + best[0]
+                pred[u] = (v, best[1])
+                heapq.heappush(heap, (seen[u], next(tick), u))
+    if end is None:
+        return None
+    nodes, keys = [end], []
+    while nodes[-1] in pred:
+        v, key = pred[nodes[-1]]
+        nodes.append(v)
+        keys.append(key)
+    nodes.reverse()
+    keys.reverse()
+    evals = {k: routing._evaluate(world, build, scenario_id, k) for k in keys}
+    route = routing._route_from_nodes(world, nodes, keys, from_id, to_id, build, scenario_id, evals)
+    # Endpoint flood unknowns, exactly as routing.plan_route adds them.
+    extra = [
+        why
+        for pid in dict.fromkeys((from_id, to_id))
+        for state, reasons in [
+            routing.endpoint_flood(world, pid, build, scenario_id)
+            if pid == to_id
+            else routing.origin_flood(world, pid, build, scenario_id)
+        ]
+        if state == "UNKNOWN"
+        for why in reasons
+    ]
+    if extra:
+        route.unknowns.extend(extra)
+        route.status = "partly_unverified"
+    return route
 
 
 # ---------------------------------------------------------------- helpers
@@ -269,7 +391,7 @@ def _rest_stops(world: World, route: Route, today: date) -> list[tuple[Any, floa
     return sorted(found.values(), key=lambda pa: (pa[1], pa[0].id))
 
 
-def _reasons(world, route: Route, prof: Profile, today, evidence) -> ReasonSet:
+def _reasons(world, route: Route, prof: Profile, today, evidence, rests) -> ReasonSet:
     steps, inclines, widths = [], [], []
     ev: dict[str, list[str]] = {}
     covered_m, covered_known = 0.0, False
@@ -288,7 +410,6 @@ def _reasons(world, route: Route, prof: Profile, today, evidence) -> ReasonSet:
             ev.setdefault("covered_share", []).append(k[1])
             if k[0] in _YES:
                 covered_m += edge.length_m
-    rests = _rest_stops(world, route, today)
     for p, _ in rests:
         evs = routing.rest_claim_evidence(world, p.id)
         _add(evidence, evs)
@@ -318,7 +439,7 @@ def _unchecked(world: World, route: Route) -> list[UncheckedStretch]:
         if u["attribute"] not in _NOT_A_CHECK:
             attrs_of.setdefault(u["element_id"], []).append(u["attribute"])
     lengths = [world.edges[s.edge_id].length_m for s in route.segments]
-    starts = [sum(lengths[:i]) for i in range(len(lengths))]
+    starts = _starts(world, route)
     attrs = sorted(
         {a for v in attrs_of.values() for a in v},
         key=lambda a: (_ATTR_ORDER.index(a) if a in _ATTR_ORDER else len(_ATTR_ORDER), a),
@@ -349,7 +470,7 @@ def _stretch(attr: str, run: list[Any]) -> UncheckedStretch:
     )
 
 
-def _pois(world, route: Route, prof, today, evidence, unchecked) -> list[Poi]:
+def _pois(world, route: Route, prof, today, evidence, unchecked, rests) -> list[Poi]:
     out: list[Poi] = []
 
     def poi(kind, at, value, ids):
@@ -378,7 +499,7 @@ def _pois(world, route: Route, prof, today, evidence, unchecked) -> list[Poi]:
             steepest = (abs(i[0]), at, i[0], i[1])
     if steepest is not None:
         poi("incline", steepest[1], steepest[2], [steepest[3]])
-    for p, at in _rest_stops(world, route, today):
+    for p, at in rests:
         poi("seating", at, p.name, [e.id for e in routing.rest_claim_evidence(world, p.id)])
     for u in unchecked:
         own = f"ev-{u.edge_id}.{u.attribute}"

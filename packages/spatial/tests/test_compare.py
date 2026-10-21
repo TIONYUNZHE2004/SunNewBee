@@ -37,6 +37,7 @@ NODES = {
     "P2": _pt(40, 30),
     "P3": _pt(80, 30),
     "P4": _pt(100, 30),
+    "Q1": _pt(50, -60),
 }
 
 
@@ -108,6 +109,15 @@ EDGES = [
         30.0,
         {"step_count": V(0), "incline_pct": V(1), "width_m": V(2.0)},
     ),
+]
+
+
+# A third, fully verified, longer (200 m) step-free path A-Q1-C: if unknown facts were weighed,
+# assigning PASS values to L3 or S3 could make another path win (review Important 1, R20).
+FULL = {"step_count": V(0), "incline_pct": V(1), "width_m": V(2.0)}
+VERIFIED_DETOUR = [
+    ("Q1", "footway", "A", "Q1", 100.0, FULL),
+    ("Q2", "footway", "Q1", "C", 100.0, FULL),
 ]
 
 
@@ -358,8 +368,8 @@ def test_unknown_profile_raises(w):
 )
 def test_unknown_neutrality_unverified_values(incline, s3_incline, s3_width, status):
     """Any PASS-compatible value that is not verified leaves everything unchanged."""
-    base = compare(build(), "start", "end", "wheelchair")
-    w = build()
+    base = compare(build(EDGES + VERIFIED_DETOUR), "start", "end", "wheelchair")
+    w = build(EDGES + VERIFIED_DETOUR)
     w.edges["L3"].claims["incline_pct"] = Claim(value=incline, status=status)
     w.edges["S3"].claims.update(
         {
@@ -382,9 +392,11 @@ def test_unknown_neutrality_unverified_values(incline, s3_incline, s3_width, sta
 def test_unknown_neutrality_verified_values(l3_incline, s3_incline, s3_width):
     """Verified PASS values on the unknown facts: the recommended route stays the same, and
     every non-null reason keeps its value (values inside the known range, so a reason could
-    only move if the unknown edge had already been counted)."""
-    base = compare(build(), "start", "end", "wheelchair")
-    w = build()
+    only move if the unknown edge had already been counted). The world has a fully verified,
+    longer step-free path too, which must not start winning once L3 becomes verified."""
+    base = compare(build(EDGES + VERIFIED_DETOUR), "start", "end", "wheelchair")
+    assert [s.edge_id for s in base.recommended.segments] == ["L1", "L2", "L3", "L4", "L5"]
+    w = build(EDGES + VERIFIED_DETOUR)
     w.edges["L3"].claims["incline_pct"] = V(l3_incline)
     w.edges["S3"].claims.update(
         {"step_count": V(0), "incline_pct": V(s3_incline), "width_m": V(s3_width)}
@@ -397,6 +409,43 @@ def test_unknown_neutrality_verified_values(l3_incline, s3_incline, s3_width):
         for field, value in before.items():
             if value is not None:
                 assert after[field] == value, (which, field)
+
+
+def test_verified_incline_on_the_unknown_edge_does_not_flip_the_route():
+    """Review probe (R20): plan_route's strict pass would switch to the fully verified 200 m
+    path, and back to L once L3 is verified. compare keeps L either way."""
+    w = build(EDGES + VERIFIED_DETOUR)
+    before = compare(w, "start", "end", "wheelchair").recommended
+    w.edges["L3"].claims["incline_pct"] = V(2)
+    after = compare(w, "start", "end", "wheelchair").recommended
+    assert [s.edge_id for s in before.segments] == [s.edge_id for s in after.segments]
+    assert before.status == "partly_unverified" and after.status == "confirmed"
+
+
+def test_fastest_is_the_length_shortest_walk():
+    """R21: fastest is the shortest walk over edges default does not FAIL, even where the
+    default route search would prefer another (roads weigh 1.25x there)."""
+    edges = [list(e) for e in EDGES]
+    for e in edges:  # S path: 140 m, 130 m of it street (default search cost 174.5 > 160)
+        if e[0] in ("S1", "S3"):
+            e[1], e[4] = "street", {"S1": 70.0, "S3": 60.0}[e[0]]
+    r = compare(build([tuple(e) for e in edges]), "start", "end", "wheelchair")
+    assert [s.edge_id for s in r.fastest.segments] == ["S1", "S2", "S3"]
+    assert r.fastest.profile == "default" and r.fastest.distance_m == 140.0
+    assert r.fastest.distance_m < r.recommended.distance_m == 160.0
+    assert r.stop.edge_id == "S2" and r.stop.at_m == 70.0
+
+
+def test_shortest_walk_without_a_fail_is_the_same_path():
+    """R21: the shortest walk has no known FAIL for wheelchair (S2 only unknown), so it is the
+    recommendation, built under wheelchair, and nothing is compared."""
+    edges = [(*e[:5], {}) if e[0] == "S2" else e for e in EDGES]
+    edges = [(e[0], "footway", *e[2:]) if e[0] == "S2" else e for e in edges]
+    r = compare(build(edges), "start", "end", "wheelchair")
+    assert r.same_path is True and r.stop is None
+    assert r.fastest == r.recommended
+    assert [s.edge_id for s in r.recommended.segments] == ["S1", "S2", "S3"]
+    assert r.recommended.profile == "wheelchair"
 
 
 # ---------------------------------------------------------------- B2: the compare_routes tool
