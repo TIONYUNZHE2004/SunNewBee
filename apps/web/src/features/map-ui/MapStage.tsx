@@ -1,5 +1,6 @@
 import { Component, lazy, type ReactNode, Suspense, useEffect, useMemo } from "react";
 import { ENV } from "../../lib/env";
+import { CompareOverlay } from "../journey/compare/CompareOverlay";
 import { ListView } from "../scene/list/ListView";
 import { useScene } from "../scene/sceneStore";
 import { availableViews, effectiveView, selectView, webglSupported } from "../scene/selectView";
@@ -139,6 +140,8 @@ export function MapStage({ children }: { children?: ReactNode }) {
           </RendererBoundary>
         </>
       )}
+      {/* the compare playback's tags, pills and cards over the 3D map (List view: CompareListSection) */}
+      {!(waiting || styleUnknown) && effective !== "list" && <CompareOverlay />}
       <TopStack />
       <BottomStack />
       {children}

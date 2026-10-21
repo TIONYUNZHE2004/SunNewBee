@@ -6,6 +6,8 @@ import { isDemoPreset } from "../demo/demoFlag";
 import { installDevsimHook } from "../devsim/devsimHook";
 import { useDevsim } from "../devsim/devsimStore";
 import { asDevsimIntent, beginDevsim } from "../devsim/intent";
+import { useCompare } from "../journey/compareStore";
+import { asCompareIntent, type CompareIntent, isPlayableCompare } from "../journey/compareTypes";
 import { useJourney } from "../journey/journeyStore";
 import type { JourneyPlan } from "../journey/timeline";
 import type { View } from "./selectView";
@@ -88,6 +90,11 @@ export interface SceneState {
    * older answer's plan; Clear route empties it).
    */
   journey: JourneyPlan | null;
+  /**
+   * The latest route.compare intent (demo polish §5.3): fastest vs recommended route. Stored only;
+   * the compare playback (`useCompare`) loads it when Watch the trip is pressed.
+   */
+  compare: CompareIntent | null;
   /** Ends a Development Simulation (developer lens): playback lives in `useDevsim`. */
   stopDevsim: () => void;
   intents: SceneIntent[];
@@ -148,6 +155,7 @@ const initial = {
   } as SceneState["day"],
   camera: null as SceneState["camera"],
   journey: null as JourneyPlan | null,
+  compare: null as CompareIntent | null,
   intents: [] as SceneIntent[],
   mapStyle: "realistic" as MapStyle,
   mapStyleChosen: false,
@@ -190,6 +198,8 @@ function only(s: SceneState, key: Selection, id: string | null): Partial<SceneSt
  * One from the answer that started the simulation does not (`applyIntent`'s answerId).
  */
 export function movesMap(i: SceneIntent): boolean {
+  // route.compare puts two routes on the map (not in the generated kind union yet)
+  if (asCompareIntent(i)) return true;
   switch (i.kind) {
     case "camera.fly_to":
       return !!i.center && i.center.length >= 2;
@@ -217,6 +227,12 @@ function staleTrip(routeId: string): boolean {
   return !!plan && plan.route_id !== routeId;
 }
 
+/** True when the compare playback holds a compare whose routes do not include `routeId`. */
+function staleCompare(routeId: string): boolean {
+  const p = useCompare.getState().payload;
+  return !!p && p.recommended?.id !== routeId && p.fastest?.id !== routeId;
+}
+
 export const useScene = create<SceneState>((set) => ({
   ...initial,
   applyIntent: (i, answerId) => {
@@ -225,9 +241,20 @@ export const useScene = create<SceneState>((set) => ({
     const dropTrip =
       i.kind === "route.highlight" && !!i.route_id && !!i.geojson && staleTrip(i.route_id);
     if (dropTrip) useJourney.getState().clear();
+    const cmp = asCompareIntent(i);
+    // the same for a compare playback: a newer route (or compare) of other routes drops it
+    const cmpRoute = cmp?.recommended?.id ?? cmp?.fastest?.id;
+    if (
+      (i.kind === "route.highlight" && !!i.route_id && !!i.geojson && staleCompare(i.route_id)) ||
+      (cmpRoute && staleCompare(cmpRoute))
+    )
+      useCompare.getState().clear();
     const dev = asDevsimIntent(i);
     // one simulation at a time: a development simulation drops a shown trip, and a trip stops it
-    if (dev) useJourney.getState().clear();
+    if (dev) {
+      useJourney.getState().clear();
+      useCompare.getState().clear();
+    }
     const sameAnswer = answerId !== undefined && answerId === devsimAnswer;
     if (
       ((i.kind === "journey.play" && i.journey) || (movesMap(i) && !sameAnswer)) &&
@@ -237,7 +264,11 @@ export const useScene = create<SceneState>((set) => ({
     if (dev) devsimAnswer = answerId;
     set((s) => {
       const next: Partial<SceneState> = { intents: [...s.intents, i] };
-      if (dev) next.journey = null;
+      if (dev) {
+        next.journey = null;
+        next.compare = null;
+      }
+      if (cmp) next.compare = cmp;
       switch (i.kind) {
         case "route.highlight":
           if (i.route_id && i.geojson) {
@@ -323,8 +354,19 @@ export const useScene = create<SceneState>((set) => ({
     // Loaded paused; the demo preset (?demo=1, spec §6.6) plays it from the start as soon as it
     // arrives, a normal load waits for the answer's "Watch the trip" button.
     if (i.kind === "journey.play" && i.journey) {
-      useJourney.getState().load(i.journey);
-      if (isDemoPreset()) useJourney.getState().play();
+      // a compare of this answer's route keeps the stage in the demo preset (it plays instead)
+      const cmpNow = useScene.getState().compare;
+      const comparing = isPlayableCompare(cmpNow) && cmpNow.recommended.id === i.journey.route_id;
+      if (!(comparing && useCompare.getState().payload === cmpNow)) {
+        useCompare.getState().clear();
+        useJourney.getState().load(i.journey);
+        if (isDemoPreset() && !comparing) useJourney.getState().play();
+      }
+    }
+    // the demo preset plays a playable compare as soon as it arrives (like journey.play)
+    if (cmp && isPlayableCompare(cmp) && isDemoPreset()) {
+      useCompare.getState().load(cmp);
+      useCompare.getState().play();
     }
     // Scripted autoplay (spec D6): plays as soon as the plan is in (fetched when not inlined).
     if (dev) void beginDevsim(dev);
@@ -343,7 +385,8 @@ export const useScene = create<SceneState>((set) => ({
     set((s) => {
       if (s.profile === profile) return { profile, route: null, whatIf: null };
       useJourney.getState().clear(); // the trip was planned for the previous persona
-      return { profile, route: null, whatIf: null, journey: null };
+      useCompare.getState().clear();
+      return { profile, route: null, whatIf: null, journey: null, compare: null };
     });
   },
   adoptProfile: (profile) => {
@@ -353,10 +396,12 @@ export const useScene = create<SceneState>((set) => ({
   },
   setScenario: (scenarioId) => {
     useJourney.getState().clear(); // its trip was planned under the previous scenario
+    useCompare.getState().clear();
     set((s) => ({
       scenarioId,
       route: null, // planned under the previous scenario
       journey: null,
+      compare: null,
       whatIf: null, // compared against the previous scenario
       selectedFloodEdgeId: null,
       lensVisible: { ...s.lensVisible, flood: !!scenarioId || s.lensVisible.flood },
@@ -382,7 +427,8 @@ export const useScene = create<SceneState>((set) => ({
   // The journey's ribbon is the route on the map: clearing the route clears the trip too.
   clearRoute: () => {
     useJourney.getState().clear();
-    set({ route: null, journey: null });
+    useCompare.getState().clear();
+    set({ route: null, journey: null, compare: null });
   },
   clearWhatIf: () => set({ whatIf: null }),
   setRollout: (r) => set((s) => ({ rollout: { ...s.rollout, ...r } })),
@@ -396,6 +442,7 @@ export const useScene = create<SceneState>((set) => ({
     ),
   reset: () => {
     useJourney.getState().clear();
+    useCompare.getState().clear();
     useDevsim.getState().stop();
     set(initial);
   },
