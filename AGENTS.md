@@ -101,6 +101,7 @@ apps/api POST /chat (SSE) ──► apps/web: parseSse → useChatStream → cha
 | Label OSM-derived passability "Checked" / "Verified" | "No known barrier"; "Verified" only for verified claims |
 | Label an OSM evacuation candidate as official | `osm_candidate` vs `official_pps` (`official_pps` needs an exact name match with evidence) |
 | Present stylised-city details (default heights, cars, street trees, lit windows, base water) as facts | Keep them display-only and labelled "Decorative details are illustrative."; base water is never drawn or described as a flood scenario |
+| Present simulated resident reactions as real residents' views, or put an invented number in a Spotlight Resident's line | Label them "Simulated reactions"; facts and numbers in a line come only from the world model; a Hypothetical Development is labelled "not an SDP project" (ADR 0014) |
 | Store user words or model-written text in a VR | `safe_vr_args()` sanitises target, attribute and reason; summaries are built from place and centre names (PDPA) |
 
 When changing the agent, the mock answers and `template.py` must still pass the validator. The validator, mock and template change together.
