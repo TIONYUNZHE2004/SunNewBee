@@ -204,12 +204,13 @@ export interface CamKey {
   /** Target height above ground, metres. */
   h: number;
   offset: CamOffset;
-  /** Metres the fly INTO this key arcs up at mid-flight (sin-shaped, 0 at both keys), so a long
-   * low transfer clears the roofs between two street-level shots (F3, Q6). */
-  arc?: number;
+  /** A cut, not a fly: the previous key's pose holds until this key's t, then jumps here (F3, Q6:
+   * flights between street-level shots crossed the tower or the mall roof and filled the frame
+   * with roof for a few tenths of a second). */
+  cut?: boolean;
 }
 
-/** The prototype's `CAM` keyframes, subject for subject (§4.4), plus two fly-over waypoints. */
+/** The prototype's `CAM` keyframes, subject for subject (§4.4), plus F3's waypoint and three cuts. */
 export const CAM_KEYS: readonly CamKey[] = [
   { t: 0, targetAnchor: "site", h: 0, offset: [-200, -520, 520] },
   {
@@ -235,12 +236,12 @@ export const CAM_KEYS: readonly CamKey[] = [
   // and Farid (the prototype's north-west view looks through a canopy on the Elmina plan)
   // F3 (Q6): the Farid shot's camera stands beside the tower's east face, so a straight fly in
   // from, or out to, the wide shots crossed the footprint and the Q2 clamp popped the camera onto
-  // the roof for ~0.2 s. These two waypoints go up and over: they rise or drop beside the tower
-  // (outside its footprint) and cross it only above its top.
+  // the roof for ~0.2 s. In: a waypoint drops the camera beside the tower (outside its footprint).
+  // Out: a cut to the wide shot at 27 s (a fly up and over still filled the frame with roof).
   { t: 22.3, targetAnchor: "farid", h: 4, offset: [-20, -30, 100] },
   { t: 22.8, targetAnchor: "farid", h: 4, offset: [-32, -30, 22] },
   { t: 26.4, targetAnchor: "farid", h: 4, offset: [-28, -27, 19] },
-  { t: 27, targetAnchor: "farid", h: 4, offset: [-20, -27, 100] },
+  { t: 27, targetAnchor: "site", h: 45, offset: [-150, -240, 130], cut: true },
   { t: 28, targetAnchor: "site", h: 45, offset: [-150, -240, 130] },
   { t: 32, targetAnchor: "site", h: 46, offset: [-165, -255, 138] },
   { t: 34.6, targetAnchor: { path: 6 }, h: 3, offset: { entrance: [26, 30, 17] } },
@@ -255,11 +256,14 @@ export const CAM_KEYS: readonly CamKey[] = [
   // F3 (AC-C1, 54 s): Zainab from the west-south-west and low, so the park's lawn and trees fill
   // the frame behind her with the pond on the right and the mall wall on the left, as the
   // prototype frames her (from the south-west the shot was a sand forecourt beside a wall).
-  // F3 (Q6): the 250 m transfer from the junction ran at ~20 m and grazed roofs; it arcs over.
-  { t: 52.8, targetAnchor: "park", h: 1.5, offset: [-38, -18, 13], arc: 45 },
+  // F3 (Q6): the 250 m fly from the junction grazed the mall roof; a cut at 52.2 s instead.
+  { t: 52.2, targetAnchor: "park", h: 1.5, offset: [-38, -18, 13], cut: true },
+  { t: 52.8, targetAnchor: "park", h: 1.5, offset: [-38, -18, 13] },
   { t: 57, targetAnchor: "park", h: 1.5, offset: [-33, -16, 11] },
   // Gate 2 loop 2: Arjun from the south-east, so he stands against the plaza, not the lit window
-  { t: 58, targetAnchor: "mall", h: 1, offset: [32, -24, 28], arc: 35 },
+  // F3 (Q6): the fly from the park skimmed the mall roof; a cut at 57.4 s instead.
+  { t: 57.4, targetAnchor: "mall", h: 1, offset: [32, -24, 28], cut: true },
+  { t: 58, targetAnchor: "mall", h: 1, offset: [32, -24, 28] },
   { t: 62.4, targetAnchor: "mall", h: 1, offset: [28, -21, 25] },
   // 3D integration: 0.72 (prototype 0.9) keeps the tower where the prototype frames it (left third)
   { t: 63.6, targetAnchor: { lerp: ["site", "mall", 0.72] }, h: 20, offset: [-120, -470, 300] },
@@ -378,17 +382,16 @@ export function cameraAt(t: number, plan: DevelopmentPlan): StateAt["camera"] {
   while (i < CAM_KEYS.length - 2 && t > (CAM_KEYS[i + 1] as CamKey).t) i++;
   const a = CAM_KEYS[i] as CamKey;
   const b = CAM_KEYS[i + 1] as CamKey;
-  const u = ease(span(t, a.t, b.t));
+  const u = b.cut ? (t >= b.t ? 1 : 0) : ease(span(t, a.t, b.t));
   const ta = resolveTarget(a, f);
   const tb = resolveTarget(b, f);
   const oa = resolveOffset(a, f);
   const ob = resolveOffset(b, f);
   const tg = lerpLL(ta, tb, u);
   const mix = (x: number, y: number) => x + (y - x) * u;
-  const lift = (b.arc ?? 0) * Math.sin(Math.PI * u);
   return {
     target: [tg[0], tg[1], mix(a.h, b.h)],
-    offset: [mix(oa[0], ob[0]), mix(oa[1], ob[1]), mix(oa[2], ob[2]) + lift],
+    offset: [mix(oa[0], ob[0]), mix(oa[1], ob[1]), mix(oa[2], ob[2])],
   };
 }
 

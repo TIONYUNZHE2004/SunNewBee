@@ -223,8 +223,9 @@ describe("flow curve (spec §7)", () => {
 });
 
 describe("camera", () => {
-  it("ports the prototype's 22 keyframes over 0..66, plus the two fly-over waypoints", () => {
-    expect(CAM_KEYS).toHaveLength(24);
+  it("ports the prototype's 22 keyframes over 0..66, plus F3's waypoint and cuts", () => {
+    expect(CAM_KEYS).toHaveLength(26);
+    expect(CAM_KEYS.filter((k) => k.cut).map((k) => k.t)).toEqual([27, 52.2, 57.4]);
     expect(CAM_KEYS[0]?.t).toBe(0);
     expect(CAM_KEYS[CAM_KEYS.length - 1]?.t).toBe(66);
   });
@@ -243,10 +244,15 @@ describe("camera", () => {
     expect(stateAt(24, plan).camera.offset[2]).toBeLessThan(30);
   });
 
-  it("eases between keyframes without jumps", () => {
+  it("eases between keyframes without jumps, except at the cuts", () => {
+    const cuts = CAM_KEYS.filter((k) => k.cut).map((k) => k.t);
     let prev = stateAt(0, plan).camera;
     for (const t of range(0.05, 66, 0.05)) {
       const c = stateAt(t, plan).camera;
+      if (cuts.some((ct) => t >= ct && t - 0.05 < ct)) {
+        prev = c;
+        continue;
+      }
       const d = Math.hypot(
         c.offset[0] - prev.offset[0],
         c.offset[1] - prev.offset[1],
