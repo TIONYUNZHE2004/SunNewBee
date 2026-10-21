@@ -108,3 +108,37 @@ describe("RouteSummary", () => {
     expect(screen.queryByRole("img", { name: /Route sketch/ })).toBeNull();
   });
 });
+
+describe("RouteSummary · active closure (T-027)", () => {
+  const closure = {
+    id: "c1",
+    element_id: "seg-cd",
+    element_name: "Jalan Detour",
+    reason: "works",
+    event_name: "Pipe repair",
+    starts_at: "2026-10-21T01:00:00Z",
+    ends_at: "2026-10-21T09:00:00Z",
+    active: true,
+    label: "Closed: works until 21 Oct 2026",
+    source_label: "Reported closure (staff)",
+  };
+  it("names the closure the route met with its reason and window, never a pressure", () => {
+    stubFetch(() => json([]));
+    const qc = newQueryClient();
+    qc.setQueryData(["closures", "active"], [closure]);
+    const m: AssistantMessage = {
+      ...base,
+      route: { id: "r1", status: "partly_unverified", distanceM: 440.6, minutes: 6 },
+      uncertainty: {
+        type: "uncertainty",
+        level: "partial",
+        items: [{ element_id: "seg-cd", attribute: "closure", note: "Closed (staff report)" }],
+      } as never,
+    };
+    renderWithClient(<RouteSummary m={m} />, qc);
+    const list = screen.getByRole("list", { name: "Closures on this trip" });
+    expect(list).toHaveTextContent("Closed (staff report)");
+    expect(list).toHaveTextContent("Jalan Detour · Works (Pipe repair) · 21 Oct, 09:00–17:00");
+    expect(list.textContent).not.toMatch(/pressure/i);
+  });
+});
