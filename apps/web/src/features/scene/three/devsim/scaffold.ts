@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
+import { smallShadows } from "./devsimView";
 import { type SiteGeom, TOWER_STOREY_M, type XZ } from "./geom";
 
 const NOOP = () => {};
@@ -131,7 +132,7 @@ export function createScaffold(o: { geom: SiteGeom }): ScaffoldPart {
   for (const m of [standards, ledgers]) {
     m.frustumCulled = false;
     m.raycast = NOOP;
-    // thin tubes: no shadow pass (AC-P2 draw budget)
+    // thin tubes: shadows in the close beats only (`smallShadows`, set per frame)
     m.castShadow = false;
     m.count = 0;
     group.add(m);
@@ -200,6 +201,9 @@ export function createScaffold(o: { geom: SiteGeom }): ScaffoldPart {
     demoState: () => ({ scaffoldTop: top, topFloor: floor, netting: netOn }),
     aoExcluded: () => [net],
     update({ s, t, sp }: DevsimFrame) {
+      const shadows = smallShadows(s);
+      standards.castShadow = shadows;
+      ledgers.castShadow = shadows;
       const ext = scaffoldExtent(s.floorsBuilt, N);
       floor = ext.topFloor;
       // up while building, once there is a floor: schedule mode (C7 45 s acts) until Handover

@@ -11,7 +11,18 @@ import { castMoveIn, castSlots, createCast, MOVERS } from "./cast";
 import { createDevsimLayer, type DevsimPart } from "./devsimLayer";
 import pre from "./fixtures/setPieces.preC7.elmina.json";
 import { inRing, siteGeom } from "./geom";
-import { BOXES, CAR_VARIANTS, carStalls, createMoveIn, KIDS, moverAt, PARKED_CARS } from "./moveIn";
+import {
+  BOXES,
+  CAR_AISLE_S,
+  CAR_VARIANTS,
+  carAt,
+  carStalls,
+  createMoveIn,
+  KIDS,
+  MOVER_DOOR_S,
+  moverAt,
+  PARKED_CARS,
+} from "./moveIn";
 import { createPilingRig } from "./pilingRig";
 import { createRain } from "./rain";
 import { createScaffold } from "./scaffold";
@@ -112,6 +123,74 @@ describe("move-in (AC-W5, schedule mode)", () => {
       expect(first?.p).toEqual(path[0]);
     }
     layer.dispose();
+  });
+
+  it("lit share stays monotonic when seeking backward (C10 review minor 4)", () => {
+    const l = layerFor(C7);
+    const st = () => l.demoState() as unknown as St;
+    // backward from 33 s to 27 s: never rises as t falls; the same t gives the same share
+    // whatever was seen before (seek determinism)
+    const forward = new Map<number, number>();
+    for (let i = 0; i <= 120; i++) {
+      const t = 27 + i * 0.05;
+      l.setT(t);
+      forward.set(i, st().litShare);
+    }
+    let prev = Number.POSITIVE_INFINITY;
+    for (let i = 120; i >= 0; i--) {
+      l.setT(27 + i * 0.05);
+      const lit = st().litShare;
+      expect(lit).toBeLessThanOrEqual(prev);
+      expect(lit).toBe(forward.get(i));
+      prev = lit;
+    }
+    // jumps back and forth
+    for (const [a, b] of [
+      [33, 28.5],
+      [30.2, 29.1],
+      [32.9, 27.2],
+    ] as const) {
+      l.setT(a);
+      const hi = st().litShare;
+      l.setT(b);
+      expect(st().litShare).toBeLessThanOrEqual(hi);
+    }
+    l.dispose();
+  });
+
+  it("a mover walks on through the doorway for at most 0.3 s, then is inside (review minor 2)", () => {
+    const g = siteGeom(C7, frame);
+    const mi = castMoveIn(C7, g);
+    const mv = SET_PIECE_S.moveIn.movers;
+    expect(MOVER_DOOR_S).toBeLessThanOrEqual(0.3);
+    const path = mi.paths[0] as [number, number][];
+    const arrive = mv.t0 + mv.walk;
+    const at = moverAt(path, mv, 0, arrive + MOVER_DOOR_S / 2);
+    expect(at?.entered).toBe(true);
+    expect(at?.inside).toBe(false);
+    if (at) {
+      const d = Math.hypot(at.p[0] - g.door[0], at.p[1] - g.door[1]);
+      expect(d).toBeGreaterThan(0.3);
+      expect(d).toBeLessThanOrEqual(1.2);
+      // on past the door: farther from the path's previous point than the door is
+      const prev = path[path.length - 2] as [number, number];
+      expect(Math.hypot(at.p[0] - prev[0], at.p[1] - prev[1])).toBeGreaterThan(
+        Math.hypot(g.door[0] - prev[0], g.door[1] - prev[1]),
+      );
+    }
+    expect(moverAt(path, mv, 0, arrive + MOVER_DOOR_S)?.inside).toBe(true);
+  });
+
+  it("no car shows before its window time (review minor 3)", () => {
+    const g = siteGeom(C7, frame);
+    const m = setPieceTiming(C7).moveIn;
+    for (let k = 0; k < PARKED_CARS; k++) {
+      const a = m.cars.t0 + k * m.cars.gap;
+      expect(carAt(g, m, k, a - 0.01)).toBeNull();
+      expect(carAt(g, m, k, a)).not.toBeNull();
+      expect(carAt(g, m, k, a + CAR_AISLE_S + m.cars.drive)?.parked).toBe(true);
+    }
+    expect(m.cars.t0).toBe(30);
   });
 
   it("parked cars use the A4 variants, in the parcel lot", () => {

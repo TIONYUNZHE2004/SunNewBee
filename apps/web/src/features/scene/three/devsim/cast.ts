@@ -237,12 +237,12 @@ export function castAt(
     });
   }
   // Move-in (C10, schedule mode): movers leave the lorries one by one, carry boxes up the
-  // entrance path and go in through the door (not drawn once inside)
+  // entrance path and go in through the door (walking on into the lobby, then not drawn)
   const mv = opts.moveIn?.timing.movers;
   if (mv && opts.moveIn)
     for (let i = 0; i < MOVERS; i++) {
       const a = moverAt(opts.moveIn.paths[i] as XZ[], mv, i, t);
-      if (!a || a.entered) continue;
+      if (!a || a.inside) continue;
       o.set(`mover${i}`, { x: a.p[0], z: a.p[1], yaw: a.yaw, walk: true, carry: true });
     }
   // children at the nearest playground

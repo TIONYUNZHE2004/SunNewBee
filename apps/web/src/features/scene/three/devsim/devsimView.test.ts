@@ -1,17 +1,20 @@
 import { describe, expect, it } from "vitest";
 import elmina from "../../../devsim/fixtures/plan.elmina.json";
 import plan from "../../../devsim/fixtures/plan.provisional.json";
-import type { DevelopmentPlan } from "../../../devsim/types";
+import type { DevelopmentPlan, StateAt } from "../../../devsim/types";
 import { createClearance } from "../clearance";
 import { createFrame } from "../frame";
 import { LIGHT_PRESETS } from "../lighting";
 import { speakerGlow, spotBoost } from "./cast";
 import {
   DEVSIM_FOV_DEG,
+  DEVSIM_SMALL_SHADOW_M,
+  devsimAoWeight,
   devsimCamera,
   devsimGrade,
   devsimMoodSource,
   devsimMoodWeights,
+  smallShadows,
 } from "./devsimView";
 import { inRing, siteGeom, TOWER_STOREY_M } from "./geom";
 import { stateAt } from "./state";
@@ -144,5 +147,30 @@ describe("devsim camera (Q2)", () => {
       expect(at(24)).toEqual(want);
     }
     expect(want.fovDeg).toBe(DEVSIM_FOV_DEG);
+  });
+});
+
+describe("devsim AO and small-prop shadows by range (C10p)", () => {
+  it("AO is full in the close beats, off in the wide ones, smooth between", () => {
+    expect(devsimAoWeight(43)).toBe(1);
+    expect(devsimAoWeight(145)).toBe(1);
+    expect(devsimAoWeight(170)).toBe(1);
+    expect(devsimAoWeight(220)).toBe(0);
+    expect(devsimAoWeight(311)).toBe(0);
+    let prev = 1;
+    for (let r = 170; r <= 220; r += 1) {
+      const w = devsimAoWeight(r);
+      expect(w).toBeLessThanOrEqual(prev);
+      expect(prev - w).toBeLessThan(0.05);
+      prev = w;
+    }
+  });
+
+  it("small props cast shadows only nearer than the AO cut-off", () => {
+    const at = (offset: [number, number, number]) =>
+      ({ camera: { target: [0, 0, 0], offset } }) as unknown as StateAt;
+    expect(DEVSIM_SMALL_SHADOW_M).toBe(220);
+    expect(smallShadows(at([22, 26, 14]))).toBe(true);
+    expect(smallShadows(at([-150, -240, 130]))).toBe(false);
   });
 });

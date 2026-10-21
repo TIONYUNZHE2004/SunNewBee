@@ -10,7 +10,12 @@ const spy = vi.hoisted(() => ({
   passScenes: [] as unknown[],
   aoSkips: [] as (() => readonly unknown[])[],
   bokehSkips: [] as (() => readonly unknown[])[],
-  renderer: null as null | { autoClear: boolean },
+  renderer: null as null | {
+    autoClear: boolean;
+    shadowMap: { autoUpdate?: boolean; needsUpdate?: boolean };
+  },
+  aoPasses: [] as { enabled?: boolean; blendIntensity?: number }[],
+  shadowAtComposer: [] as (boolean | undefined)[],
 }));
 vi.mock("three", async (orig) => {
   const t = await orig<typeof import("three")>();
@@ -18,7 +23,10 @@ vi.mock("three", async (orig) => {
     toneMapping = 0;
     outputColorSpace = "";
     autoClear = true;
-    shadowMap = { type: 0, enabled: false };
+    shadowMap: { type: number; enabled: boolean; autoUpdate?: boolean; needsUpdate?: boolean } = {
+      type: 0,
+      enabled: false,
+    };
     info = { autoReset: true, reset: vi.fn(), render: { calls: 0, triangles: 0 } };
     debug: { onShaderError: unknown } = { onShaderError: null };
     toneMappingExposure = 1;
@@ -58,7 +66,10 @@ vi.mock("three/addons/postprocessing/EffectComposer.js", () => ({
     setPixelRatio = vi.fn();
     addPass = vi.fn();
     setSize = vi.fn();
-    render = vi.fn(() => spy.log.push("composer"));
+    render = vi.fn(() => {
+      spy.shadowAtComposer.push(spy.renderer?.shadowMap.needsUpdate);
+      spy.log.push("composer");
+    });
     dispose = vi.fn();
   },
 }));
@@ -93,8 +104,11 @@ vi.mock("./aoPass", () => ({
   CityGTAOPass: class {
     dispose = vi.fn();
     setSize = vi.fn();
+    enabled = true;
+    blendIntensity = 1;
     constructor(_s: unknown, _c: unknown, _w: number, _h: number, skip: () => readonly unknown[]) {
       spy.aoSkips.push(skip);
+      spy.aoPasses.push(this);
     }
   },
 }));
@@ -122,6 +136,8 @@ async function setup() {
   spy.passScenes.length = 0;
   spy.aoSkips.length = 0;
   spy.bokehSkips.length = 0;
+  spy.aoPasses.length = 0;
+  spy.shadowAtComposer.length = 0;
   vi.stubGlobal("requestAnimationFrame", () => 1);
   vi.stubGlobal("cancelAnimationFrame", () => {});
   const THREE = await import("three");
@@ -204,5 +220,51 @@ describe("Engine.setDevsim", () => {
     const late = devsimDouble(THREE);
     e.setDevsim?.(late);
     expect(late.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("C10p: the layer's AO weight drives the AO pass; removing the layer restores it", async () => {
+    const { e, THREE } = await setup();
+    try {
+      const ao = spy.aoPasses.at(-1);
+      expect(ao).toBeDefined();
+      if (!ao) return;
+      let w = 0;
+      const l = { ...devsimDouble(THREE), aoWeight: vi.fn(() => w) };
+      e.setDevsim?.(l);
+      e.renderNow?.();
+      expect(l.aoWeight).toHaveBeenCalled();
+      expect(ao.enabled).toBe(false);
+      w = 0.5;
+      e.renderNow?.();
+      expect(ao.enabled).toBe(true);
+      const full = ao.blendIntensity as number;
+      expect(full).toBeGreaterThan(0);
+      w = 1;
+      e.renderNow?.();
+      expect(ao.blendIntensity).toBeCloseTo(full * 2);
+      w = 0;
+      e.renderNow?.();
+      e.setDevsim?.(null);
+      e.renderNow?.();
+      expect(ao.enabled).toBe(true);
+      expect(ao.blendIntensity).toBeCloseTo(full * 2);
+    } finally {
+      e.dispose();
+    }
+  });
+});
+
+describe("shadow map once per frame (C10p)", () => {
+  it("is not auto-updated; the composer render is asked to redraw it, then the flag drops", async () => {
+    const { e } = await setup();
+    try {
+      expect(spy.renderer?.shadowMap.autoUpdate).toBe(false);
+      spy.shadowAtComposer.length = 0;
+      e.renderNow?.();
+      expect(spy.shadowAtComposer).toEqual([true]);
+      expect(spy.renderer?.shadowMap.needsUpdate).toBe(false);
+    } finally {
+      e.dispose();
+    }
   });
 });

@@ -5,6 +5,7 @@ import { setTreeCut } from "../assets/treeCut";
 import type { Clearance } from "../clearance";
 import type { DevsimOverlay } from "../engine";
 import type { LocalFrame } from "../frame";
+import { devsimAoWeight } from "./devsimView";
 import { dayness } from "./ease";
 import { inRing, type SiteGeom, siteGeom, TOWER_STOREY_M } from "./geom";
 import { onStage, screenRect, toScreen } from "./project";
@@ -179,8 +180,29 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
   const onStageOrNull = (p: [number, number] | null, size: readonly [number, number]) =>
     onStage(p, size) ? p : null;
 
+  /**
+   * Instanced meshes with no instances still cost a draw call per pass (C10p): hidden for the
+   * render, and shown again before parts pose the next frame, so a part's own `visible` is kept.
+   */
+  const emptyHidden: THREE.Object3D[] = [];
+  const restoreEmpty = () => {
+    for (const m of emptyHidden) m.visible = true;
+    emptyHidden.length = 0;
+  };
+  const hideEmpty = (root: THREE.Object3D) => {
+    if (!root.visible) return;
+    const m = root as THREE.InstancedMesh;
+    if (m.isInstancedMesh && m.count === 0) {
+      m.visible = false;
+      emptyHidden.push(m);
+      return;
+    }
+    for (const c of root.children) hideEmpty(c);
+  };
+
   const apply = () => {
     if (!s) return;
+    restoreEmpty();
     const f: DevsimFrame = {
       s,
       t,
@@ -267,6 +289,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
     },
     beforeRender(camera, size) {
       if (disposed || !s) return;
+      restoreEmpty();
       for (const p of parts) p.project?.(camera, size);
       const top = tower?.topM() ?? 0;
       if (top > 0) for (const c of corners) if (c[1] !== 0) c[1] = top;
@@ -321,8 +344,10 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       renderedT = t;
       lastTower = towerRect;
       lastSpeaker = speaker;
+      hideEmpty(group);
     },
     aoExcluded: () => parts.flatMap((p) => p.aoExcluded?.() ?? []),
+    aoWeight: devsimAoWeight,
     demoState() {
       const out: Record<string, unknown> = {};
       for (const p of parts) if (p.demoState) Object.assign(out, p.demoState());

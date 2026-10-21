@@ -126,6 +126,11 @@ export interface DevsimOverlay {
   ): void;
   /** Glows and paint the AO G-buffer must leave out (they would read as solid occluders). */
   aoExcluded?(): readonly THREE.Object3D[];
+  /**
+   * The AO weight (0..1) for a camera `rangeM` from its look point (C10p: the wide devsim shots
+   * drop AO to fit the AC-P2 draw budget). 0 turns the pass off; absent means 1.
+   */
+  aoWeight?(rangeM: number): number;
   dispose(): void;
 }
 
@@ -618,6 +623,11 @@ function build(
   // three r186 removed PCFSoftShadowMap: it warns once and uses PCFShadowMap. Ask for that directly
   // so the console stays clean. r186 PCF honours `shadow.radius` (soft kernel, B-T4: SHADOW).
   renderer.shadowMap.type = THREE.PCFShadowMap;
+  // C10p: the sun's shadow map is drawn once per composer render (see `renderComposer`), not on
+  // every `renderer.render(scene)`: the GTAO pass renders the scene again for its normal/depth
+  // buffer, and with autoUpdate that redrew every caster a second time with the same light and
+  // camera (same map, so no pixel changes).
+  renderer.shadowMap.autoUpdate = false;
   renderer.info.autoReset = false;
 
   let disposed = false;
@@ -1654,6 +1664,36 @@ function build(
       composer.swapBuffers();
   };
 
+  /** Whether the devsim AO weight changed the AO pass (so leaving devsim restores it). */
+  let devsimAoHeld = false;
+  /** The devsim layer's AO weight for this frame's range (C10p), or the pass restored after it. */
+  const applyDevsimAo = () => {
+    if (!aoPass) {
+      devsimAoHeld = false;
+      return;
+    }
+    const base = lastPreset?.aoBlend ?? AO_PARAMS.blendIntensity;
+    if (devsim?.aoWeight && !split) {
+      const w = Math.max(
+        0,
+        Math.min(1, devsim.aoWeight(camera.position.distanceTo(controls.target))),
+      );
+      aoPass.enabled = w > 0;
+      aoPass.blendIntensity = base * w;
+      devsimAoHeld = true;
+    } else if (devsimAoHeld) {
+      aoPass.enabled = true;
+      aoPass.blendIntensity = base;
+      devsimAoHeld = false;
+    }
+  };
+  /** One composer render; its scene pass (the first) redraws the shadow map, later passes reuse it. */
+  const renderComposer = () => {
+    renderer.shadowMap.needsUpdate = true;
+    composer.render();
+    renderer.shadowMap.needsUpdate = false;
+  };
+
   // Split screen (B8): both views' frusta for culling, and the two-pass draw.
   const unionCull = new UnionFrustum();
   const splitM = new THREE.Matrix4();
@@ -1709,7 +1749,7 @@ function build(
         renderer.setViewport(s.vx, 0, l.renderW, H);
         renderer.setScissor(x0, 0, Math.max(0, x1 - x0), H);
         pinSceneTarget();
-        composer.render();
+        renderComposer();
       }
     } finally {
       if (aoPass) aoPass.enabled = aoOn;
@@ -1841,6 +1881,7 @@ function build(
       );
     }
     devsim?.beforeRender(camera, size, now);
+    applyDevsimAo();
     aimBokeh();
     const tRender = performance.now();
     // The scene pass always draws into the same target (ITER2 AC-D18). The composer ping-pongs its
@@ -1852,7 +1893,7 @@ function build(
     if (split && layout) renderSplit(split, layout);
     else {
       pinSceneTarget();
-      composer.render();
+      renderComposer();
       renderJourneyMarkers();
     }
     if (warming.length > 0) {

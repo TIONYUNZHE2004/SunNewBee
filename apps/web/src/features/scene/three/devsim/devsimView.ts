@@ -125,3 +125,31 @@ export function devsimCamera(
   }
   return { position: [pos[0], pos[1], pos[2]], look, fovDeg: DEVSIM_FOV_DEG };
 }
+
+/**
+ * AO fades out over this camera range (m) in the devsim (C10p ruling): the wide beats (the 760 m
+ * opening, the 240-270 m construction beats, the 27-33 s move-in at 230-330 m) draw without the
+ * GTAO pass, which re-draws every opaque mesh for its normal buffer (~75-85 draws and ~0.9 M
+ * triangles there). The close beats (< 150 m: yard, Farid, the door, the queue, the park) keep it
+ * full. A fade over 50 m, so a fly in or out never pops (the 32 -> 34.6 s fly crosses it in ~0.4 s).
+ */
+export const DEVSIM_AO_FADE_M = [170, 220] as const;
+
+/** The devsim AO weight at a camera range: 1 up to 170 m, 0 from 220 m, smooth between. */
+export function devsimAoWeight(rangeM: number): number {
+  const [a, b] = DEVSIM_AO_FADE_M;
+  return 1 - ease(span(rangeM, a, b));
+}
+
+/** The camera's range from its target (m) in a frame state (the beat offset). */
+export const cameraRangeM = (s: StateAt): number => Math.hypot(...s.camera.offset);
+
+/**
+ * Small devsim props (scaffold tubes, the crane's load, move-in boxes and cars) cast shadows only
+ * nearer than this (the AO cut-off): from farther their shadow is a pixel or two, and each caster is
+ * one more draw in the shadow pass of the wide beats (C10p, C10 review minor 1).
+ */
+export const DEVSIM_SMALL_SHADOW_M = DEVSIM_AO_FADE_M[1];
+
+/** Whether small devsim props cast shadows in this frame state. */
+export const smallShadows = (s: StateAt): boolean => cameraRangeM(s) < DEVSIM_SMALL_SHADOW_M;

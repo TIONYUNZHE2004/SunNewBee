@@ -5,9 +5,11 @@ import type { Manifest } from "../assets/manifest";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import { DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
+import { smallShadows } from "./devsimView";
 import { ease, span } from "./ease";
 import { along, distToLine, laneAt, lengthOf, type SiteGeom, type XZ } from "./geom";
 import { kitMesh, kitPalettes, place } from "./kit";
+import { mergeStatic } from "./merge";
 import { type MoveInTiming, SET_PIECE_S, type SetPiecesAt } from "./setPieces";
 
 const NOOP = () => {};
@@ -279,6 +281,7 @@ export function createSite(o: SiteOpts): DevsimPart {
   beacon.position.y = CRANE_TOP_M + 0.8;
   craneHead.add(beacon);
   // the swinging load: a sling and a timber bundle under the kit hook (pivot at the hook)
+  let loadBundle: THREE.Mesh | null = null;
   const loadPivot = new THREE.Group();
   loadPivot.name = "devsim-crane-load";
   loadPivot.position.set(HOOK_X, HOOK_Y, 0);
@@ -295,8 +298,10 @@ export function createSite(o: SiteOpts): DevsimPart {
       own(new THREE.BoxGeometry(3.4, 0.9, 1.4).translate(0, -SLING_M - 0.45, 0)),
       own(new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.loadTimber, roughness: 0.85 })),
     );
+    // shadows in the close beats only (`smallShadows`, set per frame)
     bundle.castShadow = false;
     loadPivot.add(sling, bundle);
+    loadBundle = bundle;
   }
 
   // cement mixer: the construction kit's model (one LOD node, no separable drum, so it stays
@@ -356,7 +361,10 @@ export function createSite(o: SiteOpts): DevsimPart {
       pp.renderOrder = 2;
       flood.add(pp);
     }
+    // C10p: 4 masts x (pole, head, pool) were 12 draws per pass; baked into pole, head, pool
+    for (const geo of mergeStatic(flood)) own(geo);
   }
+  const pools = flood.children.filter((c) => (c as THREE.Mesh).material === poolMat);
 
   // closed edge (red) and detour (dashed blue): ground strips over the road surface
   const strip = (pts: readonly XZ[], colour: string, dash: number, y: number, w = 2.4) => {
@@ -527,6 +535,7 @@ export function createSite(o: SiteOpts): DevsimPart {
       beacon.visible = s.crane.beaconOn;
       // the load trails the slew (lag) and sways a little along the jib; parked in the Raya hold
       loadPivot.visible = !sp.hold;
+      if (loadBundle) loadBundle.castShadow = smallShadows(s);
       loadPivot.rotation.x = Math.max(-0.4, Math.min(0.4, -sp.crane.vel * 0.35));
       loadPivot.rotation.z = 0.06 * (sp.crane.stopped ? 0.25 : 1) * Math.sin(t * 2.1);
       // the crane sinks by its own height over the same 0.8 s, so it reads as a quick fade
@@ -535,6 +544,8 @@ export function createSite(o: SiteOpts): DevsimPart {
       // floodlights: on at night while building; off while the site is closed (Raya hold)
       const lit = cons && !sp.hold ? night : 0;
       poolMat.opacity = 0.6 * lit;
+      // an unlit pool (opacity 0) adds nothing: not drawn (C10p)
+      for (const p of pools) p.visible = lit > 0;
       headMat.color.copy(HEAD_OFF).lerp(HEAD_ON, lit);
       const routesOn = t >= 6 && s.act === "Construction";
       if (closedMesh) closedMesh.visible = routesOn;
@@ -661,8 +672,9 @@ function routePose(route: readonly XZ[], d: number, fwd: boolean): VehiclePose {
 
 /**
  * The Handover lorries on the lorry route at t (pure; index i is lorry i, null = not drawn): one
- * every `lorryGap` s from `t0` (schedule: parked by 29.5 s) they drive the last stretch of the route to the gate and park nose to tail
- * in the inbound lane, each within ROUTE_LANE_M of the route (AC-W4).
+ * every `lorryGap` s from `t0` (schedule: parked by 29.5 s) they drive the last stretch of the
+ * route to the gate and park nose to tail in the inbound lane, each within ROUTE_LANE_M of the
+ * route (AC-W4).
  */
 export function moveInRoutePoses(
   route: readonly XZ[],

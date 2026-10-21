@@ -6,6 +6,7 @@ import { facadeInstances } from "../facade/facadePlan";
 import { CLAY_PALETTE, DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, TowerPart } from "./devsimLayer";
 import { type SiteGeom, TOWER_STOREY_M, type XZ } from "./geom";
+import { mergeStatic } from "./merge";
 
 const NOOP = () => {};
 /** Role 3 (glass) in COLOR_0.g, as the facade layer writes it. */
@@ -236,6 +237,8 @@ export function createTower(o: TowerOpts): TowerPart & {
     for (const z of [-3, 3])
       add(new THREE.CylinderGeometry(0.14, 0.14, 3.8, 8), white, 3.3, 1.95, z);
     add(new THREE.BoxGeometry(2.4, 0.06, 1.1), mat, 1.2, 0.05, 0);
+    // C10p: six parts in four materials, one draw per material
+    for (const geo of mergeStatic(entrance)) own(geo);
     entrance.position.set(geom.door[0], 0, geom.door[1]);
     // +x of the group onto `out`
     entrance.rotation.y = Math.atan2(-geom.out[1], geom.out[0]);
@@ -271,6 +274,8 @@ export function createTower(o: TowerOpts): TowerPart & {
         pathGroup.add(e);
       }
     }
+    // C10p: the paving and kerb segments, one draw each
+    for (const geo of mergeStatic(pathGroup)) own(geo);
   }
 
   const _m = new THREE.Matrix4();

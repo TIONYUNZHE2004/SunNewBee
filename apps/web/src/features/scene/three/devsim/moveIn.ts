@@ -4,6 +4,7 @@ import type { Manifest } from "../assets/manifest";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import { DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
+import { smallShadows } from "./devsimView";
 import { ease, span } from "./ease";
 import { along, lengthOf, onPath, type SiteGeom, type XZ, yawOf } from "./geom";
 import { kitMesh, kitPalettes, place } from "./kit";
@@ -51,22 +52,40 @@ export function moverPath(g: SiteGeom, lorries: readonly VehiclePose[], i: numbe
   return [tail, ...door];
 }
 
+/** Seconds a mover takes to walk on through the doorway into the lobby (C10 review minor 2). */
+export const MOVER_DOOR_S = 0.3;
+/** How far past the door point they walk in that time (m): the door and the lobby wall cover them. */
+const MOVER_DOOR_M = 1.2;
+
 /**
- * Mover i at t (schedule mode; pure): null before they leave the lorry and once through the door
- * (they fade in at the door: not drawn). `entered` is true from the arrival on.
+ * Mover i at t (schedule mode; pure): null before they leave the lorry. `entered` is true from the
+ * arrival at the door on; for `MOVER_DOOR_S` after it they walk on through the doorway (straight on
+ * along the path's last leg) so the door and the lobby wall cover them instead of a pop at the
+ * door, then `inside` (not drawn).
  */
 export function moverAt(
   path: readonly XZ[],
   m: NonNullable<MoveInTiming["movers"]>,
   i: number,
   t: number,
-): { p: XZ; yaw: number; entered: boolean } | null {
+): { p: XZ; yaw: number; entered: boolean; inside: boolean } | null {
   const a = m.t0 + i * m.gap;
   if (t < a) return null;
-  if (t >= a + m.walk) return { p: path[path.length - 1] as XZ, yaw: 0, entered: true };
+  const end = path[path.length - 1] as XZ;
+  if (t >= a + m.walk) {
+    const prev = (path.length >= 2 ? path[path.length - 2] : end) as XZ;
+    const dx = end[0] - prev[0];
+    const dz = end[1] - prev[1];
+    const l = Math.hypot(dx, dz) || 1;
+    const dir: XZ = [dx / l, dz / l];
+    const k = (t - (a + m.walk)) / MOVER_DOOR_S;
+    if (k >= 1) return { p: end, yaw: yawOf(dir), entered: true, inside: true };
+    const p: XZ = [end[0] + dir[0] * MOVER_DOOR_M * k, end[1] + dir[1] * MOVER_DOOR_M * k];
+    return { p, yaw: yawOf(dir), entered: true, inside: false };
+  }
   const L = lengthOf(path);
   const at = along(path, L * span(t, a, a + m.walk));
-  return { p: at.p, yaw: yawOf(at.dir), entered: false };
+  return { p: at.p, yaw: yawOf(at.dir), entered: false, inside: false };
 }
 
 /** The box stack by the door (2 deep x 3 wide x 2 high), beside the entrance path. */
@@ -105,9 +124,12 @@ export function carStalls(g: SiteGeom): { p: XZ; dir: XZ; aisle: XZ }[] {
   });
 }
 
+/** Seconds a car runs up the car park aisle before it turns into its stall. */
+export const CAR_AISLE_S = 0.5;
+
 /**
  * Car k at t (pure): drives up the aisle from its end, turns into the stall and parks (`parked`).
- * Null before it arrives.
+ * Null before its window time (`cars.t0 + k * gap`).
  */
 export function carAt(
   g: SiteGeom,
@@ -117,12 +139,14 @@ export function carAt(
 ): { pose: VehiclePose; parked: boolean } | null {
   const st = carStalls(g)[k];
   if (!st) return null;
+  // car k appears at the window's own time (C10 review minor 3: not 0.8 s ahead of it), runs up
+  // the aisle for CAR_AISLE_S, then turns into its stall over `drive`
   const a = m.cars.t0 + k * m.cars.gap;
-  const lead = a - 0.8;
-  if (t < lead) return null;
+  if (t < a) return null;
   const entry: XZ = [st.aisle[0] - g.side[0] * AISLE_RUN_M, st.aisle[1] - g.side[1] * AISLE_RUN_M];
-  if (t < a) {
-    const u = ease(span(t, lead, a));
+  const turn = a + CAR_AISLE_S;
+  if (t < turn) {
+    const u = ease(span(t, a, turn));
     return {
       pose: {
         x: entry[0] + (st.aisle[0] - entry[0]) * u,
@@ -132,7 +156,7 @@ export function carAt(
       parked: false,
     };
   }
-  const u = ease(span(t, a, a + m.cars.drive));
+  const u = ease(span(t, turn, turn + m.cars.drive));
   return {
     pose: {
       x: st.aisle[0] + (st.p[0] - st.aisle[0]) * u,
@@ -191,7 +215,7 @@ export function createMoveIn(o: {
   });
   const boxes = new THREE.InstancedMesh(boxGeo, boxMat, BOXES);
   boxes.name = "devsim-move-in-boxes";
-  // small props: no shadow pass (AC-P2 draw budget)
+  // small props: shadows in the close beats only (`smallShadows`, set per frame)
   boxes.castShadow = false;
   boxes.receiveShadow = true;
   boxes.frustumCulled = false;
@@ -251,7 +275,10 @@ export function createMoveIn(o: {
     parkedCars: () => nParked,
     vehicles: () => carPts,
     demoState: () => ({ boxes: nBoxes, parkedCars: nParked, cars: nCars }),
-    update({ t }: DevsimFrame) {
+    update({ s, t }: DevsimFrame) {
+      const shadows = smallShadows(s);
+      boxes.castShadow = shadows;
+      for (const c of cars) c.mesh.castShadow = shadows;
       nBoxes = boxesShown(m, t);
       boxes.count = nBoxes;
       const counts = CAR_VARIANTS.map(() => 0);
