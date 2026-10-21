@@ -6,6 +6,7 @@ import {
   CityBokehPass,
   dofActive,
   focusDepth,
+  pitchWeight,
   SLAB_FACTOR_GLSL,
   blurAt as slabBlur,
   TILT_SHIFT,
@@ -86,15 +87,15 @@ describe("tiltShiftParams in follow mode (a subject: her chest; AC-B4)", () => {
   const px = (blur: number) => blur * 0.4 * 1440;
   const blurAt = (cam: number, focus: number, depth: number) =>
     slabBlur(tiltShiftParams(cam, true), focus, depth);
-  it("blurs the far field (> 60 m) strongly at the follow distances and keeps her sharp", () => {
+  it("softens the far field (> 60 m) gently at the follow distances and keeps her sharp", () => {
     for (const d of [10, 14, 20, 30]) {
       // The follow pose is ~10.5 m from her chest (8.5 back, 4.5 side, 4.2 up); holds frame wider.
-      // The far field (> 60 m) and canopies 2x her distance: at the max blur, >= 6 px.
-      expect(px(blurAt(d, d, 60 + d)), `${d} far`).toBeGreaterThanOrEqual(6);
-      expect(blurAt(d, d, 2 * d), `${d} canopy`).toBeCloseTo(tiltShiftParams(d, true).maxblur, 9);
-      // Her, the walker and the bench (+-2 m of the focus): inside the slab, not blurred at all.
-      expect(blurAt(d, d, d + 2), `${d} hero`).toBe(0);
-      expect(blurAt(d, d, d - 2), `${d} hero`).toBe(0);
+      // The far field (> 60 m): soft but readable, 2 to 4.5 px (owner: ~10 px was too much).
+      expect(px(blurAt(d, d, 60 + d)), `${d} far`).toBeGreaterThanOrEqual(2);
+      expect(px(blurAt(d, d, 60 + d)), `${d} far`).toBeLessThanOrEqual(4.5);
+      // Her, the walker, the bench and the kerb beside her (+-4 m): inside the slab, no blur.
+      expect(blurAt(d, d, d + 4), `${d} hero`).toBe(0);
+      expect(blurAt(d, d, d - 4), `${d} hero`).toBe(0);
     }
   });
   it("is at least the plain blur and fades to it by fadeM (no pop on the dive or pull-back)", () => {
@@ -113,6 +114,25 @@ describe("tiltShiftParams in follow mode (a subject: her chest; AC-B4)", () => {
       expect(Math.abs(p.aperture - last.aperture) / last.aperture).toBeLessThan(0.06);
       last = p;
     }
+  });
+});
+
+describe("tiltShiftParams by camera pitch (no diorama blur along the street)", () => {
+  it("is off looking along the street, full from above, smooth between", () => {
+    expect(pitchWeight(10)).toBe(0);
+    expect(pitchWeight(TILT_SHIFT.pitch.flatDeg)).toBe(0);
+    expect(pitchWeight(TILT_SHIFT.pitch.fullDeg)).toBe(1);
+    expect(tiltShiftParams(100, false, 15).maxblur).toBe(0);
+    expect(tiltShiftParams(100, false, 60)).toEqual(tiltShiftParams(100));
+    let last = 0;
+    for (let d = 20; d <= 50; d += 1) {
+      const w = pitchWeight(d);
+      expect(w).toBeGreaterThanOrEqual(last);
+      last = w;
+    }
+  });
+  it("never fades follow mode (her own framing is low)", () => {
+    expect(tiltShiftParams(12, true, 15)).toEqual(tiltShiftParams(12, true));
   });
 });
 

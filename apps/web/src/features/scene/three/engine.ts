@@ -1324,10 +1324,18 @@ function build(
   const focusNow = (out: THREE.Vector3) =>
     focusSet ? out.copy(focusPoint) : out.copy(controls.target);
   const focusTmp = new THREE.Vector3();
+  const lookTmp = new THREE.Vector3();
   const aimBokeh = () => {
     if (!bokehPass) return;
     focusNow(focusTmp);
-    bokehPass.aim(focusDepth(camera, focusTmp), camera.position.distanceTo(focusTmp), focusSet);
+    camera.getWorldDirection(lookTmp);
+    const downDeg = THREE.MathUtils.radToDeg(Math.asin(Math.min(1, Math.max(-1, -lookTmp.y))));
+    bokehPass.aim(
+      focusDepth(camera, focusTmp),
+      camera.position.distanceTo(focusTmp),
+      focusSet,
+      downDeg,
+    );
   };
   /** Strength from the mood preset; the pass is skipped while it is 0 (day). */
   const syncBloom = () => {
