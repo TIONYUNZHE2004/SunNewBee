@@ -26,7 +26,7 @@ Site: **whole City of Elmina** in 3D, with deep verified detail at **Elmina Urba
 | [`reference/`](reference/README.md) | Source notes (tracked); papers and cloned repos are local only: `bash reference/download-papers.sh`, `bash reference/clone-repos.sh` |
 | [`apps/web`](apps/web/README.md) | Vite + React SPA: two screens: the map with the assistant (3D / lite map / list) and Tickets, with a day/night theme |
 | [`apps/api`](apps/api/README.md) | FastAPI: world-model endpoints, SSE `/chat`, verification requests |
-| [`packages/spatial`](packages/spatial/README.md) | World model, routing, flood analytics, the 10 tools |
+| [`packages/spatial`](packages/spatial/README.md) | World model, routing, flood analytics, the 22 tools |
 | [`packages/agent`](packages/agent/README.md) | PydanticAI assistant, answer validator, mock LLM |
 | [`packages/api-client`](packages/api-client) | Generated TypeScript client (`pnpm gen`; CI fails on drift) |
 | `data/`, `evals/` | Data pipelines (`pnpm data:build`) and the golden questions (`pnpm golden`) |

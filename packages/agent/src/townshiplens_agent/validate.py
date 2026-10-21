@@ -3,6 +3,7 @@ import re
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
 
 from .answer import FinalAnswer
+from .compare_intent import compare_for
 from .developments import ILLUSTRATIVE_WORD, NOT_SDP, restatement
 from .facts import _matches as _fact_matches
 from .facts import (
@@ -383,6 +384,7 @@ def _recorded_values(rec: TurnRecord) -> dict[str, set[float]]:
                 "plans": rec.plans,
                 "closures": list(rec.closures.values()),
                 "my_trips": rec.my_trips,
+                "compares": rec.compares,
             }
         ),
     )
@@ -814,9 +816,43 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += measurement_errors(ans, rec)
     errs += journey_errors(ans, rec)
     errs += devsim_errors(ans, rec)
+    errs += compare_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
     errs += text_errors(all_text, rec)
     errs += overclaim_errors(all_text, rec)
+    return errs
+
+
+def compare_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """Navigation compare (demo polish B4). route.compare names the recommended route that
+    compare_routes returned this turn. A compare answer states its numbers only as compare_routes
+    returned them (reasons, extra_minutes, the routes' minutes and metres, unchecked lengths),
+    and names every unchecked stretch of the recommended route as not checked yet: unknown never
+    counts for or against a route, so it is never left out either."""
+    if not rec.compares or ans.answer_status == "cannot_answer":
+        return []
+    errs: list[str] = []
+    recommended = {(d.get("recommended") or {}).get("id") for d in rec.compares}
+    if any(i.kind == "route.compare" and i.route_id not in recommended for i in ans.scene_intents):
+        errs.append(
+            "route.compare must use the recommended route compare_routes returned this turn "
+            "(route_id = recommended.id)."
+        )
+    d = compare_for(rec, ans.route_id)
+    if d is None or d.get("recommended") is None or d.get("same_path"):
+        return errs
+    text = " ".join([ans.summary, *ans.steps, *ans.caveats])
+    if d.get("unchecked") and not UNCHECKED_WORDS.search(text):
+        errs.append(
+            "compare_routes found unchecked stretches on the recommended route: say each is "
+            "not checked yet and did not count for or against the route."
+        )
+    summary = _names_to_categories(ans.summary, rec.place_names)
+    if bad := unsupported(summary, tool_values({"compare": d})):
+        errs.append(
+            f"Facts {sorted(set(bad))} in the summary are not compare_routes values: state "
+            "minutes, metres, slopes, widths and step counts only as compare_routes returned them."
+        )
     return errs
 
 

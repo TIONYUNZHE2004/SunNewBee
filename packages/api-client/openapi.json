@@ -1074,6 +1074,256 @@
         "title": "ClosureOut",
         "type": "object"
       },
+      "CompareEnd": {
+        "description": "A route end of a compare: the place id and its name.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "CompareEnd",
+        "type": "object"
+      },
+      "CompareResult": {
+        "properties": {
+          "confirm_n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm N"
+          },
+          "extra_minutes": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Minutes"
+          },
+          "fastest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Route"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pois": {
+            "items": {
+              "$ref": "#/components/schemas/Poi"
+            },
+            "title": "Pois",
+            "type": "array"
+          },
+          "profile": {
+            "enum": [
+              "default",
+              "stroller",
+              "wheelchair",
+              "older_adult_rest",
+              "drive"
+            ],
+            "title": "Profile",
+            "type": "string"
+          },
+          "reasons": {
+            "$ref": "#/components/schemas/RouteReasons"
+          },
+          "recommended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Route"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "same_path": {
+            "title": "Same Path",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "likely_ok",
+              "partly_unverified",
+              "blocked",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "stop": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unchecked": {
+            "items": {
+              "$ref": "#/components/schemas/UncheckedStretch"
+            },
+            "title": "Unchecked",
+            "type": "array"
+          },
+          "vr": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompareVr"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "profile",
+          "same_path",
+          "fastest",
+          "recommended",
+          "stop",
+          "reasons",
+          "extra_minutes",
+          "unchecked",
+          "pois",
+          "vr",
+          "confirm_n"
+        ],
+        "title": "CompareResult",
+        "type": "object"
+      },
+      "CompareRoute": {
+        "description": "One route of a compare, trimmed for the scene: geometry as [lon, lat] points in travel\norder and the edge sequence with its evaluation.",
+        "properties": {
+          "coordinates": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "number"
+          },
+          "est_minutes": {
+            "title": "Est Minutes",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/CompareSegment"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "likely_ok",
+              "partly_unverified",
+              "blocked",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "distance_m",
+          "est_minutes",
+          "coordinates",
+          "segments"
+        ],
+        "title": "CompareRoute",
+        "type": "object"
+      },
+      "CompareSegment": {
+        "properties": {
+          "edge_id": {
+            "title": "Edge Id",
+            "type": "string"
+          },
+          "eval": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "UNKNOWN"
+            ],
+            "title": "Eval",
+            "type": "string"
+          }
+        },
+        "required": [
+          "edge_id",
+          "eval"
+        ],
+        "title": "CompareSegment",
+        "type": "object"
+      },
+      "CompareVr": {
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "created",
+          "target_id",
+          "attribute"
+        ],
+        "title": "CompareVr",
+        "type": "object"
+      },
       "CreateClosureBody": {
         "properties": {
           "element_id": {
@@ -3679,6 +3929,50 @@
         "title": "PlanFact",
         "type": "object"
       },
+      "Poi": {
+        "properties": {
+          "at_m": {
+            "title": "At M",
+            "type": "number"
+          },
+          "demo": {
+            "default": false,
+            "title": "Demo",
+            "type": "boolean"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "kerb",
+              "covered_start",
+              "incline",
+              "seating",
+              "unknown",
+              "arrival"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "kind",
+          "at_m",
+          "value",
+          "evidence_ids",
+          "demo"
+        ],
+        "title": "Poi",
+        "type": "object"
+      },
       "ProfileImpact": {
         "properties": {
           "extra_m_median": {
@@ -3857,6 +4151,99 @@
           "element_ids"
         ],
         "title": "RaisePaths",
+        "type": "object"
+      },
+      "ReasonSet": {
+        "description": "Per-route reasons from known facts only (spec D2): a field is None when no edge on the\nroute has a known value for it. Unknown values never count for or against a route.",
+        "properties": {
+          "covered_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Covered Share"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "max_incline_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Incline Pct"
+          },
+          "min_width_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Width M"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          },
+          "rest_stops": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Stops"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          }
+        },
+        "required": [
+          "steps",
+          "max_incline_pct",
+          "min_width_m",
+          "covered_share",
+          "rest_stops",
+          "distance_m",
+          "minutes"
+        ],
+        "title": "ReasonSet",
         "type": "object"
       },
       "Resident": {
@@ -4309,6 +4696,170 @@
         "title": "Route",
         "type": "object"
       },
+      "RouteCompare": {
+        "description": "The `route.compare` payload: compare_routes' result as recorded this turn (run.py builds\nit from TurnRecord.compares; the model never writes any of it). `fastest` is the shortest\nwalk, `recommended` the profile's route; with `same_path` both are the same route.",
+        "properties": {
+          "confirm_n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm N"
+          },
+          "extra_minutes": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Minutes"
+          },
+          "fastest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompareRoute"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "from_place": {
+            "$ref": "#/components/schemas/CompareEnd"
+          },
+          "pois": {
+            "items": {
+              "$ref": "#/components/schemas/Poi"
+            },
+            "title": "Pois",
+            "type": "array"
+          },
+          "profile": {
+            "enum": [
+              "default",
+              "stroller",
+              "wheelchair",
+              "older_adult_rest",
+              "drive"
+            ],
+            "title": "Profile",
+            "type": "string"
+          },
+          "reasons": {
+            "$ref": "#/components/schemas/RouteReasons"
+          },
+          "recommended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompareRoute"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "same_path": {
+            "title": "Same Path",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "likely_ok",
+              "partly_unverified",
+              "blocked",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "stop": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to_place": {
+            "$ref": "#/components/schemas/CompareEnd"
+          },
+          "unchecked": {
+            "items": {
+              "$ref": "#/components/schemas/UncheckedStretch"
+            },
+            "title": "Unchecked",
+            "type": "array"
+          },
+          "vr": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompareVr"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "from_place",
+          "to_place",
+          "profile",
+          "status",
+          "same_path",
+          "fastest",
+          "recommended",
+          "stop",
+          "reasons",
+          "extra_minutes",
+          "unchecked",
+          "pois",
+          "vr",
+          "confirm_n"
+        ],
+        "title": "RouteCompare",
+        "type": "object"
+      },
+      "RouteReasons": {
+        "properties": {
+          "fastest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReasonSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recommended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReasonSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "fastest",
+          "recommended"
+        ],
+        "title": "RouteReasons",
+        "type": "object"
+      },
       "RouteRequest": {
         "properties": {
           "from": {
@@ -4622,6 +5173,16 @@
             ],
             "title": "Center"
           },
+          "compare": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RouteCompare"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "day": {
             "anyOf": [
               {
@@ -4689,7 +5250,8 @@
               "day.show",
               "day.trip",
               "journey.play",
-              "development.play"
+              "development.play",
+              "route.compare"
             ],
             "title": "Kind",
             "type": "string"
@@ -5604,6 +6166,58 @@
         "title": "Stage",
         "type": "object"
       },
+      "StopPoint": {
+        "description": "The first known FAIL along the fastest route under the requested profile.",
+        "properties": {
+          "at_m": {
+            "title": "At M",
+            "type": "number"
+          },
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "edge_id": {
+            "title": "Edge Id",
+            "type": "string"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "edge_id",
+          "at_m",
+          "attribute",
+          "value",
+          "limit",
+          "evidence_id"
+        ],
+        "title": "StopPoint",
+        "type": "object"
+      },
       "StoredEvent": {
         "properties": {
           "closures": {
@@ -5827,6 +6441,40 @@
           "level"
         ],
         "title": "Uncertainty",
+        "type": "object"
+      },
+      "UncheckedStretch": {
+        "description": "A contiguous run of recommended-route edges whose `attribute` is not checked yet.",
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "edge_id": {
+            "title": "Edge Id",
+            "type": "string"
+          },
+          "end_m": {
+            "title": "End M",
+            "type": "number"
+          },
+          "length_m": {
+            "title": "Length M",
+            "type": "number"
+          },
+          "start_m": {
+            "title": "Start M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "edge_id",
+          "attribute",
+          "start_m",
+          "end_m",
+          "length_m"
+        ],
+        "title": "UncheckedStretch",
         "type": "object"
       },
       "VRRow": {
@@ -8072,6 +8720,45 @@
           }
         },
         "summary": "Routes"
+      }
+    },
+    "/routes/compare": {
+      "post": {
+        "description": "Fastest route next to the profile's route (navigation compare, demo polish B3): stop\npoint, known-fact reasons, unchecked stretches, points of interest and `confirm_n`. Like\nPOST /routes it never files verification requests, so `vr` is always null.",
+        "operationId": "routes_compare_routes_compare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RouteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompareResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Routes Compare"
       }
     },
     "/scenarios": {
