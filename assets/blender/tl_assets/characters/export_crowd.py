@@ -228,7 +228,9 @@ def first_palette(
     raise KeyError((body_id, outfit, prop))
 
 
-def export_body(body_id: str, out: Path) -> dict:
+def export_body(body_id: str, out: Path, worker: bool = False) -> dict:
+    """`worker=True`: the devsim site worker (adult_man body, outfit `worker`, no props, clips
+    walk + idle only) -> `crowd_worker.glb`."""
     reset()
     body_mat = hero.clay_material("crowd_body")
     prop_mat = hero.clay_material("crowd_prop", 0.4, 0.35, 0.0)
@@ -236,8 +238,9 @@ def export_body(body_id: str, out: Path) -> dict:
     arm.animation_data_create()
     keep = [arm]
     meshes = {}
-    for outfit in crowd.BODY_OUTFITS[body_id]:
-        pal = first_palette(body_id, outfit)
+    outfit_ids = ("worker",) if worker else crowd.BODY_OUTFITS[body_id]
+    for outfit in outfit_ids:
+        pal = crowd_looks.WORKER_LOOK.palette if worker else first_palette(body_id, outfit)
         for lod in (0, 1):
             obj = make_mesh(
                 f"{outfit}__LOD{lod}",
@@ -251,7 +254,7 @@ def export_body(body_id: str, out: Path) -> dict:
             mod.object = arm
             keep.append(obj)
             meshes[obj.name] = tri_count(obj)
-    for prop in [m for m in crowd_looks.modes_for(body_id) if m != "free"]:
+    for prop in [] if worker else [m for m in crowd_looks.modes_for(body_id) if m != "free"]:
         pal = first_palette(body_id, prop=prop)
         for lod in (0, 1):
             parts = crowd.prop_parts(body_id, prop, lod)
@@ -263,7 +266,7 @@ def export_body(body_id: str, out: Path) -> dict:
                 meshes[obj.name] = tri_count(obj)
     clips = {}
     acts = []
-    for clip in crowd_looks.clips_for(body_id):
+    for clip in crowd_looks.WORKER_CLIPS if worker else crowd_looks.clips_for(body_id):
         act, info = bake_clip(arm, body_id, clip)
         acts.append(act)
         clips[clip] = info
@@ -274,7 +277,8 @@ def export_body(body_id: str, out: Path) -> dict:
         tr.strips.new(act.name, 0, act)
     bpy.context.scene.frame_set(0)
     out.mkdir(parents=True, exist_ok=True)
-    path = out / f"crowd_{body_id}.glb"
+    stem = "worker" if worker else body_id
+    path = out / f"crowd_{stem}.glb"
     keep_set = set(keep)
     for o in bpy.data.objects:
         o.select_set(o in keep_set)
@@ -318,7 +322,7 @@ def export_body(body_id: str, out: Path) -> dict:
         "meshes": meshes,
         "raw_bytes": path.stat().st_size,
     }
-    (out / f"crowd_{body_id}.json").write_text(json.dumps(stats, indent=2) + "\n", newline="\n")
+    (out / f"crowd_{stem}.json").write_text(json.dumps(stats, indent=2) + "\n", newline="\n")
     print(json.dumps(stats))
     return stats
 
@@ -384,14 +388,54 @@ def render_sheet(path: Path) -> None:
     print(f"wrote {path} ({len(front)} looks)")
 
 
+def render_worker_preview(path: Path) -> None:
+    """Front, three-quarter and back views of the worker, LOD0 left and LOD1 right."""
+    from tl_assets.characters import sheet
+
+    sheet.reset()
+    scene, cam = sheet.setup_scene()
+    scene.render.resolution_x, scene.render.resolution_y = TILE
+    cam.data.type = "ORTHO"
+    cam.data.ortho_scale = 2.15
+    body_mat = hero.clay_material("crowd_body")
+    tiles = path.parent / "tiles"
+    tiles.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for lod in (0, 1):
+        parts = posed("adult_man", crowd.person_parts("adult_man", "worker", lod), "walk", 0.2)
+        obj = make_mesh("worker", parts, crowd_looks.WORKER_LOOK.palette, body_mat)
+        row = []
+        for name, yaw in (("front", -25.0), ("side", 65.0), ("back", 155.0)):
+            a = math.radians(yaw)
+            sheet.aim(cam, (8.0 * math.sin(a), -8.0 * math.cos(a), 0.95), (0.0, 0.0, 0.95))
+            p = tiles / f"w{lod}_{name}.png"
+            sheet.render(scene, p)
+            row.append(p)
+        rows.append(row)
+        bpy.data.objects.remove(obj, do_unlink=True)
+    sheet.compose(rows, path)
+    import shutil
+
+    shutil.rmtree(tiles, ignore_errors=True)
+    print(f"wrote {path}")
+
+
 def main(argv: list[str]) -> None:
     ap = argparse.ArgumentParser(prog="export_crowd.py")
     ap.add_argument("--body", action="append", choices=list(crowd.BODIES), default=[])
     ap.add_argument("--out", type=Path, default=RAW)
+    ap.add_argument("--worker", action="store_true", help="export only crowd_worker.glb (AS1)")
+    ap.add_argument("--preview", type=Path, default=None, help="render the worker preview png")
     ap.add_argument("--sheet", type=Path, default=None, help="render the contact sheet instead")
     args = ap.parse_args(argv)
     if args.sheet is not None:
         render_sheet(args.sheet)
+        return
+    if args.preview is not None:
+        render_worker_preview(args.preview)
+        return
+    if args.worker:
+        export_body("adult_man", args.out, worker=True)
         return
     for b in args.body or list(crowd.BODIES):
         export_body(b, args.out)

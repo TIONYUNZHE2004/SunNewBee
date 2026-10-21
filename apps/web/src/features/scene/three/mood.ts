@@ -77,8 +77,9 @@ export function moodPreset(w: MoodWeights): LightPreset {
   return acc ?? LIGHT_PRESETS.day;
 }
 
-/** Window glow = night 1.6 + dusk 0.8 (LightPreset.windowEmissive); lit share 0.35 to 0.58 (Cesium litFrac);
- *  light-role glow 0.2 at dusk, 1.0 at night. */
+/** Window glow = night 1.0 + dusk 0.6 (LightPreset.windowEmissive); lit share 0.35 to 0.45 (owner,
+ *  21 Oct: 0.58 of 1.6-bright windows washed whole facades white at night); light-role glow 0.2 at
+ *  dusk, 1.0 at night. */
 export function glowFor(w: MoodWeights): {
   uWindowGlow: number;
   uLitShare: number;
@@ -89,7 +90,7 @@ export function glowFor(w: MoodWeights): {
       w.day * LIGHT_PRESETS.day.windowEmissive +
       w.dusk * LIGHT_PRESETS.dusk.windowEmissive +
       w.night * LIGHT_PRESETS.night.windowEmissive,
-    uLitShare: 0.35 + 0.23 * w.night,
+    uLitShare: 0.35 + 0.1 * w.night,
     uLightGlow: 0.2 * w.dusk + 1.0 * w.night,
   };
 }

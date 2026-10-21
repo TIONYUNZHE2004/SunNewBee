@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { ChatEvent } from "@tl/api-client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useMode } from "../../app/modeStore";
+import { type Mode, useMode } from "../../app/modeStore";
 import { useJourney } from "../journey/journeyStore";
 import { type Profile, useScene } from "../scene/sceneStore";
 import {
@@ -26,48 +26,62 @@ function newSessionId(): string {
 }
 
 /** Request body; an explicit profile wins over the store so a chip's persona is never stale.
- * `panel` is the screen asking (T-023): the management panel gets every assistant tool. */
+ * `panel` is the screen asking (T-023): the management panel gets every assistant tool. Each
+ * perspective is its own conversation, so the server's follow-up memory is kept per panel too. */
 export function chatRequestBody(message: string, profile?: Profile, scenarioId?: string | null) {
   const s = useScene.getState();
+  const panel = useMode.getState().mode;
   return {
     message,
     profile: profile ?? s.profile,
     scenario_id: scenarioId === undefined ? s.scenarioId : scenarioId,
-    session_id: CHAT_SESSION_ID,
-    panel: useMode.getState().mode,
+    session_id: `${CHAT_SESSION_ID}-${panel}`,
+    panel,
   };
 }
+
+type Threads = Record<Mode, ChatMessage[]>;
+const NO_THREADS: Threads = { resident: [], management: [] };
 
 let counter = 0;
 const nextId = (p: string) => `${p}-${++counter}`;
 
 export function useChatStream() {
   const queryClient = useQueryClient();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // One conversation per perspective (owner, 21 Oct: a resident's chat stayed on the Management
+  // tab). Switching shows that perspective's own thread; switching back restores the other.
+  const mode = useMode((s) => s.mode);
+  const [threads, setThreads] = useState<Threads>(NO_THREADS);
+  const messages = threads[mode];
   const [streaming, setStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const lastRef = useRef<{ message: string; profile?: Profile; scenarioId?: string | null } | null>(
-    null,
-  );
+  // the last question per perspective, for its thread's Retry
+  const lastRef = useRef<
+    Partial<Record<Mode, { message: string; profile?: Profile; scenarioId?: string | null }>>
+  >({});
 
   const patch = useCallback((id: string, fn: (m: AssistantMessage) => AssistantMessage) => {
-    setMessages((ms) => ms.map((m) => (m.role === "assistant" && m.id === id ? fn(m) : m)));
+    // ids are unique across threads: patch the answer in whichever thread asked it
+    const one = (ms: ChatMessage[]) =>
+      ms.map((m) => (m.role === "assistant" && m.id === id ? fn(m) : m));
+    setThreads((t) => ({ resident: one(t.resident), management: one(t.management) }));
   }, []);
 
   const send = useCallback(
     async (text: string, profile?: Profile, scenarioId?: string | null) => {
       const message = text.trim();
       if (!message) return;
-      lastRef.current = { message, profile, scenarioId };
+      lastRef.current[useMode.getState().mode] = { message, profile, scenarioId };
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
       const aid = nextId("a");
-      setMessages((ms) => [
-        ...ms,
+      const asked = useMode.getState().mode;
+      const turn: ChatMessage[] = [
         { role: "user", id: nextId("u"), text: message },
         emptyAssistant(aid),
-      ]);
+      ];
+      setThreads((t) => ({ ...t, [asked]: [...t[asked], ...turn] }));
       setStreaming(true);
       try {
         const res = await fetch("/api/chat", {
@@ -90,7 +104,7 @@ export function useChatStream() {
             }
             if (ev.type === "scene.intent") {
               const { intent } = ev;
-              useScene.getState().applyIntent(intent);
+              useScene.getState().applyIntent(intent, aid);
               patch(aid, (m) => reduceIntent(m, intent));
             }
             if (ev.type === "verification.requested") {
@@ -131,10 +145,16 @@ export function useChatStream() {
   );
 
   useEffect(() => () => abortRef.current?.abort(), []);
+  // A perspective switch stops an answer still streaming (it stays, marked done, in its thread),
+  // so the other perspective's composer is free at once.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs on a mode change only
+  useEffect(() => {
+    abortRef.current?.abort();
+  }, [mode]);
 
   const retry = useCallback(() => {
-    if (lastRef.current)
-      void send(lastRef.current.message, lastRef.current.profile, lastRef.current.scenarioId);
+    const last = lastRef.current[useMode.getState().mode];
+    if (last) void send(last.message, last.profile, last.scenarioId);
   }, [send]);
 
   return { messages, send, retry, streaming };

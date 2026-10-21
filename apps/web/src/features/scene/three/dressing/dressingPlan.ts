@@ -444,6 +444,9 @@ export function planDecorProps(input: {
   lines?: WalkLine[];
   parks: unknown;
   buildings?: unknown;
+  /** Base water and the landcover (its `water` class): no item stands in water (F3). */
+  water?: unknown;
+  landcover?: unknown;
   frame: LocalFrame;
   boundary?: Boundary | null;
   box: BBox;
@@ -468,6 +471,19 @@ export function planDecorProps(input: {
       const bb = bboxOf(poly[0]!);
       if (touches(bb)) foot.push({ poly, bb });
     }
+  const wet: { poly: Poly; bb: BBox }[] = [];
+  const wetFeatures = [
+    ...featuresOf(isRec(input.water) ? input.water : null),
+    ...featuresOf(isRec(input.landcover) ? input.landcover : null).filter(
+      (f) => isRec(f.properties) && f.properties.class === "water",
+    ),
+  ];
+  for (const f of wetFeatures) {
+    for (const poly of polygonsOf(f.geometry, frame)) {
+      const bb = bboxOf(poly[0]!);
+      if (touches(bb)) wet.push({ poly, bb });
+    }
+  }
   const inList = (list: { poly: Poly; bb: BBox }[], x: number, z: number, grow = 0) =>
     list.some(
       ({ poly, bb }) =>
@@ -484,7 +500,7 @@ export function planDecorProps(input: {
     const r = MODEL_RADIUS_M[model];
     for (const [px, pz] of [[x, z] as P, ...extra])
       if (index.dist(px, pz, DECOR_KEEPOUT_M + r + 1) < DECOR_KEEPOUT_M + r) return false;
-    return !inList(foot, x, z);
+    return !inList(foot, x, z) && !inList(wet, x, z);
   };
   const push = (item: DressItem) => out.push(item);
 

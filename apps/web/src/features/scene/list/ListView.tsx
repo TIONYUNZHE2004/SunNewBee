@@ -7,6 +7,7 @@ import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
 import { CLOSURE_SOURCE, closureLine } from "./closureModel";
 import { DayListSection } from "./DayListSection";
+import { DevsimListSection } from "./DevsimListSection";
 import { JourneyStepList } from "./JourneyStepList";
 import { ListLensSections } from "./LensSections";
 import { groupByType, humanType, parseLayer, routeSteps, withIndicative } from "./listModel";
@@ -109,6 +110,7 @@ export function ListView() {
 
   return (
     <div className="space-y-8">
+      <DevsimListSection />
       <section aria-labelledby="route-h">
         <h2 id="route-h" className="text-xl font-semibold">
           Route

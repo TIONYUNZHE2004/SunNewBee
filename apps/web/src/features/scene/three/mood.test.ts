@@ -72,11 +72,10 @@ describe("moodPreset, glowFor, fogFor", () => {
     expect(mid.sunIntensity).toBeGreaterThan(LIGHT_PRESETS.dusk.sunIntensity);
   });
   it("glow uniforms: night and day", () => {
-    expect(glowFor({ day: 0, dusk: 0, night: 1 })).toEqual({
-      uWindowGlow: 1.6,
-      uLitShare: 0.58,
-      uLightGlow: 1.0,
-    });
+    const night = glowFor({ day: 0, dusk: 0, night: 1 });
+    expect(night.uWindowGlow).toBeCloseTo(1, 9);
+    expect(night.uLitShare).toBeCloseTo(0.45, 9);
+    expect(night.uLightGlow).toBeCloseTo(1, 9);
     expect(glowFor({ day: 1, dusk: 0, night: 0 })).toEqual({
       uWindowGlow: 0,
       uLitShare: 0.35,

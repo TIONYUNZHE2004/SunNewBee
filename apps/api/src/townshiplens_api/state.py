@@ -50,6 +50,7 @@ def reset() -> None:
     with _init_lock:
         _ctx = None
         geojson.clear_cache()
-        from .routes import core
+        from .routes import core, devsim
 
         core.clear_buildings_cache()
+        devsim.clear_cache()

@@ -40,6 +40,12 @@ export interface PropsInput {
   landcover: unknown;
   /** `buildings.buildings` FeatureCollection (footprints to keep clear). */
   buildings: unknown;
+  /**
+   * `buildings.water` FeatureCollection (base water). With the landcover's `water` class it keeps
+   * every prop out of water: a park's lake is inside the park polygon (F3: bins and lamps stood in
+   * the Urban Park's pond).
+   */
+  water?: unknown;
   /** `buildings.parks` FeatureCollection. */
   parks: unknown;
   /** `buildings.trees` FeatureCollection (OSM tree points). */
@@ -523,6 +529,16 @@ export function planProps(input: PropsInput): PropsPlan {
     people: [],
     vehicles: [],
   };
+  // Nothing stands in water: landcover `water` and the base water layer (props on a boardwalk or
+  // a bridge are dropped too: decoration, so the cost of a missing lamp there is nil).
+  const water = [
+    ...polysOf(input.landcover, frame).filter((p) => p.cls === "water"),
+    ...(input.water ? polysOf(input.water, frame) : []),
+  ].filter((p) => overlapsClip(p.bb));
+  const inWater = (x: number, z: number) =>
+    water.some(
+      ({ poly, bb }) => x >= bb[0] && x <= bb[2] && z >= bb[1] && z <= bb[3] && inPoly(x, z, poly),
+    );
   const push = (
     kind: PropKind,
     key: string,
@@ -543,6 +559,7 @@ export function planProps(input: PropsInput): PropsPlan {
     if (kind === "trees" ? !inPad(x, z) : !inside(x, z)) return false;
     if (opts.building !== false && nearBuilding(x, z)) return false;
     if (opts.ribbon !== false && onRibbon(x, z)) return false;
+    if (inWater(x, z)) return false;
     cands[kind].push({
       key,
       id,
@@ -687,8 +704,10 @@ export function planProps(input: PropsInput): PropsPlan {
         const side = i % 2 === 0 ? 1 : -1;
         const x = p.x + p.tz * lampOff * side;
         const z = p.z - p.tx * lampOff * side;
-        // The lamp arm faces the road (model +z toward the centre line).
-        const yaw = Math.atan2(-p.tz * side, p.tx * side);
+        // The lamp arm reaches over the road: the model's arm and head are on its local +x
+        // (lampPools.ts LAMP_HEADS), so +x points to the centre line. (It was +z, which hung every
+        // head along the street, over the verge, owner 21 Oct.)
+        const yaw = Math.atan2(-p.tx * side, -p.tz * side);
         push("lamps", "furniture/lamp_single", `ls:${r.id}:${p.s.toFixed(1)}`, x, z, yaw);
       }
     } else {

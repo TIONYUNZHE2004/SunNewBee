@@ -3,6 +3,7 @@ import re
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
 
 from .answer import FinalAnswer
+from .developments import ILLUSTRATIVE_WORD, NOT_SDP, restatement
 from .facts import _matches as _fact_matches
 from .facts import (
     category_words,
@@ -814,6 +815,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += flood_naming_errors(ans, rec)
     errs += measurement_errors(ans, rec)
     errs += journey_errors(ans, rec)
+    errs += devsim_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
     errs += text_errors(all_text, rec)
     errs += overclaim_errors(all_text, rec)
@@ -1881,6 +1883,54 @@ def rollout_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     return errs
 
 
+# Development Simulation answers (developer lens, ADR 0014, spec 2026-10-21 §3). The brief's own
+# storeys and homes come from simulate_development's `data.brief` (the tool echoes the brief it
+# simulated); every other number must be one the plan computed (`data.facts`).
+_DIGITS = re.compile(r"\d[\d,]*")
+_FLOOD_WORD = re.compile(r"flood|banjir|洪水|水浸", re.IGNORECASE)
+
+
+def devsim_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    plays = [i for i in ans.scene_intents if i.kind == "development.play"]
+    if plays and not rec.developments:
+        return [
+            "development.play needs simulate_development to have run this turn: "
+            "leave development.play out."
+        ]
+    if not rec.developments or ans.answer_status == "cannot_answer":
+        return []
+    d = rec.developments[-1]
+    brief = d.get("brief") or {}
+    line = restatement(int(brief.get("storeys", 0)), int(brief.get("homes", 0)))
+    parts = [ans.summary, *ans.steps, *ans.caveats, *(c.text for c in ans.claims)]
+    text = " ".join(parts)
+    errs: list[str] = []
+    if line not in text:
+        errs.append(f"Development simulation: restate the brief exactly as '{line}'.")
+    low = text.lower()
+    if ILLUSTRATIVE_WORD not in low or NOT_SDP not in low:
+        errs.append(
+            "Development simulation: say it is an illustrative simulation of a hypothetical "
+            "development and 'not an SDP project'."
+        )
+    if _FLOOD_WORD.search(text):
+        errs.append("Development simulation: do not mention flooding; it is not part of it.")
+    allowed = {int(v) for v in (d.get("facts") or {}).values() if isinstance(v, int | float)}
+    bad = sorted(
+        {
+            int(m.group().replace(",", ""))
+            for m in _DIGITS.finditer(_strip_names(text.replace(line, " "), rec.place_names))
+        }
+        - allowed
+    )
+    if bad:
+        errs.append(
+            f"Numbers {bad} do not appear in the development simulation result: quote only "
+            "the brief line and the numbers the tool returned."
+        )
+    return errs
+
+
 # Journey answers (spec 2026-10-19 §6.3, AC-D5). The plan is TurnRecord.journeys (built in
 # call_tool from the world and the route plan_route returned), never the model's text. Counts are
 # read per sentence of the summary, steps (list numbers dropped), caveats and claim texts, with
@@ -2076,6 +2126,11 @@ def repair_answer(ans: FinalAnswer, rec: TurnRecord) -> tuple[FinalAnswer, list[
 # Readable reasons for an answer.check event (shown under "How the AI checked this").
 _ISSUES = (
     # journey answers first: their messages also mention "route_id" and "caveat"
+    ("Development simulation: restate", "left out the brief line"),
+    ("Development simulation: say it is", "left out that the simulation is illustrative"),
+    ("Development simulation: do not mention", "mentioned flooding in the development simulation"),
+    ("do not appear in the development simulation", "used numbers the simulation did not produce"),
+    ("development.play needs", "played a development simulation that did not run"),
     ("journey.play names route", "played a walk for a route that was not checked"),
     ("No journey can be built", "played a walk the township data cannot show"),
     ("journey.play cannot walk route", "played a walk on a route that cannot be walked"),

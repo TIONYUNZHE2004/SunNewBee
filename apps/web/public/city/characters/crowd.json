@@ -1655,5 +1655,55 @@
         "outer": "#859690"
       }
     }
-  ]
+  ],
+  "worker": {
+    "file": "characters/crowd_worker.glb",
+    "bytes": 38608,
+    "label": "Site worker: hard hat, hi-vis vest, work trousers",
+    "body": "adult_man",
+    "outfit": "worker",
+    "mesh": "worker",
+    "tris": [
+      1026,
+      298
+    ],
+    "clips": {
+      "walk": {
+        "duration": 1.0,
+        "frames": 31,
+        "keys": 31,
+        "keyFps": 30,
+        "loop": true,
+        "stride": 0.6066
+      },
+      "idle": {
+        "duration": 3.0,
+        "frames": 91,
+        "keys": 31,
+        "keyFps": 10,
+        "loop": true,
+        "stride": 0.0
+      }
+    },
+    "palette": {
+      "eye": "#2b2330",
+      "blush": "#f2a0a0",
+      "shoe": "#3a3330",
+      "hair": "#2f2a2e",
+      "headwear": "#ffd51a",
+      "headwear_trim": "#d9a900",
+      "accent": "#e2b85c",
+      "prop_metal": "#c9d2dc",
+      "prop_grip": "#566476",
+      "prop_wheel": "#3d434d",
+      "prop_fabric": "#9cc7b4",
+      "prop_canopy": "#78b09a",
+      "glasses": "#8a6a52",
+      "skin": "#dcae88",
+      "top": "#4a5568",
+      "top_trim": "#eef2ee",
+      "bottom": "#2f3a52",
+      "outer": "#ff7a12"
+    }
+  }
 }

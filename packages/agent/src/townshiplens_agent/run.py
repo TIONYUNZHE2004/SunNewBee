@@ -16,6 +16,7 @@ from . import agent as agent_mod
 from . import demo
 from .answer import FinalAnswer
 from .canonical import canonical_route_answer
+from .developments import BRIEF
 from .draft import DraftStreamer
 from .events import (
     AnswerSceneIntent,
@@ -442,6 +443,13 @@ def _answer_events(
             intent.journey = _journey(ctx, rec, intent)
             if intent.journey is None:
                 continue  # no route returned this turn, no start time, or a plan bug (logged)
+        if intent.kind == "development.play":
+            if not rec.developments:
+                continue  # simulate_development did not run this turn
+            # The plan is attached when the world could build one; otherwise the web fetches it
+            # (ruling R2). The brief text is the fixed brief, never the resident's words.
+            intent.plan = rec.development_plan
+            intent.brief_text = BRIEF
         if intent.kind == "river.rollout" and not rec.rollouts:
             continue  # nothing was simulated this turn
         if intent.kind == "whatif.diff":
