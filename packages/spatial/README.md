@@ -484,8 +484,10 @@ Peak assumptions, road-class capacities and pressure bands live together in
 `config/traffic/peak_weights.yaml`. Weights use the destination type, `at` in the site's
 time zone, weekdays unless stated, and start-inclusive/end-exclusive windows. Results
 carry `weights_note`: “Peak weights are an assumed travel pattern, not measured.”
-Detour roads group newly used segments by mapped name **and class**, counting each
-rerouted sample trip once per group. `weighted_trips` sums its destination/time weights;
+Detour roads group newly used segments by mapped name, counting each rerouted sample
+trip once per road. For a mixed-class road, `road_class` is the newly used segment class
+with the lowest capacity, a conservative bottleneck assumption. `weighted_trips` sums
+the destination/time weights;
 `trips` is the unweighted count. Unnamed segments are “Unnamed paths”; absent classes
 are `unknown` and use the `others` capacity. Rows sort by weighted trips, name, class.
 Pressure = weighted trips / class capacity: secondary 4, tertiary 3, unclassified 2,

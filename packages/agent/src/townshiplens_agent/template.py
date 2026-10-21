@@ -568,7 +568,7 @@ def event_answer(d: dict, evidence_ids: list[str]) -> dict:
         names = ", ".join(dict.fromkeys(p["name"] for p in cut[:3]))
         more = f" and {len(cut) - 3} more" if len(cut) > 3 else ""
         steps.append(f"Cut off during the {word} (no mapped route to a centre): {names}{more}.")
-    # one suggestion per detour stretch repeats itself: say each text once, two per kind
+    # say each suggestion text once, at most two per kind
     said, per_kind = list(dict.fromkeys(s["text"] for s in d.get("suggestions") or [])), {}
     kinds = {s["text"]: s.get("kind") for s in d.get("suggestions") or []}
     for text in said:

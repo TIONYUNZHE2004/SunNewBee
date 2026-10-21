@@ -1,7 +1,7 @@
 import type { ClosureImpact } from "./closureSimModel";
 
 /** A `POST /closures/simulate` response in the generated shape: road works on one road. One
- * detour name repeats (the engine returns a row per stretch), as on the Elmina seed. */
+ * detour name repeats, so the card must not key rows by name. */
 export const SIM_RESULT: ClosureImpact = {
   at: "2026-10-27T01:00:00Z",
   event: {

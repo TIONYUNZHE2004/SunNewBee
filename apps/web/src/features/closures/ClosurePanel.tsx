@@ -58,7 +58,7 @@ export function ClosureResult({ r }: { r: ClosureImpact }) {
             {r.detour_roads.slice(0, DETOUR_ROWS).map((d, i) => {
               const p = PRESSURE_STYLE[d.pressure];
               return (
-                // a name repeats once per stretch, so the engine's order is the key
+                // the engine's order is the key: a name is not guaranteed unique
                 // biome-ignore lint/suspicious/noArrayIndexKey: rows are the engine's, never reordered
                 <li key={i} className="flex flex-wrap items-center justify-between gap-2">
                   <span>

@@ -76,7 +76,7 @@ describe("ClosurePanel (T-027)", () => {
     // the basis in plain words for managers, never the engine's raw field path
     expect(card).toHaveTextContent("Based on: 8 weighted sample trips on Persiaran Tamarind");
     expect(card.textContent).not.toContain("detour_roads[");
-    // the marshal suggestion the engine repeated once per stretch shows once
+    // a suggestion text that comes back twice shows once
     expect(card.textContent?.match(/Consider a marshal/g)).toHaveLength(1);
     expect(card).toHaveTextContent("not traffic counts");
     expect(card).toHaveTextContent("Peak weights are an assumed travel pattern, not measured.");

@@ -730,7 +730,7 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
   - The Stylised 3D view draws the markers (`three/overlays/markers.ts`, kind `impact`, only while the flood layer is on); the List view lists them (`FloodImpactList`). Cesium and Mapbox don't draw them yet.
 - **Road closures (Management).** `closures/ClosurePanel` (under the What-if Lab) posts `SimulateClosureBody` to `POST /closures/simulate` (`closures/closureSimModel`, generated types). A 404/405 says "not available on this server yet" instead of guessing.
   - The result card and the Stylised map show the course in red (`event.closures[].segment_ids`) and detours by pressure band (low/medium/high). Pressure is for managers only.
-  - The engine returns one detour row per stretch, so a road name can repeat: the card lists the first 5 rows as returned and counts the rest, and shows each suggestion text once. A suggestion's `basis` is shown in plain words (`basisWords`); an unknown term is kept as written.
+  - The card lists the first 5 detour rows as the engine ordered them and counts the rest, and shows each suggestion text once. A suggestion's `basis` is shown in plain words (`basisWords`); an unknown term is kept as written.
 - **Resident route card.** `assistant/RouteSummary` names an active closure on the trip (`closures/routeClosures`: title and Malaysia-time window, matched from the answer's `closure` uncertainty items). It never shows pressure.
 
 **Clay look and tilt-shift (journey Phase B, display only):**

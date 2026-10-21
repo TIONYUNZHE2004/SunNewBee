@@ -1674,7 +1674,7 @@ def closure_claim_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         if _RESIDENT_PRESSURE.search(text):
             errs.append("No detour pressure was computed this turn: do not state one.")
         return errs
-    # one name can band differently per stretch (the engine returns "Unnamed paths" several times)
+    # a name that comes back twice may carry a band per row: any band it was given passes
     roads: dict[str, set[str]] = {}
     for e in rec.events:
         for r in e.get("detour_roads") or []:

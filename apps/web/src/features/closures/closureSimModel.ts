@@ -97,7 +97,7 @@ export function courseSegmentIds(r: ClosureImpact): string[] {
 /** The card lists the first detour rows as the engine ordered them; the rest are counted. */
 export const DETOUR_ROWS = 5;
 
-/** Each suggestion once (one per detour stretch repeats itself). */
+/** Each suggestion text once. */
 export function uniqueSuggestions(r: ClosureImpact): ClosureSuggestion[] {
   return [...new Map(r.suggestions.map((s) => [s.text, s])).values()];
 }

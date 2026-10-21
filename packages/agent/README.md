@@ -72,10 +72,10 @@ roads and sample trips, not traffic counts." Resident route answers name an even
 accident, flooding, other) and one or more closures, each with road names or a stretch, HH:MM
 times and a day word ("next Tuesday", "Selasa depan", "下周二", "tomorrow" or a date; resolved
 in `event_course`). Answers add each top detour road's detour pressure band and the
-suggestions (each text once, at most two per kind; the engine repeats one per detour stretch);
+suggestions (each text once, at most two per kind);
 `validate.closure_claim_errors` rejects detour pressure in resident answers, a band or
-suggestion kind the tool did not return, and vehicle counts. A road name can repeat with a band
-per stretch, so any band the tool gave that name passes. The app adds the tool's disclaimer and
+suggestion kind the tool did not return, and vehicle counts. If a road name ever comes back
+twice, any band the tool gave that name passes. The app adds the tool's disclaimer and
 peak-weights note (EN/BM/中文). Tests run on the backend's real engine. Resident closure lines
 name the reason and the closure ("— works (Pipe repair)", "— accident").
 

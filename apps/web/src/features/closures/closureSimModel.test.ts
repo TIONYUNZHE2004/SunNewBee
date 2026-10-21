@@ -100,7 +100,7 @@ describe("closure simulation model (T-026, generated types)", () => {
     expect(basisWords("detour_roads[A].weighted_trips=4.0")).not.toContain("detour_roads[");
   });
 
-  it("lists each suggestion once (the engine repeats one per detour stretch)", () => {
+  it("lists each suggestion text once", () => {
     expect(uniqueSuggestions(SIM_RESULT).map((s) => s.kind)).toEqual(["signpost", "marshal"]);
   });
 
