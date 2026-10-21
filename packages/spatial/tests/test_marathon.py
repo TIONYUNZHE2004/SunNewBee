@@ -1,11 +1,13 @@
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
-from conftest import TINY
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from townshiplens_spatial import events, marathon, tools
 from townshiplens_spatial.world import load_world
+
+TINY = Path(__file__).parent / "fixtures/tiny"
 
 
 def assert_continuous(world, course):
