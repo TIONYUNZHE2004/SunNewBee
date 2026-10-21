@@ -328,11 +328,13 @@
         [101.508911, 3.179959],
         [101.50941, 3.180232],
         [101.509854, 3.180547]
-      ]
+      ],
+      "arrival_id": null,
+      "label": null
     },
     "mall": {
-      "m": 712,
-      "min": 10,
+      "m": 472,
+      "min": 7,
       "path": [
         [101.507347, 3.179834],
         [101.507064, 3.179642],
@@ -352,25 +354,15 @@
         [101.507511, 3.180547],
         [101.507639, 3.180636],
         [101.508109, 3.180939],
-        [101.50828, 3.180708],
-        [101.508356, 3.180651],
-        [101.508383, 3.180668],
-        [101.508415, 3.180676],
-        [101.508444, 3.180674],
-        [101.508471, 3.180666],
-        [101.508496, 3.18065],
-        [101.508515, 3.180628],
-        [101.508527, 3.180603],
-        [101.508533, 3.180575],
-        [101.50853, 3.180546],
-        [101.508521, 3.180519],
-        [101.508501, 3.180493],
-        [101.508769, 3.180147],
-        [101.509644, 3.180769],
-        [101.509602, 3.180947],
-        [101.50979, 3.181102],
-        [101.510045, 3.18131]
-      ]
+        [101.508199, 3.180996],
+        [101.508237, 3.18094],
+        [101.508337, 3.181005],
+        [101.508479, 3.181108],
+        [101.50861, 3.181204],
+        [101.508757, 3.18131]
+      ],
+      "arrival_id": "park-b",
+      "label": "Lakeside Mall (Car Park B)"
     },
     "profile": "default",
     "provenance": "routing engine, default profile"
@@ -391,6 +383,14 @@
       "persona": "Walks past the site on his way to work",
       "home": "existing",
       "colour": "#ef8f5a"
+    },
+    {
+      "id": "worker",
+      "name": "Site worker",
+      "role": "site worker",
+      "persona": "Works on the tower site through the build",
+      "home": "site",
+      "colour": "#f2a516"
     },
     {
       "id": "meiling",
@@ -422,35 +422,30 @@
     {
       "name": "Brief",
       "t0": 0.0,
-      "t1": 4.0
+      "t1": 3.0
     },
     {
       "name": "Construction",
-      "t0": 4.0,
-      "t1": 32.0
+      "t0": 3.0,
+      "t1": 27.0
     },
     {
       "name": "Handover",
-      "t0": 32.0,
-      "t1": 44.0
+      "t0": 27.0,
+      "t1": 33.0
     },
     {
       "name": "Daily Life",
-      "t0": 44.0,
-      "t1": 63.0
-    },
-    {
-      "name": "Summary",
-      "t0": 63.0,
-      "t1": 66.0
+      "t0": 33.0,
+      "t1": 45.0
     }
   ],
   "bubbles": [
     {
       "n": 1,
       "who": "halim",
-      "t0": 18.4,
-      "t1": 21.4,
+      "t0": 5.5,
+      "t1": 9.0,
       "tone": "neg",
       "text": "Footpath closed lah, must walk the other side now",
       "tag": "ROUTE ENGINE · +3 min walk · 2,684 → 2,923 m"
@@ -458,44 +453,44 @@
     {
       "n": 2,
       "who": "farid",
-      "t0": 23.4,
-      "t1": 26.2,
+      "t0": 14.0,
+      "t1": 16.5,
       "tone": "neg",
       "text": "So noisy lah",
       "tag": null
     },
     {
       "n": 3,
+      "who": "worker",
+      "t0": 19.5,
+      "t1": 22.5,
+      "tone": "neg",
+      "text": "Hujan lagi, crane stop.",
+      "tag": null
+    },
+    {
+      "n": 4,
       "who": "meiling",
-      "t0": 35.4,
-      "t1": 38.2,
+      "t0": 28.5,
+      "t1": 31.5,
       "tone": "pos",
       "text": "We got our keys!",
       "tag": null
     },
     {
-      "n": 4,
+      "n": 5,
       "who": "halim",
-      "t0": 40.2,
-      "t1": 43.2,
+      "t0": 31.0,
+      "t1": 33.0,
       "tone": "pos",
       "text": "Eh, new neighbours ah? Welcome!",
       "tag": null
     },
     {
-      "n": 5,
-      "who": "meiling",
-      "t0": 47.6,
-      "t1": 50.4,
-      "tone": "neg",
-      "text": "School run jam again… haiz",
-      "tag": null
-    },
-    {
       "n": 6,
       "who": "zainab",
-      "t0": 53.2,
-      "t1": 56.2,
+      "t0": 34.0,
+      "t1": 37.0,
       "tone": "pos",
       "text": "Park in 9 min, love it",
       "tag": "ROUTE ENGINE · 659 m · 9 min walk"
@@ -503,11 +498,55 @@
     {
       "n": 7,
       "who": "arjun",
-      "t0": 58.6,
-      "t1": 61.6,
+      "t0": 36.5,
+      "t1": 39.0,
       "tone": "pos",
-      "text": "Mall's a 10 min walk, not bad!",
-      "tag": "ROUTE ENGINE · 712 m · 10 min walk"
+      "text": "Mall's a 7 min walk, not bad!",
+      "tag": "ROUTE ENGINE · 472 m · 7 min walk to Lakeside Mall (Car Park B)"
+    }
+  ],
+  "tags": [
+    {
+      "kind": "detour",
+      "t0": 4.0,
+      "t1": 9.5,
+      "title": "Detour",
+      "text": "Footpath closed · 11 homes walk 2+ min longer · up to +3 min",
+      "at": [101.5080801, 3.1794386]
+    },
+    {
+      "kind": "lorry",
+      "t0": 8.5,
+      "t1": 12.5,
+      "title": "Lorry route",
+      "text": "Passes a park: Elmina Urban Park",
+      "at": [101.5081557, 3.179464]
+    }
+  ],
+  "banners": [
+    {
+      "kind": "raya",
+      "t0": 11.0,
+      "t1": 13.0,
+      "title": "Hari Raya Aidilfitri · site closed ~10 days",
+      "text": "Most workers travel home · schedule +10 working days (assumption)",
+      "badges": ["CALENDAR", "ESTIMATE"]
+    },
+    {
+      "kind": "monsoon",
+      "t0": 18.5,
+      "t1": 23.0,
+      "title": "Northeast monsoon",
+      "text": "11–18 wet days a month (typical) · rain cost the structure work ~16 days in all",
+      "badges": ["CALENDAR", "ESTIMATE"]
+    },
+    {
+      "kind": "handover",
+      "t0": 27.0,
+      "t1": 30.5,
+      "title": "Handover · keys to ~500 homes",
+      "text": "Hoarding down · footpath reopens",
+      "badges": []
     }
   ],
   "anchors": {
@@ -559,34 +598,3573 @@
       [101.5086363, 3.1798125]
     ],
     "farid": [101.5079957, 3.1796316],
+    "worker": [101.5074328, 3.1792165],
     "junction": [101.507347, 3.179834],
     "park": [101.509854, 3.180547],
-    "mall": [101.5088342, 3.1801933]
+    "mall": [101.508757, 3.18131]
   },
-  "end_card": {
-    "title": "What residents raised",
-    "subtitle": "Simulated reactions · Hypothetical development · not an SDP project",
-    "items": [
+  "impact": {
+    "radius_m": 500,
+    "homes_considered": 64,
+    "homes_2min_plus": 11,
+    "max_extra_min": 3,
+    "wheelchair_links_cut": 0,
+    "targets": [
       {
-        "text": "Building work closes the footpath beside the site: the walk to the mall gets about 3 min longer (2,684 m → 2,923 m).",
-        "badges": ["ROUTE ENGINE"]
+        "id": "lakeside-mall",
+        "name": "Elmina Lakeside Mall",
+        "kind": "mall",
+        "arrive_at": ["lakeside-mall", "park-b"]
       },
       {
-        "text": "Parents complain about the morning school-run jam at the junction.",
-        "badges": ["SIMULATED"]
+        "id": "osm-way-1309457596",
+        "name": "Elmina Urban Park",
+        "kind": "park",
+        "arrive_at": []
       },
       {
-        "text": "Residents like having Urban Park 9 min and the mall 10 min away on foot.",
-        "badges": ["ROUTE ENGINE", "SIMULATED"]
+        "id": "osm-way-1150791981",
+        "name": "SJK (C) Ladang Regent, Elmina",
+        "kind": "school",
+        "arrive_at": []
+      },
+      {
+        "id": "osm-node-11949343474",
+        "name": "Klinik Siti",
+        "kind": "clinic",
+        "arrive_at": []
       }
     ],
-    "legend": "ROUTE ENGINE numbers come from the mapped walk network. SIMULATED marks invented reactions."
+    "closed_edges": ["seg-910300105-0"],
+    "options": [
+      {
+        "side": "north-east",
+        "edge_ids": ["seg-910300105-0"],
+        "homes_2min_plus": 11,
+        "max_extra_min": 3,
+        "wheelchair_links_cut": 0
+      }
+    ],
+    "best_side": "north-east",
+    "homes": [
+      {
+        "home_id": "w909852736",
+        "extra_min": 3,
+        "extra_target": "lakeside-mall",
+        "extra_arrival": "park-b",
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w909852739",
+        "extra_min": 3,
+        "extra_target": "lakeside-mall",
+        "extra_arrival": "park-b",
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w909852737",
+        "extra_min": 3,
+        "extra_target": "lakeside-mall",
+        "extra_arrival": "park-b",
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w909852738",
+        "extra_min": 3,
+        "extra_target": "lakeside-mall",
+        "extra_arrival": "park-b",
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603173",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603172",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603171",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603160",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603170",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603065",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603159",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w909835113",
+        "extra_min": 3,
+        "extra_target": "lakeside-mall",
+        "extra_arrival": "park-b",
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w909852732",
+        "extra_min": 3,
+        "extra_target": "lakeside-mall",
+        "extra_arrival": "park-b",
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603169",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603064",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603158",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w909852735",
+        "extra_min": 3,
+        "extra_target": "lakeside-mall",
+        "extra_arrival": "park-b",
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603168",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603063",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603157",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603167",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603156",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603062",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603032",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603166",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603155",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603061",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603031",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603165",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w909835114",
+        "extra_min": 3,
+        "extra_target": "lakeside-mall",
+        "extra_arrival": "park-b",
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603154",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603060",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603027",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w909852733",
+        "extra_min": 3,
+        "extra_target": "lakeside-mall",
+        "extra_arrival": "park-b",
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603164",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603153",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w909852734",
+        "extra_min": 3,
+        "extra_target": "lakeside-mall",
+        "extra_arrival": "park-b",
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603059",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603030",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603026",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603163",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603152",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603029",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603009",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603162",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603151",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603028",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603008",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603161",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603150",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603025",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603007",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603079",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603024",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603149",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603010",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603078",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603023",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603148",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603011",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w909835115",
+        "extra_min": 3,
+        "extra_target": "lakeside-mall",
+        "extra_arrival": "park-b",
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287602911",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603077",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      },
+      {
+        "home_id": "w1287603022",
+        "extra_min": 0,
+        "extra_target": null,
+        "extra_arrival": null,
+        "cut_off": false,
+        "wheelchair_cut": false
+      }
+    ],
+    "profile": "default",
+    "provenance": "routing engine, default profile (wheelchair profile for links cut)"
+  },
+  "lorry_route": {
+    "from_node": "n-31776782_1015092613",
+    "gate_node": "n-31798344_1015073472",
+    "path": [
+      [101.509261, 3.177678],
+      [101.509225, 3.177905],
+      [101.509115, 3.178109],
+      [101.508826, 3.178492],
+      [101.507442, 3.180499],
+      [101.507171, 3.180894],
+      [101.506357, 3.180299],
+      [101.506385, 3.180259],
+      [101.506431, 3.180201],
+      [101.506568, 3.180049],
+      [101.506684, 3.180033],
+      [101.506738, 3.179965],
+      [101.506825, 3.179854],
+      [101.50684, 3.179834],
+      [101.506913, 3.179746],
+      [101.506998, 3.179642],
+      [101.507064, 3.179642],
+      [101.507347, 3.179834]
+    ],
+    "distance_m": 691,
+    "minutes": 1,
+    "status": "likely_ok",
+    "sensitive": [
+      {
+        "place_id": "osm-way-1309457596",
+        "name": "Elmina Urban Park",
+        "type": "park",
+        "distance_m": 30,
+        "along_m": 235
+      }
+    ],
+    "school_run_note": "School run assumed 7–8 am (typical); not from data",
+    "profile": "drive",
+    "warnings": [
+      "Likely OK sections are estimated from map data, not checked on site",
+      "Drive routes: mapped one-way tags applied; legal turn restrictions and changing directions not modelled; indicative only, never confirmed."
+    ]
+  },
+  "schedule": {
+    "storeys": 30,
+    "homes": 500,
+    "start": "2027-01-04",
+    "handover": "2029-03-21",
+    "months_total": 27,
+    "months": [
+      "2027-01",
+      "2027-02",
+      "2027-03",
+      "2027-04",
+      "2027-05",
+      "2027-06",
+      "2027-07",
+      "2027-08",
+      "2027-09",
+      "2027-10",
+      "2027-11",
+      "2027-12",
+      "2028-01",
+      "2028-02",
+      "2028-03",
+      "2028-04",
+      "2028-05",
+      "2028-06",
+      "2028-07",
+      "2028-08",
+      "2028-09",
+      "2028-10",
+      "2028-11",
+      "2028-12",
+      "2029-01",
+      "2029-02",
+      "2029-03"
+    ],
+    "phases": [
+      {
+        "name": "foundation",
+        "start": "2027-01-04",
+        "end": "2027-10-04"
+      },
+      {
+        "name": "structure",
+        "start": "2027-10-04",
+        "end": "2028-07-21"
+      },
+      {
+        "name": "fit-out",
+        "start": "2028-07-21",
+        "end": "2029-03-21"
+      }
+    ],
+    "floors_by_month": [
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 6, 9, 12, 15, 17, 20, 24, 27, 30, 30, 30, 30, 30, 30, 30, 30, 30
+    ],
+    "gfa_m2": 60450,
+    "rate_rm_per_m2": 2206,
+    "cost_total_rm": 133352700,
+    "cost_by_month": [
+      535227, 2086706, 4573138, 7913222, 12025659, 16829147, 22242388, 28184079, 34572922, 41327616,
+      48366861, 55609356, 62973802, 70378898, 77743344, 84985839, 92025084, 98779778, 105168621,
+      111110312, 116523553, 121327041, 125439478, 128779562, 131265994, 132817473, 133352700
+    ],
+    "holidays": [
+      {
+        "date": "2027-01-22",
+        "name": "Thaipusam",
+        "status": "gazetted",
+        "month_index": 0,
+        "working_day": true
+      },
+      {
+        "date": "2027-02-06",
+        "name": "Tahun Baharu Cina",
+        "status": "gazetted",
+        "month_index": 1,
+        "working_day": true
+      },
+      {
+        "date": "2027-02-07",
+        "name": "Tahun Baharu Cina, day 2",
+        "status": "gazetted",
+        "month_index": 1,
+        "working_day": false
+      },
+      {
+        "date": "2027-02-24",
+        "name": "Nuzul Al-Quran",
+        "status": "gazetted",
+        "month_index": 1,
+        "working_day": true
+      },
+      {
+        "date": "2027-03-10",
+        "name": "Hari Raya Aidilfitri",
+        "status": "gazetted",
+        "month_index": 2,
+        "working_day": true
+      },
+      {
+        "date": "2027-03-11",
+        "name": "Hari Raya Aidilfitri, day 2",
+        "status": "gazetted",
+        "month_index": 2,
+        "working_day": true
+      },
+      {
+        "date": "2027-05-01",
+        "name": "Hari Pekerja",
+        "status": "gazetted",
+        "month_index": 4,
+        "working_day": true
+      },
+      {
+        "date": "2027-05-17",
+        "name": "Hari Raya Haji",
+        "status": "gazetted",
+        "month_index": 4,
+        "working_day": true
+      },
+      {
+        "date": "2027-05-20",
+        "name": "Hari Wesak",
+        "status": "gazetted",
+        "month_index": 4,
+        "working_day": true
+      },
+      {
+        "date": "2027-06-06",
+        "name": "Awal Muharam",
+        "status": "gazetted",
+        "month_index": 5,
+        "working_day": false
+      },
+      {
+        "date": "2027-06-07",
+        "name": "Hari Keputeraan Yang di-Pertuan Agong",
+        "status": "gazetted",
+        "month_index": 5,
+        "working_day": true
+      },
+      {
+        "date": "2027-08-15",
+        "name": "Maulidur Rasul",
+        "status": "gazetted",
+        "month_index": 7,
+        "working_day": false
+      },
+      {
+        "date": "2027-08-16",
+        "name": "Maulidur Rasul, replacement",
+        "status": "expected",
+        "month_index": 7,
+        "working_day": true
+      },
+      {
+        "date": "2027-08-31",
+        "name": "Hari Kebangsaan",
+        "status": "gazetted",
+        "month_index": 7,
+        "working_day": true
+      },
+      {
+        "date": "2027-09-16",
+        "name": "Hari Malaysia",
+        "status": "gazetted",
+        "month_index": 8,
+        "working_day": true
+      },
+      {
+        "date": "2027-10-28",
+        "name": "Deepavali",
+        "status": "gazetted",
+        "month_index": 9,
+        "working_day": true
+      },
+      {
+        "date": "2027-12-11",
+        "name": "Hari Keputeraan Sultan Selangor",
+        "status": "gazetted",
+        "month_index": 11,
+        "working_day": true
+      },
+      {
+        "date": "2027-12-25",
+        "name": "Hari Krismas",
+        "status": "gazetted",
+        "month_index": 11,
+        "working_day": true
+      },
+      {
+        "date": "2028-01-01",
+        "name": "Tahun Baharu",
+        "status": "expected",
+        "month_index": 12,
+        "working_day": true
+      },
+      {
+        "date": "2028-01-26",
+        "name": "Tahun Baharu Cina",
+        "status": "expected",
+        "month_index": 12,
+        "working_day": true
+      },
+      {
+        "date": "2028-01-27",
+        "name": "Tahun Baharu Cina, day 2",
+        "status": "expected",
+        "month_index": 12,
+        "working_day": true
+      },
+      {
+        "date": "2028-02-09",
+        "name": "Thaipusam",
+        "status": "expected",
+        "month_index": 13,
+        "working_day": true
+      },
+      {
+        "date": "2028-02-13",
+        "name": "Nuzul Al-Quran",
+        "status": "expected",
+        "month_index": 13,
+        "working_day": false
+      },
+      {
+        "date": "2028-02-27",
+        "name": "Hari Raya Aidilfitri",
+        "status": "expected",
+        "month_index": 13,
+        "working_day": false
+      },
+      {
+        "date": "2028-02-28",
+        "name": "Hari Raya Aidilfitri, day 2",
+        "status": "expected",
+        "month_index": 13,
+        "working_day": true
+      },
+      {
+        "date": "2028-05-01",
+        "name": "Hari Pekerja",
+        "status": "expected",
+        "month_index": 16,
+        "working_day": true
+      },
+      {
+        "date": "2028-05-05",
+        "name": "Hari Raya Haji",
+        "status": "expected",
+        "month_index": 16,
+        "working_day": true
+      },
+      {
+        "date": "2028-05-09",
+        "name": "Hari Wesak",
+        "status": "expected",
+        "month_index": 16,
+        "working_day": true
+      },
+      {
+        "date": "2028-05-26",
+        "name": "Awal Muharam",
+        "status": "expected",
+        "month_index": 16,
+        "working_day": true
+      },
+      {
+        "date": "2028-06-05",
+        "name": "Hari Keputeraan Yang di-Pertuan Agong",
+        "status": "expected",
+        "month_index": 17,
+        "working_day": true
+      },
+      {
+        "date": "2028-08-04",
+        "name": "Maulidur Rasul",
+        "status": "expected",
+        "month_index": 19,
+        "working_day": true
+      },
+      {
+        "date": "2028-08-31",
+        "name": "Hari Kebangsaan",
+        "status": "expected",
+        "month_index": 19,
+        "working_day": true
+      },
+      {
+        "date": "2028-09-16",
+        "name": "Hari Malaysia",
+        "status": "expected",
+        "month_index": 20,
+        "working_day": true
+      },
+      {
+        "date": "2028-10-17",
+        "name": "Deepavali",
+        "status": "expected",
+        "month_index": 21,
+        "working_day": true
+      },
+      {
+        "date": "2028-12-11",
+        "name": "Hari Keputeraan Sultan Selangor",
+        "status": "expected",
+        "month_index": 23,
+        "working_day": true
+      },
+      {
+        "date": "2028-12-25",
+        "name": "Hari Krismas",
+        "status": "expected",
+        "month_index": 23,
+        "working_day": true
+      },
+      {
+        "date": "2029-01-01",
+        "name": "Tahun Baharu",
+        "status": "expected",
+        "month_index": 24,
+        "working_day": true
+      },
+      {
+        "date": "2029-01-30",
+        "name": "Thaipusam",
+        "status": "expected",
+        "month_index": 24,
+        "working_day": true
+      },
+      {
+        "date": "2029-02-01",
+        "name": "Nuzul Al-Quran",
+        "status": "expected",
+        "month_index": 25,
+        "working_day": true
+      },
+      {
+        "date": "2029-02-13",
+        "name": "Tahun Baharu Cina",
+        "status": "expected",
+        "month_index": 25,
+        "working_day": true
+      },
+      {
+        "date": "2029-02-14",
+        "name": "Tahun Baharu Cina, day 2",
+        "status": "expected",
+        "month_index": 25,
+        "working_day": true
+      },
+      {
+        "date": "2029-02-15",
+        "name": "Hari Raya Aidilfitri",
+        "status": "expected",
+        "month_index": 25,
+        "working_day": true
+      },
+      {
+        "date": "2029-02-16",
+        "name": "Hari Raya Aidilfitri, day 2",
+        "status": "expected",
+        "month_index": 25,
+        "working_day": true
+      }
+    ],
+    "holiday_days_lost": 13,
+    "holidays_lost": [
+      "2027-10-28",
+      "2027-12-11",
+      "2027-12-25",
+      "2028-01-01",
+      "2028-01-26",
+      "2028-01-27",
+      "2028-02-09",
+      "2028-02-28",
+      "2028-05-01",
+      "2028-05-05",
+      "2028-05-09",
+      "2028-05-26",
+      "2028-06-05"
+    ],
+    "rain_days_lost": 16,
+    "raya_shutdown_days": 10,
+    "monsoon_bands": [
+      {
+        "start_month": "2027-01",
+        "end_month": "2027-03",
+        "start_index": 0,
+        "end_index": 2
+      },
+      {
+        "start_month": "2027-11",
+        "end_month": "2028-03",
+        "start_index": 10,
+        "end_index": 14
+      },
+      {
+        "start_month": "2028-11",
+        "end_month": "2029-03",
+        "start_index": 22,
+        "end_index": 26
+      }
+    ],
+    "raya_set_piece": {
+      "date": "2028-02-27",
+      "month_index": 13,
+      "days": 10
+    },
+    "monsoon_set_piece": {
+      "start_month": "2028-11",
+      "end_month": "2029-03",
+      "months": [
+        {
+          "month": "2028-11",
+          "month_index": 22,
+          "wet_days": 18,
+          "days_lost": 0.0
+        },
+        {
+          "month": "2028-12",
+          "month_index": 23,
+          "wet_days": 15,
+          "days_lost": 0.0
+        },
+        {
+          "month": "2029-01",
+          "month_index": 24,
+          "wet_days": 11,
+          "days_lost": 0.0
+        },
+        {
+          "month": "2029-02",
+          "month_index": 25,
+          "wet_days": 12,
+          "days_lost": 0.0
+        },
+        {
+          "month": "2029-03",
+          "month_index": 26,
+          "wet_days": 14,
+          "days_lost": 0.0
+        }
+      ]
+    },
+    "days_lost_by_month": [
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 5.5, 11.2, 17.0, 22.9, 34.2, 34.2, 38.2,
+      39.2, 39.2, 39.2, 39.2, 39.2, 39.2, 39.2, 39.2, 39.2, 39.2
+    ],
+    "source_ids": [
+      "cost_rm_per_m2_highrise_condo_kv_mid",
+      "gfa_net_per_home_m2",
+      "gfa_common_factor",
+      "foundation_months",
+      "floor_cycle_days",
+      "fitout_months",
+      "working_days_per_week",
+      "raya_shutdown_working_days",
+      "monsoon_start_month",
+      "monsoon_end_month",
+      "monsoon_wet_days_nov",
+      "monsoon_wet_days_dec",
+      "monsoon_wet_days_jan",
+      "monsoon_wet_days_feb",
+      "monsoon_wet_days_mar",
+      "rain_lost_fraction",
+      "scurve_shape",
+      "schedule_start_date"
+    ],
+    "label": "ESTIMATE",
+    "source_line": "ESTIMATE from published benchmarks: Arcadis Construction Cost Handbook (Kuala Lumpur, JUBM data); MetMalaysia Subang rain normals; JPM public holiday list. Durations, floor area and losses are assumptions. Not an SDP figure."
+  },
+  "estimate_sources": [
+    {
+      "id": "cost_rm_per_m2_highrise_condo_kv_mid",
+      "value": 2206.0,
+      "unit": "RM per m2 CFA",
+      "kind": "benchmark",
+      "label": "High-rise condominium cost per m2, mid-point (converted)"
+    },
+    {
+      "id": "gfa_net_per_home_m2",
+      "value": 93.0,
+      "unit": "m2 per home",
+      "kind": "assumption",
+      "label": "Net floor area per home"
+    },
+    {
+      "id": "gfa_common_factor",
+      "value": 1.3,
+      "unit": "ratio",
+      "kind": "assumption",
+      "label": "Gross to net floor area"
+    },
+    {
+      "id": "foundation_months",
+      "value": 9.0,
+      "unit": "months",
+      "kind": "assumption",
+      "label": "Foundation and piling"
+    },
+    {
+      "id": "floor_cycle_days",
+      "value": 7.0,
+      "unit": "days per storey",
+      "kind": "assumption",
+      "label": "Structural floor cycle"
+    },
+    {
+      "id": "fitout_months",
+      "value": 8.0,
+      "unit": "months",
+      "kind": "assumption",
+      "label": "Fit-out after topping out"
+    },
+    {
+      "id": "working_days_per_week",
+      "value": 6.0,
+      "unit": "days",
+      "kind": "assumption",
+      "label": "Site working week, Mon to Sat"
+    },
+    {
+      "id": "raya_shutdown_working_days",
+      "value": 10.0,
+      "unit": "working days",
+      "kind": "assumption",
+      "label": "Hari Raya site shutdown beyond the gazetted holidays"
+    },
+    {
+      "id": "monsoon_start_month",
+      "value": 11.0,
+      "unit": "month",
+      "kind": "climatology",
+      "label": "Northeast monsoon starts"
+    },
+    {
+      "id": "monsoon_end_month",
+      "value": 3.0,
+      "unit": "month",
+      "kind": "climatology",
+      "label": "Northeast monsoon ends"
+    },
+    {
+      "id": "monsoon_wet_days_nov",
+      "value": 18.0,
+      "unit": "days per month",
+      "kind": "climatology",
+      "label": "Wet days, November"
+    },
+    {
+      "id": "monsoon_wet_days_dec",
+      "value": 15.0,
+      "unit": "days per month",
+      "kind": "climatology",
+      "label": "Wet days, December"
+    },
+    {
+      "id": "monsoon_wet_days_jan",
+      "value": 11.0,
+      "unit": "days per month",
+      "kind": "climatology",
+      "label": "Wet days, January"
+    },
+    {
+      "id": "monsoon_wet_days_feb",
+      "value": 12.0,
+      "unit": "days per month",
+      "kind": "climatology",
+      "label": "Wet days, February"
+    },
+    {
+      "id": "monsoon_wet_days_mar",
+      "value": 14.0,
+      "unit": "days per month",
+      "kind": "climatology",
+      "label": "Wet days, March"
+    },
+    {
+      "id": "rain_lost_fraction",
+      "value": 0.25,
+      "unit": "fraction",
+      "kind": "assumption",
+      "label": "Share of a wet day lost"
+    },
+    {
+      "id": "scurve_shape",
+      "value": 2.0,
+      "unit": "Beta parameter a = b",
+      "kind": "assumption",
+      "label": "Spend curve shape"
+    },
+    {
+      "id": "schedule_start_date",
+      "value": 20270104.0,
+      "unit": "date (YYYYMMDD)",
+      "kind": "assumption",
+      "label": "Construction start"
+    }
+  ],
+  "month_keys": [
+    [0.0, 0.0],
+    [3.0, 0.0],
+    [11.0, 13.8966],
+    [13.0, 13.8966],
+    [18.5, 22.0],
+    [23.0, 26.6452],
+    [27.0, 26.6452],
+    [45.0, 26.6452]
+  ],
+  "month_keys_mode": "baseline",
+  "flood": {
+    "road_node": "n-31776782_1015092613",
+    "route_edges": [
+      "seg-1353142293-3",
+      "seg-1353142293-2",
+      "seg-1353142293-1",
+      "seg-1353142293-0",
+      "seg-1353142292-1",
+      "seg-910300105-1",
+      "seg-1423553141-0",
+      "seg-866518974-0",
+      "seg-1306543786-0",
+      "seg-1306543785-0"
+    ],
+    "scenarios_checked": ["stage_p1m", "stage_p2m", "stage_p3m"],
+    "cut_from_scenario": "stage_p1m",
+    "cut_edges": [
+      "seg-1306543785-0",
+      "seg-1306543786-0",
+      "seg-1423553141-0",
+      "seg-866518974-0",
+      "seg-910300105-1"
+    ],
+    "evacuation": {
+      "centre_id": "evc-osm-way-911057246",
+      "name": "Sri Maha Mariamman Temple Bukit Subang",
+      "source": "osm_candidate",
+      "m": 1199,
+      "min": 17,
+      "status": "likely_ok"
+    },
+    "disclaimer": "Indicative scenario, not a forecast.",
+    "profile": "default"
+  },
+  "access_matrix": {
+    "profiles": ["default", "stroller", "wheelchair"],
+    "rows": [
+      {
+        "target": {
+          "id": "osm-way-1309457596",
+          "name": "Elmina Urban Park",
+          "kind": "park",
+          "arrive_at": []
+        },
+        "cells": [
+          {
+            "profile": "default",
+            "status": "likely_ok",
+            "value": 9,
+            "m": 659,
+            "arrival_id": "osm-way-1309457596",
+            "label": "Elmina Urban Park"
+          },
+          {
+            "profile": "stroller",
+            "status": "partly_unverified",
+            "value": "?",
+            "m": null,
+            "arrival_id": "osm-way-1309457596",
+            "label": "Elmina Urban Park"
+          },
+          {
+            "profile": "wheelchair",
+            "status": "partly_unverified",
+            "value": "?",
+            "m": null,
+            "arrival_id": "osm-way-1309457596",
+            "label": "Elmina Urban Park"
+          }
+        ]
+      },
+      {
+        "target": {
+          "id": "lakeside-mall",
+          "name": "Elmina Lakeside Mall",
+          "kind": "mall",
+          "arrive_at": ["lakeside-mall", "park-b"]
+        },
+        "cells": [
+          {
+            "profile": "default",
+            "status": "likely_ok",
+            "value": 7,
+            "m": 472,
+            "arrival_id": "park-b",
+            "label": "Lakeside Mall (Car Park B)"
+          },
+          {
+            "profile": "stroller",
+            "status": "partly_unverified",
+            "value": "?",
+            "m": null,
+            "arrival_id": "park-b",
+            "label": "Lakeside Mall (Car Park B)"
+          },
+          {
+            "profile": "wheelchair",
+            "status": "partly_unverified",
+            "value": "?",
+            "m": null,
+            "arrival_id": "park-b",
+            "label": "Lakeside Mall (Car Park B)"
+          }
+        ]
+      },
+      {
+        "target": {
+          "id": "osm-node-11949343474",
+          "name": "Klinik Siti",
+          "kind": "clinic",
+          "arrive_at": []
+        },
+        "cells": [
+          {
+            "profile": "default",
+            "status": "partly_unverified",
+            "value": "?",
+            "m": null,
+            "arrival_id": "osm-node-11949343474",
+            "label": "Klinik Siti"
+          },
+          {
+            "profile": "stroller",
+            "status": "partly_unverified",
+            "value": "?",
+            "m": null,
+            "arrival_id": "osm-node-11949343474",
+            "label": "Klinik Siti"
+          },
+          {
+            "profile": "wheelchair",
+            "status": "partly_unverified",
+            "value": "?",
+            "m": null,
+            "arrival_id": "osm-node-11949343474",
+            "label": "Klinik Siti"
+          }
+        ]
+      },
+      {
+        "target": {
+          "id": "osm-way-1150791981",
+          "name": "SJK (C) Ladang Regent, Elmina",
+          "kind": "school",
+          "arrive_at": []
+        },
+        "cells": [
+          {
+            "profile": "default",
+            "status": "likely_ok",
+            "value": 23,
+            "m": 1586,
+            "arrival_id": "osm-way-1150791981",
+            "label": "SJK (C) Ladang Regent, Elmina"
+          },
+          {
+            "profile": "stroller",
+            "status": "partly_unverified",
+            "value": "?",
+            "m": null,
+            "arrival_id": "osm-way-1150791981",
+            "label": "SJK (C) Ladang Regent, Elmina"
+          },
+          {
+            "profile": "wheelchair",
+            "status": "partly_unverified",
+            "value": "?",
+            "m": null,
+            "arrival_id": "osm-way-1150791981",
+            "label": "SJK (C) Ladang Regent, Elmina"
+          }
+        ]
+      }
+    ]
+  },
+  "residents": {
+    "residents": [
+      {
+        "id": "meiling",
+        "name": "Mei Ling",
+        "role": "new resident",
+        "side": "tower",
+        "group": "parent",
+        "colour": "#e8644f",
+        "age": 33,
+        "tags": ["cast", "children"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "We drive past every weekend to see how many floors are up. I plan the school run around the site now.",
+          "handover": "Boxes everywhere, but it feels like home already. My little one made a friend in the lift.",
+          "daily_life": "Just 9 min walk to Urban Park, easy with the children."
+        }
+      },
+      {
+        "id": "zainab",
+        "name": "Mak Cik Zainab",
+        "role": "new resident",
+        "side": "tower",
+        "group": "older",
+        "colour": "#37a07a",
+        "age": 79,
+        "tags": ["cast", "children", "older"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Every month I check the progress photos, so excited. I tell my friends about it over teh tarik.",
+          "handover": "Moving in is tiring, my back is aching. My children helped carry everything up.",
+          "daily_life": "Just 9 min walk to Urban Park, easy for me."
+        }
+      },
+      {
+        "id": "arjun",
+        "name": "Arjun",
+        "role": "new resident",
+        "side": "tower",
+        "group": "commuter",
+        "colour": "#c4900f",
+        "age": 48,
+        "tags": ["cast", "commuter"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Hard to imagine living there while it is all scaffolding. My morning drive goes right past the crane.",
+          "handover": "Boxes everywhere, but it feels like home already. The commute from here looks manageable.",
+          "daily_life": "Lakeside Mall (Car Park B) is only 7 min walk from home, I go there most evenings."
+        }
+      },
+      {
+        "id": "t-r01537",
+        "name": "Boon Kiat",
+        "role": "wheelchair user",
+        "side": "tower",
+        "group": "wheelchair",
+        "colour": "#cb4dbc",
+        "age": 81,
+        "tags": ["wheelchair", "oku", "older"],
+        "facts": {
+          "profile": "wheelchair",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": "?",
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": "?",
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": "?",
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Rainy days slow the work, hope our handover is not late. I plan my route before I leave home.",
+          "handover": "We all ran straight to the window when we came in. First I will learn the way to the lift.",
+          "daily_life": "Can get to Lakeside Mall (Car Park B), but parts of the way are not checked for a wheelchair yet."
+        }
+      },
+      {
+        "id": "t-r00388",
+        "name": "Rosli",
+        "role": "wheelchair user",
+        "side": "tower",
+        "group": "wheelchair",
+        "colour": "#4dcbb6",
+        "age": 13,
+        "tags": ["wheelchair", "oku", "teen"],
+        "facts": {
+          "profile": "wheelchair",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": "?",
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": "?",
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": "?",
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Our family is saving up for the renovation while they build. I keep an eye on which paths stay open.",
+          "handover": "Still waiting for the internet to be connected. I hope the lifts and ramps are all working.",
+          "daily_life": "Can get to Klinik Siti, but parts of the way are not checked for a wheelchair yet."
+        }
+      },
+      {
+        "id": "t-r01028",
+        "name": "Rahim",
+        "role": "parent with a toddler in a stroller",
+        "side": "tower",
+        "group": "parent",
+        "colour": "#cb914d",
+        "age": 41,
+        "tags": ["toddler", "children"],
+        "facts": {
+          "profile": "stroller",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": "?",
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": "?",
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": "?",
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "The tower grows every time I pass by, best. My son wants to be a crane driver now.",
+          "handover": "The car park is full of moving lorries, haiz. The children love their new room.",
+          "daily_life": "Not sure about the whole way to the school for a stroller, parts are not checked yet."
+        }
+      },
+      {
+        "id": "t-r00469",
+        "name": "Salmah",
+        "role": "parent with a toddler in a stroller",
+        "side": "tower",
+        "group": "parent",
+        "colour": "#6d4dcb",
+        "age": 46,
+        "tags": ["toddler", "children"],
+        "facts": {
+          "profile": "stroller",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": "?",
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": "?",
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": "?",
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "We are still paying rent while waiting for our unit, tough lah. Must hold the kids' hands near the site gate.",
+          "handover": "Moving day lah, the lift queue was so long. Busy week, but the kids are happy.",
+          "daily_life": "Not sure about the whole way to Urban Park for a stroller, parts are not checked yet."
+        }
+      },
+      {
+        "id": "t-r01657",
+        "name": "Priya",
+        "role": "parent with a toddler in a stroller",
+        "side": "tower",
+        "group": "parent",
+        "colour": "#53cb4d",
+        "age": 32,
+        "tags": ["toddler", "children"],
+        "facts": {
+          "profile": "stroller",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": "?",
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": "?",
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": "?",
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "We drive past every weekend to see how many floors are up. The kids keep asking about the crane.",
+          "handover": "So many small defects to list, slowly lah. The children love their new room.",
+          "daily_life": "Parts of the path to the school are still unchecked for a stroller, so I go with someone."
+        }
+      },
+      {
+        "id": "t-r00432",
+        "name": "Pei Shan",
+        "role": "retiree who needs to rest often",
+        "side": "tower",
+        "group": "older",
+        "colour": "#cb4d77",
+        "age": 71,
+        "tags": ["children", "older"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Every delay notice makes me worry a bit. My children call to ask about it.",
+          "handover": "The car park is full of moving lorries, haiz. Slowly I will unpack, no rush.",
+          "daily_life": "Just 9 min walk to Urban Park, easy for me."
+        }
+      },
+      {
+        "id": "t-r00807",
+        "name": "Pak Cik Ismail",
+        "role": "retiree who needs to rest often",
+        "side": "tower",
+        "group": "older",
+        "colour": "#4d9ccb",
+        "age": 76,
+        "tags": ["older"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "We are still paying rent while waiting for our unit, tough lah. My children call to ask about it.",
+          "handover": "First night in the new unit, the view is best. My grandchildren already want to sleep over.",
+          "daily_life": "Parts of the path to Klinik Siti are still unchecked for walking, so I go with someone."
+        }
+      },
+      {
+        "id": "t-r01645",
+        "name": "Chee Keong",
+        "role": "parent doing the school run",
+        "side": "tower",
+        "group": "parent",
+        "colour": "#c1cb4d",
+        "age": 26,
+        "tags": ["children"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Our family is saving up for the renovation while they build. The children count the floors from the car.",
+          "handover": "Moving day lah, the lift queue was so long. Busy week, but the kids are happy.",
+          "daily_life": "23 min on foot to the school, tiring with little ones."
+        }
+      },
+      {
+        "id": "t-r00867",
+        "name": "Kamal",
+        "role": "parent doing the school run",
+        "side": "tower",
+        "group": "parent",
+        "colour": "#b14dcb",
+        "age": 44,
+        "tags": ["children"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Hard to imagine living there while it is all scaffolding. Must hold the kids' hands near the site gate.",
+          "handover": "Still waiting for the internet to be connected. The children love their new room.",
+          "daily_life": "Takes me 23 min to walk to the school, so we usually drive."
+        }
+      },
+      {
+        "id": "t-r00285",
+        "name": "Wei Jie",
+        "role": "commuter and parent",
+        "side": "tower",
+        "group": "parent",
+        "colour": "#4dcb8c",
+        "age": 31,
+        "tags": ["children", "commuter"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Hard to imagine living there while it is all scaffolding. The children count the floors from the car.",
+          "handover": "Still waiting for the internet to be connected. Must childproof the windows first.",
+          "daily_life": "Takes me 23 min to walk to the school, so we usually drive."
+        }
+      },
+      {
+        "id": "t-r00385",
+        "name": "Aminah",
+        "role": "commuter and parent",
+        "side": "tower",
+        "group": "parent",
+        "colour": "#cb674d",
+        "age": 23,
+        "tags": ["children", "commuter"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Rainy days slow the work, hope our handover is not late. I plan the school run around the site now.",
+          "handover": "First night in the new unit, the view is best. Now to sort out the school run from here.",
+          "daily_life": "The school is 23 min walk away, too far with the kids."
+        }
+      },
+      {
+        "id": "t-r00678",
+        "name": "Kavitha",
+        "role": "commuter",
+        "side": "tower",
+        "group": "commuter",
+        "colour": "#4d58cb",
+        "age": 39,
+        "tags": ["commuter"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Our family is saving up for the renovation while they build. I pass the site on my way to work.",
+          "handover": "First night in the new unit, the view is best. The commute from here looks manageable.",
+          "daily_life": "Urban Park is only 9 min walk from home, very convenient."
+        }
+      },
+      {
+        "id": "t-r00681",
+        "name": "Hui Min",
+        "role": "secondary school student",
+        "side": "tower",
+        "group": "general",
+        "colour": "#7dcb4d",
+        "age": 14,
+        "tags": ["teen"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Every month I check the progress photos, so excited. My friends ask me about it all the time.",
+          "handover": "So many small defects to list, slowly lah. My friends want to visit the new place.",
+          "daily_life": "Can walk to Lakeside Mall (Car Park B) in 7 min, not bad at all."
+        }
+      },
+      {
+        "id": "t-r01467",
+        "name": "Meena",
+        "role": "commuter",
+        "side": "tower",
+        "group": "commuter",
+        "colour": "#cb4da2",
+        "age": 45,
+        "tags": ["commuter"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Our unit is still sky only, but can see the tower growing. My office friends ask when it will be done.",
+          "handover": "We got our keys at last! Moving in after work every evening, tiring.",
+          "daily_life": "Can walk to Urban Park in 9 min, I go there most evenings."
+        }
+      },
+      {
+        "id": "t-r01807",
+        "name": "Hakim",
+        "role": "resident working from home",
+        "side": "tower",
+        "group": "general",
+        "colour": "#4dc6cb",
+        "age": 42,
+        "tags": [],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Waiting so long for our keys, haiz. The neighbourhood group chat is full of photos.",
+          "handover": "The lift is busy with everyone moving in, but we made it. Curious to see how the area feels at night.",
+          "daily_life": "9 min to Urban Park on foot, very convenient."
+        }
+      },
+      {
+        "id": "t-r01412",
+        "name": "Siew Lan",
+        "role": "resident working from home",
+        "side": "tower",
+        "group": "general",
+        "colour": "#cbac4d",
+        "age": 26,
+        "tags": [],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Our unit is still sky only, but can see the tower growing. Everyone in the area talks about it.",
+          "handover": "The lift is busy with everyone moving in, but we made it. It feels like a new chapter for us.",
+          "daily_life": "Can walk to Urban Park in 9 min, not bad at all."
+        }
+      },
+      {
+        "id": "t-r00353",
+        "name": "Zulkifli",
+        "role": "secondary school student",
+        "side": "tower",
+        "group": "general",
+        "colour": "#874dcb",
+        "age": 16,
+        "tags": ["teen"],
+        "facts": {
+          "profile": "default",
+          "home_id": null,
+          "extra_walk_min": null,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 9,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 7,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 23,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Hard to imagine living there while it is all scaffolding. It has become a landmark already.",
+          "handover": "Boxes everywhere, but it feels like home already. Curious to see how the area feels at night.",
+          "daily_life": "From our door to Urban Park is 9 min, best lah."
+        }
+      },
+      {
+        "id": "halim",
+        "name": "Pak Cik Halim",
+        "role": "existing resident",
+        "side": "neighbour",
+        "group": "older",
+        "colour": "#5c6bc0",
+        "age": null,
+        "tags": ["cast"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909852736",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 41,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 38,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 53,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "The walk to Lakeside Mall (Car Park B) takes 3 min more since the hoarding went up, haiz. My children call to ask about it.",
+          "handover": "More people at the mall now, good for the shops. Good to have more people around in the evening.",
+          "daily_life": "Takes me 41 min to walk to Urban Park, a bit far for me."
+        }
+      },
+      {
+        "id": "farid",
+        "name": "Farid",
+        "role": "passer-by",
+        "side": "neighbour",
+        "group": "commuter",
+        "colour": "#ef8f5a",
+        "age": null,
+        "tags": ["cast"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909852739",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 41,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 38,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 53,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Aiyo, 3 min more just to get to Lakeside Mall (Car Park B) with the footpath closed. My morning drive goes right past the crane.",
+          "handover": "Nice to see the tower windows light up at night. At least the lorries are gone from my route.",
+          "daily_life": "Takes me 41 min to walk to Urban Park, so I go by car."
+        }
+      },
+      {
+        "id": "n-r03939",
+        "name": "Rosnah",
+        "role": "wheelchair user",
+        "side": "neighbour",
+        "group": "wheelchair",
+        "colour": "#4d82cb",
+        "age": 39,
+        "tags": ["wheelchair", "oku", "children"],
+        "facts": {
+          "profile": "wheelchair",
+          "home_id": "w909852736",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": "?",
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": "?",
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": "?",
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "The walk to Lakeside Mall (Car Park B) takes 3 min more since the hoarding went up, haiz. I keep an eye on which paths stay open.",
+          "handover": "Nice to see the tower windows light up at night. My family checks the new paths with me.",
+          "daily_life": "The route to Lakeside Mall (Car Park B) has unchecked bits for a wheelchair, so I take it slow."
+        }
+      },
+      {
+        "id": "n-r00557",
+        "name": "Ahmad",
+        "role": "parent with a toddler in a stroller",
+        "side": "neighbour",
+        "group": "parent",
+        "colour": "#a7cb4d",
+        "age": 37,
+        "tags": ["toddler", "children"],
+        "facts": {
+          "profile": "stroller",
+          "home_id": "w1287603149",
+          "extra_walk_min": 0,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": "?",
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": "?",
+              "arrival_id": "lakeside-mall",
+              "label": "Lakeside Mall"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": "?",
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Dust on my car every day since the work started. The children count the floors from the car.",
+          "handover": "More people at the mall now, good for the shops. Good for the kids to have more friends nearby.",
+          "daily_life": "Parts of the path to Urban Park are still unchecked for a stroller, so I go with someone."
+        }
+      },
+      {
+        "id": "n-r00534",
+        "name": "Ganesh",
+        "role": "parent with a toddler in a stroller",
+        "side": "neighbour",
+        "group": "parent",
+        "colour": "#cb4dcb",
+        "age": 47,
+        "tags": ["toddler", "children"],
+        "facts": {
+          "profile": "stroller",
+          "home_id": "w909835114",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": "?",
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": "?",
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": "?",
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "The walk to Lakeside Mall (Car Park B) takes 3 min more since the hoarding went up, haiz. The kids keep asking about the crane.",
+          "handover": "The road outside is busier in the evening now. The school run might get busier, we will see.",
+          "daily_life": "Some of the way to Urban Park is not checked yet for a stroller, so I plan ahead."
+        }
+      },
+      {
+        "id": "n-s12-r02565",
+        "name": "Ai Ling",
+        "role": "parent with a toddler in a stroller",
+        "side": "neighbour",
+        "group": "parent",
+        "colour": "#4dcba6",
+        "age": 45,
+        "tags": ["toddler", "children"],
+        "facts": {
+          "profile": "stroller",
+          "home_id": "w1287603023",
+          "extra_walk_min": 0,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": "?",
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": "?",
+              "arrival_id": "lakeside-mall",
+              "label": "Lakeside Mall"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": "?",
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Piling noise from morning until evening, so leceh. My son wants to be a crane driver now.",
+          "handover": "Nice to see the tower windows light up at night. More children at the playground now.",
+          "daily_life": "Can get to the school, but parts of the way are not checked for a stroller yet."
+        }
+      },
+      {
+        "id": "n-r01280",
+        "name": "Pak Cik Azman",
+        "role": "retiree",
+        "side": "neighbour",
+        "group": "older",
+        "colour": "#cb814d",
+        "age": 86,
+        "tags": ["older"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909852735",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 41,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 38,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 53,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Must go round the hoarding every day, 3 min extra to Lakeside Mall (Car Park B). My grandchildren keep asking what they are building.",
+          "handover": "Nice to see the tower windows light up at night. My morning walk has company now.",
+          "daily_life": "Urban Park is 41 min walk away, a bit far for me."
+        }
+      },
+      {
+        "id": "n-s12-r00248",
+        "name": "Mak Cik Haslinda",
+        "role": "retiree who needs to rest often",
+        "side": "neighbour",
+        "group": "older",
+        "colour": "#5c4dcb",
+        "age": 68,
+        "tags": ["older"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909835113",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 40,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 37,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 52,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Must go round the hoarding every day, 3 min extra to Lakeside Mall (Car Park B). At my age I take things slowly anyway.",
+          "handover": "Hoarding gone, the footpath beside the site is open again. At my age, new faces are nice to see.",
+          "daily_life": "Walking to Urban Park takes 40 min, so I take a rest halfway."
+        }
+      },
+      {
+        "id": "n-s12-r01368",
+        "name": "Mak Cik Rohani",
+        "role": "retiree who needs to rest often",
+        "side": "neighbour",
+        "group": "older",
+        "colour": "#63cb4d",
+        "age": 80,
+        "tags": ["older"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909852732",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 43,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 41,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 55,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "The walk to Lakeside Mall (Car Park B) takes 3 min more since the hoarding went up, haiz. I tell my friends about it over teh tarik.",
+          "handover": "Eh, new neighbours ah? Welcome! Slowly I will get to know everyone.",
+          "daily_life": "The route to Klinik Siti has unchecked bits for walking, so I take it slow."
+        }
+      },
+      {
+        "id": "n-s12-r00896",
+        "name": "Shahrul",
+        "role": "parent doing the school run",
+        "side": "neighbour",
+        "group": "parent",
+        "colour": "#cb4d87",
+        "age": 41,
+        "tags": ["children"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909852737",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 41,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 38,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 53,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Every morning I detour around the site, 3 min more to Lakeside Mall (Car Park B). My little one waves at the lorries every day.",
+          "handover": "Eh, new neighbours ah? Welcome! The school run might get busier, we will see.",
+          "daily_life": "The school is 53 min walk away, too far with the kids."
+        }
+      },
+      {
+        "id": "n-r04087",
+        "name": "Normah",
+        "role": "parent doing the school run",
+        "side": "neighbour",
+        "group": "parent",
+        "colour": "#4daccb",
+        "age": 28,
+        "tags": ["children"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909852733",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 41,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 38,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 53,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Aiyo, 3 min more just to get to Lakeside Mall (Car Park B) with the footpath closed. Must hold the kids' hands near the site gate.",
+          "handover": "The area feels livelier with the new tower. We met a new family at the park already.",
+          "daily_life": "53 min each way to the school, tiring with little ones."
+        }
+      },
+      {
+        "id": "n-s12-r04856",
+        "name": "Lakshmi",
+        "role": "commuter and parent",
+        "side": "neighbour",
+        "group": "parent",
+        "colour": "#cbc64d",
+        "age": 24,
+        "tags": ["children", "commuter"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909835114",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 40,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 37,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 52,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Aiyo, 3 min more just to get to Lakeside Mall (Car Park B) with the footpath closed. The kids keep asking about the crane.",
+          "handover": "Nice to see the tower windows light up at night. The school run might get busier, we will see.",
+          "daily_life": "40 min on foot to Urban Park, tiring with little ones."
+        }
+      },
+      {
+        "id": "n-r02838",
+        "name": "Hafiz",
+        "role": "commuter",
+        "side": "neighbour",
+        "group": "commuter",
+        "colour": "#a14dcb",
+        "age": 21,
+        "tags": ["commuter"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909852735",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 41,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 38,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 53,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Footpath beside the site closed lah, my walk to Lakeside Mall (Car Park B) is 3 min longer now. I pass the site on my way to work.",
+          "handover": "Nice to see the tower windows light up at night. At least the lorries are gone from my route.",
+          "daily_life": "It is 41 min to Urban Park on foot, so I go by car."
+        }
+      },
+      {
+        "id": "n-s12-r03110",
+        "name": "Pei Shan A.",
+        "role": "commuter",
+        "side": "neighbour",
+        "group": "commuter",
+        "colour": "#4dcb7c",
+        "age": 23,
+        "tags": ["commuter"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909852734",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 41,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 38,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 53,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "The hoarding closed my shortcut, now 3 min extra to reach Lakeside Mall (Car Park B). My office friends ask when it will be done.",
+          "handover": "The footpath is back, my usual walk is easy again. More cars in the morning now.",
+          "daily_life": "Walking to Lakeside Mall (Car Park B) takes 38 min, a bit far after work."
+        }
+      },
+      {
+        "id": "n-s12-r00258",
+        "name": "Faizal",
+        "role": "secondary school student",
+        "side": "neighbour",
+        "group": "general",
+        "colour": "#cb574d",
+        "age": 16,
+        "tags": ["teen"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909852739",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 41,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 38,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 53,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "The walk to Lakeside Mall (Car Park B) takes 3 min more since the hoarding went up, haiz. The neighbourhood group chat is full of photos.",
+          "handover": "More people at the mall now, good for the shops. Let us see how the evenings feel now.",
+          "daily_life": "Lakeside Mall (Car Park B) is 38 min walk away, quite far actually."
+        }
+      },
+      {
+        "id": "n-s12-r00339",
+        "name": "Nurul",
+        "role": "secondary school student",
+        "side": "neighbour",
+        "group": "general",
+        "colour": "#4d68cb",
+        "age": 16,
+        "tags": ["children", "teen"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909852732",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 43,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 41,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 55,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Every morning I detour around the site, 3 min more to Lakeside Mall (Car Park B). My friends ask me about it all the time.",
+          "handover": "Nice to see the tower windows light up at night. The area looks quite different already.",
+          "daily_life": "Takes me 43 min to walk to Urban Park, a bit far lah."
+        }
+      },
+      {
+        "id": "n-r03278",
+        "name": "Mei Ling A.",
+        "role": "resident working from home",
+        "side": "neighbour",
+        "group": "general",
+        "colour": "#8dcb4d",
+        "age": 23,
+        "tags": [],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909835115",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 38,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 36,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 50,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Aiyo, 3 min more just to get to Lakeside Mall (Car Park B) with the footpath closed. I watch it from the bus stop sometimes.",
+          "handover": "Parking near the mall is harder now. It feels like a new chapter for Elmina.",
+          "daily_life": "Lakeside Mall (Car Park B) is 36 min walk away, so I usually drive."
+        }
+      },
+      {
+        "id": "n-s12-r01025",
+        "name": "Yusof",
+        "role": "resident working from home",
+        "side": "neighbour",
+        "group": "general",
+        "colour": "#cb4db2",
+        "age": 29,
+        "tags": [],
+        "facts": {
+          "profile": "default",
+          "home_id": "w1287603163",
+          "extra_walk_min": 0,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": "?",
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": "?",
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": "?",
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "So much noise lah, even if my usual walks are the same as before. It has become a landmark already.",
+          "handover": "Hoarding gone, the footpath beside the site is open again. It feels like a new chapter for Elmina.",
+          "daily_life": "Parts of the path to Urban Park are still unchecked for walking, so I go with someone."
+        }
+      },
+      {
+        "id": "n-r01243",
+        "name": "Faridah",
+        "role": "commuter",
+        "side": "neighbour",
+        "group": "commuter",
+        "colour": "#4dcbc0",
+        "age": 44,
+        "tags": ["commuter"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w1287603168",
+          "extra_walk_min": 0,
+          "extra_walk_to": null,
+          "extra_walk_arrival": null,
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 11,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 13,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 29,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Quite interesting to watch the tower go up from my road. After work I check how far it has come.",
+          "handover": "More cars at the junction now, haiz. At least the lorries are gone from my route.",
+          "daily_life": "11 min to Urban Park on foot, I go there most evenings."
+        }
+      },
+      {
+        "id": "n-s12-r02500",
+        "name": "Pei Shan B.",
+        "role": "commuter",
+        "side": "neighbour",
+        "group": "commuter",
+        "colour": "#cb9b4d",
+        "age": 39,
+        "tags": ["commuter"],
+        "facts": {
+          "profile": "default",
+          "home_id": "w909852737",
+          "extra_walk_min": 3,
+          "extra_walk_to": "Lakeside Mall (Car Park B)",
+          "extra_walk_arrival": "park-b",
+          "walks": [
+            {
+              "kind": "park",
+              "name": "Elmina Urban Park",
+              "value": 41,
+              "arrival_id": "osm-way-1309457596",
+              "label": "Elmina Urban Park"
+            },
+            {
+              "kind": "mall",
+              "name": "Elmina Lakeside Mall",
+              "value": 38,
+              "arrival_id": "park-b",
+              "label": "Lakeside Mall (Car Park B)"
+            },
+            {
+              "kind": "clinic",
+              "name": "Klinik Siti",
+              "value": "?",
+              "arrival_id": "osm-node-11949343474",
+              "label": "Klinik Siti"
+            },
+            {
+              "kind": "school",
+              "name": "SJK (C) Ladang Regent, Elmina",
+              "value": 53,
+              "arrival_id": "osm-way-1150791981",
+              "label": "SJK (C) Ladang Regent, Elmina"
+            }
+          ]
+        },
+        "lines": {
+          "construction": "Footpath beside the site closed lah, my walk to Lakeside Mall (Car Park B) is 3 min longer now. My morning drive goes right past the crane.",
+          "handover": "More people at the mall now, good for the shops. More cars in the morning now.",
+          "daily_life": "Urban Park is 41 min walk away, so I go by car."
+        }
+      }
+    ],
+    "seed": 21,
+    "label": "Simulated reactions",
+    "note": "Lines are written for the simulation; every number comes from the world model."
+  },
+  "brief": {
+    "title": "Impact brief",
+    "subtitle": "Hypothetical tower on a real parcel · facts from the world model, estimates labelled",
+    "sections": [
+      {
+        "key": "construction",
+        "title": "During construction",
+        "rows": [
+          {
+            "key": "homes_2min_plus",
+            "label": "Homes with a 2+ min longer walk",
+            "value": "11 of 64 · up to +3 min",
+            "badges": ["ROUTE"]
+          },
+          {
+            "key": "wheelchair_links_cut",
+            "label": "Step-free links cut (wheelchair)",
+            "value": "0 homes",
+            "badges": ["ROUTE"]
+          },
+          {
+            "key": "best_side",
+            "label": "Best hoarding side",
+            "value": "north-east (only side hoarded)",
+            "badges": ["ROUTE"]
+          },
+          {
+            "key": "lorry",
+            "label": "Lorry route passes a park",
+            "value": "Elmina Urban Park",
+            "badges": ["ROUTE"]
+          },
+          {
+            "key": "duration",
+            "label": "Duration",
+            "value": "27 months · handover Mar 2029",
+            "badges": ["ESTIMATE"]
+          },
+          {
+            "key": "days_lost",
+            "label": "Days lost: holidays · Hari Raya · rain",
+            "value": "13 · 10 · 16",
+            "badges": ["CALENDAR", "ESTIMATE"]
+          },
+          {
+            "key": "cost",
+            "label": "Construction cost",
+            "value": "RM 133 M",
+            "badges": ["ESTIMATE"]
+          }
+        ],
+        "notes": []
+      },
+      {
+        "key": "handover",
+        "title": "At handover",
+        "rows": [
+          {
+            "key": "flood_cut",
+            "label": "Walk to the main road cut from",
+            "value": "+1 m scenario",
+            "badges": ["FLOOD"]
+          },
+          {
+            "key": "evacuation",
+            "label": "Nearest evacuation candidate (OSM, not official)",
+            "value": "Sri Maha Mariamman Temple Bukit Subang · 17 min walk",
+            "badges": ["ROUTE"]
+          }
+        ],
+        "notes": [
+          "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance."
+        ]
+      },
+      {
+        "key": "daily_life",
+        "title": "Daily life (walk minutes)",
+        "rows": [],
+        "notes": ["? = a path on the way is not checked yet (did not count for or against)"]
+      }
+    ]
   },
   "labels": {
     "simulation": "Simulation · illustrative",
     "decorative": "Decorative details are illustrative.",
-    "hypothetical": "Hypothetical development · not an SDP project · 30 storeys · ~500 homes",
-    "end_card_subtitle": "Simulated reactions · Hypothetical development · not an SDP project"
+    "hypothetical": "Hypothetical tower · not an SDP project · 30 storeys · ~500 homes",
+    "simulated": "Simulated reactions"
   },
-  "total_s": 66.0
+  "total_s": 45.0
 }

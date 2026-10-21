@@ -95,7 +95,7 @@ export function DevsimListSection() {
           ))}
         </ol>
       </div>
-      {st.endCard && <EndCard card={plan.end_card} inline />}
+      {st.endCard && plan.end_card && <EndCard card={plan.end_card} inline />}
     </section>
   );
 }

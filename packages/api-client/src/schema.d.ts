@@ -243,9 +243,12 @@ export interface paths {
         put?: never;
         /**
          * Simulate Development
-         * @description The Development Simulation plan for the loaded world: site, routed facts (detour, park and
-         *     mall walks), cast, timeline, bubbles and end card. Illustrative, not a forecast; 404 when the
-         *     world lacks the parcel (e.g. the tiny fixture).
+         * @description The Development Simulation plan for the loaded world (the 45 s building timeline): site,
+         *     routed facts (detour, park and mall walks), cast, acts, bubbles, tags, banners, the hoarding
+         *     impact over every nearby home, the lorry route, the ESTIMATE schedule and cost with its
+         *     sources and month keys, flood exposure at handover, the daily-life access matrix, 40
+         *     simulated residents and the Impact Brief. Illustrative, not a forecast; 404 when the world
+         *     lacks the parcel (e.g. the tiny fixture).
          */
         post: operations["simulate_development_developments_simulate_post"];
         delete?: never;
@@ -1114,6 +1117,30 @@ export interface components {
             /** Value */
             value?: unknown;
         };
+        /**
+         * Banner
+         * @description The set-piece banners: Hari Raya hold, monsoon stretch, handover.
+         */
+        Banner: {
+            /**
+             * Badges
+             * @default []
+             */
+            badges: ("ROUTE" | "FLOOD" | "ESTIMATE" | "CALENDAR")[];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "raya" | "monsoon" | "handover";
+            /** T0 */
+            t0: number;
+            /** T1 */
+            t1: number;
+            /** Text */
+            text: string;
+            /** Title */
+            title: string;
+        };
         /** BeliefRow */
         BeliefRow: {
             /** Alpha */
@@ -1137,6 +1164,34 @@ export interface components {
             sources: {
                 [key: string]: number;
             };
+        };
+        /** BriefRow */
+        BriefRow: {
+            /** Badges */
+            badges: ("ROUTE" | "FLOOD" | "ESTIMATE" | "CALENDAR")[];
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /** BriefSection */
+        BriefSection: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "construction" | "handover" | "daily_life";
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+            /** Rows */
+            rows: components["schemas"]["BriefRow"][];
+            /** Title */
+            title: string;
         };
         /** Bubble */
         Bubble: {
@@ -1504,6 +1559,16 @@ export interface components {
             /** Target Id */
             target_id: string;
         };
+        /**
+         * DailyLifeMatrix
+         * @description Walks from the tower entrance to the four daily-life targets, per profile.
+         */
+        DailyLifeMatrix: {
+            /** Profiles */
+            profiles: string[];
+            /** Rows */
+            rows: components["schemas"]["MatrixRow"][];
+        };
         /** DayChanges */
         DayChanges: {
             /** Candidates */
@@ -1772,30 +1837,52 @@ export interface components {
         };
         /**
          * DevelopmentPlan
-         * @description Everything the Development Simulation player needs (spec §4–§5).
+         * @description Everything the Development Simulation player needs (spec 2026-10-21 §6).
          */
         DevelopmentPlan: {
+            access_matrix: components["schemas"]["DailyLifeMatrix"];
             /** Acts */
             acts: components["schemas"]["Act"][];
             anchors: components["schemas"]["DevsimAnchors"];
+            /** Banners */
+            banners: components["schemas"]["Banner"][];
+            brief: components["schemas"]["ImpactBrief"];
             /** Bubbles */
             bubbles: components["schemas"]["Bubble"][];
             /** Cast */
             cast: components["schemas"]["SpotlightCast"][];
-            end_card: components["schemas"]["EndCard"];
+            /** Estimate Sources */
+            estimate_sources: components["schemas"]["EstimateSource"][];
             facts: components["schemas"]["DevsimFacts"];
+            flood: components["schemas"]["FloodExposure"];
             /** Households */
             households: number;
+            impact: components["schemas"]["HoardingImpact"];
             labels: components["schemas"]["DevsimLabels"];
+            lorry_route: components["schemas"]["LorryRoute"];
+            /** Month Keys */
+            month_keys: [
+                number,
+                number
+            ][];
+            /**
+             * Month Keys Mode
+             * @enum {string}
+             */
+            month_keys_mode: "baseline" | "data-order";
             /**
              * Provisional
              * @default false
              */
             provisional: boolean;
+            residents: components["schemas"]["SimResidents"];
+            schedule: components["schemas"]["Schedule"];
             site: components["schemas"]["DevelopmentSite"];
+            /** Tags */
+            tags: components["schemas"]["TimedTag"][];
             /**
              * Total S
-             * @default 66
+             * @default 45
              */
             total_s: number;
             /** World */
@@ -1827,6 +1914,8 @@ export interface components {
             mall: number[];
             /** Park */
             park: number[];
+            /** Worker */
+            worker: number[];
         };
         /**
          * DevsimDetour
@@ -1850,6 +1939,30 @@ export interface components {
             /** Home Id */
             home_id: string;
         };
+        /**
+         * DevsimEvacuation
+         * @description The nearest reachable evacuation centre from the tower entrance (default walk).
+         */
+        DevsimEvacuation: {
+            /** Centre Id */
+            centre_id: string;
+            /** M */
+            m: number;
+            /** Min */
+            min: number;
+            /** Name */
+            name: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "official_pps" | "osm_candidate";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
+        };
         /** DevsimFacts */
         DevsimFacts: {
             detour?: components["schemas"]["DevsimDetour"] | null;
@@ -1868,15 +1981,15 @@ export interface components {
              */
             decorative: string;
             /**
-             * End Card Subtitle
-             * @default Simulated reactions · Hypothetical development · not an SDP project
-             */
-            end_card_subtitle: string;
-            /**
              * Hypothetical
-             * @default Hypothetical development · not an SDP project · 30 storeys · ~500 homes
+             * @default Hypothetical tower · not an SDP project · 30 storeys · ~500 homes
              */
             hypothetical: string;
+            /**
+             * Simulated
+             * @default Simulated reactions
+             */
+            simulated: string;
             /**
              * Simulation
              * @default Simulation · illustrative
@@ -1885,6 +1998,10 @@ export interface components {
         };
         /** DevsimWalk */
         DevsimWalk: {
+            /** Arrival Id */
+            arrival_id?: string | null;
+            /** Label */
+            label?: string | null;
             /** M */
             m: number;
             /** Min */
@@ -1926,24 +2043,6 @@ export interface components {
              */
             type: "done";
         };
-        /** EndCard */
-        EndCard: {
-            /** Items */
-            items: components["schemas"]["EndCardItem"][];
-            /** Legend */
-            legend: string;
-            /** Subtitle */
-            subtitle: string;
-            /** Title */
-            title: string;
-        };
-        /** EndCardItem */
-        EndCardItem: {
-            /** Badges */
-            badges: ("ROUTE ENGINE" | "SIMULATED")[];
-            /** Text */
-            text: string;
-        };
         /** ErrorEvent */
         ErrorEvent: {
             /** Code */
@@ -1955,6 +2054,25 @@ export interface components {
              * @enum {string}
              */
             type: "error";
+        };
+        /**
+         * EstimateSource
+         * @description A row of docs/04-architecture/devsim-estimates-sources.md (`devsim_schedule.SOURCES`).
+         */
+        EstimateSource: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "gazetted" | "benchmark" | "climatology" | "assumption";
+            /** Label */
+            label: string;
+            /** Unit */
+            unit: string;
+            /** Value */
+            value: number;
         };
         /** EvacCentre */
         EvacCentre: {
@@ -2209,6 +2327,34 @@ export interface components {
             /** Sampled */
             sampled: number;
         };
+        /**
+         * FloodExposure
+         * @description At handover: the river-rise scenario from which the entrance's usual walk to the main road
+         *     crosses a likely-flooded stretch. Indicative scenario, not a forecast; no depths.
+         */
+        FloodExposure: {
+            /** Cut Edges */
+            cut_edges: string[];
+            /** Cut From Scenario */
+            cut_from_scenario: string | null;
+            /**
+             * Disclaimer
+             * @default Indicative scenario, not a forecast.
+             */
+            disclaimer: string;
+            evacuation: components["schemas"]["DevsimEvacuation"] | null;
+            /**
+             * Profile
+             * @default default
+             */
+            profile: string;
+            /** Road Node */
+            road_node: string;
+            /** Route Edges */
+            route_edges: string[];
+            /** Scenarios Checked */
+            scenarios_checked: string[];
+        };
         /** FloodPlace */
         FloodPlace: {
             /** Id */
@@ -2279,6 +2425,117 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HoardingHome
+         * @description One residential building within the radius, before vs after the hoarding (default walk).
+         */
+        HoardingHome: {
+            /**
+             * Cut Off
+             * @default false
+             */
+            cut_off: boolean;
+            /** Extra Arrival */
+            extra_arrival?: string | null;
+            /** Extra Min */
+            extra_min: number;
+            /** Extra Target */
+            extra_target?: string | null;
+            /** Home Id */
+            home_id: string;
+            /**
+             * Wheelchair Cut
+             * @default false
+             */
+            wheelchair_cut: boolean;
+        };
+        /**
+         * HoardingImpact
+         * @description Every nearby home's walks to the four targets before and after the hoarding closes the
+         *     frontage paths (routing engine; default profile for minutes, wheelchair for links cut).
+         */
+        HoardingImpact: {
+            /** Best Side */
+            best_side: string | null;
+            /** Closed Edges */
+            closed_edges: string[];
+            /** Homes */
+            homes: components["schemas"]["HoardingHome"][];
+            /** Homes 2Min Plus */
+            homes_2min_plus: number;
+            /** Homes Considered */
+            homes_considered: number;
+            /** Max Extra Min */
+            max_extra_min: number;
+            /** Options */
+            options: components["schemas"]["HoardingOption"][];
+            /**
+             * Profile
+             * @default default
+             */
+            profile: string;
+            /**
+             * Provenance
+             * @default routing engine, default profile (wheelchair profile for links cut)
+             */
+            provenance: string;
+            /** Radius M */
+            radius_m: number;
+            /** Targets */
+            targets: components["schemas"]["ImpactTarget"][];
+            /** Wheelchair Links Cut */
+            wheelchair_links_cut: number;
+        };
+        /**
+         * HoardingOption
+         * @description The impact with only one side of the site hoarded (its frontage walk paths closed).
+         */
+        HoardingOption: {
+            /** Edge Ids */
+            edge_ids: string[];
+            /** Homes 2Min Plus */
+            homes_2min_plus: number;
+            /** Max Extra Min */
+            max_extra_min: number;
+            /** Side */
+            side: string;
+            /** Wheelchair Links Cut */
+            wheelchair_links_cut: number;
+        };
+        /**
+         * ImpactBrief
+         * @description The Impact Brief panel (from 33 s). Replaces the 66 s end card: every value is a computed
+         *     fact (ROUTE, FLOOD) or a labelled ESTIMATE / CALENDAR figure; check_plan reads every digit.
+         */
+        ImpactBrief: {
+            /** Sections */
+            sections: components["schemas"]["BriefSection"][];
+            /** Subtitle */
+            subtitle: string;
+            /** Title */
+            title: string;
+        };
+        /**
+         * ImpactTarget
+         * @description A daily-life destination: Lakeside Mall, Urban Park, and the school and clinic nearest the
+         *     tower entrance on foot (default profile). Every home uses the same four.
+         */
+        ImpactTarget: {
+            /**
+             * Arrive At
+             * @default []
+             */
+            arrive_at: string[];
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "mall" | "park" | "school" | "clinic";
+            /** Name */
+            name: string;
         };
         /**
          * JourneyEvent
@@ -2370,6 +2627,63 @@ export interface components {
             /** Open Vrs */
             open_vrs: number;
         };
+        /**
+         * LorryRoute
+         * @description Construction lorries: `drive` route from the nearest major road to the site gate.
+         */
+        LorryRoute: {
+            /** Distance M */
+            distance_m: number;
+            /** From Node */
+            from_node: string;
+            /** Gate Node */
+            gate_node: string;
+            /** Minutes */
+            minutes: number;
+            /** Path */
+            path: number[][];
+            /**
+             * Profile
+             * @default drive
+             */
+            profile: string;
+            /**
+             * School Run Note
+             * @default School run assumed 7–8 am (typical); not from data
+             */
+            school_run_note: string;
+            /** Sensitive */
+            sensitive: components["schemas"]["LorrySensitive"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+        };
+        /**
+         * LorrySensitive
+         * @description A school, kindergarten, park or playground within 50 m of the lorry route.
+         */
+        LorrySensitive: {
+            /** Along M */
+            along_m: number;
+            /** Distance M */
+            distance_m: number;
+            /** Name */
+            name: string;
+            /** Place Id */
+            place_id: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "school" | "kindergarten" | "park" | "playground";
+        };
         /** Maneuver */
         Maneuver: {
             /**
@@ -2398,6 +2712,66 @@ export interface components {
             segment_ids: string[];
             /** Street Name */
             street_name: string | null;
+        };
+        /** MatrixCell */
+        MatrixCell: {
+            /** Arrival Id */
+            arrival_id: string;
+            /** Label */
+            label: string;
+            /** M */
+            m?: number | null;
+            /** Profile */
+            profile: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
+            /** Value */
+            value: number | ("?" | "gap" | "blocked");
+        };
+        /** MatrixRow */
+        MatrixRow: {
+            /** Cells */
+            cells: components["schemas"]["MatrixCell"][];
+            target: components["schemas"]["ImpactTarget"];
+        };
+        /** MonsoonBand */
+        MonsoonBand: {
+            /** End Index */
+            end_index: number;
+            /** End Month */
+            end_month: string;
+            /** Start Index */
+            start_index: number;
+            /** Start Month */
+            start_month: string;
+        };
+        /** MonsoonMonth */
+        MonsoonMonth: {
+            /** Days Lost */
+            days_lost: number;
+            /** Month */
+            month: string;
+            /** Month Index */
+            month_index: number;
+            /** Wet Days */
+            wet_days: number;
+        };
+        /**
+         * MonsoonSetPiece
+         * @description The northeast-monsoon stretch the playback stages (ruling R25): the first band that starts
+         *     after the Hari Raya set piece and before handover, else the band containing Hari Raya.
+         *     `days_lost` per month counts structure work only, so it is 0 in a fit-out month.
+         */
+        MonsoonSetPiece: {
+            /** End Month */
+            end_month: string;
+            /** Months */
+            months: components["schemas"]["MonsoonMonth"][];
+            /** Start Month */
+            start_month: string;
         };
         /**
          * NoJourney
@@ -2542,6 +2916,19 @@ export interface components {
             label?: string | null;
         };
         /**
+         * RayaSetPiece
+         * @description The one Hari Raya Aidilfitri site shutdown the playback stages (the first during structure
+         *     work). `days` is the assumed shutdown length in working days, beyond the gazetted holidays.
+         */
+        RayaSetPiece: {
+            /** Date */
+            date: string;
+            /** Days */
+            days: number;
+            /** Month Index */
+            month_index: number;
+        };
+        /**
          * ReasonSet
          * @description Per-route reasons from known facts only (spec D2): a field is None when no edge on the
          *     route has a known value for it. Unknown values never count for or against a route.
@@ -2585,6 +2972,49 @@ export interface components {
             statuses: string[];
             /** Tipping Stage */
             tipping_stage?: string | null;
+        };
+        /**
+         * ResidentFacts
+         * @description The only facts a resident's lines may quote (routing engine, their own profile).
+         */
+        ResidentFacts: {
+            /** Extra Walk Arrival */
+            extra_walk_arrival?: string | null;
+            /** Extra Walk Min */
+            extra_walk_min?: number | null;
+            /** Extra Walk To */
+            extra_walk_to?: string | null;
+            /** Home Id */
+            home_id: string | null;
+            /** Profile */
+            profile: string;
+            /** Walks */
+            walks: components["schemas"]["ResidentWalk"][];
+        };
+        /** ResidentLines */
+        ResidentLines: {
+            /** Construction */
+            construction: string;
+            /** Daily Life */
+            daily_life: string;
+            /** Handover */
+            handover: string;
+        };
+        /** ResidentWalk */
+        ResidentWalk: {
+            /** Arrival Id */
+            arrival_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "mall" | "park" | "school" | "clinic";
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** Value */
+            value: number | ("?" | "gap" | "blocked");
         };
         /** ResolveBody */
         ResolveBody: {
@@ -2960,6 +3390,92 @@ export interface components {
             type: "scene.intent";
         };
         /**
+         * Schedule
+         * @description ESTIMATE: an indicative schedule and cost for the Hypothetical Development, from the
+         *     published benchmarks and labelled assumptions in the sources doc
+         *     (docs/04-architecture/devsim-estimates-sources.md, `devsim_schedule.SOURCES`). Not an SDP
+         *     figure, a quotation or a forecast.
+         */
+        Schedule: {
+            /** Cost By Month */
+            cost_by_month: number[];
+            /** Cost Total Rm */
+            cost_total_rm: number;
+            /** Days Lost By Month */
+            days_lost_by_month: number[];
+            /** Floors By Month */
+            floors_by_month: number[];
+            /** Gfa M2 */
+            gfa_m2: number;
+            /** Handover */
+            handover: string;
+            /** Holiday Days Lost */
+            holiday_days_lost: number;
+            /** Holidays */
+            holidays: components["schemas"]["ScheduleHoliday"][];
+            /** Holidays Lost */
+            holidays_lost: string[];
+            /** Homes */
+            homes: number;
+            /**
+             * Label
+             * @default ESTIMATE
+             */
+            label: string;
+            /** Monsoon Bands */
+            monsoon_bands: components["schemas"]["MonsoonBand"][];
+            monsoon_set_piece: components["schemas"]["MonsoonSetPiece"] | null;
+            /** Months */
+            months: string[];
+            /** Months Total */
+            months_total: number;
+            /** Phases */
+            phases: components["schemas"]["SchedulePhase"][];
+            /** Rain Days Lost */
+            rain_days_lost: number;
+            /** Rate Rm Per M2 */
+            rate_rm_per_m2: number;
+            raya_set_piece: components["schemas"]["RayaSetPiece"] | null;
+            /** Raya Shutdown Days */
+            raya_shutdown_days: number;
+            /** Source Ids */
+            source_ids: string[];
+            /** Source Line */
+            source_line: string;
+            /** Start */
+            start: string;
+            /** Storeys */
+            storeys: number;
+        };
+        /** ScheduleHoliday */
+        ScheduleHoliday: {
+            /** Date */
+            date: string;
+            /** Month Index */
+            month_index: number;
+            /** Name */
+            name: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "gazetted" | "expected";
+            /** Working Day */
+            working_day: boolean;
+        };
+        /** SchedulePhase */
+        SchedulePhase: {
+            /** End */
+            end: string;
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "foundation" | "structure" | "fit-out";
+            /** Start */
+            start: string;
+        };
+        /**
          * SetRiverStage
          * @description River rise scenario (indicative stages only; a stage never upgrades anything).
          */
@@ -3060,6 +3576,53 @@ export interface components {
             profiles?: ("default" | "stroller" | "wheelchair" | "older_adult_rest" | "drive")[] | null;
             /** Scenario Id */
             scenario_id?: string | null;
+        };
+        /** SimResident */
+        SimResident: {
+            /** Age */
+            age?: number | null;
+            /** Colour */
+            colour: string;
+            facts: components["schemas"]["ResidentFacts"];
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "older" | "parent" | "commuter" | "wheelchair" | "general";
+            /** Id */
+            id: string;
+            lines: components["schemas"]["ResidentLines"];
+            /** Name */
+            name: string;
+            /** Role */
+            role: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "tower" | "neighbour";
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+        };
+        /** SimResidents */
+        SimResidents: {
+            /**
+             * Label
+             * @default Simulated reactions
+             */
+            label: string;
+            /**
+             * Note
+             * @default Lines are written for the simulation; every number comes from the world model.
+             */
+            note: string;
+            /** Residents */
+            residents: components["schemas"]["SimResident"][];
+            /** Seed */
+            seed: number;
         };
         /** SimResult */
         SimResult: {
@@ -3224,7 +3787,7 @@ export interface components {
              * Home
              * @enum {string}
              */
-            home: "tower" | "existing";
+            home: "tower" | "existing" | "site";
             /** Id */
             id: string;
             /** Name */
@@ -3303,6 +3866,27 @@ export interface components {
              * @enum {string}
              */
             type: "text.delta";
+        };
+        /**
+         * TimedTag
+         * @description A map tag shown for a window: the detour (hoarding impact) and the lorry route (R16).
+         */
+        TimedTag: {
+            /** At */
+            at: number[];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "detour" | "lorry";
+            /** T0 */
+            t0: number;
+            /** T1 */
+            t1: number;
+            /** Text */
+            text: string;
+            /** Title */
+            title: string;
         };
         /** ToolCall */
         ToolCall: {

@@ -126,7 +126,11 @@ export interface DevelopmentPlan {
   acts: Act[];
   bubbles: Bubble[];
   anchors: DevsimAnchors;
-  end_card: EndCard;
+  /**
+   * The 66 s end card. The 45 s plan (C7) has none: it sends `brief` (the Impact Brief) instead.
+   * Optional only so the old overlay keeps compiling until C11 rewires it.
+   */
+  end_card?: EndCard | null;
   labels: DevsimLabels;
   total_s: number;
 }

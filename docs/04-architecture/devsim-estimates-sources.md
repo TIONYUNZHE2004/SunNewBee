@@ -151,6 +151,7 @@ Source keys: **JPM27** = the official PDF above. **PH** = <https://publicholiday
   - International studies give 5 to 11 days per floor, with high-rise flat-slab projects around 6. For a 7-day cycle at 6 working days per week, one storey takes about 1.2 calendar weeks.
   - Working week: Monday to Saturday (6 days, `working_days_per_week`), an assumption. Sundays and public holidays that fall on a working day are not worked.
   - How the model uses them (`devsim_schedule.py`): foundation and fit-out are calendar durations; only the structure, counted in working days (`floor_cycle_days` x storeys), is extended by holidays on working days, the one Hari Raya shutdown (the first Hari Raya Aidilfitri during structure work) and monsoon rain (each working day of a monsoon month loses wet days x `rain_lost_fraction` / that month's working days).
+  - The playback's monsoon set piece (ruling R25) is the first monsoon band that starts after the Hari Raya set piece and before handover (Nov 2028 to Mar 2029 for the defaults), else the band containing Hari Raya. That band falls in fit-out, so its months show 0 days lost; the rain loss counted against structure work is in `rain_days_lost` and `days_lost_by_month` (cumulative holidays + Raya shutdown + rain per month).
   - Foundation of 9 months is a modelling choice. Treat the schedule as plus or minus 25 percent.
   - Because durations are assumptions, the UI must show the schedule as an ESTIMATE with its assumptions visible.
 - **Rain.**

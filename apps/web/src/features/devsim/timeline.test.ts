@@ -14,6 +14,8 @@ import {
 import type { DevelopmentPlan } from "./types";
 
 const plan = provisional as unknown as DevelopmentPlan;
+/** The legacy 66 s fixture has an end card (the 45 s plan from C7 has none). */
+const endCard = plan.end_card as NonNullable<DevelopmentPlan["end_card"]>;
 const range = (a: number, b: number, step: number) => {
   const out: number[] = [];
   for (let t = a; t < b - 1e-9; t += step) out.push(Math.round(t * 1000) / 1000);
@@ -190,8 +192,8 @@ describe("occupancy, windows and feedback", () => {
     expect(stateAt(62.2, plan).envelope).toMatchObject({ from: 7 });
     expect(count(62.8)).toBe(3);
     // it ends equal to the end card's item count, which shows after the last envelope lands
-    expect(count(END_CARD_AT)).toBe(plan.end_card.items.length);
-    expect(count(66)).toBe(plan.end_card.items.length);
+    expect(count(END_CARD_AT)).toBe(endCard.items.length);
+    expect(count(66)).toBe(endCard.items.length);
     for (const b of feedbackBeats(plan)) expect(b.t1).toBeLessThan(END_CARD_AT);
     // monotone: never steps back
     let prev = 0;
@@ -204,7 +206,7 @@ describe("occupancy, windows and feedback", () => {
   it("AC-F5: without the detour item (spec §13) the counter drops it too", () => {
     const noDetour: DevelopmentPlan = {
       ...plan,
-      end_card: { ...plan.end_card, items: plan.end_card.items.slice(1) },
+      end_card: { ...endCard, items: endCard.items.slice(1) },
     };
     expect(feedbackBeats(noDetour).map((b) => b.afterBubble)).toEqual([5, 7]);
     expect(stateAt(30, noDetour).feedbackCount).toBe(0);

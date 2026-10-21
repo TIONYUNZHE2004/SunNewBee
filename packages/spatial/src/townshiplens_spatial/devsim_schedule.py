@@ -293,6 +293,42 @@ def _workable_days(y: int, m: int, hols) -> int:
     return sum(1 for i in range(1, n + 1) if working_day(d := date(y, m, i)) and d not in hols)
 
 
+def _monsoon_set_piece(
+    bands: list[MonsoonBand],
+    months: list[date],
+    rain_by_month: dict[str, float],
+    raya_index: int | None,
+    n_months: int,
+) -> MonsoonSetPiece | None:
+    """Ruling R25: the monsoon stretch the playback stages after the Hari Raya hold.
+
+    The first band that starts after the Raya set piece's month and before the handover month;
+    when there is none, the band containing Hari Raya (the playback then follows data order);
+    with no Raya set piece, the first band. Its months are the band's (clipped to the project);
+    `days_lost` is the structure work rain loss in that month, so a band during fit-out shows 0
+    (rain is only counted against structure work, ruling R-C4a)."""
+    if not bands:
+        return None
+    pick = None
+    if raya_index is not None:
+        pick = next((b for b in bands if raya_index < b.start_index < n_months - 1), None) or next(
+            (b for b in bands if b.start_index <= raya_index <= b.end_index), None
+        )
+    pick = pick or bands[0]
+    rows = []
+    for i in range(pick.start_index, pick.end_index + 1):
+        m = months[i]
+        rows.append(
+            MonsoonMonth(
+                month=_ym(m),
+                month_index=i,
+                wet_days=_int(WET_DAYS[m.month]),
+                days_lost=round(rain_by_month.get(_ym(m), 0.0), 1),
+            )
+        )
+    return MonsoonSetPiece(start_month=rows[0].month, end_month=rows[-1].month, months=rows)
+
+
 def schedule(storeys: int = 30, homes: int = 500, start: date = START) -> Schedule:
     """AC-C4: the ESTIMATE schedule and cost for `storeys` and `homes` from `start`."""
     hols = holidays()
@@ -310,6 +346,11 @@ def schedule(storeys: int = 30, homes: int = 500, start: date = START) -> Schedu
     shutdown_left = 0
     floors_on: dict[date, int] = {}
     rain_by_month: dict[str, float] = {}
+    lost_by_month: dict[str, float] = {}  # holidays + the Raya shutdown + rain, per month
+
+    def _lose(day: date, n: float) -> None:
+        lost_by_month[_ym(day)] = lost_by_month.get(_ym(day), 0.0) + n
+
     workable: dict[tuple[int, int], int] = {}
     while done < need - 1e-9:
         if d > last_listed:
@@ -319,8 +360,10 @@ def schedule(storeys: int = 30, homes: int = 500, start: date = START) -> Schedu
         if working_day(d):
             if d in hols:
                 lost.append(d)
+                _lose(d, 1.0)
             elif shutdown_left > 0:
                 shutdown_left -= 1
+                _lose(d, 1.0)
             else:
                 loss = 0.0
                 if d.month in monsoon:
@@ -329,6 +372,7 @@ def schedule(storeys: int = 30, homes: int = 500, start: date = START) -> Schedu
                         workable[key] = _workable_days(d.year, d.month, hols)
                     loss = value(WET_DAYS[d.month]) * frac / workable[key]
                     rain_by_month[_ym(d)] = rain_by_month.get(_ym(d), 0.0) + loss
+                    _lose(d, loss)
                 done += 1.0 - loss
                 rain += loss
         floors_on[d] = min(storeys, math.floor(done / cycle + 1e-9))
@@ -373,27 +417,14 @@ def schedule(storeys: int = 30, homes: int = 500, start: date = START) -> Schedu
                 end_index=hi,
             )
         )
-    s0, s1 = _month_index(start, found_end), _month_index(start, struct_end - timedelta(days=1))
-    monsoon_piece = None
-    for b in bands:
-        lo, hi = max(b.start_index, s0), min(b.end_index, s1)
-        if lo > hi:
-            continue
-        rows = []
-        for i in range(lo, hi + 1):
-            m = months[i]
-            rows.append(
-                MonsoonMonth(
-                    month=_ym(m),
-                    month_index=i,
-                    wet_days=_int(WET_DAYS[m.month]),
-                    days_lost=round(rain_by_month.get(_ym(m), 0.0), 1),
-                )
-            )
-        monsoon_piece = MonsoonSetPiece(
-            start_month=rows[0].month, end_month=rows[-1].month, months=rows
-        )
-        break
+    monsoon_piece = _monsoon_set_piece(
+        bands, months, rain_by_month, raya and _month_index(start, raya), n_months
+    )
+    run = 0.0
+    days_lost_by_month = []
+    for m in months:
+        run += lost_by_month.get(_ym(m), 0.0)
+        days_lost_by_month.append(round(run, 1))
 
     return Schedule(
         storeys=storeys,
@@ -436,6 +467,7 @@ def schedule(storeys: int = 30, homes: int = 500, start: date = START) -> Schedu
         if raya
         else None,
         monsoon_set_piece=monsoon_piece,
+        days_lost_by_month=days_lost_by_month,
         source_ids=list(USED),
         source_line=SOURCE_LINE,
     )

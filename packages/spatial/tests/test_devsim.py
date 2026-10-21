@@ -1,4 +1,5 @@
-"""Development Simulation plan (spec 2026-10-21 §3, §5.1; AC-H1, H2, H4, H5, H6).
+"""Development Simulation plan (spec 2026-10-21 §3, §5.1; demo polish §6; AC-H1, H2, H4, H5, H6,
+AC-C8).
 
 The Elmina tests need the seed and are skipped without it; the tiny-fixture test runs everywhere.
 """
@@ -87,9 +88,11 @@ def test_facts_equal_a_direct_route_recomputation(capsys):  # AC-H1
         print("\nDEVSIM FACTS:", json.dumps(_facts_summary(plan)))
     assert facts.profile == "default" and facts.provenance == "routing engine, default profile"
     tw = devsim.tower_world(world, site)
-    for walk, name in ((facts.park, "Elmina Urban Park"), (facts.mall, "Elmina Lakeside Mall")):
-        pid = next(p.id for p in world.places.values() if p.name == name)
-        r = routing.plan_route(tw, devsim.TOWER_PLACE, pid, "default").routes[0]
+    names = {"park": ["Elmina Urban Park"], "mall": ["Elmina Lakeside Mall", devsim.TARGET_NAME]}
+    for walk, kind in ((facts.park, "park"), (facts.mall, "mall")):
+        pids = [p.id for p in world.places.values() if p.name in names[kind]]
+        routes = [routing.plan_route(tw, devsim.TOWER_PLACE, pid, "default") for pid in pids]
+        r = min((x.routes[0] for x in routes if x.routes), key=lambda r: r.distance_m)
         assert walk.m == round(r.distance_m)
         assert walk.min == max(1, math.floor(r.distance_m / _pace(world) + 0.5))
         assert walk.path[0] == [round(v, 7) for v in r.geometry["coordinates"][0][:2]]
@@ -154,10 +157,11 @@ def test_cast_and_households():
     world, plan = _world(), _plan()
     households, cast = devsim.build_cast(world, plan.site)
     assert 450 <= households <= 550
-    assert [c.name for c in cast] == BASELINE
+    assert [c.name for c in cast if c.id != "worker"] == BASELINE
     assert {c.id: c.home for c in cast} == {
         "halim": "existing",
         "farid": "existing",
+        "worker": "site",
         "meiling": "tower",
         "zainab": "tower",
         "arjun": "tower",
@@ -168,53 +172,206 @@ def test_cast_and_households():
     assert not any(re.search(r"\d", c.persona) for c in cast)
 
 
-# ---- BE4 ---------------------------------------------------------------------------------------
+# ---- BE4 / C7: the 45 s plan ------------------------------------------------------------------
 @seed_only
-def test_the_plan_matches_the_baseline_and_passes_its_check():
+def test_the_plan_matches_the_45s_timeline_and_passes_its_check():  # AC-C8
     plan = _plan()
     assert devsim.check_plan(plan) == []
-    assert plan.world == "elmina" and plan.provisional is False and plan.total_s == 66
+    assert plan.world == "elmina" and plan.provisional is False and plan.total_s == 45
     assert [(a.name, a.t0, a.t1) for a in plan.acts] == [
-        ("Brief", 0, 4),
-        ("Construction", 4, 32),
-        ("Handover", 32, 44),
-        ("Daily Life", 44, 63),
-        ("Summary", 63, 66),
+        ("Brief", 0, 3),
+        ("Construction", 3, 27),
+        ("Handover", 27, 33),
+        ("Daily Life", 33, 45),
     ]
     f = plan.facts
     d = f.detour
+    # Spec §6.3 windows; the school-run bubble (and its envelope beat) is gone.
     assert [(b.n, b.who, b.t0, b.t1, b.tone) for b in plan.bubbles] == [
-        (1, "halim", 18.4, 21.4, "neg"),
-        (2, "farid", 23.4, 26.2, "neg"),
-        (3, "meiling", 35.4, 38.2, "pos"),
-        (4, "halim", 40.2, 43.2, "pos"),
-        (5, "meiling", 47.6, 50.4, "neg"),
-        (6, "zainab", 53.2, 56.2, "pos"),
-        (7, "arjun", 58.6, 61.6, "pos"),
+        (1, "halim", 5.5, 9.0, "neg"),
+        (2, "farid", 14.0, 16.5, "neg"),
+        (3, "worker", 19.5, 22.5, "neg"),
+        (4, "meiling", 28.5, 31.5, "pos"),
+        (5, "halim", 31.0, 33.0, "pos"),
+        (6, "zainab", 34.0, 37.0, "pos"),
+        (7, "arjun", 36.5, 39.0, "pos"),
     ]
     b = plan.bubbles
+    assert not any("school" in x.text.lower() for x in b)
+    assert b[2].text == "Hujan lagi, crane stop."
     assert b[0].tag == f"ROUTE ENGINE · +{d.detour_min} min walk · {d.before_m:,} → {d.after_m:,} m"
     assert b[5].text == f"Park in {f.park.min} min, love it"
     assert b[5].tag == f"ROUTE ENGINE · {f.park.m:,} m · {f.park.min} min walk"
-    assert b[6].tag == f"ROUTE ENGINE · {f.mall.m:,} m · {f.mall.min} min walk"
+    assert b[6].tag == f"ROUTE ENGINE · {f.mall.m:,} m · {f.mall.min} min walk to {f.mall.label}"
     assert [x.tag for x in b[1:5]] == [None] * 4
-    card = plan.end_card
-    assert card.title == "What residents raised"
-    assert card.subtitle == "Simulated reactions · Hypothetical development · not an SDP project"
-    assert [i.badges for i in card.items] == [
-        ["ROUTE ENGINE"],
-        ["SIMULATED"],
-        ["ROUTE ENGINE", "SIMULATED"],
-    ]
-    assert f"{d.before_m:,} m → {d.after_m:,} m" in card.items[0].text
-    assert f"Urban Park {f.park.min} min" in card.items[2].text
-    assert f"the mall {f.mall.min} min" in card.items[2].text
     assert all(len(x.text.split()) <= 8 for x in b[1:])
     assert len(b[0].text.split()) <= 9
+    assert {c.id for c in plan.cast} >= {x.who for x in b}
+    assert [(t.kind, t.t0, t.t1) for t in plan.tags] == [
+        ("detour", 4.0, 9.5),
+        ("lorry", 8.5, 12.5),
+    ]
+    assert [(x.kind, x.t0, x.t1) for x in plan.banners] == [
+        ("raya", 11.0, 13.0),
+        ("monsoon", 18.5, 23.0),
+        ("handover", 27.0, 30.5),
+    ]
+    assert plan.labels.hypothetical == (
+        "Hypothetical tower · not an SDP project · 30 storeys · ~500 homes"
+    )
     a = plan.anchors
     assert len(a.halim_path) > 10
     assert a.park == f.park.path[-1]
     assert DevelopmentPlan.model_validate_json(plan.model_dump_json()) == plan
+    assert "end_card" not in plan.model_dump()
+
+
+@seed_only
+def test_the_plan_carries_the_impact_modules_unchanged():  # AC-C8 (C1, C2, C4, C5, C6 outputs)
+    from townshiplens_spatial import devsim_impact as di
+    from townshiplens_spatial import devsim_schedule as ds
+    from townshiplens_spatial.devsim_residents import build_residents
+
+    world, plan = _world(), _plan()
+    site = plan.site
+    assert plan.impact == di.hoarding_impact(world, site)
+    assert plan.lorry_route == di.lorry_route(world, site)
+    assert plan.flood == di.flood_exposure(world, site)
+    assert plan.access_matrix == di.daily_life_matrix(world, site)
+    assert plan.schedule == ds.schedule(site.storeys, site.homes)
+    assert plan.residents == build_residents(world, site, detour_home=plan.facts.detour.home_id)
+    assert [s.id for s in plan.estimate_sources] == plan.schedule.source_ids
+    by_id = {s.id: s for s in ds.SOURCES}
+    for s in plan.estimate_sources:
+        src = by_id[s.id]
+        assert (s.value, s.unit, s.kind, s.label) == (src.value, src.unit, src.kind, src.label)
+    rs = plan.residents.residents
+    assert len(rs) == 40 and plan.residents.label == "Simulated reactions"
+    halim = next(r for r in rs if r.id == "halim")
+    assert halim.facts.extra_walk_min == plan.facts.detour.detour_min
+
+
+@seed_only
+def test_one_mall_arrival_for_facts_matrix_and_arjun():  # ruling R18
+    plan = _plan()
+    f = plan.facts
+    mall = next(r for r in plan.access_matrix.rows if r.target.kind == "mall")
+    cell = mall.cells[plan.access_matrix.profiles.index("default")]
+    assert (f.mall.min, f.mall.m, f.mall.arrival_id, f.mall.label) == (
+        cell.value,
+        cell.m,
+        cell.arrival_id,
+        cell.label,
+    )
+    assert f.mall.label in ("Lakeside Mall", "Lakeside Mall (Car Park B)")
+    assert (f.mall.label == "Lakeside Mall (Car Park B)") == (f.mall.arrival_id == "park-b")
+    arjun = plan.bubbles[6]
+    assert f"{f.mall.min} min" in arjun.text and f.mall.label in arjun.tag
+
+
+@seed_only
+def test_month_keys_follow_the_spec_windows():  # ruling R25, spec §6.3
+    plan = _plan()
+    s = plan.schedule
+    keys = dict(plan.month_keys)
+    assert plan.month_keys_mode == "baseline"
+    raya = devsim._month_of(s.start, s.raya_set_piece.date)
+    h = devsim._month_of(s.start, s.handover)
+    mon0 = s.monsoon_set_piece.months[0].month_index
+    assert plan.month_keys[0] == (0.0, 0.0) and keys[3.0] == 0
+    assert keys[11.0] == keys[13.0] == round(raya, 4)
+    assert keys[18.5] == mon0 and keys[23.0] == round(h, 4)
+    assert keys[27.0] == keys[45.0] == round(h, 4)
+    assert int(keys[27.0]) == s.months_total - 1  # the handover month
+    assert [t for t, _ in plan.month_keys] == sorted(t for t, _ in plan.month_keys)
+
+
+def test_month_keys_fall_back_to_data_order_when_raya_is_inside_the_monsoon():
+    from townshiplens_spatial import devsim_schedule as ds
+
+    s = ds.schedule()
+    inside = next(b for b in s.monsoon_bands if b.start_index <= s.raya_set_piece.month_index)
+    months = [
+        m.model_copy(update={"month_index": i, "month": s.months[i]})
+        for i, m in zip(
+            range(inside.start_index, inside.end_index + 1),
+            s.monsoon_set_piece.months,
+            strict=False,
+        )
+    ]
+    alt = s.model_copy(
+        update={"monsoon_set_piece": s.monsoon_set_piece.model_copy(update={"months": months})}
+    )
+    keys, mode = devsim.month_keys(alt)
+    assert mode == "data-order"
+    assert keys[0] == (0.0, 0.0) and keys[1] == (3.0, 0.0) and keys[-1][0] == 45.0
+    assert all(b[0] >= a[0] and b[1] >= a[1] for a, b in zip(keys, keys[1:], strict=False))
+    holds = [(a, b) for a, b in zip(keys, keys[1:], strict=False) if a[1] == b[1] and b[0] > a[0]]
+    assert any(abs(b[0] - a[0] - 2) < 1e-6 for a, b in holds)  # the 2 s Raya hold
+    assert dict(keys)[45.0] == round(devsim._month_of(s.start, s.handover), 4)
+
+
+@seed_only
+def test_brief_sections_and_copy():  # spec §6.2 Impact Brief, rulings R16, R17
+    plan = _plan()
+    br = plan.brief
+    assert [s.key for s in br.sections] == ["construction", "handover", "daily_life"]
+    assert [s.title for s in br.sections] == [
+        "During construction",
+        "At handover",
+        "Daily life (walk minutes)",
+    ]
+    rows = {r.key: r for s in br.sections for r in s.rows}
+    im, sch, fl, lr = plan.impact, plan.schedule, plan.flood, plan.lorry_route
+    assert rows["homes_2min_plus"].value == (
+        f"{im.homes_2min_plus} of {im.homes_considered} · up to +{im.max_extra_min} min"
+    )
+    assert rows["wheelchair_links_cut"].value == f"{im.wheelchair_links_cut} homes"
+    assert rows["duration"].badges == ["ESTIMATE"] and rows["cost"].badges == ["ESTIMATE"]
+    assert rows["cost"].value == f"RM {round(sch.cost_total_rm / 1e6)} M"
+    assert rows["days_lost"].value == (
+        f"{sch.holiday_days_lost} · {sch.raya_shutdown_days} · {sch.rain_days_lost}"
+    )
+    # R16: the lorry row and tag name the first sensitive place and its kind, never a school
+    # that is not there.
+    first = lr.sensitive[0]
+    assert rows["lorry"].label == f"Lorry route passes a {first.type}"
+    assert first.name in rows["lorry"].value
+    lorry_tag = next(t for t in plan.tags if t.kind == "lorry")
+    assert lorry_tag.text == f"Passes a {first.type}: {first.name}"
+    if first.type not in ("school", "kindergarten"):
+        assert "school" not in (lorry_tag.text + rows["lorry"].label).lower()
+    # R17 / AC-C5: the cut scenario, or the highest scenario actually checked.
+    if fl.cut_from_scenario:
+        assert rows["flood_cut"].value == f"+{fl.cut_from_scenario[7]} m scenario"
+    else:
+        assert rows["flood_cut"].value == f"Not cut up to +{fl.scenarios_checked[-1][7]} m"
+    assert rows["flood_cut"].badges == ["FLOOD"]
+    ev = fl.evacuation
+    assert rows["evacuation"].value == f"{ev.name} · {ev.min} min walk"
+    assert ("official" in rows["evacuation"].label.replace("not official", "")) == (
+        ev.source == "official_pps"
+    )
+    hand = br.sections[1]
+    assert hand.notes[0].startswith("Indicative scenario, not a forecast.")
+    daily = br.sections[2]
+    assert daily.rows == []
+    cells = {c.value for r in plan.access_matrix.rows for c in r.cells}
+    assert ("?" in cells) == any(n.startswith("? =") for n in daily.notes)
+
+
+@seed_only
+def test_monsoon_and_raya_banners_quote_the_schedule():  # spec §6.2 set pieces
+    plan = _plan()
+    s = plan.schedule
+    raya, mon, hand = plan.banners
+    assert raya.title == f"Hari Raya Aidilfitri · site closed ~{s.raya_set_piece.days} days"
+    wet = sorted({m.wet_days for m in s.monsoon_set_piece.months})
+    assert f"{wet[0]}–{wet[-1]} wet days a month" in mon.text
+    assert all(m.days_lost == 0 for m in s.monsoon_set_piece.months)  # a fit-out band
+    assert f"~{s.rain_days_lost} days in all" in mon.text
+    assert hand.title == f"Handover · keys to ~{plan.site.homes} homes"
+    assert all(b.badges == ["CALENDAR", "ESTIMATE"] for b in (raya, mon))
 
 
 @pytest.mark.parametrize(
@@ -232,68 +389,84 @@ def test_bubble_seven_copy_rule(mins, text):
 
 
 @seed_only
-def test_no_detour_drops_the_tag_and_the_end_card_item():  # spec §13
+def test_no_detour_drops_the_tag():  # spec §13
     plan = _plan()
     facts = plan.facts.model_copy(update={"detour": None})
-    _, bubbles, card, anchors = devsim.build_beats(_world(), plan.site, facts)
+    _, bubbles, anchors = devsim.build_beats(_world(), plan.site, facts)
     assert bubbles[0].tag is None and not re.search(r"\d", bubbles[0].text)
-    assert len(card.items) == 2 and card.items[0].badges == ["SIMULATED"]
+    tags = devsim._tags(_world(), plan.impact, plan.lorry_route, facts)
     alt = plan.model_copy(
-        update={"facts": facts, "bubbles": bubbles, "end_card": card, "anchors": anchors}
+        update={"facts": facts, "bubbles": bubbles, "anchors": anchors, "tags": tags}
     )
     assert devsim.check_plan(alt) == []
 
 
-def _numbered_slots(plan):
-    """(kind, index) of every bubble text, tag and end-card item that quotes a number."""
+# Every copy slot as (where, getter, setter), for the mutation tests.
+def _slots(plan):
     out = []
     for i, b in enumerate(plan.bubbles):
-        if re.search(r"\d", b.text):
-            out.append(("text", i))
-        if b.tag and re.search(r"\d", b.tag):
-            out.append(("tag", i))
-    for i, it in enumerate(plan.end_card.items):
-        if re.search(r"\d", it.text):
-            out.append(("item", i))
+        out.append((f"bubble {b.n}", ("bubbles", i, "text")))
+        if b.tag:
+            out.append((f"bubble {b.n} tag", ("bubbles", i, "tag")))
+    for i, t in enumerate(plan.tags):
+        out.append((f"tag {t.kind}", ("tags", i, "text")))
+    for i, b in enumerate(plan.banners):
+        out += [(f"banner {b.kind}", ("banners", i, "title"))]
+        out += [(f"banner {b.kind}", ("banners", i, "text"))]
+    for si, s in enumerate(plan.brief.sections):
+        for ri, r in enumerate(s.rows):
+            out += [(f"brief {r.key}", ("brief", si, ri, "label"))]
+            out += [(f"brief {r.key}", ("brief", si, ri, "value"))]
     return out
 
 
-def _with_text(plan, slot, fn):
-    kind, i = slot
+def _get(plan, path):
+    if path[0] == "brief":
+        _, si, ri, field = path
+        return getattr(plan.brief.sections[si].rows[ri], field)
+    kind, i, field = path
+    return getattr(getattr(plan, kind)[i], field)
+
+
+def _set(plan, path, value):
     p = plan.model_copy(deep=True)
-    if kind == "item":
-        p.end_card.items[i].text = fn(p.end_card.items[i].text)
-    elif kind == "tag":
-        p.bubbles[i].tag = fn(p.bubbles[i].tag)
+    if path[0] == "brief":
+        _, si, ri, field = path
+        setattr(p.brief.sections[si].rows[ri], field, value)
     else:
-        p.bubbles[i].text = fn(p.bubbles[i].text)
+        kind, i, field = path
+        setattr(getattr(p, kind)[i], field, value)
     return p
 
 
-@seed_only
-@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
-@given(data=st.data())
-def test_a_mutated_number_fails_the_check(data):  # AC-H2
+def _numbered_slots(plan):
+    return [s for s in _slots(plan) if re.search(r"\d", _get(plan, s[1]))]
+
+
+def test_numbered_slots_cover_every_brief_tag_and_banner_number():
+    """Every digit-bearing copy string of the new fields is a mutation target."""
+    if not HAS_SEED:
+        pytest.skip("Elmina seed not built")
     plan = _plan()
-    assert devsim.check_plan(plan) == []
-    allowed = devsim.fact_numbers(plan.facts)
-    slots = _numbered_slots(plan)
-    slot = data.draw(st.sampled_from(slots))
-    new = data.draw(st.integers(0, 99_999).filter(lambda v: v not in allowed))
-    comma = data.draw(st.booleans())
-    kind, i = slot
-    text = (
-        plan.end_card.items[i].text
-        if kind == "item"
-        else plan.bubbles[i].tag
-        if kind == "tag"
-        else plan.bubbles[i].text
-    )
+    where = {w for w, _ in _numbered_slots(plan)}
+    assert {"tag detour", "banner raya", "banner monsoon", "banner handover"} <= where
+    assert {"brief homes_2min_plus", "brief duration", "brief days_lost", "brief cost"} <= where
+    assert {"brief flood_cut", "brief evacuation", "brief wheelchair_links_cut"} <= where
+
+
+@seed_only
+@settings(max_examples=120, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(data=st.data())
+def test_a_mutated_number_fails_the_check(data):  # AC-H2, AC-C8
+    plan = _plan()
+    slot = data.draw(st.sampled_from(_numbered_slots(plan)))
+    text = _get(plan, slot[1])
     runs = list(re.finditer(r"\d(?:[\d,]*\d)?", text))
-    k = data.draw(st.integers(0, len(runs) - 1))
-    m = runs[k]
-    rep = f"{new:,}" if comma else str(new)
-    bad = _with_text(plan, slot, lambda t: t[: m.start()] + rep + t[m.end() :])
+    m = runs[data.draw(st.integers(0, len(runs) - 1))]
+    old = int(m.group(0).replace(",", ""))
+    new = data.draw(st.integers(0, 99_999).filter(lambda v: v != old))
+    rep = f"{new:,}" if data.draw(st.booleans()) else str(new)
+    bad = _set(plan, slot[1], text[: m.start()] + rep + text[m.end() :])
     assert devsim.check_plan(bad), (slot, rep)
 
 
@@ -316,7 +489,10 @@ def test_a_digit_in_bubbles_one_to_five_fails_the_check(n, digit, at):  # AC-H2
 )
 def test_banned_words_fail_the_check(word):  # AC-H4
     bad = _plan().model_copy(deep=True)
-    bad.bubbles[2].text = f"We got our keys {word}"
+    bad.bubbles[3].text = f"We got our keys {word}"
+    assert any("banned word" in e for e in devsim.check_plan(bad))
+    bad = _plan().model_copy(deep=True)
+    bad.brief.sections[1].rows[0].value = f"+1 m scenario, {word}"
     assert any("banned word" in e for e in devsim.check_plan(bad))
 
 
@@ -327,8 +503,13 @@ def test_floodlights_are_not_a_banned_word():
 
 @seed_only
 def test_no_banned_words_anywhere_in_the_plan():  # AC-H4
-    text = _plan().model_dump_json()
+    """The whole plan JSON, apart from the flood-exposure data's own field name and the FLOOD
+    badge, says no banned word (no "safe", no depth, no flood wording in any copy)."""
+    plan = _plan()
+    text = plan.model_dump_json(exclude={"flood"}).replace('"FLOOD"', "")
+    text = text.replace('"flood_cut"', "")
     assert not devsim.BANNED.search(text)
+    assert not devsim.BANNED.search(plan.flood.disclaimer)
     assert not re.search(r"\bSDP project\b", text.replace("not an SDP project", ""))
 
 
@@ -350,24 +531,20 @@ def test_committed_web_fixtures_equal_the_built_plan(rel):
 @settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(data=st.data())
 def test_a_swapped_fact_value_fails_the_check(data):  # AC-H2: per-slot facts
-    """Another fact's value in a slot (e.g. the mall minutes in the park bubble) must fail."""
+    """Another value of the same slot or of another slot in its place must fail."""
     plan = _plan()
-    values = sorted(devsim.fact_numbers(plan.facts))
-    slot = data.draw(st.sampled_from(_numbered_slots(plan)))
-    kind, i = slot
-    text = (
-        plan.end_card.items[i].text
-        if kind == "item"
-        else plan.bubbles[i].tag
-        if kind == "tag"
-        else plan.bubbles[i].text
+    slots = _numbered_slots(plan)
+    values = sorted(
+        {int(v.replace(",", "")) for _, p in slots for v in re.findall(r"\d[\d,]*", _get(plan, p))}
     )
+    slot = data.draw(st.sampled_from(slots))
+    text = _get(plan, slot[1])
     runs = list(re.finditer(r"\d(?:[\d,]*\d)?", text))
     m = runs[data.draw(st.integers(0, len(runs) - 1))]
     old = int(m.group(0).replace(",", ""))
     new = data.draw(st.sampled_from([v for v in values if v != old]))
     rep = data.draw(st.sampled_from([f"{new:,}", str(new)]))
-    bad = _with_text(plan, slot, lambda t: t[: m.start()] + rep + t[m.end() :])
+    bad = _set(plan, slot[1], text[: m.start()] + rep + text[m.end() :])
     assert devsim.check_plan(bad), (slot, rep)
 
 
@@ -381,3 +558,77 @@ def test_bubble_one_text_may_not_quote_a_fact():
     bad.bubbles[5].text = f"Park in {plan.facts.mall.min} min, love it"
     assert plan.facts.mall.min != plan.facts.park.min
     assert any("bubble 6" in e for e in devsim.check_plan(bad))
+
+
+# ---- C7: the data behind the copy must agree with itself ---------------------------------------
+def _mutations():
+    def impact_count(p):
+        p.impact.homes_2min_plus += 1
+
+    def impact_max(p):
+        p.impact.max_extra_min += 1
+
+    def wheelchair(p):
+        p.impact.wheelchair_links_cut += 1
+
+    def cost(p):
+        p.schedule.cost_by_month[-1] += 1
+
+    def floors(p):
+        p.schedule.floors_by_month[-1] -= 1
+
+    def lost(p):
+        p.schedule.days_lost_by_month[-1] += 5
+
+    def keys(p):
+        p.month_keys[3] = (p.month_keys[3][0], p.month_keys[3][1] + 1)
+
+    def matrix(p):
+        p.access_matrix.rows[0].cells[0].value = "?"
+
+    def mall(p):
+        p.facts.mall.arrival_id = "lakeside-mall-elsewhere"
+
+    def flood(p):
+        p.flood.cut_from_scenario = "stage_p9m"
+
+    def resident_line(p):
+        r = p.residents.residents[0]
+        r.lines.daily_life = r.lines.daily_life + " 987 min"
+
+    def resident_walk(p):
+        r = p.residents.residents[0]
+        w = r.facts.walks[0]
+        w.value = 99 if w.value != 99 else 98
+
+    def neighbour(p):
+        r = next(x for x in p.residents.residents if x.facts.extra_walk_min is not None)
+        r.facts.extra_walk_min += 7
+
+    def sources(p):
+        p.estimate_sources = p.estimate_sources[1:]
+
+    return [
+        impact_count,
+        impact_max,
+        wheelchair,
+        cost,
+        floors,
+        lost,
+        keys,
+        matrix,
+        mall,
+        flood,
+        resident_line,
+        resident_walk,
+        neighbour,
+        sources,
+    ]
+
+
+@seed_only
+@pytest.mark.parametrize("mutate", _mutations(), ids=lambda f: f.__name__)
+def test_inconsistent_data_fails_the_check(mutate):  # AC-C8: check_plan covers every number
+    bad = _plan().model_copy(deep=True)
+    mutate(bad)
+    assert devsim.check_plan(bad), mutate.__name__
