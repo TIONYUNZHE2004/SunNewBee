@@ -698,37 +698,55 @@ function segsMeet(
   return d1 * d2 <= 0 && d3 * d4 <= 0;
 }
 /**
- * Whether the short step a-b (at most OBSTACLE_STEP_M) crosses an obstacle outline (review fix
- * round 1: a 1 m sample spacing let a path clip a 0.3 m sliver of a footprint corner).
+ * How far along the segment a-b (m) it first meets an obstacle outline (Infinity: never). Review
+ * fix round 1 checked every 1 m step for an outline crossing (a 1 m sample spacing let a path clip a
+ * 0.3 m sliver of a footprint corner); A4w finds the first crossing of the whole segment at once, so
+ * `clearPrefix` cuts at the same sample. A collinear touch counts as met at the segment start.
  */
-function stepCrossesObstacle(
+function firstObstacleHit(
   grids: Map<number, Obstacle[]>[],
   ax: number,
   az: number,
   bx: number,
   bz: number,
-): boolean {
+): number {
   const x0 = Math.min(ax, bx);
   const x1 = Math.max(ax, bx);
   const z0 = Math.min(az, bz);
   const z1 = Math.max(az, bz);
-  const keys = new Set([
-    obstKey(Math.floor(ax / OBST_CELL_M), Math.floor(az / OBST_CELL_M)),
-    obstKey(Math.floor(bx / OBST_CELL_M), Math.floor(bz / OBST_CELL_M)),
-  ]);
+  const ux = bx - ax;
+  const uz = bz - az;
+  const l = Math.hypot(ux, uz);
+  let best = Number.POSITIVE_INFINITY;
+  const i0 = Math.floor(x0 / OBST_CELL_M);
+  const i1 = Math.floor(x1 / OBST_CELL_M);
+  const j0 = Math.floor(z0 / OBST_CELL_M);
+  const j1 = Math.floor(z1 / OBST_CELL_M);
   for (const g of grids)
-    for (const k of keys)
-      for (const o of g.get(k) ?? []) {
-        const b = o.bb;
-        if (x1 < b[0] || x0 > b[2] || z1 < b[1] || z0 > b[3]) continue;
-        for (const ring of o.poly)
-          for (let i = 0; i < ring.length; i++) {
-            const r = ring[i] as P;
-            const q = ring[(i + 1) % ring.length] as P;
-            if (segsMeet(ax, az, bx, bz, r[0], r[1], q[0], q[1])) return true;
-          }
+    for (let ci = i0; ci <= i1; ci++)
+      for (let cj = j0; cj <= j1; cj++) {
+        const list = g.get(obstKey(ci, cj));
+        if (!list) continue;
+        for (const o of list) {
+          const b = o.bb;
+          if (x1 < b[0] || x0 > b[2] || z1 < b[1] || z0 > b[3]) continue;
+          for (const ring of o.poly)
+            for (let i = 0; i < ring.length; i++) {
+              const r = ring[i] as P;
+              const q = ring[(i + 1) % ring.length] as P;
+              if (!segsMeet(ax, az, bx, bz, r[0], r[1], q[0], q[1])) continue;
+              const vx = q[0] - r[0];
+              const vz = q[1] - r[1];
+              const den = cross2(ux, uz, vx, vz);
+              const t =
+                den === 0
+                  ? 0
+                  : Math.max(0, Math.min(1, cross2(r[0] - ax, r[1] - az, vx, vz) / den));
+              if (t * l < best) best = t * l;
+            }
+        }
       }
-  return false;
+  return best;
 }
 /** Carriageway segments (street / major_road centre lines with half their drawn width), gridded. */
 interface Carriage {
@@ -804,41 +822,45 @@ function pavementPointOk(
 }
 
 /**
- * Metres of `pts` from its start that stay clear: every vertex passes `vertexOk` and every vertex
- * and OBSTACLE_STEP_M sample passes `pointOk`. Infinity when all of it is clear. Cut a step short of
- * the first failing sample.
+ * Metres of `pts` from its start that stay clear: every vertex passes `vertexOk`, every vertex and
+ * OBSTACLE_STEP_M sample passes `pointOk`, the first point passes `startOk` and no step between
+ * consecutive samples holds an outline crossing (`segHit`). Infinity when all of it is clear. Cut a
+ * step short of the first failing sample. (A path that starts outside every obstacle and never crosses an outline
+ * stays outside them all, so the obstacle inside test is `startOk`, made once, not per sample.)
  */
 function clearPrefix(
   pts: P[],
   pointOk: ((x: number, z: number) => boolean) | null,
   vertexOk: (x: number, z: number) => boolean,
-  /** Also checked on every step between consecutive samples (an outline crossing). */
-  stepOk?: (ax: number, az: number, bx: number, bz: number) => boolean,
+  /** Metres along a segment to its first outline crossing (Infinity: none); cut at the sample before. */
+  segHit?: (ax: number, az: number, bx: number, bz: number) => number,
+  /** Checked at the first point only. */
+  startOk?: (x: number, z: number) => boolean,
 ): number {
   let walked = 0;
   let prev = 0;
+  const sampled = pointOk !== null || segHit !== undefined;
   for (let i = 0; i < pts.length; i++) {
     const a = pts[i] as P;
     // a vertex out of the boundary: back to the previous vertex (a cut point is a vertex too)
     if (!vertexOk(a[0], a[1])) return prev;
+    if (i === 0 && startOk && !startOk(a[0], a[1])) return 0;
     if (pointOk && !pointOk(a[0], a[1])) return Math.max(prev, walked - OBSTACLE_STEP_M);
     prev = walked;
     const b = pts[i + 1];
     if (!b) break;
     const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (pointOk) {
+    if (sampled) {
       const n = Math.floor(l / OBSTACLE_STEP_M);
-      let px = a[0];
-      let pz = a[1];
+      // the step (k - 1 .. k samples) holding the first outline crossing, if any
+      const hit = segHit ? segHit(a[0], a[1], b[0], b[1]) : Number.POSITIVE_INFINITY;
+      const hitStep = hit <= l ? Math.min(n + 1, Math.floor(hit / OBSTACLE_STEP_M) + 1) : n + 2;
       for (let k = 1; k <= n + 1; k++) {
         const last = k === n + 1;
         const t = last ? 1 : (k * OBSTACLE_STEP_M) / l;
         const qx = a[0] + (b[0] - a[0]) * t;
         const qz = a[1] + (b[1] - a[1]) * t;
-        const stepBad = stepOk ? !stepOk(px, pz, qx, qz) : false;
-        px = qx;
-        pz = qz;
-        if (stepBad || (!last && !pointOk(qx, qz))) {
+        if (k === hitStep || (!last && pointOk !== null && !pointOk(qx, qz))) {
           // the cut point (the last clear sample) becomes a vertex: it must be inside as well
           const tc = ((k - 1) * OBSTACLE_STEP_M) / l;
           const ok = vertexOk(a[0] + (b[0] - a[0]) * tc, a[1] + (b[1] - a[1]) * tc);
@@ -1014,15 +1036,12 @@ export function planAgents(input: AgentsInput): Agent[] {
         check: (pts: P[]) =>
           clearPrefix(
             pts,
-            kind === "vehicle"
-              ? null
-              : (x, z) =>
-                  !insideObstacle(grids, x, z) &&
-                  (!pave || pavementPointOk(carriages, legFid, legNodes, x, z)),
+            pave ? (x, z) => pavementPointOk(carriages, legFid, legNodes, x, z) : null,
             insidePt,
             kind === "vehicle"
               ? undefined
-              : (ax, az, bx, bz) => !stepCrossesObstacle(grids, ax, az, bx, bz),
+              : (ax, az, bx, bz) => firstObstacleHit(grids, ax, az, bx, bz),
+            kind === "vehicle" ? undefined : (x, z) => !insideObstacle(grids, x, z),
           ),
       });
       // a long first edge is walked only as far as the walk needs (then the agent fades)

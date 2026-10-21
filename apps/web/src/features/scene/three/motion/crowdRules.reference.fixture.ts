@@ -1,7 +1,8 @@
 /**
  * TEST ONLY: the crowd rules and path walk as they were before the GATE AC-D18 fix (look search over
  * every pair of paths, allocating keep-out, linear path walk), kept verbatim as the reference the
- * optimised versions must match exactly.
+ * optimised versions must match exactly. The keep-out follows the A4w rule change (a radial push
+ * past round joints) in both copies.
  */
 import type { CrowdLook } from "../assets/crowdManifest";
 import { hash01 } from "../assets/fit";
@@ -215,11 +216,30 @@ function segZone(spine: XZ[], i: number, x: number, z: number, R: number) {
   const rz = z - a0[1];
   const a = rx * fx + rz * fz;
   const s = rx * fz - rz * fx;
-  const da = a - Math.max(0, Math.min(L, a));
-  const cap = da < 0 ? (i === 0 ? KEEP_OUT_CAP_M : R) : i === spine.length - 2 ? KEEP_OUT_CAP_M : R;
+  const ac = Math.max(0, Math.min(L, a));
+  const da = a - ac;
+  const ellipse = da < 0 ? i === 0 : da > 0 && i === spine.length - 2;
+  const cap = ellipse ? KEEP_OUT_CAP_M : R;
   const e = da / cap;
   const need = Math.abs(e) >= 1 ? 0 : R * Math.sqrt(1 - e * e);
-  return { a, s, need, fx, fz, ox: a0[0], oz: a0[1] };
+  // A4w: past a round joint the zone is the circle about the joint (depth R - distance)
+  const round = da !== 0 && !ellipse;
+  const d = Math.hypot(da, s);
+  const depth = round ? R - d : need - Math.abs(s);
+  return {
+    a,
+    s,
+    need,
+    fx,
+    fz,
+    ox: a0[0],
+    oz: a0[1],
+    round,
+    d,
+    cx: a0[0] + fx * ac,
+    cz: a0[1] + fz * ac,
+    depth,
+  };
 }
 
 /**
@@ -262,7 +282,7 @@ export function refKeepOut(
     let depth = 0;
     for (let i = 0; i < spine.length - 1; i++) {
       const zn = segZone(spine, i, px, pz, R);
-      const d = zn.need - Math.abs(zn.s);
+      const d = zn.depth;
       if (d > depth) {
         depth = d;
         best = zn;
@@ -281,14 +301,20 @@ export function refKeepOut(
       out.hidden = true;
       return out;
     }
-    const ns = mem.side * best.need;
-    px = best.ox + best.fx * best.a + best.fz * ns;
-    pz = best.oz + best.fz * best.a - best.fx * ns;
+    if (best.round && best.d > 1e-6) {
+      // A4w: out along the radius from the joint
+      px = best.cx + ((px - best.cx) * R) / best.d;
+      pz = best.cz + ((pz - best.cz) * R) / best.d;
+    } else {
+      const ns = mem.side * best.need;
+      px = best.ox + best.fx * best.a + best.fz * ns;
+      pz = best.oz + best.fz * best.a - best.fx * ns;
+    }
   }
   // Still inside after the pushes (the inside of a sharp bend): not drawn this frame.
   for (let i = 0; i < spine.length - 1; i++) {
     const zn = segZone(spine, i, px, pz, R);
-    if (Math.abs(zn.s) < zn.need - 1e-9) {
+    if (zn.depth > 1e-9) {
       out.hidden = true;
       return out;
     }
