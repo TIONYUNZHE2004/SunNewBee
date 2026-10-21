@@ -91,9 +91,11 @@ async def _planned(world, tmp_path, a, b, profile):
 async def test_mock_resolves_the_demo_places_by_name_and_plays_the_journey(seed, tmp_path):
     evs, rec, _ = await _turn(seed, tmp_path, DEMO_Q, "older_adult_rest")
     calls = [e for e in evs if e.type == "tool.call"]
-    assert [c.name for c in calls] == ["find_place", "find_place", "plan_route"]
-    assert calls[2].args["from_id"] == HARMONI_1 and calls[2].args["to_id"] == CAR_PARK_B
-    assert calls[2].args["profile"] == "older_adult_rest"
+    # compare_routes first (B4): the shortest walk already works, so plan_route answers
+    assert [c.name for c in calls] == ["find_place", "find_place", "compare_routes", "plan_route"]
+    for c in calls[2:]:
+        assert c.args["from_id"] == HARMONI_1 and c.args["to_id"] == CAR_PARK_B
+        assert c.args["profile"] == "older_adult_rest"
     kinds = [i.kind for i in _intents(evs)]
     assert kinds == ["route.highlight", "journey.play"]
     hl, play = _intents(evs)

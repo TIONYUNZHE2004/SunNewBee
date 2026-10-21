@@ -7,6 +7,7 @@ ACCESS_FLOOD_TOOLS = frozenset(
         "find_place",
         "get_place_details",
         "plan_route",
+        "compare_routes",  # mobility-profile routes: fastest vs recommended (demo polish B4)
         "nearby_amenities",
         "get_closures",
         "create_verification_request",

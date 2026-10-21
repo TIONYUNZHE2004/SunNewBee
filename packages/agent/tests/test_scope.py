@@ -292,7 +292,8 @@ async def test_model_registration_uses_scope_allowlist(ctx, scope):
     await A.build_agent(FunctionModel(model), assistant_scope=scope).run(
         "hello", deps=A.Deps(ctx, TurnRecord(), ChatRequest(message="hello"))
     )
-    assert set(seen) == (ACCESS_FLOOD_TOOLS if scope == "access_flood" else set(tools.TOOLS))
+    every = set(tools.TOOLS)
+    assert set(seen) == (ACCESS_FLOOD_TOOLS if scope == "access_flood" else every)
 
 
 async def test_mcp_uses_the_same_scope_with_existing_write_opt_in(monkeypatch):

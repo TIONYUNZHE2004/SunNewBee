@@ -80,6 +80,11 @@ class TurnRecord:
     development_plan: DevelopmentPlan | None = None
     # affected_places counts this turn: places and path segments apart (Cycles 5-6 review B1).
     affected: list[dict] = field(default_factory=list)
+    # compare_routes results this turn (demo polish B4): the tool's data (fastest, recommended,
+    # stop, reasons, unchecked, pois, vr, confirm_n). Both routes are also in `routes`
+    # (recommended first). The route.compare intent payload and every number a compare answer
+    # may state come from here (validate.compare_errors).
+    compares: list[dict] = field(default_factory=list)
     # simulate_event results this turn (T-025): the numbers an event answer may quote.
     events: list[dict] = field(default_factory=list)
     # Diagnostics (never shown to users, never stored): the validator's errors for each rejected

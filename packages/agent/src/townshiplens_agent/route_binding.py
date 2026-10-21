@@ -595,11 +595,14 @@ def estimate_text_errors(text, record):
             )
             if physical and re.search(
                 r"\blikely\b|\bestimat|\brecorded\b|\bmapped\b|\btagged\b"
-                r"|\banggar|\bmungkin\b|\bkemungkinan\b|可能|估计|估算|记录|direkodkan",
+                r"|\banggar|\bmungkin\b|\bkemungkinan\b|可能|估计|估算|记录|direkodkan"
+                # a demo-value fact carries its own qualifier (validate.ESTIMATE_HEDGE does the
+                # same): "No known barrier on the step-free path (demo values, not yet surveyed)"
+                r"|demo values|not yet surveyed|nilai demo|belum ditinjau|演示数据|尚未实地调查",
                 clause,
                 re.I,
             ):
-                continue  # explicitly estimated access, never a checked physical fact
+                continue  # explicitly estimated or demo-qualified access, never a checked fact
             if not _ESTIMATE_NEGATIVE.search(clause[: match.start()]):
                 return [
                     "Map estimates are not checked facts: remove positive survey, confirmation "

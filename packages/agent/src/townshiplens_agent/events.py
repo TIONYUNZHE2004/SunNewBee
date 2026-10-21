@@ -4,9 +4,20 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from townshiplens_spatial.devsim_models import DevelopmentPlan
-from townshiplens_spatial.models import HHMM_PATTERN, JourneyPlan, RouteStatus
+from townshiplens_spatial.models import (
+    HHMM_PATTERN,
+    CompareVr,
+    EvalResult,
+    JourneyPlan,
+    Poi,
+    ProfileId,
+    RouteReasons,
+    RouteStatus,
+    StopPoint,
+    UncheckedStretch,
+)
 
 IntentKind = Literal[
     "camera.fly_to",
@@ -20,7 +31,59 @@ IntentKind = Literal[
     "day.trip",  # a resident's own rehearsed trip: day.show plus the trip (geojson, server-built)
     "journey.play",  # play a planned route as a journey (JourneyPlan attached by the server)
     "development.play",  # play the Development Simulation (plan attached by the server, if built)
+    "route.compare",  # fastest vs recommended split screen (payload attached by the server)
 ]
+
+_ALWAYS = ConfigDict(json_schema_serialization_defaults_required=True)
+
+
+class CompareEnd(BaseModel):
+    """A route end of a compare: the place id and its name."""
+
+    model_config = _ALWAYS
+    id: str
+    name: str
+
+
+class CompareSegment(BaseModel):
+    model_config = _ALWAYS
+    edge_id: str
+    eval: EvalResult  # under the route's own profile (fastest: default; recommended: the profile)
+
+
+class CompareRoute(BaseModel):
+    """One route of a compare, trimmed for the scene: geometry as [lon, lat] points in travel
+    order and the edge sequence with its evaluation."""
+
+    model_config = _ALWAYS
+    id: str
+    status: RouteStatus
+    distance_m: float
+    est_minutes: float
+    coordinates: list[list[float]]
+    segments: list[CompareSegment]
+
+
+class RouteCompare(BaseModel):
+    """The `route.compare` payload: compare_routes' result as recorded this turn (run.py builds
+    it from TurnRecord.compares; the model never writes any of it). `fastest` is the shortest
+    walk, `recommended` the profile's route; with `same_path` both are the same route."""
+
+    model_config = _ALWAYS
+    from_place: CompareEnd
+    to_place: CompareEnd
+    profile: ProfileId
+    status: RouteStatus
+    same_path: bool
+    fastest: CompareRoute | None
+    recommended: CompareRoute | None
+    stop: StopPoint | None
+    reasons: RouteReasons
+    extra_minutes: float | None
+    unchecked: list[UncheckedStretch]
+    pois: list[Poi]
+    vr: CompareVr | None
+    confirm_n: int | None
 
 
 # A scene intent as the model writes it in `final_answer` (no docstring: it would become part of
@@ -59,6 +122,9 @@ class SceneIntent(AnswerSceneIntent):
     # POST /developments/simulate itself. Matches the web's DevelopmentPlayIntent.
     plan: DevelopmentPlan | None = None
     brief_text: str | None = None
+    # route.compare, attached by the server (run.py) from compare_routes this turn; never set by
+    # the model. route_id is the recommended route (also drawn by route.highlight).
+    compare: RouteCompare | None = None
 
 
 class TextDelta(BaseModel):
