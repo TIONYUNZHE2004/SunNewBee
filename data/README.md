@@ -468,3 +468,13 @@ class tables were removed; retained +1/+2/+3 m classes and polygons were not reb
 The builder defaults to these three stages on future runs. Every current scenario
 disclaimer says “Flash floods from heavy rain are not shown.” Earlier measurements
 above describe historical builds.
+
+### T-026 closure benchmark
+
+`LLM_PROVIDER=mock uv run python data/scripts/benchmark_closures.py` selects a mapped
+residential road whose closure affects at least three sample trips and prints its
+request/result. It then measures one closure, 40 simultaneous single-segment closures,
+and three overlapping closures (39 segments), each with an empty and a populated
+baseline cache. Every case loads a fresh seed world; seed loading is outside the timing,
+while snapshots and static routing-cache initialization are included. It uses no network,
+model calls, downloads or persistent writes. Timings describe this machine, not an SLA.

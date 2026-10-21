@@ -1,7 +1,25 @@
 import type { ClosureImpact } from "./closureSimModel";
 
-/** A typed T-026 contract response (mocked until the backend lands): road works on one road. */
+/** A `POST /closures/simulate` response in the generated shape: road works on one road. One
+ * detour name repeats, so the card must not key rows by name. */
 export const SIM_RESULT: ClosureImpact = {
+  at: "2026-10-27T01:00:00Z",
+  event: {
+    name: "Pipe repair",
+    reason: "works",
+    closures: [
+      {
+        road_names: ["Persiaran Garcinia"],
+        segment_ids: ["seg-ab"],
+        starts_at: "2026-10-27T01:00:00Z",
+        ends_at: "2026-10-27T09:00:00Z",
+      },
+    ],
+  },
+  evidence_id: "ev-closure-1",
+  per_profile: {},
+  sample_limit_per_profile: 100,
+  trips: [],
   trips_total: 63,
   trips_affected: 7,
   trips_no_route: 45,
@@ -27,15 +45,33 @@ export const SIM_RESULT: ClosureImpact = {
       road_class: "tertiary",
       pressure: "low",
     },
+    {
+      name: "Persiaran Tamarind",
+      segment_ids: ["seg-de"],
+      trips: 2,
+      weighted_trips: 2,
+      road_class: "residential",
+      pressure: "medium",
+    },
   ],
   suggestions: [
     {
       kind: "signpost",
-      text: "Signpost the detour via Jalan Dillenia instead of Persiaran Tamarind.",
-      basis: "detour_roads[Persiaran Tamarind].weighted_trips=8",
+      text: "Review signposting the detour via Jalan Dillenia instead of Persiaran Tamarind.",
+      basis:
+        "detour_roads[Persiaran Tamarind].weighted_trips=8; capacity[residential]=1; capacity[tertiary]=3",
+    },
+    {
+      kind: "marshal",
+      text: "Consider a marshal at Persiaran Tamarind: 4 sample trips reroute onto it.",
+      basis: "detour_roads[Persiaran Tamarind].trips=4; weighted_trips=8",
+    },
+    {
+      kind: "marshal",
+      text: "Consider a marshal at Persiaran Tamarind: 4 sample trips reroute onto it.",
+      basis: "detour_roads[Persiaran Tamarind].trips=4; weighted_trips=8",
     },
   ],
-  closures: [{ segment_ids: ["seg-ab"] }],
   weights_note: "Peak weights are an assumed travel pattern, not measured.",
   disclaimer:
     "Detour pressure, estimated from mapped road class and sample trips, not traffic counts.",

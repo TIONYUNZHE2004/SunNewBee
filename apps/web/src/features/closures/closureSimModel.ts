@@ -1,7 +1,8 @@
+import type { Schemas } from "@tl/api-client";
+
 /**
- * T-026 closure simulation, as the fixed contract in tasks/T-026 ("Decisions and API contract")
- * defines it. The backend builds `POST /closures/simulate` in parallel; until it lands these types
- * stand in for the generated client, and the panel says the simulation is not available yet.
+ * T-026 closure simulation: `POST /closures/simulate`, typed from the generated client. If a
+ * server doesn't have the route yet, the panel says so instead of guessing.
  */
 
 export const CLOSURE_REASONS = [
@@ -10,50 +11,13 @@ export const CLOSURE_REASONS = [
   ["accident", "Accident"],
   ["flooding", "Flooding"],
   ["other", "Other"],
-] as const;
+] as const satisfies readonly (readonly [Schemas["ClosureScenario"]["reason"], string])[];
 export type ClosureReason = (typeof CLOSURE_REASONS)[number][0];
-export type Pressure = "low" | "medium" | "high";
-
-export interface ClosureSimRequest {
-  name: string;
-  reason: ClosureReason;
-  closures: { road_names: string[]; starts_at: string; ends_at: string }[];
-  profiles?: string[];
-}
-
-export interface DetourRoad {
-  name: string;
-  segment_ids: string[];
-  trips: number;
-  weighted_trips?: number;
-  road_class?: string;
-  pressure?: Pressure;
-}
-
-export interface ClosureSuggestion {
-  kind: "signpost" | "marshal" | "crossing_point" | "two_way" | "split" | "reschedule";
-  text: string;
-  basis: string;
-}
-
-export interface ClosureImpact {
-  trips_total: number;
-  trips_affected: number;
-  trips_no_route: number;
-  trips_no_route_before: number;
-  trips_newly_no_route: number;
-  extra_m_median: number | null;
-  extra_min_median: number | null;
-  places_cut_off: { id: string; name: string }[];
-  detour_roads: DetourRoad[];
-  suggestions: ClosureSuggestion[];
-  /** Course segment ids per closure, when the backend echoes them (map only). */
-  closures?: { segment_ids?: string[] }[];
-  event?: { name?: string; segment_ids?: string[] };
-  weights_note?: string;
-  disclaimer: string;
-  timing_ms?: number;
-}
+export type ClosureSimRequest = Schemas["SimulateClosureBody"];
+export type ClosureImpact = Schemas["ClosureImpact"];
+export type DetourRoad = Schemas["DetourRoad"];
+export type ClosureSuggestion = Schemas["EventSuggestion"];
+export type Pressure = DetourRoad["pressure"];
 
 /** One closure row in the form: roads as typed ("Persiaran X" or "X between A and B"). */
 export interface ClosureRow {
@@ -125,13 +89,50 @@ export function resultLines(r: ClosureImpact): {
   };
 }
 
-/** The course segment ids the backend echoed (closures[] or event), for the map. */
+/** The closed course: the segment ids the engine resolved for each window, for the map. */
 export function courseSegmentIds(r: ClosureImpact): string[] {
-  const ids = [
-    ...(r.closures ?? []).flatMap((c) => c.segment_ids ?? []),
-    ...(r.event?.segment_ids ?? []),
-  ];
-  return [...new Set(ids)];
+  return [...new Set(r.event.closures.flatMap((c) => c.segment_ids ?? []))];
+}
+
+/** The card lists the first detour rows as the engine ordered them; the rest are counted. */
+export const DETOUR_ROWS = 5;
+
+/** Each suggestion text once. */
+export function uniqueSuggestions(r: ClosureImpact): ClosureSuggestion[] {
+  return [...new Map(r.suggestions.map((s) => [s.text, s])).values()];
+}
+
+const BASIS_WORDS: [RegExp, (m: RegExpMatchArray) => string][] = [
+  [
+    /^detour_roads\[(.+)\]\.weighted_trips=(.+)$/,
+    (m) => `${m[2]} weighted sample trips on ${m[1]}`,
+  ],
+  [/^detour_roads\[(.+)\]\.trips=(.+)$/, (m) => `${m[2]} sample trips reroute onto ${m[1]}`],
+  [/^detour_roads\[(.+)\]\.oneway_segments=(.+)$/, (m) => `${m[2]} one-way segments on ${m[1]}`],
+  [/^weighted_trips=(.+)$/, (m) => `${m[1]} weighted`],
+  [/^capacity\[(.+)\]=(.+)$/, (m) => `${m[1]} road capacity ${m[2]}`],
+  [/^places_cut_off count=(.+)$/, (m) => `${m[1]} ${m[1] === "1" ? "place" : "places"} cut off`],
+  [/^mapped_junction=(.+)$/, (m) => `junction ${m[1]}`],
+  [/^trips_affected=(.+)$/, (m) => `${m[1]} sample trips affected`],
+  [/^trips_total=(.+)$/, (m) => `${m[1]} sample trips in all`],
+  [/^active_segments=(.+)$/, (m) => `${m[1]} closed segments`],
+];
+
+/** A suggestion's basis in plain words for managers ("8 weighted sample trips on X; …");
+ * an unknown term is kept as the engine wrote it, never dropped. */
+export function basisWords(basis: string): string {
+  return basis
+    .split(";")
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((t) => {
+      for (const [re, say] of BASIS_WORDS) {
+        const m = t.match(re);
+        if (m) return say(m);
+      }
+      return t;
+    })
+    .join("; ");
 }
 
 type Edge = { id: string; coords: [number, number][] };

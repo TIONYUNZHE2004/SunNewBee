@@ -49,9 +49,10 @@ The response still reports the exceeded limit and caps the route at `partly_unve
 | GET | `/verification-requests` | `?status=` (default `open`; `all` returns every status), `&reason=&element_id=&attribute=`; each row adds the claim's `current_value`; a resolved row's `resolution` omits the staff `note` (kept in `GET /audit`) |
 | POST | `/verification-requests` | staff; `{target_id, attribute, reason}`; sanitised with `safe_vr_args` (source `staff`), deduped against the open VR (demand + 1); 503 if the store is unavailable |
 | GET | `/closures` | public; `?active=true` (default: in force now) or `false` (ended or not started); every row is a staff report (`source_label` "Reported closure (staff)") |
-| POST | `/events/simulate` | public; `{name, segment_ids, starts_at, ends_at, profiles?}`; deterministic before/after sample trips, detour roads and numbered suggestions; no writes; 422 invalid input, 503 solver busy |
-| POST | `/events` | staff; `{name, segment_ids, starts_at, ends_at}`; 201 `{event, closures}`; atomically stores named staff course closures, audit `event:create`; 422 invalid course/window |
-| POST | `/closures` | staff; `{element_id, reason: works/event/flooding/other, starts_at?, ends_at?, note?}`; 404 unknown element, 422 end not after start; audit row `closure:create` |
+| POST | `/closures/simulate` | public; `{name, reason: event/works/accident/flooding/other, closures: [{segment_ids? or road_names?, starts_at, ends_at}], profiles?, at?}` → `ClosureImpact`; 40 segment/window pairs, max 300 trips; peak weights, detour pressure, numbered suggestions and timings; no writes; 422 invalid input, 503 solver busy |
+| POST | `/events/simulate` | public compatibility alias; accepts the closure shape above or the legacy shape: `{name, segment_ids, starts_at, ends_at, profiles?}`; deterministic before/after sample trips, detour roads and numbered suggestions; no writes; 422 invalid input, 503 solver busy |
+| POST | `/events` | staff; `{name, segment_ids, starts_at, ends_at}`; 201 `{event, closures}`; also accepts `ClosureScenario` above (without profiles/at), preserving the actual reason and each window; atomically stores named staff closures, audit `event:create`; 422 invalid course/window |
+| POST | `/closures` | staff; `{element_id, reason: works/event/accident/flooding/other, starts_at?, ends_at?, note?}`; 404 unknown element, 422 end not after start; audit row `closure:create` |
 | POST | `/closures/{id}/end` | staff; ends it now; 404, 409 (already ended); audit row `closure:end` |
 | POST | `/verification-requests/{id}/resolve` | staff; `{action: verify, correct or reject, value, note, evidence_id}`; `verify` without a value confirms the current value; `evidence_id` (from `POST /evidence`) attaches a photo to the claim and is refused on `reject`; 404, 409 (already resolved), 422 (value missing, unknown or rejected `evidence_id`, type mismatch) |
 | PATCH | `/elements/{id}/attributes/{key}` | staff; `{value, status: verified, unknown or reported, source_type, note}`; writes an audit row; 404, 422 |
@@ -145,11 +146,27 @@ on every segment closure. These load again after restart and resident route warn
 name the event. Public closure rows expose `event_name`; staff notes remain private.
 Individual course closures can be ended through the existing closure endpoint.
 
-Event simulation defaults to walking, wheelchair and driving, with the same bounded
-everyday sample before and after. Responses include trip rows/statuses, per-profile
-counts, all/new no-route counts, reroute-only median extra metres/minutes, newly
-cut-off mapped places, ranked detour roads, and rule-based suggestions with numeric
-bases. The disclaimer is “Estimate from mapped roads and sample trips, not traffic
-counts.” Other closures are assessed at the start, rather than across the entire
-window. There is no traffic, crowd or queue model. The spatial README defines each
-metric and the 300-trip/40-segment request bounds.
+Closure simulation defaults to walking, wheelchair and driving. `at` (default: first
+listed closure start) selects the active windows and site-local peak weights; this is
+one instant, not a simulation of the whole window. `road_names` accepts mapped road names
+or `<road> between <cross street A> and <cross street B>`; unknown or ambiguous names are
+422 errors. Every window is validated, including inactive windows.
+
+`ClosureImpact` retains the event impact counts, trip rows, per-profile counts, newly
+cut-off places and reroute-only extra metres/minutes. Its `event` is the resolved
+`ClosureScenario` (with segment ids); `at` is the chosen UTC instant. `detour_roads` adds
+`weighted_trips`, `road_class` and `pressure` (low/medium/high), sorted by weighted trips.
+Suggestions are `signpost|marshal|crossing_point|two_way|split|reschedule` with numbered
+`basis` fields. `weights_note` discloses assumed travel patterns; the disclaimer is
+“Detour pressure, estimated from mapped road class and sample trips, not traffic counts.”
+`timing_ms` measures engine work; HTTP snapshot/serialization overhead is additional.
+Both peak and capacity/band tables live in `config/traffic/peak_weights.yaml`.
+
+`POST /events/simulate` accepts both request shapes. Its legacy event response keeps
+the original `EventSpec`, sample and disclaimer while adding weights/pressure/timing.
+Staff `POST /events` accepts the original event or a general `ClosureScenario` and stores
+all segment/window pairs atomically. Named labels show the actual closure reason, not
+always event. Individual rows can still be ended through `/closures/{id}/end`. Public
+rows never disclose staff notes. Resident routing avoids active stored closures and
+names them; pressure remains a management estimate. There is no traffic, crowd or queue
+model. See the spatial README for the sample, cache and metric definitions.

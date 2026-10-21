@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  basisWords,
   buildSimRequest,
   closureFeatures,
   courseSegmentIds,
   resultLines,
   simulateClosures,
+  uniqueSuggestions,
 } from "./closureSimModel";
 import { SIM_RESULT } from "./fixtures";
 
 const row = { roads: "Persiaran Garcinia", day: "2026-10-27", start: "09:00", end: "17:00" };
 
-describe("closure simulation model (T-026 contract)", () => {
+describe("closure simulation model (T-026, generated types)", () => {
   it("builds the contract body in Malaysia time, one closure per row, stretches as typed", () => {
     const out = buildSimRequest("Pipe repair", "works", [
       row,
@@ -73,10 +75,33 @@ describe("closure simulation model (T-026 contract)", () => {
       },
     ];
     const fc = closureFeatures(SIM_RESULT, edges);
+    // seg-cd and seg-de have no geometry in this layer: drawn only where the map has them
     expect(fc.features.map((f) => f.properties)).toEqual([
       { closure: "course" },
       { closure: "detour", pressure: "high" },
     ]);
+  });
+
+  it("gives a suggestion's basis in plain words and keeps unknown terms as written", () => {
+    expect(
+      basisWords(
+        "detour_roads[Persiaran Tamarind].weighted_trips=8; capacity[residential]=1; capacity[tertiary]=3",
+      ),
+    ).toBe(
+      "8 weighted sample trips on Persiaran Tamarind; residential road capacity 1; tertiary road capacity 3",
+    );
+    expect(basisWords("places_cut_off count=1; mapped_junction=n-1")).toBe(
+      "1 place cut off; junction n-1",
+    );
+    expect(basisWords("trips_affected=40; trips_total=63; active_segments=5")).toBe(
+      "40 sample trips affected; 63 sample trips in all; 5 closed segments",
+    );
+    expect(basisWords("new_term=2")).toBe("new_term=2");
+    expect(basisWords("detour_roads[A].weighted_trips=4.0")).not.toContain("detour_roads[");
+  });
+
+  it("lists each suggestion text once", () => {
+    expect(uniqueSuggestions(SIM_RESULT).map((s) => s.kind)).toEqual(["signpost", "marshal"]);
   });
 
   it("says plainly when the backend has not landed (404), and returns the result when it has", async () => {

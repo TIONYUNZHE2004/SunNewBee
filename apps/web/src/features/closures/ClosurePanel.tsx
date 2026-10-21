@@ -6,15 +6,18 @@ import { ImpactGlyph } from "../flood/FloodImpact";
 import { parseLayer } from "../scene/list/listModel";
 import { useScene } from "../scene/sceneStore";
 import {
+  basisWords,
   buildSimRequest,
   CLOSURE_REASONS,
   type ClosureImpact,
   type ClosureReason,
   type ClosureRow,
   closureFeatures,
+  DETOUR_ROWS,
   PRESSURE_STYLE,
   resultLines,
   simulateClosures,
+  uniqueSuggestions,
 } from "./closureSimModel";
 
 const FIELD =
@@ -30,6 +33,8 @@ const emptyRow = (): ClosureRow => ({ roads: "", day: todayMy(), start: "09:00",
 /** Manager-only result card: every number is the engine's; pressure bands as returned. */
 export function ClosureResult({ r }: { r: ClosureImpact }) {
   const l = resultLines(r);
+  const more = r.detour_roads.length - DETOUR_ROWS;
+  const suggestions = uniqueSuggestions(r);
   return (
     <section
       aria-label="Closure result"
@@ -50,27 +55,32 @@ export function ClosureResult({ r }: { r: ClosureImpact }) {
             Detour roads
           </h3>
           <ul className="mt-1 space-y-1">
-            {r.detour_roads.map((d) => {
-              const p = d.pressure ? PRESSURE_STYLE[d.pressure] : null;
+            {r.detour_roads.slice(0, DETOUR_ROWS).map((d, i) => {
+              const p = PRESSURE_STYLE[d.pressure];
               return (
-                <li key={d.name} className="flex flex-wrap items-center justify-between gap-2">
+                // the engine's order is the key: a name is not guaranteed unique
+                // biome-ignore lint/suspicious/noArrayIndexKey: rows are the engine's, never reordered
+                <li key={i} className="flex flex-wrap items-center justify-between gap-2">
                   <span>
                     {d.name} · {d.trips} sample {d.trips === 1 ? "trip" : "trips"}
                   </span>
-                  {p && (
-                    <span className={`chip chip-solid chip-${p.tone}`}>
-                      <span
-                        aria-hidden="true"
-                        className="size-2.5 rounded-full"
-                        style={{ background: p.color }}
-                      />
-                      {p.label}
-                    </span>
-                  )}
+                  <span className={`chip chip-solid chip-${p.tone}`}>
+                    <span
+                      aria-hidden="true"
+                      className="size-2.5 rounded-full"
+                      style={{ background: p.color }}
+                    />
+                    {p.label}
+                  </span>
                 </li>
               );
             })}
           </ul>
+          {more > 0 && (
+            <p className="mt-1 text-xs text-fg-soft">
+              and {more} more detour {more === 1 ? "stretch" : "stretches"}, drawn on the map
+            </p>
+          )}
         </div>
       )}
       {r.places_cut_off.length > 0 && (
@@ -88,16 +98,16 @@ export function ClosureResult({ r }: { r: ClosureImpact }) {
           </ul>
         </div>
       )}
-      {r.suggestions.length > 0 && (
+      {suggestions.length > 0 && (
         <div>
           <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-soft">
             Keep traffic moving
           </h3>
           <ul className="mt-1 space-y-1.5">
-            {r.suggestions.map((s) => (
-              <li key={`${s.kind}:${s.text}`}>
+            {suggestions.map((s) => (
+              <li key={s.text}>
                 {s.text}
-                <span className="block font-mono text-[11px] text-fg-soft">{s.basis}</span>
+                <span className="block text-xs text-fg-soft">Based on: {basisWords(s.basis)}</span>
               </li>
             ))}
           </ul>
@@ -114,7 +124,7 @@ export function ClosureResult({ r }: { r: ClosureImpact }) {
 /**
  * Management (T-026/T-027): close one or more roads or stretches for a time window and see what
  * changes for everyday sample trips. Draws the course in red and the detours by pressure on the
- * map. Until the backend's POST /closures/simulate lands, it says so instead of guessing.
+ * map. A server without POST /closures/simulate gets a plain "not available yet" note.
  */
 export function ClosurePanel() {
   const [open, setOpen] = useState(false);

@@ -1,4 +1,4 @@
-{"meta": {"message": "Which places are cut off if the river rises 3 m? Give me a briefing.", "profile": "default", "scenario_id": "stage_p3m", "world": "tiny", "world_fingerprint": "2d9add2b3df0e62c5969f675a838e5e5363865303f182c2b8db8821b9bec2a5d", "model": "mock-scripted", "recorded_at": "2026-10-21T11:49:00+00:00"}}
+{"meta": {"message": "Which places are cut off if the river rises 3 m? Give me a briefing.", "profile": "default", "scenario_id": "stage_p3m", "world": "tiny", "world_fingerprint": "cc07569e204c40191435befb9b153c6b6fa2a8e0d1da316131fdbe32a43cd43a", "model": "mock-scripted", "recorded_at": "2026-10-21T15:42:20+00:00"}}
 {"type": "tool.call", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "args": {}}
 {"type": "tool.result", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "summary": "4 result(s)"}
 {"type": "tool.call", "id": "affected_places-1", "name": "affected_places", "args": {"scenario_id": "stage_p3m", "kind": "all", "profile": "default"}}
@@ -21,4 +21,4 @@
 {"type": "citation", "ref": 1, "evidence_id": "ev-scn-stage_p3m", "element_id": "stage_p3m", "attribute": "scenario", "status": "indicative", "verified_at": null, "source_type": "HAND scenario (indicative)", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Flash floods from heavy rain are not shown"}]}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance. Flash floods from heavy rain are not shown.", "links": []}
-{"type": "done", "message_id": "demo", "answer_status": "answered", "model": "mock-scripted"}
+{"type": "done", "message_id": "c5fcbb06283e", "answer_status": "answered", "model": "mock-scripted"}
