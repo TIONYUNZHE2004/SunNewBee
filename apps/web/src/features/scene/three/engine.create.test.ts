@@ -977,6 +977,12 @@ describe("engine motion clock", () => {
       settle();
       expect(e.motion.uTime.value).toBeCloseTo(epoch + 40, 9);
       expect(ticks.at(-1)).toBeCloseTo((epoch + 40) * 1000, 6);
+      // a stale owner's release leaves the current clock in place
+      e.releaseDecorClock?.(() => 5);
+      t = 50;
+      e.requestRender();
+      settle();
+      expect(e.motion.uTime.value).toBeCloseTo(epoch + 50, 9);
       e.setDecorClock?.(null);
       t = 77;
       e.requestRender();

@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { useEvacCentres, useGaps, useLayer, useScenarioWater } from "../../../../lib/api";
+import {
+  useEvacCentres,
+  useFloodImpact,
+  useGaps,
+  useLayer,
+  useScenarioWater,
+} from "../../../../lib/api";
+import { useDevsim } from "../../../devsim/devsimStore";
+import { impactSummary } from "../../../flood/impactModel";
 import { gapsActive } from "../../../gaps/gapModel";
 import { useJourney } from "../../../journey/journeyStore";
 import { type LonLat, pointFeatures } from "../../geo";
@@ -38,12 +46,15 @@ export function useOverlays({
   // While a journey plays, its own ribbon (features/journey) draws the trip's route by status; the
   // blue overlay line would sit on top of it (overlay pass), so it steps aside.
   const journeyOn = useJourney((s) => !!s.plan);
+  // A Development Simulation runs its own camera beats: the place markers stay off its stage.
+  const devsimOn = useDevsim((s) => s.status !== "idle");
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const accessVisible = useScene((s) => s.lensVisible.access);
   const pathStatus = useSceneSettings((s) => s.pathStatus);
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const whatIf = useScene((s) => s.whatIf);
+  const closureSim = useScene((s) => s.closureSim);
   const gapsQ = useGaps(profile, gapsOn && accessVisible);
   // Flood tint, waste points, place markers and evacuation centres share the overlay pass.
   const floodLens = useScene((s) => s.lensVisible.flood);
@@ -77,6 +88,8 @@ export function useOverlays({
   const floodQ = useLayer("flood", profile, scenarioId, floodOn);
   const wasteQ = useLayer("waste", profile, scenarioId, wasteLens);
   const evacQ = useEvacCentres(floodOn ? scenarioId : null, profile);
+  const impactQ = useFloodImpact(floodOn ? scenarioId : null);
+  const impact = useMemo(() => impactSummary(impactQ.data)?.markers ?? null, [impactQ.data]);
   /**
    * Place markers drawn (`data-markers`): the access layer's points minus those hidden off the slab
    * (A-T5); without an outline, every point.
@@ -111,17 +124,19 @@ export function useOverlays({
       gapsOn,
       route: routeOn && !journeyOn ? (route?.geojson ?? null) : null,
       whatIf,
+      closureSim,
       water: waterQ.data ?? null,
       floodEdges: floodQ.data ?? null,
       floodOn,
       waste: wasteQ.data ?? null,
       wasteOn: wasteLens,
       evac: evacQ.data ?? null,
+      impact,
       focusPlaceId,
       boundary,
       keepPlaceIds,
       keepNear,
-      tripOnly: journeyOn,
+      tripOnly: journeyOn || devsimOn,
     });
     setMarkerCount(accessVisible ? overlay.drawnPlaces() : 0);
     engine.requestRender();
@@ -135,14 +150,17 @@ export function useOverlays({
     gapsOn,
     routeOn,
     journeyOn,
+    devsimOn,
     route,
     whatIf,
+    closureSim,
     waterQ.data,
     floodQ.data,
     floodOn,
     wasteQ.data,
     wasteLens,
     evacQ.data,
+    impact,
     focusPlaceId,
     boundary,
     keepPlaceIds,

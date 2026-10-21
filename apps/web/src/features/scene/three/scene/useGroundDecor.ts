@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { Tier } from "../../shared/quality";
+import { type Suppress, suppressTracks } from "../devsim/suppress";
 import type { Engine } from "../engine";
 import { createGroundDecorLayer, type GroundDecorParts } from "../ground/groundDecor";
 import type { Site } from "../props/construction";
@@ -16,7 +17,11 @@ interface Parts extends GroundDecorParts {
 }
 
 /** The active tiles' verge strips, track lists and (deduplicated) gravel sites; null at Low or when empty. */
-export function groundDecorPartsOf(active: ActiveTile[], tier: Tier): Parts | null {
+export function groundDecorPartsOf(
+  active: ActiveTile[],
+  tier: Tier,
+  suppress?: Suppress | null,
+): Parts | null {
   if (tier === "low") return null;
   const strips: Float32Array[] = [];
   const skirts: Float32Array[] = [];
@@ -29,7 +34,11 @@ export function groundDecorPartsOf(active: ActiveTile[], tier: Tier): Parts | nu
     if (s && s.length > 0) strips.push(s);
     const k = c.verges?.skirts;
     if (k && k.length > 0) skirts.push(k);
-    if (c.tracks && c.tracks.length > 0) tracks.push(c.tracks);
+    if (c.tracks && c.tracks.length > 0) {
+      // devsim: the earth tracks on the simulated parcel give way to the devsim site
+      const t = suppress ? suppressTracks(c.tracks, suppress) : c.tracks;
+      if (t.length > 0) tracks.push(t);
+    }
     if (c.dressing && c.dressing.tris.length > 0) dressing.push(c.dressing.tris);
     for (const g of c.gravel ?? []) if (!gravel.has(g.id)) gravel.set(g.id, g);
   }
@@ -62,14 +71,17 @@ export function useGroundDecor({
   engine,
   active,
   tier,
+  suppress,
 }: {
   engine: Engine | null;
   active: ActiveTile[];
   tier: Tier;
+  /** Devsim: earth tracks inside this area are not drawn (`devsim/suppress.ts`). */
+  suppress?: Suppress | null;
 }) {
   const fresh = useMemo(
-    () => timed(UNION_MEASURE, () => groundDecorPartsOf(active, tier)),
-    [active, tier],
+    () => timed(UNION_MEASURE, () => groundDecorPartsOf(active, tier, suppress)),
+    [active, tier, suppress],
   );
   const kept = useRef<Parts | null>(null);
   if (!sameParts(kept.current, fresh)) kept.current = fresh;

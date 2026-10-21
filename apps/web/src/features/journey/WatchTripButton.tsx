@@ -29,6 +29,9 @@ export function WatchTripButton({ plan }: { plan: JourneyPlan }) {
         onClick={() => {
           // the trip's persona wins: the chip must never say another one while it plays
           useScene.getState().adoptProfile(plan.profile);
+          // one simulation at a time: the trip ends a Development Simulation (journeyStore.load
+          // does too; this also covers a trip that is already loaded)
+          useScene.getState().stopDevsim();
           const j = useJourney.getState();
           if (j.plan !== plan) j.load(plan);
           if (playable) useJourney.getState().restart();

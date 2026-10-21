@@ -34,7 +34,8 @@ def _code_digest() -> str:
     for root in roots:
         for path in sorted([*root.glob("*.py"), *root.glob("prompts/*.md")]):
             digest.update(path.name.encode())
-            digest.update(path.read_bytes())
+            # LF-normalised: a Windows checkout (core.autocrlf) must hash like CI's Linux one.
+            digest.update(path.read_bytes().replace(b"\r\n", b"\n"))
     return digest.hexdigest()
 
 

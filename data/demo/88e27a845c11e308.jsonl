@@ -1,4 +1,4 @@
-{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "861d2d43af3dd53443eaa91cefefdd61063e8cdfa3bd0e815f41a1d1d05eeba8", "model": "mock-scripted", "recorded_at": "2026-10-21T08:02:36+00:00"}}
+{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "aab49dbfaee687a570bf9914f6a01c78ffdbe9f47336491a20475391c152985d", "model": "mock-scripted", "recorded_at": "2026-10-21T15:30:09+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "urban park", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5, "near_place": null}}
@@ -26,7 +26,7 @@
 {"type": "text.delta", "delta": "ban Park; its entrance is not mapped.\n• "}
 {"type": "text.delta", "delta": "Some segment facts are demo values, not "}
 {"type": "text.delta", "delta": "yet surveyed."}
-{"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-279d8891", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.509854, 3.180547], [101.509999, 3.180661], [101.510071, 3.180734], [101.50979, 3.181102], [101.510045, 3.18131]]}, "route_status": "likely_ok", "distance_m": 119.8, "est_minutes": 1.7, "day": null, "t_min": null, "start_time": null, "journey": null}}
+{"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-279d8891", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.509854, 3.180547], [101.509999, 3.180661], [101.510071, 3.180734], [101.50979, 3.181102], [101.510045, 3.18131]]}, "route_status": "likely_ok", "distance_m": 119.8, "est_minutes": 1.7, "day": null, "t_min": null, "start_time": null, "journey": null, "plan": null, "brief_text": null}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-place-osm-way-1309457596", "element_id": "osm-way-1309457596", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}
 {"type": "citation", "ref": 2, "evidence_id": "ev-place-lakeside-mall", "element_id": "lakeside-mall", "attribute": "name", "status": "unknown", "verified_at": null, "source_type": "team_survey_placeholder", "photo_url": null}
 {"type": "citation", "ref": 3, "evidence_id": "ev-place-bench-urban-3", "element_id": "bench-urban-3", "attribute": "name", "status": "unknown", "verified_at": null, "source_type": "team_survey_placeholder", "photo_url": null}

@@ -1,6 +1,7 @@
 import re
 
 from .answer import Claim, FinalAnswer
+from .developments import EVIDENCE_PREFIX, devsim_answer
 from .events import SceneIntent
 from .journeys import PLAYABLE, journey_facts, journey_steps, start_time_for
 from .labels import (
@@ -604,6 +605,11 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     )
     closed = [*rec.route_closures, *rec.asked_closures]
     last_fixit = bool(rec.what_ifs and rec.what_ifs[-1].get("fixit"))
+    if rec.developments and not rec.routes:
+        ev = [i for i in rec.evidence if i.startswith(EVIDENCE_PREFIX)][-1:]
+        fields = devsim_answer(rec.developments[-1], ev)
+        fields["caveats"] = [*fields["caveats"], "Answer generated from data without AI wording."]
+        return FinalAnswer(**fields)
     if rec.my_trips and not rec.routes:
         ev = [i for i in rec.evidence if i.startswith("ev-mytrip-")][-1:]
         fields = my_trip_answer(rec.my_trips[-1], ev)

@@ -186,7 +186,25 @@ export type RoleKind = "tree" | "person" | "vehicle" | "parked" | "static";
 export const DECOR_CUT_KINDS: ReadonlySet<RoleKind> = new Set(["tree", "parked", "vehicle"]);
 
 const HEADLIGHT = EFFECT_COLOURS.headlight;
+/**
+ * Vehicle lamp emissive scale. At 1 a small car's lamps bloomed into a white blob over the whole car
+ * at night (owner, 21 Oct); the light now reads on the road instead (`motion/vehicleLights.ts`).
+ */
+const VEHICLE_LAMP_GLOW = 0.45;
 const TAILLIGHT = EFFECT_COLOURS.taillight;
+
+/**
+ * Night grade on foliage (the tree kit, and the foliage role on every other model): 1 by day, lower
+ * at night, set by the engine from the mood (`foliageGradeFor`). Without it the canopies kept their
+ * full day green under the night light and read as the brightest thing in the city (owner, 21 Oct).
+ * Module-level, like the ground's `GROUND_GRADE`, so every role material reads the same uniform.
+ */
+export const FOLIAGE_GRADE = { value: 1 };
+
+/** Foliage grade for a ground grade: graded less than the land cover (day 1, dusk ~0.92, night ~0.47). */
+export function foliageGradeFor(groundGrade: number): number {
+  return Math.max(0, groundGrade) ** 0.75;
+}
 
 export function createRoleUniforms(): RoleUniforms {
   return {
@@ -241,6 +259,11 @@ export function createRoleMaterial(opts: {
   bevel?: BevelBox;
 }): THREE.MeshStandardMaterial {
   const { instanced, uniforms } = opts;
+  /**
+   * Lit windows are for buildings. A car's or a person's glass is never a lit window: the window
+   * glow lit whole car cabins at night, read as a white blob instead of lamps (owner, 21 Oct).
+   */
+  const litGlass = !(opts.kind === "vehicle" || opts.kind === "parked" || opts.kind === "person");
   const palette = opts.palette ?? DEFAULT_PALETTE;
   const kind = opts.kind;
   // Only tree, person and vehicle change the program; "static" or no kind is the Phase 2 shader.
@@ -268,6 +291,7 @@ export function createRoleMaterial(opts: {
     shader.uniforms.uLitShare = uniforms.uLitShare;
     shader.uniforms.uLightGlow = uniforms.uLightGlow;
     shader.uniforms.uAoStrength = uniforms.uAoStrength;
+    shader.uniforms.uFoliageGrade = FOLIAGE_GRADE;
     if (flicker && motion) {
       shader.uniforms.uFlicker = uniforms.uFlicker;
       shader.uniforms.uTime = motion.uTime;
@@ -306,6 +330,7 @@ vPal0 = iPal0; vPal1 = iPal1; vPal2 = iPal2;`,
 uniform float uLitShare;
 uniform float uLightGlow;
 uniform float uAoStrength;
+uniform float uFoliageGrade;
 ${palDecl}
 void main() {`,
     );
@@ -322,6 +347,7 @@ else if (tlRole == 4) tlBase = ${vec3Of(kind === "tree" ? CLAY_PALETTE.trunk : F
 else if (tlRole == 5) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.metal)};
 else if (tlRole == 6) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.foliage)};
 else if (tlRole >= 7) tlBase = ${parked ? p(0) : vec3Of(FIXED_ROLE_COLOURS.light)};
+${kind === "tree" ? "tlBase *= uFoliageGrade;" : "if (tlRole == 6) tlBase *= uFoliageGrade;"}
 diffuseColor.rgb = tlBase * tlAo;`,
     );
     fs = fs.replace(
@@ -337,11 +363,15 @@ ${ROLE_SHEEN_GLSL}`,
     fs = fs.replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
-if (tlRole == 3 && vColor.b < uLitShare) totalEmissiveRadiance += vec3(1.0, 0.78, 0.45) * uWindowGlow${glassGlow === 1 ? "" : ` * ${glassGlow.toFixed(2)}`}${
+${
+  litGlass
+    ? `if (tlRole == 3 && vColor.b < uLitShare) totalEmissiveRadiance += vec3(1.0, 0.78, 0.45) * uWindowGlow${glassGlow === 1 ? "" : ` * ${glassGlow.toFixed(2)}`}${
         flicker
           ? " * mix(1.0, 0.9 + 0.1 * step(0.97, fract(sin(vColor.b * 9301.0 + floor(uTime * 0.5)) * 43758.0)), uFlicker)"
           : ""
-      };
+      };`
+    : ""
+}
 ${parked ? "" : `if (tlRole >= 7) totalEmissiveRadiance += ${vec3Of(FIXED_ROLE_COLOURS.light)} * uLightGlow;`}`,
     );
     if (bevel) {
@@ -463,7 +493,7 @@ diffuseColor.rgb = tlBase * tlAo;`,
       )
       .replace(
         `if (tlRole >= 7) totalEmissiveRadiance += ${vec3Of(FIXED_ROLE_COLOURS.light)} * uLightGlow;`,
-        `if (tlRole >= 7) totalEmissiveRadiance += vColor.b < 0.5 ? ${head} * max(uLightGlow, 0.15) : ${tail} * uLightGlow;`,
+        `if (tlRole >= 7) totalEmissiveRadiance += vColor.b < 0.5 ? ${head} * max(uLightGlow, 0.15) * ${VEHICLE_LAMP_GLOW.toFixed(2)} : ${tail} * uLightGlow * ${VEHICLE_LAMP_GLOW.toFixed(2)};`,
       );
   }
 }

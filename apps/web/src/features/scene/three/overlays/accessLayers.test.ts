@@ -511,3 +511,24 @@ describe("place markers vs the outline (A-T5 fix round 2)", () => {
     expect(run({ keepNear: [ll(300, 0)] })).toBe(1);
   });
 });
+
+describe("closure simulation lines (T-026/T-027)", () => {
+  it("draws the course in red and each detour in its pressure colour", () => {
+    const l = createOverlayLayer(frame);
+    const closureSim = {
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          { ...seg("c1", 0), properties: { closure: "course" } },
+          { ...seg("d1", 1), properties: { closure: "detour", pressure: "high" } },
+          { ...seg("d2", 2), properties: { closure: "detour", pressure: "low" } },
+        ],
+      },
+    } as never;
+    l.update({ ...base, closureSim });
+    const cols = visibleBatches(l.lineGroup).map(colour).map(lower).sort();
+    expect(cols).toEqual(["#2f855a", "#c53030", "#dd6b20"]);
+    l.update({ ...base, closureSim: null });
+    expect(visibleBatches(l.lineGroup)).toHaveLength(0);
+  });
+});

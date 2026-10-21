@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useClosures, useLayer, useScenarios } from "../../../lib/api";
+import { FloodImpactList } from "../../flood/FloodImpact";
 import { GapsLensSection } from "../../gaps/GapsSection";
 import { gapsApplicable } from "../../gaps/gapModel";
 import { useJourney } from "../../journey/journeyStore";
@@ -7,6 +8,7 @@ import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
 import { CLOSURE_SOURCE, closureLine } from "./closureModel";
 import { DayListSection } from "./DayListSection";
+import { DevsimListSection } from "./DevsimListSection";
 import { JourneyStepList } from "./JourneyStepList";
 import { ListLensSections } from "./LensSections";
 import { groupByType, humanType, parseLayer, routeSteps, withIndicative } from "./listModel";
@@ -109,6 +111,7 @@ export function ListView() {
 
   return (
     <div className="space-y-8">
+      <DevsimListSection />
       <section aria-labelledby="route-h">
         <h2 id="route-h" className="text-xl font-semibold">
           Route
@@ -166,6 +169,7 @@ export function ListView() {
             Scenario: {withIndicative(scenario?.label ?? scenarioId)}
           </h2>
           {scenario?.disclaimer && <p className="mt-1 text-sm">{scenario.disclaimer}</p>}
+          {scenarioId !== "baseline" && <FloodImpactList scenarioId={scenarioId} />}
           {flooded.length === 0 ? (
             <p className="mt-2 text-sm text-ink-soft">
               No paths flagged for this scenario in the loaded data.

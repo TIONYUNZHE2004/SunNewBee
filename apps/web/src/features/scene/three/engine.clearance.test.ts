@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Pose } from "./cameraRig";
 import { poseToCamera } from "./cameraRig";
 import { createClearance, type Obstacle } from "./clearance";
+import { releaseSlots } from "./engineSlots";
 
 // Building clearance at engine level (A-T7 review r2): MapControls calls update() inside its
 // pointer handlers, between engine ticks. The lift must never leak into the base pose there.
@@ -323,6 +324,48 @@ describe("camera driver (D-T5 follow camera)", () => {
     expect(cam.position.y).toBeGreaterThanOrEqual(102 - 1e-6);
     e.setCameraDriver?.(null);
     e.dispose();
+  });
+
+  it("a stale owner's release never clears another owner's driver (journey and devsim share the slot)", async () => {
+    const { e, frame } = await setup();
+    const a = () => ({
+      position: [10, 300, 30] as [number, number, number],
+      look: [0, 0, 0] as [number, number, number],
+    });
+    const b = () => ({
+      position: [20, 400, 40] as [number, number, number],
+      look: [0, 0, 0] as [number, number, number],
+    });
+    e.setCameraDriver?.(a);
+    e.setCameraDriver?.(b); // b took the slot
+    e.releaseCameraDriver?.(a); // a's late cleanup
+    frame();
+    expect(e.pickView().camera.position.toArray()).toEqual([20, 400, 40]);
+    expect(e.cameraDriven?.()).toBe(true);
+    e.releaseCameraDriver?.(b); // the owner's own release clears it
+    e.requestRender();
+    frame();
+    expect(e.cameraDriven?.()).toBe(false);
+    e.dispose();
+  });
+
+  it("releaseSlots falls back to clearing the slot on an engine without release methods", () => {
+    const setCameraDriver = vi.fn();
+    const setDecorClock = vi.fn();
+    const d = () => null;
+    const c = () => 1;
+    releaseSlots({ setCameraDriver, setDecorClock }, { driver: d, clock: c });
+    expect(setCameraDriver).toHaveBeenCalledWith(null);
+    expect(setDecorClock).toHaveBeenCalledWith(null);
+    const releaseCameraDriver = vi.fn();
+    const releaseDecorClock = vi.fn();
+    releaseSlots(
+      { setCameraDriver, setDecorClock, releaseCameraDriver, releaseDecorClock },
+      { driver: d, clock: c },
+    );
+    expect(releaseCameraDriver).toHaveBeenCalledWith(d);
+    expect(releaseDecorClock).toHaveBeenCalledWith(c);
+    expect(setCameraDriver).toHaveBeenCalledTimes(1);
   });
 
   it("renders another frame while the driver animates", async () => {

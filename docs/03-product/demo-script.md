@@ -74,6 +74,39 @@ The township dynamics are engineered from open data, not learned. What is learne
 
 See [world-models-2026.md](../02-research/world-models-2026.md) §8 and the [Elmina Day design](../superpowers/specs/2026-10-17-elmina-day-design.md).
 
+## Developer lens: Development Simulation (about 1:10)
+
+A Hypothetical Development near Lakeside Mall, played from construction to daily life. Built on branch `feat/devsim`.
+
+**Run it**
+- Start the `townshiplens-dev-demo` config and open `/` in the Stylised 3D view (it needs no map key).
+- Switch to the **Management** tab.
+- Click the fifth starter, or the paperclip (attach any file, then Send). Both send the same fixed brief.
+- The assistant restates the brief, then the player starts by itself. Pause or scrub with the bar.
+
+**What plays (about 66 s)**
+
+| Act | Time | What the audience sees | Say |
+|---|---|---|---|
+| Brief | 0-4 s | File chip, reply "Brief: 30 storeys · ~500 homes · parcel near Lakeside Mall", camera flies to the site | "A developer drops in a brief. The assistant restates it and we fly to the site." |
+| Construction | 4-32 s | Hoarding closes the footpath (red), detour dashed; crane, workers by day, floors rise, night stops work. Halim walks the detour; Farid complains | "The route engine closes the footpath and re-routes: 2,684 m becomes 2,923 m, about 3 minutes longer for a neighbour. That number is computed, not written." |
+| Handover | 32-44 s | Hoarding and crane go; movers queue in; windows light floor by floor; occupancy counts up; Halim greets Mei Ling | "Handover. Floors light up as homes fill." |
+| Daily Life | 44-63 s | Residents leave; a school-run queue; Mei Ling's complaint flies to the Resident feedback badge; Zainab at Urban Park; Arjun at the mall | "Urban Park is 659 m, 9 minutes' walk; the mall is 712 m, 10 minutes. Those are route-engine numbers. The complaints are simulated." |
+| Summary | 63-66 s | Wide shot and the "What residents raised" card | "Three things residents would raise. The tags show which came from the engine and which are simulated." |
+
+**Honesty points (say them)**
+- Only the route-engine numbers are facts: the detour, the park walk and the mall walk. They carry a `ROUTE ENGINE` tag.
+- Residents' lines are **Simulated reactions**, tagged `SIMULATED`. They are not real residents' views.
+- The tower is always labelled **Hypothetical development · not an SDP project**. Cars, trees and crowd details are decorative.
+- No safety claim and no flood talk in this segment.
+
+**Presenter note:** Upload is front-end only; the sample brief plays. Say so if asked.
+
+**Before going on stage**
+- `DEMO_MODE` replays expire daily (the recording fingerprint includes the date). On the demo day, record with the mock: `LLM_PROVIDER=mock uv run python -m townshiplens_agent.cli --record "Simulate a 30-storey, 500-home tower near Lakeside Mall, from construction to daily life" --profile default`
+- Without a replay, the mock still answers the brief live; it is just not a cache hit.
+- On a phone or without 3D, the List view and Mapbox lite show the same story as text.
+
 ## What can go wrong → recovery
 
 | Failure | Recovery line + action |

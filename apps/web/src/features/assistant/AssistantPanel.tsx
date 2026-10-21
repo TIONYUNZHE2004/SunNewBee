@@ -1,18 +1,21 @@
-import { type FormEvent, useEffect, useRef } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useMode } from "../../app/modeStore";
 import { showsResidentTrip, useAssistantScope } from "../../lib/api";
 import { Icon } from "../../ui/icons";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { useChatStream } from "../chat/useChatStream";
+import { ClosurePanel } from "../closures/ClosurePanel";
 import { DayPanel } from "../day/DayPanel";
 import { TripChip, TripPlanner } from "../day/TripPlanner";
+import { quietStarters, useDevsimActive } from "../devsim/floodQuiet";
 import { type Profile, useScene } from "../scene/sceneStore";
 import { RisingRiverPanel } from "../whatif/RisingRiverPanel";
 import { WhatIfLab } from "../whatif/WhatIfLab";
 import { AnswerCard } from "./AnswerCard";
+import { AttachBrief, BriefChip } from "./AttachBrief";
 import { ChipRow } from "./ChipRow";
 import { CoverageCard } from "./CoverageCard";
-import { copyFor, STARTERS, type Starter } from "./starters";
+import { copyFor, DEVSIM_BRIEF, STARTERS, type Starter } from "./starters";
 import { TravelChip } from "./TravelChip";
 
 /**
@@ -29,12 +32,19 @@ export function AssistantPanel({
   const mode = useMode((s) => s.mode);
   const residentTrip = showsResidentTrip(useAssistantScope().data);
   const copy = copyFor(mode);
-  const starters = STARTERS[mode];
+  // D11: no flood starters, chips or Rising river launcher while a Development Simulation runs.
+  const devsim = useDevsimActive();
+  const starters = devsim ? quietStarters(STARTERS[mode]) : STARTERS[mode];
   const { messages, send, retry, streaming } = useChatStream();
   const text = useChatDraft((s) => s.draft);
   const setText = useChatDraft((s) => s.setDraft);
   const endRef = useRef<HTMLDivElement>(null);
   const pendingAsk = useChatDraft((s) => s.pendingAsk);
+  // Developer lens paperclip (Management only): the chosen file's name, never its contents (D5);
+  // `sentFiles` maps a user message's index in the management thread to the file chip in its bubble.
+  const [brief, setBrief] = useState<string | null>(null);
+  const [sentFiles, setSentFiles] = useState<Record<number, string>>({});
+  const attach = mode === "management";
 
   const setStreamingMirror = useChatDraft((s) => s.setStreaming);
   useEffect(() => {
@@ -60,7 +70,16 @@ export function AssistantPanel({
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!text.trim() || streaming) return;
+    if (streaming) return;
+    if (attach && brief) {
+      // the attached brief is never read: the fixed brief text goes to /chat instead (D5)
+      setSentFiles((m) => ({ ...m, [messages.length]: brief })); // attach is management-only
+      setBrief(null);
+      void send(DEVSIM_BRIEF);
+      setText("");
+      return;
+    }
+    if (!text.trim()) return;
     void send(text);
     setText("");
   };
@@ -73,6 +92,7 @@ export function AssistantPanel({
   return (
     <aside
       aria-label="Assistant"
+      data-testid="assistant-panel"
       className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
         flat ? "" : "rounded-3xl border border-edge bg-surface shadow-[var(--c-shadow)]"
       }`}
@@ -92,7 +112,8 @@ export function AssistantPanel({
         <>
           <DayPanel />
           <WhatIfLab />
-          <RisingRiverPanel />
+          <ClosurePanel />
+          {!devsim && <RisingRiverPanel />}
         </>
       )}
       <div
@@ -127,15 +148,22 @@ export function AssistantPanel({
               {mode === "resident" && <CoverageCard />}
             </div>
           )}
-          {messages.map((m) =>
+          {messages.map((m, i) =>
             m.role === "user" ? (
-              <p
+              <div
                 key={m.id}
                 className="ml-10 self-end rounded-2xl rounded-br-md bg-accent px-3.5 py-2 text-sm text-on-accent"
               >
-                <span className="sr-only">You: </span>
-                {m.text}
-              </p>
+                {attach && sentFiles[i] && (
+                  <span className="mb-1.5 block">
+                    <BriefChip name={sentFiles[i]} />
+                  </span>
+                )}
+                <p className="m-0">
+                  <span className="sr-only">You: </span>
+                  {m.text}
+                </p>
+              </div>
             ) : (
               <AnswerCard key={m.id} m={m} onRetry={retry} />
             ),
@@ -165,10 +193,16 @@ export function AssistantPanel({
             {residentTrip && <TripChip />}
           </div>
         )}
+        {attach && brief && (
+          <div className="mb-2">
+            <BriefChip name={brief} onRemove={() => setBrief(null)} />
+          </div>
+        )}
         <form
           onSubmit={submit}
           className="flex items-center gap-2 rounded-2xl border border-edge bg-raised p-1.5 pl-4 transition-colors focus-within:border-fg/40 focus-within:bg-surface"
         >
+          {attach && <AttachBrief onPick={setBrief} disabled={streaming} />}
           <label htmlFor="chat-input" className="sr-only">
             Your question
           </label>
@@ -183,7 +217,7 @@ export function AssistantPanel({
           <button
             type="submit"
             aria-label="Ask"
-            disabled={streaming || !text.trim()}
+            disabled={streaming || (!text.trim() && !(attach && brief))}
             className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-on-accent transition hover:opacity-90 disabled:opacity-40"
           >
             <Icon name="send" />

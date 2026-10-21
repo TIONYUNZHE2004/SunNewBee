@@ -2,6 +2,13 @@ import type { Mode } from "../../app/modeStore";
 import type { IconName } from "../../ui/icons";
 import type { Profile } from "../scene/sceneStore";
 
+/**
+ * The fixed Development Brief (developer lens, spec §5.2, D5): the Management starter's text, and
+ * what the composer sends when a brief file is attached. The DEMO_MODE replay matches it exactly.
+ */
+export const DEVSIM_BRIEF =
+  "Simulate a 30-storey, 500-home tower near Lakeside Mall, from construction to daily life";
+
 export interface Starter {
   text: string;
   icon: IconName;
@@ -42,6 +49,7 @@ export const STARTERS: Record<Mode, Starter[]> = {
       profile: "wheelchair",
     },
     { icon: "walk", text: "What happens to residents in the storm rehearsal?" },
+    { icon: "map", text: DEVSIM_BRIEF },
   ],
 };
 

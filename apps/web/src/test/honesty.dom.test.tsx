@@ -70,7 +70,11 @@ function expectAccessibleNames() {
     ...screen.queryAllByRole("link"),
     ...screen.queryAllByRole("textbox"),
     ...screen.queryAllByRole("combobox"),
-    ...document.querySelectorAll("input"),
+    // inputs hidden from the accessibility tree (e.g. the paperclip's file input, whose visible
+    // control is the named button above) are not operable by a person, so they are skipped
+    ...[...document.querySelectorAll("input")].filter(
+      (el) => !el.closest('[hidden],[aria-hidden="true"]'),
+    ),
   ])
     expect(el, el.outerHTML.slice(0, 120)).toHaveAccessibleName();
 }

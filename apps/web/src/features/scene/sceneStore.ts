@@ -3,6 +3,9 @@ import { create } from "zustand";
 import { useMode } from "../../app/modeStore";
 import { loadProfile, saveProfile } from "../../lib/profileStore";
 import { isDemoPreset } from "../demo/demoFlag";
+import { installDevsimHook } from "../devsim/devsimHook";
+import { useDevsim } from "../devsim/devsimStore";
+import { asDevsimIntent, beginDevsim } from "../devsim/intent";
 import { useJourney } from "../journey/journeyStore";
 import type { JourneyPlan } from "../journey/timeline";
 import type { View } from "./selectView";
@@ -57,6 +60,9 @@ export interface SceneState {
   route: { id: string; geojson: GeoJSON.LineString } | null;
   /** A what-if diff (imagined, never a real route): before/after lines and imagined changes. */
   whatIf: { geojson: { type: string; features: unknown[] } } | null;
+  /** T-026 closure simulation on the map (Management): course and detour lines, by pressure. */
+  closureSim: { geojson: { type: string; features: unknown[] } } | null;
+  setClosureSim: (c: SceneState["closureSim"]) => void;
   /** Rising-river rollout playback: synthetic residents on the map (simulation, not a forecast). */
   rollout: { on: boolean; stage: number; playing: boolean };
   setRollout: (r: Partial<SceneState["rollout"]>) => void;
@@ -85,8 +91,14 @@ export interface SceneState {
    * older answer's plan; Clear route empties it).
    */
   journey: JourneyPlan | null;
+  /** Ends a Development Simulation (developer lens): playback lives in `useDevsim`. */
+  stopDevsim: () => void;
   intents: SceneIntent[];
-  applyIntent: (i: SceneIntent) => void;
+  /**
+   * `answerId`: the chat answer the intent came with (unset for the UI's own intents). A map
+   * intent from the answer that started a Development Simulation never stops it.
+   */
+  applyIntent: (i: SceneIntent, answerId?: string) => void;
   requestRouteFocus: (id: string) => void;
   selectPlace: (id: string | null) => void;
   selectFloodEdge: (id: string | null) => void;
@@ -127,6 +139,7 @@ const initial = {
   selectedBuildingId: null as string | null,
   route: null as SceneState["route"],
   whatIf: null as SceneState["whatIf"],
+  closureSim: null as SceneState["closureSim"],
   myTrip: null as SceneState["myTrip"],
   rollout: { on: false, stage: 0, playing: false } as SceneState["rollout"],
   day: {
@@ -174,6 +187,34 @@ function only(s: SceneState, key: Selection, id: string | null): Partial<SceneSt
   return out;
 }
 
+/**
+ * True for an intent that puts something new on the map (camera, place, route, river level, day,
+ * rollout, what-if): a later answer's map (or the UI's own) takes the map back from a Development
+ * Simulation, even a finished one (its camera, lighting and hidden markers would otherwise stay).
+ * One from the answer that started the simulation does not (`applyIntent`'s answerId).
+ */
+export function movesMap(i: SceneIntent): boolean {
+  switch (i.kind) {
+    case "camera.fly_to":
+      return !!i.center && i.center.length >= 2;
+    case "place.focus":
+      return !!i.place_id;
+    case "route.highlight":
+      return !!i.route_id && !!i.geojson;
+    case "flood.set_level":
+    case "day.show":
+    case "day.trip":
+    case "river.rollout":
+    case "whatif.diff":
+      return true;
+    default:
+      return false;
+  }
+}
+
+/** The chat answer whose development.play started the running simulation (see `applyIntent`). */
+let devsimAnswer: string | undefined;
+
 /** True when the journey player holds a trip of a route other than `routeId`. */
 function staleTrip(routeId: string): boolean {
   const plan = useJourney.getState().plan;
@@ -182,14 +223,25 @@ function staleTrip(routeId: string): boolean {
 
 export const useScene = create<SceneState>((set) => ({
   ...initial,
-  applyIntent: (i) => {
+  applyIntent: (i, answerId) => {
     // a trip of another route is never shown beside this one (journey.play is not sent for
     // every route answer, so the newer route alone has to drop the older trip)
     const dropTrip =
       i.kind === "route.highlight" && !!i.route_id && !!i.geojson && staleTrip(i.route_id);
     if (dropTrip) useJourney.getState().clear();
+    const dev = asDevsimIntent(i);
+    // one simulation at a time: a development simulation drops a shown trip, and a trip stops it
+    if (dev) useJourney.getState().clear();
+    const sameAnswer = answerId !== undefined && answerId === devsimAnswer;
+    if (
+      ((i.kind === "journey.play" && i.journey) || (movesMap(i) && !sameAnswer)) &&
+      useDevsim.getState().status !== "idle"
+    )
+      useDevsim.getState().stop();
+    if (dev) devsimAnswer = answerId;
     set((s) => {
       const next: Partial<SceneState> = { intents: [...s.intents, i] };
+      if (dev) next.journey = null;
       switch (i.kind) {
         case "route.highlight":
           if (i.route_id && i.geojson) {
@@ -278,7 +330,10 @@ export const useScene = create<SceneState>((set) => ({
       useJourney.getState().load(i.journey);
       if (isDemoPreset()) useJourney.getState().play();
     }
+    // Scripted autoplay (spec D6): plays as soon as the plan is in (fetched when not inlined).
+    if (dev) void beginDevsim(dev);
   },
+  stopDevsim: () => useDevsim.getState().stop(),
   // One detail panel at a time: opening any of the four closes the others.
   selectPlace: (selectedPlaceId) => set((s) => only(s, "selectedPlaceId", selectedPlaceId)),
   selectFloodEdge: (id) => set((s) => only(s, "selectedFloodEdgeId", id)),
@@ -334,6 +389,7 @@ export const useScene = create<SceneState>((set) => ({
     set({ route: null, journey: null });
   },
   clearWhatIf: () => set({ whatIf: null }),
+  setClosureSim: (closureSim) => set({ closureSim }),
   setRollout: (r) => set((s) => ({ rollout: { ...s.rollout, ...r } })),
   setDay: (d) => set((s) => ({ day: { ...s.day, ...d } })),
   setMyTrip: (geojson) => set({ myTrip: geojson ? { geojson } : null }),
@@ -345,6 +401,11 @@ export const useScene = create<SceneState>((set) => ({
     ),
   reset: () => {
     useJourney.getState().clear();
+    useDevsim.getState().stop();
     set(initial);
   },
 }));
+
+// window.__devsim (dev and test builds, demo preset): seek / play / pause / probe for checks.
+if (typeof window !== "undefined")
+  installDevsimHook({ dev: import.meta.env.DEV, search: window.location.search });
