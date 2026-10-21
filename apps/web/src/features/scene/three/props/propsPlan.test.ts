@@ -269,6 +269,30 @@ describe("planProps", () => {
     expect(trees.some((t) => Math.abs(t.z - 1150) < 4)).toBe(true);
   });
 
+  it("puts nothing in water: a lake inside a park, base water and landcover water (F3)", () => {
+    const park = fc(poly({ class: "park" }, -100, -100, 200, 200));
+    const street = fc(
+      line(
+        "street",
+        [
+          [-100, 60],
+          [100, 60],
+        ],
+        "s1",
+      ),
+    );
+    const dry = all(plan({ parks: park, walk: street }));
+    const lake = poly({ class: "water" }, -60, -60, 120, 100);
+    const inLake = (q: { x: number; z: number }) =>
+      q.x >= -60 && q.x <= 60 && q.z >= -60 && q.z <= 40;
+    expect(dry.some(inLake)).toBe(true); // the park lattice reaches the lake area without water
+    for (const over of [{ water: fc(lake) }, { landcover: fc(lake) }]) {
+      const wet = all(plan({ parks: park, walk: street, ...over }));
+      expect(wet.length).toBeGreaterThan(0);
+      expect(wet.filter(inLake)).toEqual([]);
+    }
+  });
+
   it("samples a polygon listed as both a park and grass once", () => {
     const land = fc(poly({ class: "grass" }, 40, 40, 150, 150));
     const once = plan({ landcover: land });
