@@ -1,7 +1,19 @@
+import type { Ref } from "react";
 import { TICKETS_CHIP } from "./copy";
 
-/** The Tickets chip at the top right (prototype `#tickets`); `bump` while the counter just went up. */
-export function TicketsChip({ count, bump }: { count: number; bump: boolean }) {
+/**
+ * The Tickets chip at the top right (prototype `#tickets`); `bump` while the counter just went up.
+ * `countRef` is the counter badge, where the ticket flight lands.
+ */
+export function TicketsChip({
+  count,
+  bump,
+  countRef,
+}: {
+  count: number;
+  bump: boolean;
+  countRef?: Ref<HTMLSpanElement>;
+}) {
   return (
     <div
       data-beat="tickets-chip"
@@ -9,15 +21,16 @@ export function TicketsChip({ count, bump }: { count: number; bump: boolean }) {
     >
       <span
         aria-hidden="true"
-        className="grid size-[26px] place-items-center rounded-lg bg-[#8b7fd6] text-sm text-white"
+        className="grid size-[26px] place-items-center rounded-lg bg-cmp-unknown text-sm text-cmp-on-tone"
       >
         ✓
       </span>
       {TICKETS_CHIP}
       <span
+        ref={countRef}
         data-testid="tickets-count"
         aria-live="polite"
-        className={`grid h-[22px] min-w-[22px] place-items-center rounded-[11px] text-xs text-white transition-transform duration-200 ${bump ? "scale-125 bg-[#8b7fd6]" : "bg-[#2c2a3a]"}`}
+        className={`grid h-[22px] min-w-[22px] place-items-center rounded-[11px] text-xs transition-transform duration-200 ${bump ? "scale-125 bg-cmp-unknown text-cmp-on-tone" : "bg-accent text-on-accent"}`}
       >
         {count}
       </span>

@@ -180,6 +180,29 @@ describe("ticket (AC-N5)", () => {
     expect(inval).toHaveBeenCalledWith({ queryKey: ["tickets"] });
   });
 
+  it("the card lands on the measured chip counter, not a guessed point", () => {
+    const orig = HTMLElement.prototype.getBoundingClientRect;
+    const rect = (x: number, y: number, w: number, h: number) =>
+      ({ x, y, left: x, top: y, width: w, height: h, right: x + w, bottom: y + h }) as DOMRect;
+    const spy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.dataset.testid === "tickets-count") return rect(500, 40, 22, 22);
+        if (this.dataset.testid === "compare-stage") return rect(100, 10, 1000, 700);
+        return orig.call(this);
+      });
+    try {
+      show();
+      at(17.7); // the chip is measured once the flight starts
+      at(19.399); // the flight's last frame: at the chip
+      const el = beat("ticket-flight");
+      expect(Number.parseFloat(el?.style.left ?? "")).toBeCloseTo(411, 0);
+      expect(Number.parseFloat(el?.style.top ?? "")).toBeCloseTo(41, 0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("no ticket (vr null): no flight, chip or toast at any time", () => {
     show(handCompare({ vr: null }));
     for (let t = 0; t <= 45; t += 0.5) {
