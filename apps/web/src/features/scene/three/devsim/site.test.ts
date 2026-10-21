@@ -25,8 +25,9 @@ describe("devsim site", () => {
       expect(queueSlot(i - 1) - queueSlot(i) - CREEP_M).toBeGreaterThan(CAR_M + 0.8);
     for (let i = 0; i < 8; i++) {
       const d = queueSlot(i);
-      // no car body within 3 m of the crossing at the junction, even creeping forward
-      expect(d - CAR_M / 2 > 3 || d + CREEP_M + CAR_M / 2 < -3).toBe(true);
+      // the whole queue waits up the +street arm the 48 s camera looks along (F3), and no car
+      // body comes within 3 m of the crossing at the junction, even creeping forward
+      expect(d - CREEP_M - CAR_M / 2).toBeGreaterThan(3);
       // and the decorative traffic keeps off every queue slot
       const x = geom.junction[0] + geom.street[0] * d + geom.kerbOut[0] * 4.5;
       const z = geom.junction[1] + geom.street[1] * d + geom.kerbOut[1] * 4.5;

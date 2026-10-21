@@ -19,7 +19,8 @@ const QUEUE = 8;
 const QUEUE_GAP_M = 7;
 const QUEUE_CREEP_M = 0.8;
 const QUEUE_LANE_M = 4.5;
-const QUEUE_KEEP_CLEAR_M = 9;
+/** The head car's centre, metres up the street from the junction (clear of the crossing). */
+const QUEUE_HEAD_M = 9.5;
 /** Hoarding is kept to the closed edge within this distance of the tower centre. */
 const CLOSED_REACH_M = 140;
 
@@ -489,12 +490,13 @@ export function createSite(o: SiteOpts): DevsimPart {
       const counts = [0, 0];
       if (queueOn)
         for (let i = 0; i < QUEUE; i++) {
-          const d = queueSlot(i) + Math.max(0, Math.sin((t - 44) * 0.8 - i * 0.4)) * QUEUE_CREEP_M;
+          // creeps toward the junction (-street), facing it
+          const d = queueSlot(i) - Math.max(0, Math.sin((t - 44) * 0.8 - i * 0.4)) * QUEUE_CREEP_M;
           const p = onStreet(d, QUEUE_LANE_M);
           const k = i % 2;
           (cars[k] as (typeof cars)[number]).set(
             counts[k] as number,
-            place(_m, p[0], 0.05, p[1], yawZ(u)),
+            place(_m, p[0], 0.05, p[1], yawZ([-u[0], -u[1]])),
             i,
           );
           counts[k] = (counts[k] as number) + 1;
@@ -513,13 +515,16 @@ export function createSite(o: SiteOpts): DevsimPart {
 }
 
 /**
- * The school-run queue's slot i: metres along the frontage street from the junction. Bumper to
- * bumper gaps stay open (QUEUE_GAP_M centre to centre for 4.7 m cars, creeping at most
- * QUEUE_CREEP_M), and the queue keeps the junction crossing clear (gate 2: cars interpenetrated and
- * Mei Ling stood inside one at the crossing). Pure.
+ * The school-run queue's slot i: metres along the frontage street from the junction. F3 (AC-C1,
+ * 48 s): the whole queue waits on the street arm the 48 s camera looks up (+street), nose to tail
+ * toward the junction, so the shot shows a line of cars behind Mei Ling as the prototype does (it
+ * used to put six of the eight cars on the arm behind the camera). Bumper to bumper gaps stay open
+ * (QUEUE_GAP_M centre to centre for 4.7 m cars, creeping at most QUEUE_CREEP_M toward the
+ * junction), and the head car keeps the junction crossing clear (gate 2: cars interpenetrated and
+ * Mei Ling stood inside one at the crossing). Slot 0 is the tail, slot QUEUE-1 the head. Pure.
  */
 export function queueSlot(i: number): number {
-  return 16 - i * QUEUE_GAP_M - (i >= 2 ? QUEUE_KEEP_CLEAR_M : 0);
+  return QUEUE_HEAD_M + (QUEUE - 1 - i) * QUEUE_GAP_M;
 }
 
 /** The school-run queue stands at the junction in the Daily Life morning (screen s). */

@@ -204,6 +204,9 @@ export interface CamKey {
   /** Target height above ground, metres. */
   h: number;
   offset: CamOffset;
+  /** Metres the fly INTO this key arcs up at mid-flight (sin-shaped, 0 at both keys), so a long
+   * low transfer clears the roofs between two street-level shots (F3, Q6). */
+  arc?: number;
 }
 
 /** The prototype's `CAM` keyframes, subject for subject (§4.4), plus two fly-over waypoints. */
@@ -243,27 +246,20 @@ export const CAM_KEYS: readonly CamKey[] = [
   { t: 34.6, targetAnchor: { path: 6 }, h: 3, offset: { entrance: [26, 30, 17] } },
   { t: 39.6, targetAnchor: { path: 5 }, h: 3, offset: { entrance: [22, 26, 14] } },
   { t: 44, targetAnchor: { path: 6 }, h: 2.6, offset: { entrance: [22, 24, 13] } },
-  {
-    t: 47,
-    // 3D integration: on the Elmina plan the junction anchor is the entrance node itself, so the
-    // prototype's node-to-junction blend gives no lead; aim just past the node and tilted up so
-    // Mei Ling sits right of centre at the queue, as the prototype frames her (AC-C1)
-    targetAnchor: { lerp: ["node", "door", -0.05] },
-    h: -1.5,
-    offset: { entrance: [-26, 22, 24] },
-  },
-  {
-    t: 51.6,
-    targetAnchor: { lerp: ["node", "door", -0.05] },
-    h: -1.5,
-    offset: { entrance: [-22, 19, 21] },
-  },
-  // Gate 2 fix: the prototype's framing a third closer, so Zainab and Arjun read at the app's
-  // (smaller than the prototype's) people scale
-  { t: 52.8, targetAnchor: "park", h: 1.5, offset: [-30, -33, 21] },
-  { t: 57, targetAnchor: "park", h: 1.5, offset: [-26, -29, 18] },
+  // F3 (AC-C1, 48 s): the school-run queue waits up the frontage street (the door's facing, `en`),
+  // so the camera looks back down that street from beside it: the line of cars runs from the
+  // lower left to Mei Ling at the junction on the right, as the prototype frames it. The target
+  // sits ~15 m up the street from the junction (path 54 m from the door; the path is ~37 m).
+  { t: 47, targetAnchor: { path: 54 }, h: 5, offset: { entrance: [34, 40, 37] } },
+  { t: 51.6, targetAnchor: { path: 54 }, h: 5, offset: { entrance: [30, 35, 33] } },
+  // F3 (AC-C1, 54 s): Zainab from the west-south-west and low, so the park's lawn and trees fill
+  // the frame behind her with the pond on the right and the mall wall on the left, as the
+  // prototype frames her (from the south-west the shot was a sand forecourt beside a wall).
+  // F3 (Q6): the 250 m transfer from the junction ran at ~20 m and grazed roofs; it arcs over.
+  { t: 52.8, targetAnchor: "park", h: 1.5, offset: [-38, -18, 13], arc: 45 },
+  { t: 57, targetAnchor: "park", h: 1.5, offset: [-33, -16, 11] },
   // Gate 2 loop 2: Arjun from the south-east, so he stands against the plaza, not the lit window
-  { t: 58, targetAnchor: "mall", h: 1, offset: [32, -24, 28] },
+  { t: 58, targetAnchor: "mall", h: 1, offset: [32, -24, 28], arc: 35 },
   { t: 62.4, targetAnchor: "mall", h: 1, offset: [28, -21, 25] },
   // 3D integration: 0.72 (prototype 0.9) keeps the tower where the prototype frames it (left third)
   { t: 63.6, targetAnchor: { lerp: ["site", "mall", 0.72] }, h: 20, offset: [-120, -470, 300] },
@@ -389,9 +385,10 @@ export function cameraAt(t: number, plan: DevelopmentPlan): StateAt["camera"] {
   const ob = resolveOffset(b, f);
   const tg = lerpLL(ta, tb, u);
   const mix = (x: number, y: number) => x + (y - x) * u;
+  const lift = (b.arc ?? 0) * Math.sin(Math.PI * u);
   return {
     target: [tg[0], tg[1], mix(a.h, b.h)],
-    offset: [mix(oa[0], ob[0]), mix(oa[1], ob[1]), mix(oa[2], ob[2])],
+    offset: [mix(oa[0], ob[0]), mix(oa[1], ob[1]), mix(oa[2], ob[2]) + lift],
   };
 }
 
