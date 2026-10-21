@@ -704,8 +704,10 @@ export function planProps(input: PropsInput): PropsPlan {
         const side = i % 2 === 0 ? 1 : -1;
         const x = p.x + p.tz * lampOff * side;
         const z = p.z - p.tx * lampOff * side;
-        // The lamp arm faces the road (model +z toward the centre line).
-        const yaw = Math.atan2(-p.tz * side, p.tx * side);
+        // The lamp arm reaches over the road: the model's arm and head are on its local +x
+        // (lampPools.ts LAMP_HEADS), so +x points to the centre line. (It was +z, which hung every
+        // head along the street, over the verge, owner 21 Oct.)
+        const yaw = Math.atan2(-p.tx * side, -p.tz * side);
         push("lamps", "furniture/lamp_single", `ls:${r.id}:${p.s.toFixed(1)}`, x, z, yaw);
       }
     } else {

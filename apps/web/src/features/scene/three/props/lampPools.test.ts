@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Placement } from "../assets/fit";
 import { createRoleUniforms } from "../assets/roleMaterial";
 import { glowFor } from "../mood";
-import { createLampPools, LAMP_POOL_SIZE_M, LAMP_POOL_Y } from "./lampPools";
+import { createLampPools, LAMP_HEADS, LAMP_POOL_SIZE_M, LAMP_POOL_Y, lampHeads } from "./lampPools";
 
 const lamp = (i: number): Placement => ({
   id: `l${i}`,
@@ -19,7 +19,7 @@ const lamp = (i: number): Placement => ({
 });
 
 describe("createLampPools", () => {
-  it("is one instance per lamp, 14 m quads lying at y = 0.12", () => {
+  it("is one pool per lit head, 14 m quads lying at y = 0.12 under the head", () => {
     const u = createRoleUniforms();
     const pools = createLampPools([lamp(0), lamp(1), lamp(2)], u);
     expect(pools.mesh.count).toBe(3);
@@ -28,7 +28,9 @@ describe("createLampPools", () => {
     const m = new THREE.Matrix4();
     pools.mesh.getMatrixAt(1, m);
     const p = new THREE.Vector3().setFromMatrixPosition(m);
-    expect([p.x, p.z]).toEqual([10, -4]);
+    // yaw 0: the head is on the arm's local +x, 1.33 m from the pole at (10, -4)
+    expect(p.x).toBeCloseTo(10 + (LAMP_HEADS.lamp_single?.[0]?.[0] ?? Number.NaN), 6);
+    expect(p.z).toBeCloseTo(-4, 6);
     expect(p.y).toBeCloseTo(0.12, 6);
     pools.mesh.geometry.computeBoundingBox();
     const size = pools.mesh.geometry.boundingBox?.getSize(new THREE.Vector3());
@@ -83,6 +85,20 @@ describe("createLampPools", () => {
     pools.dispose();
   });
 
+  it("puts the heads where the model's arm points: rotated with the lamp, two for a double", () => {
+    const quarter = { ...lamp(0), yaw: Math.PI / 2 };
+    const [h] = lampHeads(quarter);
+    // a quarter turn about +y takes local +x to world -z
+    expect(h?.[0]).toBeCloseTo(0, 6);
+    expect(h?.[2]).toBeCloseTo(-1.33, 6);
+    expect(h?.[1]).toBeCloseTo(8.8, 6);
+    expect(lampHeads({ ...lamp(0), variant: "lamp_double" })).toHaveLength(2);
+    const pools = createLampPools([{ ...lamp(0), variant: "lamp_double" }], createRoleUniforms());
+    expect(pools.mesh.count).toBe(2);
+    expect(pools.halos.geometry.getAttribute("position").count).toBe(2);
+    pools.dispose();
+  });
+
   it("dispose frees geometry, material and texture", () => {
     const pools = createLampPools([lamp(0)], createRoleUniforms());
     let n = 0;
@@ -91,6 +107,6 @@ describe("createLampPools", () => {
     mat.addEventListener("dispose", () => n++);
     mat.map?.addEventListener("dispose", () => n++);
     pools.dispose();
-    expect(n).toBe(3);
+    expect(n).toBe(3); // the pool's (the halo's are freed with it)
   });
 });
