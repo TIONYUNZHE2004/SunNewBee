@@ -70,6 +70,9 @@ describe("DevsimListSection", () => {
     expect(zq).toHaveTextContent(`“${z.text}”`);
     expect(zq).toHaveTextContent("Mak Cik Zainab, new resident");
     expect(zq).toHaveAttribute("data-speaking", "true");
+    const brief = within(list).getByTestId("devsim-impact-brief");
+    expect(brief).toHaveTextContent("During construction");
+    expect(brief).toHaveTextContent("Indicative scenario, not a forecast.");
     expect(within(list).getByRole("button", { name: /Simulated residents · 40/ })).toBeVisible();
     expect(within(list).queryByTestId("devsim-end-card")).toBeNull();
   });

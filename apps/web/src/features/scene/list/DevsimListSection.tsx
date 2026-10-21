@@ -4,6 +4,7 @@ import { EstimateHud } from "../../devsim/DevsimHud";
 import { DevsimStatusNotice } from "../../devsim/DevsimStatus";
 import { useDevsim } from "../../devsim/devsimStore";
 import { HypotheticalLabel } from "../../devsim/HypotheticalLabel";
+import { ImpactBrief } from "../../devsim/ImpactBrief";
 import { PlaybackBar } from "../../devsim/PlaybackBar";
 import { RouteTag } from "../../devsim/RouteTag";
 import { ResidentsLayer } from "../../devsim/residents/ResidentsLayer";
@@ -121,6 +122,7 @@ export function DevsimListSection() {
         </ol>
       </div>
       {st.brief && <ResidentsLayer data={plan.residents} t={t} playing={playing} />}
+      {st.brief && <ImpactBrief plan={plan} inline />}
     </section>
   );
 }

@@ -18,6 +18,7 @@ import { EstimateHud } from "./DevsimHud";
 import { DevsimStatusNotice } from "./DevsimStatus";
 import { useDevsim } from "./devsimStore";
 import { HypotheticalLabel } from "./HypotheticalLabel";
+import { ImpactBrief } from "./ImpactBrief";
 import { PlaybackBar } from "./PlaybackBar";
 import { ResidentsLayer } from "./residents/ResidentsLayer";
 import { ScheduleBar } from "./ScheduleBar";
@@ -327,7 +328,9 @@ export function DevsimOverlay({
             width: "min(26rem, calc(100% - var(--panel-w,0px) - 2rem))",
             transform: `translateX(${(slide * 110).toFixed(2)}%)`,
           }}
-        ></div>
+        >
+          <ImpactBrief ref={briefRef} plan={plan} />
+        </div>
       )}
       <div
         className="pointer-events-none absolute bottom-[calc(var(--sheet-h,0px)+var(--attr-h,0px)+1rem)] left-4 z-20 flex justify-center *:pointer-events-auto"

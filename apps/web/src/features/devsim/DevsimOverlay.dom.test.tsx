@@ -223,6 +223,8 @@ describe("DevsimOverlay (45 s building plan)", () => {
     expect(screen.queryByTestId("devsim-impact-brief")).toBeNull();
     expect(screen.queryByRole("button", { name: /Simulated residents/ })).toBeNull();
     at(33.6);
+    const brief = screen.getByTestId("devsim-impact-brief");
+    expect(within(brief).getByRole("heading", { name: plan.brief.title })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Simulated residents · 40/ })).toBeInTheDocument();
     expect(screen.queryByTestId("devsim-end-card")).toBeNull();
     expect(screen.queryByTestId("devsim-feedback")).toBeNull();
