@@ -1981,6 +1981,78 @@ TOOLS["simulate_event"] = simulate_event
 TOOLS["simulate_closure"] = simulate_closure
 
 
+def simulate_marathon(
+    ctx: Ctx,
+    start: str,
+    distance_km: float,
+    starts_at: str,
+    ends_at: str,
+    shape: str = "loop",
+    finish: str | None = None,
+    avoid_roads: list[str] | None = None,
+    prefer_roads: list[str] | None = None,
+    profiles: list[str] | None = None,
+) -> ToolResult:
+    """Management only: propose a mapped course and estimate closure impact; no writes.
+
+    Dates are ISO datetimes. Major roads require an explicit prefer_roads entry.
+    This is not event approval. Pressure is never for resident route answers.
+    """
+    from . import events, marathon
+
+    if not _WM_SLOTS.acquire(blocking=False):
+        return ToolResult(ok=False, warnings=["world-model solver busy; try again shortly"])
+    try:
+        request = marathon.MarathonRequest(
+            start=start,
+            distance_km=distance_km,
+            starts_at=starts_at,
+            ends_at=ends_at,
+            shape=shape,
+            finish=finish,
+            avoid_roads=avoid_roads or [],
+            prefer_roads=prefer_roads or [],
+            profiles=profiles if profiles is not None else list(events.DEFAULT_PROFILES),
+        )
+        result = marathon.simulate_marathon(ctx.world, request)
+        return ToolResult(
+            ok=True,
+            data=result.model_dump(mode="json"),
+            evidence=[
+                Evidence(
+                    id=result.impact.evidence_id,
+                    element_id="marathon",
+                    attribute="marathon_simulation",
+                    value={
+                        "length_m": result.course.length_m,
+                        "trips_total": result.impact.trips_total,
+                        "trips_affected": result.impact.trips_affected,
+                    },
+                    status="indicative",
+                    source_type="Mapped roads and sample journeys",
+                )
+            ],
+            warnings=list(
+                dict.fromkeys(
+                    [
+                        result.course.disclaimer,
+                        result.impact.disclaimer,
+                        result.impact.weights_note,
+                        *result.course.warnings,
+                        *result.impact.warnings,
+                    ]
+                )
+            ),
+        )
+    except ValueError as exc:
+        return ToolResult(ok=False, warnings=[str(exc)])
+    finally:
+        _WM_SLOTS.release()
+
+
+TOOLS["simulate_marathon"] = simulate_marathon
+
+
 # Development Simulation (developer lens, ADR 0014). `devsim.build_development_plan` is imported
 # lazily and through this seam, so a world or build without it answers "unavailable" and tests
 # can substitute a plan.

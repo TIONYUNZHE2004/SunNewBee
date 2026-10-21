@@ -26,6 +26,7 @@ PRESSURE_DISCLAIMER = (
     "Detour pressure, estimated from mapped road class and sample trips, not traffic counts."
 )
 MAX_SEGMENTS = 40
+MAX_COURSE_SEGMENTS = 400
 DEFAULT_PROFILES = ("default", "wheelchair", "drive")
 
 
@@ -92,6 +93,14 @@ class ClosureScenario(BaseModel):
     closures: list[ClosureWindow] = Field(min_length=1, max_length=MAX_SEGMENTS)
 
     _name = field_validator("name")(EventSpec._name.__func__)
+
+
+class CourseWindow(ClosureWindow):
+    segment_ids: list[str] = Field(min_length=1, max_length=MAX_COURSE_SEGMENTS)
+
+
+class CourseScenario(ClosureScenario):
+    closures: list[CourseWindow] = Field(min_length=1, max_length=1)
 
 
 class EventTrip(BaseModel):
@@ -167,19 +176,19 @@ def validate_event(world: World, spec: EventSpec) -> None:
         raise ValueError(f"unknown segments: {', '.join(unknown)}")
 
 
-def resolve_scenario(world: World, spec: ClosureScenario) -> ClosureScenario:
+def resolve_scenario(world: World, spec: ClosureScenario, limit=MAX_SEGMENTS) -> ClosureScenario:
     windows = [
         window.model_copy(
             update={
                 "segment_ids": closure_roads.resolve(
-                    world, window.road_names, window.segment_ids, MAX_SEGMENTS
+                    world, window.road_names, window.segment_ids, limit
                 )
             }
         )
         for window in spec.closures
     ]
-    if sum(len(window.segment_ids) for window in windows) > MAX_SEGMENTS:
-        raise ValueError(f"at most {MAX_SEGMENTS} segment/window pairs per scenario")
+    if sum(len(window.segment_ids) for window in windows) > limit:
+        raise ValueError(f"at most {limit} segment/window pairs per scenario")
     return spec.model_copy(update={"closures": windows})
 
 
@@ -441,9 +450,9 @@ def warm_baselines(world: World, at: datetime | None = None) -> None:
     _unnamed_stretches(world)
 
 
-def _simulate(world, spec, profiles, at, legacy):
+def _simulate(world, spec, profiles, at, legacy, max_segments=MAX_SEGMENTS):
     started = perf_counter()
-    spec = resolve_scenario(world, spec)
+    spec = resolve_scenario(world, spec, max_segments)
     profiles = tuple(dict.fromkeys(profiles))
     if not profiles or len(profiles) > 5:
         raise ValueError("choose between one and five profiles")
@@ -460,7 +469,7 @@ def _simulate(world, spec, profiles, at, legacy):
     }
     course_nodes = closure_roads._nodes(baseline, closed)
     actions = [twm.ClosePath(element_id=eid) for eid in sorted(closed)]
-    after = twm.apply(baseline, actions, max_actions=MAX_SEGMENTS).world
+    after = twm.apply(baseline, actions, max_actions=max_segments).world
     limit = twm.MAX_JOURNEYS // len(profiles)
     trips = []
     roads = {}

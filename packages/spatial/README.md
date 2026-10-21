@@ -526,3 +526,29 @@ lookup/calculation, impacts and suggestions.
 everyday sample and disclaimer. The API/tool aliases preserve existing callers.
 Stored named closures keep the public `event_name` separate from private staff notes;
 labels use their actual reason, including named works/accidents/flooding/other closures.
+
+### Marathon proposals (T-028)
+
+`marathon.plan_course(world, start, distance_km, shape="loop", finish=None,
+avoid_roads=[], prefer_roads=[])` returns an ordered, continuous course, its actual
+length and consecutive road stretches. Start/finish accept place ids or exact,
+unambiguous full names. Point-to-point needs a finish. Major roads are excluded
+unless explicitly named in `prefer_roads`. Active closures and steps are excluded.
+This is a proposed road-closure layout, not a running or profile access assessment.
+Road direction, crossing provision and event approval still need review.
+
+The deterministic search uses weighted shortest-path trees and one connecting edge.
+Named roads precede unnamed paths; preferences reduce their search cost. It compares
+up to 24 distance/repetition/name candidates by newly lost mapped centre access for
+the existing default profile, retaining direction and parallel-edge rules. This is a
+bounded heuristic, not a global minimum. Repeated segments/roads and distances
+outside ±10% get explicit warnings. Proposals have at most 400 ordered segments;
+ad-hoc closure requests still have a 40-segment limit. The bounded proposal cache
+invalidates on world/version/date/active-closure changes.
+
+`marathon.simulate_marathon(world, MarathonRequest(...))` proposes the course and
+runs the unchanged closure engine at `starts_at`. It accepts one ISO datetime window,
+up to five profiles and the same road edits. It returns `{course, impact}`. The public,
+read-only `POST /marathon/plan` takes that request; no event is stored. The spatial
+`tools.simulate_marathon` wrapper is for management only. Label all proposals:
+“Proposed course on mapped roads, not an approved route.”
