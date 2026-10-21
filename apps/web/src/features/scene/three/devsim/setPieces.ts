@@ -12,7 +12,12 @@
  *   says, the piling rig stands in the first seconds of Construction, the Handover lorries keep
  *   today's lane path. A plan with `lorry_route` but no schedule draws the route over Construction.
  */
-import type { DevelopmentPlanExtras, LorryRoute, Schedule } from "../../../devsim/planTypes";
+import type {
+  DevelopmentPlanExtras,
+  LorryRoute,
+  PlaygroundRef,
+  Schedule,
+} from "../../../devsim/planTypes";
 import { BUILD_BEATS, planPlayback } from "../../../devsim/schedulePlayback";
 import { CON, isBuildPlan } from "../../../devsim/timeline";
 import type { DevelopmentPlan, StateAt } from "../../../devsim/types";
@@ -115,12 +120,22 @@ export function planExtras(plan: DevelopmentPlan): {
 } {
   const x = plan as DevelopmentPlan & DevelopmentPlanExtras;
   const r = x.lorry_route;
-  const pg = x.playground?.coord;
+  const pg = playgroundCoord(x.playground);
   return {
     lorryRoute: r && Array.isArray(r.path) && r.path.length >= 2 ? r : null,
     schedule: x.schedule ?? null,
     playground: pg && pg.length >= 2 ? pg : plan.anchors.park,
   };
+}
+
+/** The [lon, lat] of the plan's playground (any of the accepted shapes), else null. */
+export function playgroundCoord(pg: PlaygroundRef | null | undefined): number[] | null {
+  if (!pg) return null;
+  const ok = (p: unknown): p is number[] =>
+    Array.isArray(p) && p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]);
+  for (const p of [pg.coord, pg.lonlat, pg.at, pg.point]) if (ok(p)) return p;
+  const ll = [pg.lon, pg.lat];
+  return ok(ll) ? ll : null;
 }
 
 const timingCache = new WeakMap<DevelopmentPlan, SetPieceTiming>();

@@ -3,7 +3,13 @@ import plan from "../../../devsim/fixtures/plan.provisional.json";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import type { Placement } from "../assets/fit";
 import { createFrame } from "../frame";
-import { parcelPolys, suppressKits, suppressTracks } from "./suppress";
+import {
+  PARCEL_EDGE_M,
+  parcelPolys,
+  parcelSuppress,
+  suppressKits,
+  suppressTracks,
+} from "./suppress";
 
 const P = plan as unknown as DevelopmentPlan;
 const frame = createFrame([101.5076, 3.1794]);
@@ -58,6 +64,35 @@ describe("devsim suppresses the city's construction dressing on the parcel", () 
     expect(out.get("construction/a")?.map((p) => p.x)).toEqual([ox]);
     expect(out.get("trees/a")).toHaveLength(1);
     expect(suppressKits(kits, null)).toBe(kits);
+  });
+
+  it("hoardings standing on the parcel outline are suppressed too (the 30 s grey panels)", () => {
+    const polys = parcelPolys(P, lc, frame);
+    const on = parcelSuppress(polys);
+    const ring = polys[0]?.[0] as [number, number][];
+    let n = 0;
+    for (let i = 0; i + 1 < ring.length; i++) {
+      const a = ring[i] as [number, number];
+      const c = ring[i + 1] as [number, number];
+      // the city's hoardings: every 6 m along each edge, exactly on it
+      const len = Math.hypot(c[0] - a[0], c[1] - a[1]);
+      for (let d = 3; d < len; d += 6) {
+        const x = a[0] + ((c[0] - a[0]) * d) / len;
+        const z = a[1] + ((c[1] - a[1]) * d) / len;
+        expect(on(x, z)).toBe(true);
+        // and just outside the outline: still the parcel's; 3 m out: not
+        const nx = (c[1] - a[1]) / len;
+        const nz = -(c[0] - a[0]) / len;
+        const o1 = on(x + nx * (PARCEL_EDGE_M - 0.2), z + nz * (PARCEL_EDGE_M - 0.2));
+        const o2 = on(x - nx * (PARCEL_EDGE_M - 0.2), z - nz * (PARCEL_EDGE_M - 0.2));
+        expect(o1 && o2).toBe(true);
+        const f1 = on(x + nx * 3, z + nz * 3);
+        const f2 = on(x - nx * 3, z - nz * 3);
+        expect(f1 !== f2).toBe(true); // one side inside, the other 3 m out
+        n++;
+      }
+    }
+    expect(n).toBeGreaterThan(10);
   });
 
   it("drops earth-track segments inside, keeps identity when nothing is dropped", () => {

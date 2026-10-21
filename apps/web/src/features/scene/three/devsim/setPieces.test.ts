@@ -275,6 +275,7 @@ describe("scaffold and netting (AC-W4)", () => {
     const sc = createScaffold({ geom });
     const tw = createTower({ geom, roleUniforms: createRoleUniforms() });
     let rising = 0;
+    let toppedOut = 0;
     for (let t = 4; t < C7.total_s; t += 0.5) {
       const f = frameAt(C7, t);
       sc.update(f);
@@ -290,12 +291,20 @@ describe("scaffold and netting (AC-W4)", () => {
         ).toBeLessThanOrEqual(0.5);
         rising++;
       }
+      // topped out: the netting comes off, the scaffold stays until Handover
+      if (building && f.s.floorsBuilt >= geom.storeys) {
+        expect(st.netting).toBe(false);
+        expect(sc.group.visible).toBe(true);
+        expect(sc.group.getObjectByName("devsim-netting")?.visible).toBe(false);
+        toppedOut++;
+      }
       if (!building) {
         expect(st.netting).toBe(false);
         expect(sc.group.visible).toBe(false);
       }
     }
     expect(rising).toBeGreaterThan(10);
+    expect(toppedOut).toBeGreaterThan(3);
     sc.dispose();
     tw.dispose();
   });

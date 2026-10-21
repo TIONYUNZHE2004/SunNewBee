@@ -75,5 +75,24 @@ export interface DevelopmentPlanExtras {
   lorry_route?: LorryRoute | null;
   schedule?: Schedule | null;
   /** The nearest playground to the tower entrance (C10 move-in children); absent: the park anchor. */
-  playground?: { place_id: string; name: string; coord: number[] } | null;
+  playground?: PlaygroundRef | null;
+}
+
+/**
+ * The plan's nearest playground (be-dev, pending): an id, a name, its [lon, lat] and a walk node.
+ * The exact key of the point is not settled yet, so the 3D adapter (`setPieces.ts`
+ * `playgroundCoord`) accepts `coord`, `lonlat`, `at` or `point` ([lon, lat]) or `lon` + `lat`.
+ */
+export interface PlaygroundRef {
+  place_id?: string;
+  id?: string;
+  name?: string;
+  coord?: number[];
+  lonlat?: number[];
+  at?: number[];
+  point?: number[];
+  lon?: number;
+  lat?: number;
+  node_id?: string | null;
+  walk_node?: string | null;
 }
