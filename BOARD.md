@@ -37,6 +37,8 @@ The resident assistant covers **access** (routes, places, amenities, closures, t
 | [T-025](tasks/T-025-event-closure-simulation.md) | Event simulation (marathon): affected routes, detours, suggestions | assigned | P1 | Cloud workers + shaoxian04 |
 | [T-026](tasks/T-026-traffic-closure-system.md) | General traffic and closure simulation (any closure, detour pressure, keep traffic moving) | done (PR #25 + #27 → davinci; main via #28, 21 Oct) | P1 | Cloud Codex (backend) + cloud Claude (re-wire) |
 | [T-027](tasks/T-027-ui-flood-and-closures.md) | UI: flood markers and closure screen in shaoxian04's style | done (PR #26 + #27; main via #28, 21 Oct) | P1 | Cloud Claude |
+| [T-028](tasks/T-028-marathon-engine.md) | Marathon engine: AI proposes a course, manager edits; road names on map; playback | assigned | P1 | Cloud Codex (backend) + cloud Claude (agent, web) |
+| [T-029](tasks/T-029-flood-low-lying.md) | Flood: river rise + low-lying areas, judge loop | assigned | P1 | Cloud Codex (builds) + cloud Claude (judge) |
 
 
 ## Audit P1 fixes (control, 19 Oct 16:30 UTC)
