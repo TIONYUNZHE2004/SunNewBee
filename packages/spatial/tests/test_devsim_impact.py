@@ -268,10 +268,58 @@ def test_elmina_daily_life_matrix():  # AC-C6
                 assert c.value == "blocked"
             else:
                 assert isinstance(c.value, int) and c.value >= 1 and c.m and c.m > 0
-    # The default walks to the park and the mall are the plan's existing facts.
+    # The default walks to the park (and to the mall place itself) are the plan's existing facts.
     facts = devsim.compute_facts(w, _site())
     cell = {(r.target.kind, c.profile): c for r in m.rows for c in r.cells}
     for kind, walk in (("park", facts.park), ("mall", facts.mall)):
-        if isinstance(cell[(kind, "default")].value, int):
-            assert cell[(kind, "default")].value == walk.min
-            assert cell[(kind, "default")].m == walk.m
+        c = cell[(kind, "default")]
+        if (
+            isinstance(c.value, int)
+            and c.arrival_id == m.rows[0 if kind == "park" else 1].target.id
+        ):
+            assert c.value == walk.min and c.m == walk.m
+
+
+@seed_only
+def test_mall_is_reached_at_the_nearer_of_mall_and_car_park():  # ruling R18
+    w = _world()
+    m = di.daily_life_matrix(w, _site())
+    tw = devsim.tower_world(w, _site())
+    mall = next(r for r in m.rows if r.target.kind == "mall")
+    assert set(mall.target.arrive_at) == {"lakeside-mall", "park-b"}
+    for c in mall.cells:
+        lengths = {
+            pid: res.routes[0].distance_m
+            for pid in mall.target.arrive_at
+            if (res := routing.plan_route(tw, devsim.TOWER_PLACE, pid, c.profile)).routes
+        }
+        assert c.arrival_id == min(lengths, key=lengths.get)
+        want = di.MALL_LABEL if c.arrival_id == "lakeside-mall" else di.CAR_PARK_LABEL
+        assert c.label == want
+    for row in m.rows:
+        if row.target.kind != "mall":
+            assert all(
+                c.arrival_id == row.target.id and c.label == row.target.name for c in row.cells
+            )
+
+
+@seed_only
+def test_hoarding_rows_name_the_arrival():  # ruling R18
+    imp = di.hoarding_impact(_world(), _site())
+    for h in imp.homes:
+        if h.extra_min:
+            assert h.extra_target and h.extra_arrival
+            t = next(x for x in imp.targets if x.id == h.extra_target)
+            assert h.extra_arrival in (t.arrive_at or [t.id])
+        else:
+            assert h.extra_arrival is None
+
+
+@seed_only
+def test_outlines_come_from_every_base_layer():  # review M9
+    w = _world()
+    sens = {p.id for p in w.places.values() if p.type in di.SENSITIVE_TYPES}
+    found = di._outlines(w, sens)
+    assert "osm-way-1309457596" in found  # Elmina Urban Park (parks.geojson)
+    # The seed maps schools and kindergartens as points only: no outline in any layer.
+    assert not [p for p in found if w.places[p].type in ("school", "kindergarten")]

@@ -5,8 +5,9 @@ A Hypothetical Development, a ~30-storey tower that is not an SDP project (ADR 0
 north-east corner of the real OSM lot `way/1564861412`. Every number the playback shows is
 computed here by the routing engine (`routing.plan_route`, default profile):
 
-- the construction detour: an existing nearby home's walk to Lakeside Mall Car Park B before and
-  after the hoarding closes the lot's frontage path (`twm.ClosePath`);
+- the construction detour: an existing nearby home's walk to Lakeside Mall (the mall or its Car
+  Park B, whichever is nearer) before and after the hoarding closes the lot's frontage path
+  (`twm.ClosePath`);
 - the walks from the tower entrance to Elmina Urban Park and to Elmina Lakeside Mall.
 
 Residents' lines, the crowd and the timeline are illustrative; `check_plan` keeps every number in
@@ -380,7 +381,16 @@ def _with_places(world: World, places: Iterable[Place]) -> World:
 TOWER_PLACE = "devsim-tower"
 
 
-def _detour(world: World, site: DevelopmentSite, lay: _Layout, target: str) -> DevsimDetour | None:
+def _first_any(world: World, from_id: str, to_ids: list[str]) -> Route | None:
+    """The shortest first route to any of these places (ruling R18: the mall is reached at the
+    mall or at its Car Park B, whichever walk is shorter)."""
+    routes = [r for t in to_ids if (r := _first(world, from_id, t)) is not None]
+    return min(routes, key=lambda r: (r.distance_m, r.to_place), default=None)
+
+
+def _detour(
+    world: World, site: DevelopmentSite, lay: _Layout, targets: list[str]
+) -> DevsimDetour | None:
     snapper = _Snapper(world, lay.fr)
     homes = _homes_near(world, lay)
     by_node: dict[str, list[tuple[float, str]]] = {}
@@ -391,14 +401,14 @@ def _detour(world: World, site: DevelopmentSite, lay: _Layout, target: str) -> D
     w0 = _with_places(world, places)
     best: tuple | None = None
     with routing.eval_memo():
-        before = {n: _first(w0, f"devsim-home-{n}", target) for n in nodes}
+        before = {n: _first_any(w0, f"devsim-home-{n}", targets) for n in nodes}
         for eid in frontage_edges(world, site):
             w1 = _with_places(twm.apply(world, [twm.ClosePath(element_id=eid)]).world, places)
             for n in nodes:
                 b = before[n]
                 if b is None or eid not in {s.edge_id for s in b.segments}:
                     continue
-                a = _first(w1, f"devsim-home-{n}", target)
+                a = _first_any(w1, f"devsim-home-{n}", targets)
                 if a is None or eid in {s.edge_id for s in a.segments}:
                     continue
                 mins = _round_min(walk_minutes(world, a) - walk_minutes(world, b))
@@ -441,14 +451,15 @@ def tower_world(world: World, site: DevelopmentSite) -> World:
 def compute_facts(world: World, site: DevelopmentSite) -> DevsimFacts:
     """Detour, park and mall walks from the routing engine (default profile)."""
     lay = _layout(world, site)
-    target = _place_by_name(world, TARGET_NAME)
     park, mall = _place_by_name(world, PARK_NAME), _place_by_name(world, MALL_NAME)
+    # The mall walk arrives at the mall or its Car Park B, whichever is nearer (ruling R18).
+    mall_arrivals = [mall, _place_by_name(world, TARGET_NAME)]
     tw = tower_world(world, site)
     with routing.eval_memo():
         park_walk = _walk(tw, TOWER_PLACE, park)
         mall_walk = _walk(tw, TOWER_PLACE, mall)
     return DevsimFacts(
-        detour=_detour(world, site, lay, target),
+        detour=_detour(world, site, lay, mall_arrivals),
         park=park_walk,
         mall=mall_walk,
         profile=PROFILE,

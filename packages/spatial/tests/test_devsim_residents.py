@@ -59,12 +59,16 @@ def test_templates_hold_no_numbers_or_banned_words():
             assert not re.search(r"\d", text) and not spot.BANNED.search(text)
 
 
+def _w(kind, name, value, label=None):
+    return ResidentWalk(kind=kind, name=name, value=value, arrival_id="x", label=label or name)
+
+
 def _facts(**kw):
     walks = [
-        ResidentWalk(kind="park", name="Elmina Urban Park", value=9),
-        ResidentWalk(kind="mall", name="Elmina Lakeside Mall", value="?"),
-        ResidentWalk(kind="clinic", name="Klinik Siti", value="gap"),
-        ResidentWalk(kind="school", name="Seven Skies Islamic School", value=23),
+        _w("park", "Elmina Urban Park", 9),
+        _w("mall", "Elmina Lakeside Mall", "?", "Lakeside Mall (Car Park B)"),
+        _w("clinic", "Klinik Siti", "gap"),
+        _w("school", "Seven Skies Islamic School", 23),
     ]
     return ResidentFacts(profile="default", home_id="w1", walks=walks, **kw)
 
@@ -209,3 +213,49 @@ def test_halim_lives_in_the_detour_home():
     halim = next(r for r in rs.residents if r.id == "halim")
     assert halim.facts.home_id == d.home_id
     assert halim.facts.extra_walk_min == d.detour_min
+
+
+@seed_only
+def test_at_most_two_neighbours_per_building():  # review M1
+    from collections import Counter
+
+    homes = Counter(r.facts.home_id for r in _residents().residents if r.side == "neighbour")
+    assert max(homes.values()) <= devsim_residents.MAX_PER_BUILDING
+    assert len(homes) >= 10  # spread over many buildings
+
+
+@seed_only
+def test_unknown_detour_home_is_an_error():  # review M4
+    with pytest.raises(ValueError, match="not a home within 500 m"):
+        devsim_residents.build_residents(_world(), _site(), detour_home="w-not-a-home")
+
+
+@seed_only
+def test_school_run_parents_get_that_role():  # review M5
+    roles = {r.role for r in _residents().residents}
+    assert "parent doing the school run" in roles
+
+
+@seed_only
+def test_one_mall_walk_one_name():  # ruling R18
+    """The mall walk a line quotes is named by where it arrives: the same walk, the same name."""
+    for r in _residents().residents:
+        f = r.facts
+        mall = next(x for x in f.walks if x.kind == "mall")
+        assert mall.label in ("Lakeside Mall", "Lakeside Mall (Car Park B)")
+        assert mall.label == (
+            "Lakeside Mall" if mall.arrival_id == "lakeside-mall" else "Lakeside Mall (Car Park B)"
+        )
+        if (f.extra_walk_min or 0) >= 2:
+            assert f.extra_walk_to in r.lines.construction
+            if f.extra_walk_to.startswith("Lakeside Mall"):
+                want = (
+                    "Lakeside Mall"
+                    if f.extra_walk_arrival == "lakeside-mall"
+                    else "Lakeside Mall (Car Park B)"
+                )
+                assert f.extra_walk_to == want
+        if "Lakeside Mall" in r.lines.daily_life:
+            assert mall.label in r.lines.daily_life
+            if isinstance(mall.value, int):
+                assert f"{mall.value} min" in r.lines.daily_life

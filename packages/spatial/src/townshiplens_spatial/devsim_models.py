@@ -166,6 +166,8 @@ class HoardingHome(BaseModel):
     home_id: str  # building id
     extra_min: int  # the largest rounded extra walk over the four targets (>= 0)
     extra_target: str | None = None  # the target id of that walk (None when extra_min is 0)
+    # The place that walk arrives at (the mall or its Car Park B, ruling R18), None when extra is 0.
+    extra_arrival: str | None = None
     cut_off: bool = False  # a default route that existed before has none after
     wheelchair_cut: bool = False  # a wheelchair route that existed before has none after
 
@@ -268,6 +270,8 @@ class MatrixCell(BaseModel):
     # Minutes, "?" when the route is partly_unverified, "gap" for no_data, "blocked" for blocked.
     value: MatrixValue
     m: int | None = None  # metres, only when value is minutes
+    arrival_id: str  # the place the walk ends at (the mall or its Car Park B for the mall row)
+    label: str  # how copy names this walk: "Lakeside Mall" / "Lakeside Mall (Car Park B)" / name
 
 
 class MatrixRow(BaseModel):
@@ -372,6 +376,8 @@ class ResidentWalk(BaseModel):
     kind: TargetKind
     name: str  # the target's place name
     value: WalkValue  # minutes for their profile; "?" partly_unverified, "gap" no_data, "blocked"
+    arrival_id: str  # the place the walk ends at (the mall or its Car Park B, ruling R18)
+    label: str  # "Lakeside Mall" / "Lakeside Mall (Car Park B)" for the mall, else the name
 
 
 class ResidentFacts(BaseModel):
@@ -381,7 +387,8 @@ class ResidentFacts(BaseModel):
     home_id: str | None  # the neighbour's building id (None for the tower)
     # Construction detour (neighbours): the largest extra walk over the four targets.
     extra_walk_min: int | None = None
-    extra_walk_to: str | None = None  # that target's name
+    extra_walk_to: str | None = None  # how the lines name that walk ("Lakeside Mall (Car Park B)")
+    extra_walk_arrival: str | None = None  # the place id it arrives at
     walks: list[ResidentWalk]  # park, mall, clinic, school
 
 

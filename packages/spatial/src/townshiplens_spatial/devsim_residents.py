@@ -15,6 +15,7 @@ and checked by `check_line` (the `spotlight.check_text` rules). Labelled "Simula
 from __future__ import annotations
 
 import colorsys
+import dataclasses
 import hashlib
 import re
 from collections.abc import Callable
@@ -50,8 +51,10 @@ CAST_GROUP = {
     "zainab": "older",
     "arjun": "commuter",
 }
-SHORT = {"park": "Urban Park", "mall": "the mall", "school": "the school"}  # clinic: its name
+# How copy names a target: the mall by its arrival label (ruling R18), the clinic by its name.
+SHORT = {"park": "Urban Park", "school": "the school"}
 WALK_ORDER = ("park", "mall", "clinic", "school")
+MAX_PER_BUILDING = 2  # neighbours per home building, the cast included
 CAST_GIVEN_NAMES = ("Halim", "Farid", "Mei Ling", "Zainab", "Arjun")  # never reused
 DIGITS = re.compile(r"\d+(?:[.,]\d+)?")
 
@@ -96,18 +99,40 @@ class _HomeWalks:
         self.cache: dict[tuple[str, str], tuple[dict, dict]] = {}
         self.comps = devsim.routing._components(world)
 
+    def _trees(self, pid: str, profile: str):
+        key = (pid, profile)
+        if key not in self.cache:
+            src = devsim.routing._targets(self.world, pid)
+            self.cache[key] = (
+                di.walk_tree(self.world, profile, src, False, self.nodes),
+                di.walk_tree(self.world, profile, src, True, self.nodes),
+            )
+        return self.cache[key]
+
     def __call__(self, node: str, profile: str) -> list[ResidentWalk]:
         out = []
         for t in self.targets:
-            src = devsim.routing._targets(self.world, t.id)
-            key = (t.id, profile)
-            if key not in self.cache:
-                self.cache[key] = (
-                    di.walk_tree(self.world, profile, src, False, self.nodes),
-                    di.walk_tree(self.world, profile, src, True, self.nodes),
+            # The arrival with the shorter plan_route walk (strict, else lenient); ruling R18.
+            found = []
+            for pid in di._arrivals(t):
+                strict, lenient = self._trees(pid, profile)
+                m = strict.get(node, lenient.get(node))
+                if m is not None:
+                    found.append((m, pid))
+            pid = min(found)[1] if found else t.id
+            src = devsim.routing._targets(self.world, pid)
+            v = _walk_value(
+                self._trees(pid, profile), self.comps, src, node, di._pace(self.world, profile)
+            )
+            out.append(
+                ResidentWalk(
+                    kind=t.kind,
+                    name=t.name,
+                    value=v,
+                    arrival_id=pid,
+                    label=di.arrival_label(self.world, t, pid),
                 )
-            v = _walk_value(self.cache[key], self.comps, src, node, di._pace(self.world, profile))
-            out.append(ResidentWalk(kind=t.kind, name=t.name, value=v))
+            )
         return out
 
 
@@ -116,7 +141,13 @@ def _matrix_walks(world: World, site: DevelopmentSite, profile: str) -> list[Res
     i = m.profiles.index(profile)
     by_kind = {r.target.kind: r for r in m.rows}
     return [
-        ResidentWalk(kind=k, name=by_kind[k].target.name, value=by_kind[k].cells[i].value)
+        ResidentWalk(
+            kind=k,
+            name=by_kind[k].target.name,
+            value=by_kind[k].cells[i].value,
+            arrival_id=by_kind[k].cells[i].arrival_id,
+            label=by_kind[k].cells[i].label,
+        )
         for k in WALK_ORDER
     ]
 
@@ -135,7 +166,11 @@ def check_line(text: str, f: ResidentFacts) -> list[str]:
     if len(text) > MAX_LINE:
         errs.append(f"longer than {MAX_LINE} characters")
     # Place names are data, not numbers or words of theirs (e.g. "Seven Skies Islamic School").
-    names = sorted({w.name for w in f.walks} | {f.extra_walk_to or ""}, key=len, reverse=True)
+    names = sorted(
+        {w.name for w in f.walks} | {w.label for w in f.walks} | {f.extra_walk_to or ""},
+        key=len,
+        reverse=True,
+    )
     for n in names:
         if n:
             text = re.sub(re.escape(n), " ", text, flags=re.IGNORECASE)
@@ -154,7 +189,11 @@ def check_line(text: str, f: ResidentFacts) -> list[str]:
 
 # ---- lines -------------------------------------------------------------------------------------
 def _place(w: ResidentWalk) -> str:
-    return SHORT.get(w.kind, w.name)
+    return w.label if w.kind == "mall" else SHORT.get(w.kind, w.name)
+
+
+def copy_name(kind: str, name: str, label: str) -> str:
+    return label if kind == "mall" else SHORT.get(kind, name)
 
 
 def _lines(rid: str, side: str, group: str, f: ResidentFacts, seed: int, k: int) -> ResidentLines:
@@ -194,8 +233,7 @@ def _cap(s: str) -> str:
 
 
 def _to(f: ResidentFacts) -> str:
-    kind = next((w.kind for w in f.walks if w.name == f.extra_walk_to), None)
-    return SHORT.get(kind, f.extra_walk_to or "the mall")
+    return f.extra_walk_to or di.MALL_LABEL
 
 
 # ---- selection -------------------------------------------------------------------------------
@@ -211,31 +249,69 @@ def _quotas(school: dict[str, int]) -> list[tuple[Callable[[Resident], bool], in
     ]
 
 
-def _select(rs: list[Resident], n: int, school: dict[str, int], skip: set[str]) -> list[Resident]:
+def _select(
+    rs: list[Resident],
+    n: int,
+    school: dict[str, int],
+    skip: set[str],
+    building: dict[str, str] | None = None,
+    cap: int | None = None,
+    spread: dict[str, int] | None = None,
+    taken: dict[str, int] | None = None,
+) -> list[Resident]:
     """A varied, deterministic pick (`spotlight.choose` style): quotas first, one per household
-    while that is possible, then anyone left (adults, older residents, teenagers)."""
+    while that is possible, then anyone left (adults, older residents, teenagers).
+
+    With `building` (resident id -> home building), no building gets more than `cap` residents
+    (`taken` counts those already placed, e.g. the cast), and the fill prefers the building with
+    the fewest picks so far, then `spread` order (near and far buildings interleaved)."""
     order = [
         r
         for r in sorted(rs, key=lambda r: spot._h(r.id))
         if r.id not in skip and r.group != "child"
     ]
+    per: dict[str, int] = dict(taken or {})
     picked: list[Resident] = []
     seen: set[str] = set()
+
+    def ok(r: Resident, unique: bool) -> bool:
+        if r in picked or (unique and r.household in seen):
+            return False
+        return not (building and cap is not None and per.get(building[r.id], 0) >= cap)
+
+    def take(r: Resident) -> None:
+        picked.append(r)
+        seen.add(r.household)
+        if building:
+            per[building[r.id]] = per.get(building[r.id], 0) + 1
+
     for pred, k in _quotas(school):
         for r in order:
             if sum(1 for x in picked if pred(x)) >= k or len(picked) >= n:
                 break
-            if pred(r) and r.household not in seen and r not in picked:
-                picked.append(r)
-                seen.add(r.household)
+            if pred(r) and ok(r, True):
+                take(r)
     for unique in (True, False):
-        for r in order:
-            if len(picked) >= n:
+        while len(picked) < n:
+            cands = [r for r in order if ok(r, unique)]
+            if not cands:
                 break
-            if r not in picked and (not unique or r.household not in seen):
-                picked.append(r)
-                seen.add(r.household)
+            if building:
+                b = building
+                cands.sort(key=lambda r: (per.get(b[r.id], 0), (spread or {}).get(b[r.id], 0)))
+            take(cands[0])
     return picked
+
+
+def interleave(items: list[str]) -> dict[str, int]:
+    """Rank items nearest, farthest, second nearest, second farthest, ... (for spreading)."""
+    out, lo, hi = [], 0, len(items) - 1
+    while lo <= hi:
+        out.append(items[lo])
+        if hi != lo:
+            out.append(items[hi])
+        lo, hi = lo + 1, hi - 1
+    return {x: i for i, x in enumerate(out)}
 
 
 def _group(r: Resident, kids: dict[str, int]) -> str:
@@ -314,8 +390,17 @@ def _ring_mean(f: dict) -> tuple[float, float]:
     return (round(sum(xs) / len(xs), 6), round(sum(ys) / len(ys), 6))
 
 
-def neighbour_pool(world: World, impact: HoardingImpact) -> dict[str, list[Resident]]:
-    """Elmina Day residents (default population) by home building, for the impact's homes."""
+DAY_SEED = 11  # population.synthesize's default: the Elmina Day population
+MAX_POOL_RUNS = 8
+
+
+def neighbour_pool(
+    world: World, impact: HoardingImpact, need: int = 0, cap: int = MAX_PER_BUILDING
+) -> dict[str, list[Resident]]:
+    """Synthetic residents by home building, for the impact's homes: the Elmina Day population
+    (`population.synthesize(world)`, seed 11) first. When fewer than `need` could be picked with
+    at most `cap` per building, further runs of the same generator (seeds 12, 13, ...; ids and
+    households prefixed "s<seed>-") add residents until enough buildings are covered."""
     ids = {h.home_id for h in impact.homes}
     by_coord = {
         _ring_mean(f): f["properties"]["id"]
@@ -323,9 +408,17 @@ def neighbour_pool(world: World, impact: HoardingImpact) -> dict[str, list[Resid
         if f["properties"].get("id") in ids
     }
     out: dict[str, list[Resident]] = {}
-    for r in population.synthesize(world).residents:
-        if (hid := by_coord.get((r.home_coord[0], r.home_coord[1]))) is not None:
+    for run in range(MAX_POOL_RUNS):
+        seed = DAY_SEED + run
+        for r in population.synthesize(world, seed=seed).residents:
+            if (hid := by_coord.get((r.home_coord[0], r.home_coord[1]))) is None:
+                continue
+            if run:
+                r = dataclasses.replace(r, id=f"s{seed}-{r.id}", household=f"s{seed}-{r.household}")
             out.setdefault(hid, []).append(r)
+        room = sum(min(cap, sum(1 for r in rs if r.group != "child")) for rs in out.values())
+        if room >= need:
+            break
     return out
 
 
@@ -348,7 +441,7 @@ def build_residents(
         targets = di.impact_targets(world, site)
         home_node = dict(di.impact_homes(world, site, layout))
         rows = {h.home_id: h for h in impact.homes}
-        names = {t.id: t.name for t in targets}
+        by_id = {t.id: t for t in targets}
 
         # Tower: the cast population.
         tpop, tkids, tschool = devsim.tower_population(world, site, seed)
@@ -359,7 +452,8 @@ def build_residents(
         tower = _select(tpop.residents, N_TOWER - len(TOWER_CAST), tschool, skip)
 
         # Neighbours: Elmina Day residents living in the impact's homes.
-        pool = neighbour_pool(world, impact)
+        # Room for the 18 plus the two cast homes (each may hold one more resident).
+        pool = neighbour_pool(world, impact, N_NEIGHBOUR)
         nres = [r for hid in sorted(pool) for r in pool[hid]]
         nkids: dict[str, int] = {}
         nschool: dict[str, int] = {}
@@ -369,17 +463,24 @@ def build_residents(
                 if PRIMARY_AGE[0] <= r.age <= PRIMARY_AGE[1]:
                     nschool[r.household] = nschool.get(r.household, 0) + 1
         home_of = {r.id: hid for hid, rs in pool.items() for r in rs}
-        neighbours = _select(nres, N_NEIGHBOUR - len(NEIGHBOUR_CAST), nschool, set())
+        order = [h.home_id for h in impact.homes]  # nearest first
+        if detour_home is not None and detour_home not in rows:
+            raise ValueError(f"detour home {detour_home} is not a home within 500 m of the tower")
+        halim_home = detour_home or max(order, key=lambda h: (rows[h].extra_min, -order.index(h)))
+        farid_home = next(h for h in order if h != halim_home)
+        cast_homes = {halim_home: 1, farid_home: 1}
+        neighbours = _select(
+            nres,
+            N_NEIGHBOUR - len(NEIGHBOUR_CAST),
+            nschool,
+            set(),
+            building=home_of,
+            cap=MAX_PER_BUILDING,
+            spread=interleave([h for h in order if h in pool]),
+            taken=cast_homes,
+        )
         if len(neighbours) < N_NEIGHBOUR - len(NEIGHBOUR_CAST):
             raise devsim.DevsimUnavailable("too few residents live near the site")
-
-        order = [h.home_id for h in impact.homes]  # nearest first
-        halim_home = (
-            detour_home
-            if detour_home in rows
-            else max(order, key=lambda h: (rows[h].extra_min, -order.index(h)))
-        )
-        farid_home = next(h for h in order if h != halim_home)
         walks = _HomeWalks(
             world,
             targets,
@@ -389,11 +490,14 @@ def build_residents(
 
         def neighbour_facts(hid: str, profile: str) -> ResidentFacts:
             row = rows[hid]
+            t = by_id.get(row.extra_target)
+            label = di.arrival_label(world, t, row.extra_arrival) if t else None
             return ResidentFacts(
                 profile=profile,
                 home_id=hid,
                 extra_walk_min=row.extra_min,
-                extra_walk_to=names.get(row.extra_target) if row.extra_target else None,
+                extra_walk_to=copy_name(t.kind, t.name, label) if t else None,
+                extra_walk_arrival=row.extra_arrival,
                 walks=walks(home_node[hid], profile),
             )
 
@@ -419,6 +523,7 @@ def build_residents(
                     group=_group(r, tkids),
                     cast=False,
                     kids=tkids,
+                    school=tschool,
                 )
             )
         for cid, hid in (("halim", halim_home), ("farid", farid_home)):
@@ -442,6 +547,7 @@ def build_residents(
                     group=_group(r, nkids),
                     cast=False,
                     kids=nkids,
+                    school=nschool,
                     home=home_of[r.id],
                 )
             )
@@ -472,7 +578,7 @@ def build_residents(
                 name, role, colour = c.name, c.role, c.colour
             else:
                 name = _name(r, used)
-                role = spot._role(r, p["kids"].get(r.household, 0), 0)
+                role = spot._role(r, p["kids"].get(r.household, 0), p["school"].get(r.household, 0))
                 colour = _colour(i, taken)
             out.append(
                 SimResident(

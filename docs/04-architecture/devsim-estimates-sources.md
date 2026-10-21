@@ -43,6 +43,7 @@ Every number that the Development Simulation (`devsim_schedule.py`) uses for cos
 | monsoon_wet_days_mar | March, same definition | 14 | days per month | same as above | 1961-2010 | https://en.wikipedia.org/wiki/Seri_Kembangan | 2026-10-21 | climatology |
 | rain_lost_fraction | Fraction of a wet day (1.0 mm or more) that is lost to work | 0.25 | fraction | No published source found; modelling choice. A wet day does not stop all trades (interior works continue), so well under 1 | n/a | n/a | 2026-10-21 | assumption |
 | scurve_shape | Cumulative spend curve: symmetric S (3t^2 - 2t^3, a Beta(2,2) CDF). The value is the Beta parameter | 2 | Beta parameter a = b | No published source found; common modelling practice for construction cash flow | n/a | n/a | 2026-10-21 | assumption |
+| schedule_start_date | Construction start used by the playback (the first Monday of 2027), written as YYYYMMDD | 20270104 | date (YYYYMMDD) | No source; modelling choice for a Hypothetical Development (not an SDP date). It is the start of the timeline bar | n/a | n/a | 2026-10-21 | assumption |
 
 ## 2. Selangor public holidays, 2027 to 2030
 

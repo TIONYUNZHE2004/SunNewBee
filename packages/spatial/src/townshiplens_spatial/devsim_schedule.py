@@ -129,6 +129,7 @@ SOURCES: tuple[Source, ...] = (
     Source("monsoon_wet_days_mar", 14, "days per month", "climatology", "Wet days, March"),
     Source("rain_lost_fraction", 0.25, "fraction", "assumption", "Share of a wet day lost"),
     Source("scurve_shape", 2, "Beta parameter a = b", "assumption", "Spend curve shape"),
+    Source("schedule_start_date", 20270104, "date (YYYYMMDD)", "assumption", "Construction start"),
 )
 _BY_ID = {s.id: s for s in SOURCES}
 
@@ -209,7 +210,6 @@ HOLIDAYS: tuple[tuple[str, str, str], ...] = (
     ("2030-12-25", "Hari Krismas", "expected"),
 )
 RAYA = "Hari Raya Aidilfitri"
-START = date(2027, 1, 4)  # a Monday
 COST_RATE = "cost_rm_per_m2_highrise_condo_kv_mid"
 WET_DAYS = {
     11: "monsoon_wet_days_nov",
@@ -232,6 +232,7 @@ USED = (
     *WET_DAYS.values(),
     "rain_lost_fraction",
     "scurve_shape",
+    "schedule_start_date",
 )
 SOURCE_LINE = (
     "ESTIMATE from published benchmarks: Arcadis Construction Cost Handbook (Kuala Lumpur, JUBM "
@@ -242,6 +243,14 @@ SOURCE_LINE = (
 
 def value(source_id: str) -> float:
     return _BY_ID[source_id].value
+
+
+def _yyyymmdd(v: float) -> date:
+    n = int(v)
+    return date(n // 10_000, n // 100 % 100, n % 100)
+
+
+START = _yyyymmdd(value("schedule_start_date"))  # 2027-01-04, a Monday
 
 
 def _int(source_id: str) -> int:

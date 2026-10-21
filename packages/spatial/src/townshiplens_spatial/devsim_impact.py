@@ -51,7 +51,8 @@ log = logging.getLogger(__name__)
 
 IMPACT_RADIUS_M = 500.0
 EXTRA_MIN = 2  # "2 min or more longer"
-REACHED = frozenset({"confirmed", "likely_ok", "partly_unverified"})
+MALL_LABEL = "Lakeside Mall"  # the mall reached at the mall place itself
+CAR_PARK_LABEL = "Lakeside Mall (Car Park B)"  # the mall reached at its Car Park B
 COMPASS = (
     "north",
     "north-east",
@@ -247,10 +248,24 @@ def _place_m(trees, pid: str, node: str) -> float | None:
     return strict[node] if node in strict else lenient.get(node)
 
 
-def _walk_m(trees, t: ImpactTarget, node: str) -> float | None:
-    """The shortest of the plan_route walks to the target's arrival places."""
-    ms = [m for pid in _arrivals(t) if (m := _place_m(trees, pid, node)) is not None]
+def _walk(trees, t: ImpactTarget, node: str) -> tuple[float, str] | None:
+    """(metres, arrival place id) of the shortest plan_route walk to the target's arrival places
+    (ruling R18: the mall is reached at the mall or at Car Park B, whichever is nearer)."""
+    ms = [(m, pid) for pid in _arrivals(t) if (m := _place_m(trees, pid, node)) is not None]
     return min(ms) if ms else None
+
+
+def _walk_m(trees, t: ImpactTarget, node: str) -> float | None:
+    w = _walk(trees, t, node)
+    return w[0] if w else None
+
+
+def arrival_label(world: World, t: ImpactTarget, arrival: str | None) -> str:
+    """How copy names a walk to this target: "Lakeside Mall" when it ends at the mall place,
+    "Lakeside Mall (Car Park B)" when it ends at the car park; other targets by their name."""
+    if t.kind != "mall":
+        return t.name
+    return MALL_LABEL if arrival in (None, t.id) else CAR_PARK_LABEL
 
 
 def _wheelchair_ok(trees, t: ImpactTarget, node: str) -> bool:
@@ -261,19 +276,26 @@ def _compare(world, homes, targets, before, after) -> list[HoardingHome]:
     pace = _pace(world)
     rows = []
     for hid, node in homes:
-        extra, worst, cut, wcut = 0, None, False, False
+        extra, worst, arrival, cut, wcut = 0, None, None, False, False
         for t in targets:
-            b, a = _walk_m(before, t, node), _walk_m(after, t, node)
-            if b is not None:
-                if a is None:
+            bw, aw = _walk(before, t, node), _walk(after, t, node)
+            if bw is not None:
+                if aw is None:
                     cut = True
-                elif (x := devsim._round_min(a / pace - b / pace)) > extra:
+                elif (x := devsim._round_min(aw[0] / pace - bw[0] / pace)) > extra:
                     extra, worst = x, t.id
+                    # One walk, one name: the car-park label when either end uses Car Park B.
+                    arrival = aw[1] if bw[1] == t.id else bw[1]
             if _wheelchair_ok(before, t, node) and not _wheelchair_ok(after, t, node):
                 wcut = True
         rows.append(
             HoardingHome(
-                home_id=hid, extra_min=extra, extra_target=worst, cut_off=cut, wheelchair_cut=wcut
+                home_id=hid,
+                extra_min=extra,
+                extra_target=worst,
+                extra_arrival=arrival,
+                cut_off=cut,
+                wheelchair_cut=wcut,
             )
         )
     return rows
@@ -374,17 +396,30 @@ def _xy(world: World, lay, node: str):
     return Point(lay.fr.xy(world.node_coords[node]))
 
 
-def _outlines(world: World) -> dict[str, Any]:
-    """OSM outlines of park places (base/parks.geojson, by OSM way id)."""
-    out = {}
+def _outlines(world: World, wanted: set[str]) -> dict[str, Any]:
+    """OSM outlines by place id ("osm-way-123"), from every base layer that has them: parks
+    (`parks.geojson` ids "way/123"), land cover (`osm` "way/123") and buildings (ids "w123").
+    On the Elmina seed only parks have outlines; schools and kindergartens are points."""
+    out: dict[str, Any] = {}
+
+    def put(osm: str | None, geom) -> None:
+        key = f"osm-{osm.replace('/', '-')}" if osm and "/" in osm else None
+        if key in wanted and key not in out:
+            out[key] = shape(geom)
+
     for f in devsim._features(world, "parks.geojson"):
-        osm = f["properties"].get("id", "")
-        out[f"osm-{osm.replace('/', '-')}"] = shape(f["geometry"])
+        put(f["properties"].get("id"), f["geometry"])
+    for f in devsim._features(world, "landcover.geojson"):
+        put(f["properties"].get("osm"), f["geometry"])
+    for f in devsim._features(world, "buildings.geojson"):
+        bid = f["properties"].get("id", "")
+        if bid[:1] == "w" and bid[1:].isdigit():
+            put(f"way/{bid[1:]}", f["geometry"])
     return out
 
 
 def _sensitive(world: World, lay, line) -> list[LorrySensitive]:
-    outlines = _outlines(world)
+    outlines = _outlines(world, {p.id for p in world.places.values() if p.type in SENSITIVE_TYPES})
     rows = []
     for p in world.places.values():
         if p.type not in SENSITIVE_TYPES:
@@ -522,11 +557,20 @@ def flood_exposure(world: World, site: DevelopmentSite, lay=None) -> FloodExposu
     return _cached("flood_exposure", world, site, build)
 
 
+def _nearest_arrival(world: World, from_id: str, t: ImpactTarget, profile: str):
+    """(arrival place id, RouteResult) of the shortest plan_route walk to one of the target's
+    arrival places; when none has a route, the target place's own result (its status)."""
+    results = [(pid, routing.plan_route(world, from_id, pid, profile)) for pid in _arrivals(t)]
+    routed = [(res.routes[0].distance_m, i) for i, (_, res) in enumerate(results) if res.routes]
+    return results[min(routed)[1]] if routed else results[0]
+
+
 def daily_life_matrix(world: World, site: DevelopmentSite) -> DailyLifeMatrix:
     """AC-C6: walk minutes from the tower entrance (plan_route) to Urban Park, Lakeside Mall, the
     nearest clinic and the nearest school, for the default, stroller and wheelchair profiles.
 
-    The mall row routes to the mall itself (as the existing mall bubble does), not its car park."""
+    The mall row arrives at the mall or its Car Park B, whichever walk is shorter for that profile
+    (ruling R18); each cell names its arrival (`arrival_id`, `label`)."""
 
     def build() -> DailyLifeMatrix:
         tw = devsim.tower_world(world, site)
@@ -537,7 +581,7 @@ def daily_life_matrix(world: World, site: DevelopmentSite) -> DailyLifeMatrix:
                 t = by_kind[kind]
                 cells = []
                 for prof in MATRIX_PROFILES:
-                    res = routing.plan_route(tw, devsim.TOWER_PLACE, t.id, prof)
+                    arrival, res = _nearest_arrival(tw, devsim.TOWER_PLACE, t, prof)
                     r = res.routes[0] if res.routes else None
                     status = r.status if r else res.status
                     value = cell_value(status, r.distance_m if r else None, _pace(tw, prof))
@@ -547,6 +591,8 @@ def daily_life_matrix(world: World, site: DevelopmentSite) -> DailyLifeMatrix:
                             status=status,
                             value=value,
                             m=round(r.distance_m) if r and isinstance(value, int) else None,
+                            arrival_id=arrival,
+                            label=arrival_label(tw, t, arrival),
                         )
                     )
                 rows.append(MatrixRow(target=t, cells=cells))

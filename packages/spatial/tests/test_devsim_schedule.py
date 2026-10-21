@@ -157,3 +157,10 @@ def test_full_monsoon_month_loses_wet_days_times_fraction():
 
 def test_more_storeys_take_longer():
     assert ds.schedule(storeys=40).months_total > ds.schedule(storeys=20).months_total
+
+
+def test_start_date_comes_from_its_row():  # review M8
+    assert ds.value("schedule_start_date") == 20270104
+    assert ds.START.isoformat() == "2027-01-04" and ds.START.weekday() == 0
+    assert ds.schedule().start == "2027-01-04"
+    assert "schedule_start_date" in ds.schedule().source_ids
