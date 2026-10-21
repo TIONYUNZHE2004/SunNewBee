@@ -18,6 +18,11 @@ export interface DevsimAnchorsState {
    * listener too (e.g. Halim greeting Mei Ling). Empty when none.
    */
   others: readonly { id: string; rect: Rect; head: [number, number] }[];
+  /**
+   * The plan's timed tags (`plan.tags[].at`, by kind) projected to the stage, when the 3D view
+   * projects them; absent: the overlay shows the tags in its stack.
+   */
+  tagPoints?: Partial<Record<"detour" | "lorry", [number, number] | null>>;
   set: (partial: Partial<Omit<DevsimAnchorsState, "set" | "clear">>) => void;
   clear: () => void;
 }

@@ -7,7 +7,7 @@ import { createFrame } from "../frame";
 import { createDevsimLayer, type DevsimPart, labelFits, type TowerPart } from "./devsimLayer";
 import { stateAt } from "./state";
 
-const P = plan as DevelopmentPlan;
+const P = plan as unknown as DevelopmentPlan;
 const frame = createFrame([P.site.footprint[0]?.[0] as number, P.site.footprint[0]?.[1] as number]);
 
 function cameraAt(pos: [number, number, number], look: [number, number, number]) {

@@ -4,16 +4,22 @@
  * screen times live. Pure maths, no Three.js.
  *
  * Two modes:
- * - "schedule": the plan carries `schedule` (C7, 45 s timeline). The Hari Raya hold and the monsoon
- *   stretch come from `buildPlayback(schedule)` (fe `schedulePlayback.ts`, ruling R25 windows), the
- *   piling rig and the lorry route from the spec §6.3 beats below.
+ * - "schedule": the 45 s building plan (C7: `schedule` + `month_keys`; `timeline.isBuildPlan`). The
+ *   Hari Raya hold and the monsoon stretch come from `planPlayback(plan)` (fe `schedulePlayback.ts`:
+ *   the plan's own month keys and banner windows, ruling R25), the piling rig and the lorry route
+ *   from the spec §6.3 beats below.
  * - "legacy": today's 66 s plan (no schedule): no hold, no rain, the crane slews as the timeline
  *   says, the piling rig stands in the first seconds of Construction, the Handover lorries keep
  *   today's lane path. A plan with `lorry_route` but no schedule draws the route over Construction.
  */
-import type { DevelopmentPlanExtras, LorryRoute, Schedule } from "../../../devsim/planTypes";
-import { BUILD_BEATS, buildPlayback } from "../../../devsim/schedulePlayback";
-import { CON } from "../../../devsim/timeline";
+import type {
+  DevelopmentPlanExtras,
+  LorryRoute,
+  PlaygroundRef,
+  Schedule,
+} from "../../../devsim/planTypes";
+import { BUILD_BEATS, planPlayback } from "../../../devsim/schedulePlayback";
+import { CON, isBuildPlan } from "../../../devsim/timeline";
 import type { DevelopmentPlan, StateAt } from "../../../devsim/types";
 import { ease, span } from "./ease";
 import { stateAt } from "./state";
@@ -44,6 +50,12 @@ export const SET_PIECE_S = {
     /** Children play at the nearest playground from here on. */
     kidsAt: 32.5,
   },
+  /**
+   * The devsim AO is off over the 45 s move-in (C-align, AC-P2): its door beat is close (~63 m),
+   * so the range fade keeps AO on, and the GTAO normal pass re-draws ~45-75 meshes there (159-186
+   * draws with it, ~112-116 without). Faded in over the wide shot before it (AO already 0 there).
+   */
+  moveInAoOff: [26.6, 27, 33, 33.4] as const,
   /** Monsoon wet beats: every other 1.5 s inside the monsoon window (the 2nd, 4th ... beat). */
   wetBeat: 1.5,
   /** Rain fades in and out over this much of the monsoon window's ends. */
@@ -108,7 +120,7 @@ export function planExtras(plan: DevelopmentPlan): {
 } {
   const x = plan as DevelopmentPlan & DevelopmentPlanExtras;
   const r = x.lorry_route;
-  const pg = x.playground?.coord;
+  const pg = playgroundCoord(x.playground);
   return {
     lorryRoute: r && Array.isArray(r.path) && r.path.length >= 2 ? r : null,
     schedule: x.schedule ?? null,
@@ -116,15 +128,25 @@ export function planExtras(plan: DevelopmentPlan): {
   };
 }
 
+/** The [lon, lat] of the plan's playground (any of the accepted shapes), else null. */
+export function playgroundCoord(pg: PlaygroundRef | null | undefined): number[] | null {
+  if (!pg) return null;
+  const ok = (p: unknown): p is number[] =>
+    Array.isArray(p) && p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]);
+  for (const p of [pg.coord, pg.lonlat, pg.at, pg.point]) if (ok(p)) return p;
+  const ll = [pg.lon, pg.lat];
+  return ok(ll) ? ll : null;
+}
+
 const timingCache = new WeakMap<DevelopmentPlan, SetPieceTiming>();
 
 export function setPieceTiming(plan: DevelopmentPlan): SetPieceTiming {
   const hit = timingCache.get(plan);
   if (hit) return hit;
-  const { lorryRoute, schedule } = planExtras(plan);
+  const { lorryRoute } = planExtras(plan);
   let out: SetPieceTiming;
-  if (schedule) {
-    const pb = buildPlayback(schedule);
+  if (isBuildPlan(plan)) {
+    const pb = planPlayback(plan);
     out = {
       mode: "schedule",
       piling: SET_PIECE_S.piling,
@@ -262,6 +284,13 @@ export function craneAt(plan: DevelopmentPlan, t: number, s?: StateAt): CraneAt 
 }
 
 // ---- per frame ---------------------------------------------------------------------------------
+
+/** The share of AO the move-in leaves (1 outside it, 0 through it; schedule mode only). */
+export function moveInAoKeep(tm: SetPieceTiming, t: number): number {
+  if (tm.mode !== "schedule") return 1;
+  const [a, b, c, d] = SET_PIECE_S.moveInAoOff;
+  return 1 - ease(span(t, a, b)) * (1 - ease(span(t, c, d)));
+}
 
 // ---- move-in (C10) -----------------------------------------------------------------------------
 

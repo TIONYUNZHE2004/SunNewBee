@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import estimates from "./fixtures/estimates.preC7.elmina.json";
+import estimates from "./fixtures/plan.elmina.json";
 import type { Schedule } from "./planTypes";
 import {
   BUILD_BEATS,
@@ -87,15 +87,30 @@ describe("buildPlayback, baseline order (spec §6.3)", () => {
   });
 });
 
-describe("buildPlayback, Elmina data order (Raya inside the monsoon)", () => {
-  const p = buildPlayback(elmina);
-  const raya = monthOf(elmina, elmina.raya_set_piece?.date as string);
+describe("buildPlayback, data order (Raya inside the monsoon set piece)", () => {
+  // The pre-R25 selection: the Elmina schedule with the set piece on the band that holds Raya
+  // (Nov 2027–Mar 2028). C7 no longer sends this; the fallback stays for such a schedule.
+  const inside: Schedule = {
+    ...elmina,
+    monsoon_set_piece: {
+      start_month: "2027-11",
+      end_month: "2028-03",
+      months: [10, 11, 12, 13, 14].map((i) => ({
+        month: elmina.months[i] as string,
+        month_index: i,
+        wet_days: 12,
+        days_lost: 3,
+      })),
+    },
+  };
+  const p = buildPlayback(inside);
+  const raya = monthOf(inside, inside.raya_set_piece?.date as string);
 
   it("falls back to windows derived from the data, still monotone, still 3 → 27 s", () => {
     expect(p.mode).toBe("data-order");
     expect(increasing(p.keys)).toBe(true);
     expect(monthAt(3, p.keys)).toBe(0);
-    expect(monthAt(27, p.keys)).toBeCloseTo(handoverMonth(elmina), 6);
+    expect(monthAt(27, p.keys)).toBeCloseTo(handoverMonth(inside), 6);
   });
 
   it("the hold is 2 s at the Raya date, inside the slow monsoon window", () => {
@@ -185,11 +200,12 @@ describe("days_lost_by_month from the plan (C7)", () => {
     const sent = elmina.months.map((_, i) => i * 2);
     expect(daysLostByMonth({ ...elmina, days_lost_by_month: sent })).toEqual(sent);
     expect(scheduleAt({ ...elmina, days_lost_by_month: sent }, 13.5).daysLost).toBe(26);
-    expect(daysLostByMonth({ ...elmina, days_lost_by_month: [1, 2] })).toEqual(
-      daysLostByMonth(elmina),
+    const derived = daysLostByMonth({ ...elmina, days_lost_by_month: [] });
+    expect(daysLostByMonth({ ...elmina, days_lost_by_month: [1, 2] })).toEqual(derived);
+    expect(daysLostByMonth({ ...elmina, days_lost_by_month: null as unknown as number[] })).toEqual(
+      derived,
     );
-    expect(daysLostByMonth({ ...elmina, days_lost_by_month: null })).toEqual(
-      daysLostByMonth(elmina),
-    );
+    // the C7 plan sends its own series, which wins
+    expect(daysLostByMonth(elmina)).toEqual(elmina.days_lost_by_month);
   });
 });

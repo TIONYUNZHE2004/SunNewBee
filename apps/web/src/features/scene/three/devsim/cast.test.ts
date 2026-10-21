@@ -15,7 +15,7 @@ import { along, distToLine, lengthOf, siteGeom } from "./geom";
 import { KIDS } from "./moveIn";
 import { stateAt } from "./state";
 
-const P = plan as DevelopmentPlan;
+const P = plan as unknown as DevelopmentPlan;
 const g = siteGeom(P, createFrame([101.5076, 3.1794]));
 const at = (t: number) => castAt(t, g, { workersActive: stateAt(t, P).workersActive });
 

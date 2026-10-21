@@ -17,7 +17,7 @@ import type { LoadedAssets } from "../scene/useCityAssets";
 import { type Cast, createCast } from "./cast";
 import { devDemoRequested, startDevDemo } from "./devDemo";
 import { createDevsimLayer, type DevsimLayer } from "./devsimLayer";
-import { devsimCamera } from "./devsimView";
+import { devsimCamera, devsimCameraDriver } from "./devsimView";
 import { createMoveIn } from "./moveIn";
 import { createPilingRig } from "./pilingRig";
 import { createRain } from "./rain";
@@ -179,6 +179,8 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
     const geom = l.geom;
     const avoid = (x: number, z: number) => nearClosed(geom, x, z);
     const avoidVehicles = (x: number, z: number) => nearQueue(geom, x, z);
+    // the school-run queue stands only on the legacy 66 s plan (the 45 s plan has no school run)
+    const legacy = setPieceTiming(plan).mode === "legacy";
     const applyFlow = () => {
       const st = l.state();
       if (!st) return;
@@ -188,20 +190,16 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
         vehicleDensity: st.flow.vehicleDensity,
         avoid,
         // decorative traffic never drives through the parked school-run queue
-        ...(queueShown(useDevsim.getState().t) ? { avoidVehicles } : {}),
+        ...(legacy && queueShown(useDevsim.getState().t) ? { avoidVehicles } : {}),
       });
     };
     applyFlow();
     // The devsim camera (§4.4 beats from StateAt.camera), clamped out of every building (Q2).
-    const driver: CameraDriver = () => {
-      const st = l.state();
-      if (!st) return null;
-      const pose = devsimCamera(st, frame, l.geom, l.towerTopM(), engine.clearance?.() ?? null);
-      // While playing the engine schedules its own next frame (C10p): without it every playback
-      // frame was a one-off request (the store's t), which the engine counts as idle (dt 0), so
-      // frame stats and the layer's fps saw ~8 frames a second while ~75 were drawn.
-      return useDevsim.getState().playing ? { ...pose, animating: true } : pose;
-    };
+    const driver: CameraDriver = devsimCameraDriver({
+      state: () => l.state(),
+      pose: (st) => devsimCamera(st, frame, l.geom, l.towerTopM(), engine.clearance?.() ?? null),
+      playing: () => useDevsim.getState().playing,
+    });
     const clock = () => flowSeconds(useDevsim.getState().t, plan);
     engine.setCameraDriver?.(driver);
     engine.setDecorClock?.(clock);

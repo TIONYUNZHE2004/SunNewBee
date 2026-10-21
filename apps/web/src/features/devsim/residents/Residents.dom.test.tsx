@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { honestyViolations } from "../../../test/honesty";
-import estimates from "../fixtures/estimates.preC7.elmina.json";
+import estimates from "../fixtures/plan.elmina.json";
 import type { SimResidents } from "../planTypes";
 import { inkOn } from "./Avatar";
 import { extraWalkText, walkValueText } from "./ResidentDetail";
@@ -27,7 +27,7 @@ function play(to: (t: number) => void, a: number, b: number) {
   for (let t = a; t <= b + 1e-9; t += 0.25) to(Math.round(t * 100) / 100);
 }
 
-describe("residents fixture (pre-C7 dump)", () => {
+describe("residents fixture (the C7 plan)", () => {
   it("has 40 residents, 20 tower then 20 neighbours, with Mei Ling", () => {
     expect(data.residents).toHaveLength(40);
     expect(data.residents.filter((r) => r.side === "tower")).toHaveLength(20);

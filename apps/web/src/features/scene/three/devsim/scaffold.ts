@@ -215,7 +215,10 @@ export function createScaffold(o: { geom: SiteGeom }): ScaffoldPart {
           : s.act === "Construction" && s.hoarding;
       const on = building && ext.topFloor > 0;
       group.visible = on;
-      netOn = on;
+      // the netting wraps the floors still being built: it comes off at topping out (AC-W4:
+      // visible only while floors < total); the scaffold itself stays until Handover
+      netOn = on && s.floorsBuilt < N - 1e-6;
+      net.visible = netOn;
       top = on ? ext.top : 0;
       if (on) pose(ext.topFloor, ext.base, ext.top - ext.base);
     },

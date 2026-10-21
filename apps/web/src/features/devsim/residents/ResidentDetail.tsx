@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import { RESIDENT_BACK, RESIDENT_FACTS_HEAD, RESIDENT_PHASES, RESIDENT_SIDE_LONG } from "../copy";
-import { BADGE_STYLE } from "../EndCard";
 import type { ResidentWalk, SimResident, WalkValue } from "../planTypes";
+import { BADGE_STYLE } from "../SourceBadge";
 import { Avatar } from "./Avatar";
 
 /** "Simulated reactions" chip: the end card's SIMULATED pair (≥ 4.5:1, readable in both skins). */
