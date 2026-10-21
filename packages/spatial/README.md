@@ -517,7 +517,10 @@ by road membership and endpoint coordinates; closures never change the geometry 
 Rest-constrained searches keep their normal solver. A bounded baseline cache
 (12 profile/sample entries) keys by graph, world version, date, frozen closure set, profile
 and sample. Only baseline routes intersecting active proposed segments are recalculated.
-`timing_ms` includes snapshotting, cache lookup/calculation, impacts and suggestions.
+The API warms the default three-profile closure baselines first on startup, and again
+after world, date or active-closure changes. Future event windows with different staff
+closures calculate their own baseline. `timing_ms` includes snapshotting, cache
+lookup/calculation, impacts and suggestions.
 
 `simulate_event(EventSpec(...))` uses the same engine, retaining the old event shape,
 everyday sample and disclaimer. The API/tool aliases preserve existing callers.

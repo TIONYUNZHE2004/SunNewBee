@@ -420,6 +420,27 @@ def simulate_event(
     return _simulate(world, scenario, profiles, spec.starts_at, legacy=spec)
 
 
+def _frozen_baseline(world, at):
+    baseline, closure_hash = snapshot_world(world, at)
+    for element in (*baseline.edges.values(), *baseline.places.values()):
+        element.closures = [
+            c.model_copy(update={"starts_at": datetime(2000, 1, 1, tzinfo=UTC)})
+            for c in element.closures
+        ]
+    return baseline, closure_hash
+
+
+def warm_baselines(world: World, at: datetime | None = None) -> None:
+    """Fill the normal closure sample cache without applying a proposed closure."""
+    baseline, closure_hash = _frozen_baseline(world, at or datetime.now(UTC))
+    profiles = [p for p in DEFAULT_PROFILES if p in world.profiles and not world.profiles[p].stub]
+    with route_batch():
+        for profile in profiles:
+            journeys = _journeys(baseline, profile, twm.MAX_JOURNEYS // len(profiles), True)
+            _baseline(baseline, closure_hash, profile, journeys)
+    _unnamed_stretches(world)
+
+
 def _simulate(world, spec, profiles, at, legacy):
     started = perf_counter()
     spec = resolve_scenario(world, spec)
@@ -430,12 +451,7 @@ def _simulate(world, spec, profiles, at, legacy):
         if profile not in world.profiles or world.profiles[profile].stub:
             raise ValueError(f"unknown or unavailable profile {profile}")
     at = EventSpec._utc(at or spec.closures[0].starts_at)
-    baseline, closure_hash = snapshot_world(world, at)
-    for element in (*baseline.edges.values(), *baseline.places.values()):
-        element.closures = [
-            c.model_copy(update={"starts_at": datetime(2000, 1, 1, tzinfo=UTC)})
-            for c in element.closures
-        ]
+    baseline, closure_hash = _frozen_baseline(world, at)
     closed = {
         eid
         for window in spec.closures

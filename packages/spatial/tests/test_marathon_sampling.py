@@ -48,3 +48,19 @@ def test_disconnected_unnamed_stretches_do_not_share_pressure_group(world):
     assert groups["seg-ab"] != groups["seg-fd"]
     assert all("unnamed path near Main Road" in value for value in groups.values())
     assert events._unnamed_stretches(world) == groups
+
+
+def test_api_warmup_uses_the_closure_baseline_cache(world, monkeypatch):
+    events._BASELINES.clear()
+    events.warm_baselines(world)
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("baseline should be cached")
+
+    monkeypatch.setattr(events.twm, "rollout", unexpected)
+    events.warm_baselines(world)
+    world.version += 1
+    import pytest
+
+    with pytest.raises(AssertionError, match="baseline should be cached"):
+        events.warm_baselines(world)
