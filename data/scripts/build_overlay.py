@@ -35,16 +35,17 @@ UNCHECKED_MIN_M, UNCHECKED_MAX_M = 30.0, 60.0
 UNCHECKED_FRACTION = (13.6 - 3) / 26  # spec 5.4: the "? Not checked yet" beat
 
 
-def unchecked_run(world, route) -> dict | None:
-    """The run of whole edges (30-60 m, no crossing/steps/major road, not the first or last
-    edge) whose start is nearest UNCHECKED_FRACTION of the route. None when there is none."""
+def unchecked_runs(world, route, exclude=frozenset()) -> list[dict]:
+    """Every run of whole edges that could be the unchecked stretch: 30-60 m, no crossing,
+    steps or major road, not the first or last edge, no edge twice, none in `exclude`. One run
+    per start edge (the shortest that reaches 30 m), in route order."""
     edges = [world.edges[s.edge_id] for s in route.segments]
     starts, at = [], 0.0
     for e in edges:
         starts.append(at)
         at += e.length_m
-    ok = [e.type not in ("crossing", "steps", "major_road") for e in edges]
-    best = None
+    ok = [e.type not in ("crossing", "steps", "major_road") and e.id not in exclude for e in edges]
+    out = []
     for i in range(1, len(edges) - 1):
         total = 0.0
         for j in range(i, len(edges) - 1):
@@ -54,19 +55,26 @@ def unchecked_run(world, route) -> dict | None:
             if total > UNCHECKED_MAX_M:
                 break
             if total >= UNCHECKED_MIN_M:
-                key = (abs(starts[i] / at - UNCHECKED_FRACTION), i, j)
-                if best is None or key < best[0]:
-                    best = (key, i, j, total)
+                out.append(
+                    {
+                        "edge_ids": [e.id for e in edges[i : j + 1]],
+                        "start_m": round(starts[i], 1),
+                        "length_m": round(total, 1),
+                        "fraction": round(starts[i] / at, 2),
+                    }
+                )
                 break
-    if best is None:
-        return None
-    _, i, j, total = best
-    return {
-        "edge_ids": [e.id for e in edges[i : j + 1]],
-        "start_m": round(starts[i], 1),
-        "length_m": round(total, 1),
-        "fraction": round(starts[i] / at, 2),
-    }
+    return out
+
+
+def _beat_key(run: dict) -> tuple:
+    return (abs(run["fraction"] - UNCHECKED_FRACTION), run["start_m"])
+
+
+def unchecked_run(world, route) -> dict | None:
+    """The candidate run whose start is nearest UNCHECKED_FRACTION of the route, or None."""
+    runs = unchecked_runs(world, route)
+    return min(runs, key=_beat_key) if runs else None
 
 
 LAKESIDE_MALL = (101.50990, 3.18133)
@@ -174,8 +182,18 @@ INCLINE_FRACTION = (10.3 - 3) / 26
 COVERED_RUN_M = 200.0  # a covered link-way leaving the mall
 STEEPEST_INCLINE_PCT = 4.5  # within the wheelchair limit (8.3 %)
 STEPS_WIDTH_M = 1.5
+# The day AC-B13 is judged on (the placeholders are dated PLACEHOLDER_DATE, TTL 365 days), so a
+# re-run never depends on the calendar.
+EVAL_DATE = date(2026, 10, 22)
 CROSSING_WIDTH_M = 3.0
-STREET_WIDTH_M = 6.0  # a residential carriageway
+# Ties among stretches with the same N (ruling R30 in the be-nav report): "beat" keeps the
+# stretch nearest the 13.6 s "? Not checked yet" beat; "earliest" takes the first along the
+# route (the coordinator's literal tie rule; it moves the ticket beat to the start of the walk).
+UNCHECKED_TIE_BREAK = "beat"
+# The removed-duplicates list of the first build (2026-10-15). import_osm re-creates them and
+# the next build removes them again; a re-run on built data finds none to remove, so the list
+# is kept here instead of being read back from the README it writes.
+KNOWN_REMOVED = ("osm-way-1308938137", "osm-way-1318133036", "osm-way-1346154592")
 SEATING_NEAR_M = 15.0  # same radius as compare.SEATING_NEAR_M
 _INCLINES = (0.5, 1.0, 1.5, 2.0, 2.5)
 _FOOT_WIDTHS = (1.2, 1.5, 1.5, 1.8, 2.0)
@@ -212,49 +230,11 @@ def _nearest_start(cands: list[tuple[float, str]], target_m: float) -> str | Non
     return min(cands, key=lambda c: (abs(c[0] - target_m), c[1]))[1] if cands else None
 
 
-def build_corridor(by_id: dict, changed: dict) -> tuple[list[dict], dict]:
-    """Placeholder claims for every edge of both demo routes. Returns (new edge features, info).
-
-    The routes do not depend on these claims: compare() never weighs unknown facts (R20) and
-    every value written here passes the wheelchair limits, except the steps (already a FAIL).
-    Edges already in P1/P2 keep their claims; the corridor only adds attributes they lack."""
-    world, r = _corridor_compare()
-    if r.recommended is None or r.stop is None or r.stop.edge_id not in STEPS_EDGES:
-        sys.exit(f"ERROR: demo corridor {DEMO_CORRIDOR} no longer crosses a steps edge")
-    rec = r.recommended
-    run = unchecked_run(world, rec)
-    if run is None:
-        sys.exit("ERROR: demo corridor has no 30-60 m stretch for the unchecked incline")
-    unchecked = set(run["edge_ids"])
-    starts, at = [], 0.0
-    for s in rec.segments:
-        starts.append((at, s.edge_id))
-        at += world.edges[s.edge_id].length_m
-
-    def plain_foot(eid):
-        e = world.edges[eid]
-        return e.type in FOOT_TYPES and e.type not in ("crossing", "ramp")
-
-    covered: set[str] = set()
-    first = _nearest_start(
-        [(a, e) for a, e in starts if plain_foot(e)], COVERED_FRACTION * rec.distance_m
-    )
-    ids = [e for _, e in starts]
-    if first is not None:
-        run_m = 0.0
-        for eid in ids[ids.index(first) :]:
-            if not plain_foot(eid) or run_m >= COVERED_RUN_M:
-                break
-            covered.add(eid)
-            run_m += world.edges[eid].length_m
-    steepest = _nearest_start(
-        [(a, e) for a, e in starts if plain_foot(e) and e not in unchecked],
-        INCLINE_FRACTION * rec.distance_m,
-    )
-
-    out: list[dict] = []
-    route_edges = list(dict.fromkeys(ids + [s.edge_id for s in r.fastest.segments]))
-    for eid in route_edges:
+def _claims_for(world, r, covered: set[str], steepest: str | None, unchecked: set[str]):
+    """{edge id: corridor claim dicts} for every edge of both routes."""
+    out = {}
+    ids = [s.edge_id for s in r.recommended.segments]
+    for eid in dict.fromkeys(ids + [s.edge_id for s in r.fastest.segments]):
         e = world.edges[eid]
         c: dict = {}
         if e.type == "steps":
@@ -277,12 +257,100 @@ def build_corridor(by_id: dict, changed: dict) -> tuple[list[dict], dict]:
                 c["kerb"] = _claim("lowered")
             elif e.type == "major_road":
                 pass  # Task 31: a major road's carriageway width is never a walking width
-            elif e.type == "street":
-                c["width_m"] = _claim(STREET_WIDTH_M)
             else:
+                # Footways, and streets without a sidewalk: the width a walker has (never the
+                # carriageway width; review fix round 1), in the same footway range.
                 c["width_m"] = _claim(_pick(eid, _FOOT_WIDTHS))
         osm_covered = (old := e.claims.get("covered")) is not None and old.value in (True, "yes")
         c["covered"] = _claim(eid in covered or osm_covered)
+        out[eid] = c
+    return out
+
+
+def _apply(world, claims: dict, changed: dict) -> None:
+    """Put corridor claims on the loaded world in place (P1/P2 values win on shared edges)."""
+    from townshiplens_spatial.models import Claim
+
+    for eid, c in claims.items():
+        e = world.edges[eid]
+        new = {k: Claim.model_validate(v) for k, v in c.items()}
+        e.claims = {**new, **e.claims} if eid in changed else {**e.claims, **new}
+    world.version += 1
+
+
+def _confirm_n(world, edge_id: str) -> int:
+    """compare_routes' N for this stretch: impact.fact_impact on its first edge (wheelchair)."""
+    from townshiplens_spatial import impact
+
+    fi = impact.fact_impact(world, edge_id, "incline_pct")
+    return fi.became_confirmed if fi.mode == "would" and fi.profile == "wheelchair" else 0
+
+
+def _any_confirmable(world) -> bool:
+    """A sampled wheelchair journey can only become confirmed by one check if it is confirmed
+    with every corridor fact known: if none is, every stretch has N = 0 (no rollout per stretch)."""
+    from townshiplens_spatial import impact, twm
+
+    js = twm.suite_journeys(world, "wheelchair")[: impact.SAMPLE]
+    return any(st.status == "confirmed" for st in twm.rollout(world, None, js))
+
+
+def build_corridor(by_id: dict, changed: dict) -> tuple[list[dict], dict]:
+    """Placeholder claims for every edge of both demo routes. Returns (new edge features, info).
+
+    The routes do not depend on these claims: compare() never weighs unknown facts (R20) and
+    every value written here passes the wheelchair limits, except the steps (already a FAIL).
+    Edges already in P1/P2 keep their claims; the corridor only adds attributes they lack.
+
+    The unchecked stretch (ruling R30) is the candidate run that maximises N, the sampled
+    wheelchair journeys checking it would confirm; ties by UNCHECKED_TIE_BREAK."""
+    world, r = _corridor_compare()
+    if r.recommended is None or r.stop is None or r.stop.edge_id not in STEPS_EDGES:
+        sys.exit(f"ERROR: demo corridor {DEMO_CORRIDOR} no longer crosses a steps edge")
+    rec = r.recommended
+    starts, at = [], 0.0
+    for s in rec.segments:
+        starts.append((at, s.edge_id))
+        at += world.edges[s.edge_id].length_m
+
+    def plain_foot(eid):
+        e = world.edges[eid]
+        return e.type in FOOT_TYPES and e.type not in ("crossing", "ramp")
+
+    covered: set[str] = set()
+    first = _nearest_start(
+        [(a, e) for a, e in starts if plain_foot(e)], COVERED_FRACTION * rec.distance_m
+    )
+    ids = [e for _, e in starts]
+    if first is not None:
+        run_m = 0.0
+        for eid in ids[ids.index(first) :]:
+            if not plain_foot(eid) or run_m >= COVERED_RUN_M:
+                break
+            covered.add(eid)
+            run_m += world.edges[eid].length_m
+    steepest = _nearest_start(
+        [(a, e) for a, e in starts if plain_foot(e)], INCLINE_FRACTION * rec.distance_m
+    )
+    runs = unchecked_runs(world, rec, exclude={steepest} if steepest else frozenset())
+    if not runs:
+        sys.exit("ERROR: demo corridor has no 30-60 m stretch for the unchecked incline")
+    _apply(world, _claims_for(world, r, covered, steepest, set()), changed)
+    if _any_confirmable(world):
+        ns = []
+        for run in runs:
+            _apply(world, _claims_for(world, r, covered, steepest, set(run["edge_ids"])), changed)
+            ns.append(_confirm_n(world, run["edge_ids"][0]))
+    else:
+        ns = [0] * len(runs)
+    tie = _beat_key if UNCHECKED_TIE_BREAK == "beat" else (lambda run: run["start_m"])
+    best_n = max(ns)
+    run = min((x for x, n in zip(runs, ns, strict=True) if n == best_n), key=tie)
+    unchecked = set(run["edge_ids"])
+    claims = _claims_for(world, r, covered, steepest, unchecked)
+
+    out: list[dict] = []
+    for eid, c in claims.items():
         if eid in changed:
             pr = changed[eid]["properties"]
             pr["claims"] = {**c, **pr["claims"]}  # P1/P2 values win; only missing keys added
@@ -308,10 +376,12 @@ def build_corridor(by_id: dict, changed: dict) -> tuple[list[dict], dict]:
         **DEMO_CORRIDOR,
         "steps_edge": r.stop.edge_id,
         "unchecked_edges": run["edge_ids"],
+        "candidates": len(runs),
+        "best_n": best_n,
         "covered_edges": [e for e in ids if e in covered],
         "steepest_edge": steepest,
         "seating": seating,
-        "edges": len(route_edges),
+        "edges": len(claims),
     }
     return out, info
 
@@ -343,12 +413,11 @@ def check_corridor(info: dict) -> None:
     if foot < 0.6:
         errors.append(f"footway share {foot:.2f} < 0.6")
     ev = {e.id: e for e in r.evidence}
-    today = date.today()
     for e in edges:
         if e.id in info["unchecked_edges"]:
             continue
         for attr in ("step_count", "incline_pct", "width_m"):
-            if _known(e, attr, prof, today, ev) is None:
+            if _known(e, attr, prof, EVAL_DATE, ev) is None:
                 errors.append(f"{e.id}.{attr} not known")
     if errors:
         sys.exit("ERROR: demo corridor fails AC-B13:\n  " + "\n  ".join(errors))
@@ -363,6 +432,7 @@ def check_corridor(info: dict) -> None:
         unchecked=r.unchecked[0].model_dump(),
         foot_share=round(foot, 2),
         pois=[(p.kind, p.at_m) for p in r.pois],
+        confirm_n=_confirm_n(world, r.unchecked[0].edge_id),
     )
 
 
@@ -378,7 +448,9 @@ def corridor_readme(info: dict) -> str:
         f"- {info['edges']} edges of both routes carry placeholder `step_count`, `incline_pct`, "
         "`width_m`, `covered` and (crossings) `kerb` claims; values are deterministic per edge.\n"
         f"- Unchecked on purpose: `incline_pct` on `{', '.join(info['unchecked_edges'])}` "
-        f"({u['length_m']:.0f} m from {u['start_m']:.0f} m).\n"
+        f"({u['length_m']:.0f} m from {u['start_m']:.0f} m), the stretch of {info['candidates']} "
+        f"candidates whose check would confirm the most sampled wheelchair trips "
+        f"(N = {info['confirm_n']}).\n"
         f"- Covered (placeholder): {', '.join(info['covered_edges']) or 'none'}. "
         f"Steepest incline ({STEEPEST_INCLINE_PCT} %): `{info['steepest_edge']}`.\n"
         f"- Seating: {', '.join(info['seating']) or 'no OSM bench within 15 m, so none is claimed'}.\n"
@@ -557,13 +629,7 @@ def main() -> None:
     corridor_edges, corridor_info = build_corridor(by_id, changed)
     _write_overlay(list(changed.values()) + corridor_edges + places)
     check_corridor(corridor_info)
-    readme = out / "README.md"
-    if readme.exists():
-        for line in readme.read_text(encoding="utf-8").splitlines():
-            if line.startswith("- Removed duplicate OSM places") and ": " in line:
-                listed = line.split(": ", 1)[1]
-                if listed != "none":
-                    removed = sorted(set(removed) | set(listed.split(", ")))
+    removed = sorted(set(removed) | set(KNOWN_REMOVED))
 
     p1_len, p2_len = plen(p1_nodes), plen(p2_nodes)
     (out / "README.md").write_text(
