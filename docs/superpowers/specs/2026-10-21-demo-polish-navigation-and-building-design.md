@@ -321,7 +321,7 @@ Every criterion has an id. The plan ([plans/2026-10-21-demo-polish.md](../plans/
 
 ## 10. Execution
 
-- Branch `feat/demo-polish` (created from `main` with the spec, plan and prototype commit). Lanes as worktrees under `../SunNiuBi-wt/dp-<lane>`: `dp-3d` (A1, A3, B and C 3D), `dp-assets` (A2, A4 Blender), `dp-be` (B backend, C backend, data), `dp-fe` (overlays, panels, HUD, timeline). At most two lanes building at once (8 GB machine).
+- Branch `feat/demo-polish` (created from `main` with the spec, plan and prototype commit). Lanes as worktrees under `../SunNiuBi-wt/dp-<lane>`: `dp-3d` (A1, A3, B and C 3D), `dp-assets` (A2, A4 Blender), `dp-be-nav` (B backend, agent, data), `dp-be-dev` (C backend), `dp-fe` (overlays, panels, HUD, timeline). Concurrency is dynamic, 2–4 lanes (plan §1.1).
 - Plan: `docs/superpowers/plans/2026-10-21-demo-polish.md`; ledger in `.superpowers/sdd/demo-polish/`; log in `docs/superpowers/overnight-log.md` with real timestamps.
 - Commits: conventional with scope; data separate from code; `pnpm gen` output committed with the API change.
 

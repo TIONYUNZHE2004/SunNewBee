@@ -34,7 +34,7 @@ Rules:
 - Demo cache: record with the mock only. `LLM_PROVIDER=mock uv run python -m townshiplens_agent.cli --record "<q>" --profile <p>`. Never `--allow-live`.
 - Local `.env` map keys hide CI failures: run vitest with map keys blanked (see memory note "local-ci-env-keys").
 - Stage explicit paths. Never `git commit -am`. Data commits go separately from code (`data: …`).
-- 8 GB machine: at most **two** build lanes running at once, and no parallel Playwright.
+- Concurrency is dynamic, 2–4 lanes (see §1.1). Heavy jobs (Playwright, Blender build, web build, full pytest) are always one at a time.
 
 ### 0.2 Backend facts (`SP` = `packages/spatial/src/townshiplens_spatial`, `AG` = `packages/agent/src/townshiplens_agent`)
 
@@ -204,7 +204,8 @@ Rules:
 
 | Lane | Worktree | Branch | Owns |
 |---|---|---|---|
-| be | `../SunNiuBi-wt/dp-be` | `demo-polish/be` | `packages/spatial`, `packages/agent`, `apps/api`, `data/scripts`, `evals/`, `packages/api-client` |
+| be-nav | `../SunNiuBi-wt/dp-be-nav` | `demo-polish/be-nav` | `SP/compare.py`, compare models, `compare_routes`, `apps/api`, `packages/agent`, `data/scripts`, `evals/`, `packages/api-client` |
+| be-dev | `../SunNiuBi-wt/dp-be-dev` | `demo-polish/be-dev` | `SP/devsim*.py`, `SP/devsim_schedule.py`, `SP/devsim_residents.py`, sources doc; `packages/agent` devsim branch only after B4 |
 | 3d | `../SunNiuBi-wt/dp-3d` | `demo-polish/3d` | `apps/web/src/features/scene/three/**` (motion, engine, tiltShift, devsim 3D, compare 3D) |
 | fe | `../SunNiuBi-wt/dp-fe` | `demo-polish/fe` | `apps/web/src/features/{journey,devsim,assistant,chat,tickets,map-ui}/**`, `apps/web/e2e/**` |
 | assets | `../SunNiuBi-wt/dp-assets` | `demo-polish/assets` | `assets/blender/**`, `apps/web/public/city/**`, `CREDITS.md` |
@@ -212,17 +213,58 @@ Rules:
 - Integration branch: `feat/demo-polish` (already exists: it holds the spec, plan and prototype commit; lane branches start from it). The coordinator merges lanes with `--no-ff`, runs the full checklist, and never pushes to `main` without the owner's gate.
 - Ledger: `.superpowers/sdd/demo-polish/ledger.md` (gitignored). Write a RESUME POINT after every merge.
 - Log: `docs/superpowers/overnight-log.md`, timestamped with real `date` values.
-- **Order:** Part A, then B, then C, with at most two lanes building at once:
-  1. Wave 1: `assets` (A2, A4) ∥ `3d` (A1, A3).
-  2. Wave 2: `be` (B1–B6) ∥ `3d` (B8 renderer).
-  3. Wave 3: `fe` (B7, B9–B11).
-  4. Wave 4: `be` (C1–C7) ∥ `3d` (C9–C10).
-  5. Wave 5: `fe` (C8, C11–C13).
-  6. Then V1–V3.
+- The backend is split into two lanes so they can run side by side:
+  - **`be-nav`** (`../SunNiuBi-wt/dp-be-nav`, branch `demo-polish/be-nav`): `SP/compare.py`, the compare models, the `compare_routes` tool, REST, agent (B4), `data/scripts` (B5).
+  - **`be-dev`** (`../SunNiuBi-wt/dp-be-dev`, branch `demo-polish/be-dev`): `SP/devsim*.py`, `SP/devsim_schedule.py`, `SP/devsim_residents.py`, `docs/04-architecture/devsim-estimates-sources.md`.
+  - Both touch `SP/models.py` / `SP/tools.py` only in separate, additive blocks. `be-dev` does **not** touch `AG/*` until B4 is merged (C7 edits the same `mock.py` / `validate.py`).
+
+### 1.1 Concurrency: dynamic, 2 to 4 lanes
+
+The owner has run 3–4 parallel lanes on this machine without trouble, so concurrency is **dynamic**, not fixed at two.
+
+- **Start with 3 lanes.** Go to **4** when free physical memory stays above **1.5 GB** for a few minutes with 3 lanes busy.
+- Drop back **one lane at a time** when:
+  - free memory falls below **800 MB**;
+  - a process is killed for memory (exit 137, `JavaScript heap out of memory`, Blender crash);
+  - the machine starts swapping hard (tests time out that normally pass).
+- Never go below 2 lanes because of memory. Instead, pause the heaviest task.
+- Check memory before starting each new task, and log the reading in the ledger:
+  ```powershell
+  (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB   # GB free
+  ```
+- **Heavy jobs are serialised regardless of the lane count.** At any moment there is at most one of each:
+  - Playwright e2e or acceptance run (they share ports 5273/8100);
+  - Blender build (`pnpm assets:build`);
+  - `pnpm --filter @tl/web build`;
+  - full `uv run pytest -q`.
+  Narrow tests (one file, `-k`) can run in parallel.
+- Do not count the coordinator's own checks as a lane, but do not start a full checklist while 4 lanes are building.
+
+### 1.2 Waves (each wave uses up to 4 lanes; a task starts as soon as its inputs are merged)
+
+1. **Wave 1:**
+   - `assets` (A2, then A4);
+   - `3d` (A1, then A3);
+   - `be-nav` (B1, B2, B3, B5, B6);
+   - `be-dev` (C3 research, then C1, C2, C5, C4, C6).
+2. **Wave 2:**
+   - `be-nav` (B4 agent);
+   - `3d` (B8 renderer);
+   - `fe` (B7, B9, B10 against the B6 fixture; rebase onto the generated types after B3/B4 merge);
+   - `be-dev` (C7, **after B4 is merged**).
+3. **Wave 3:**
+   - `3d` (C9, C10);
+   - `fe` (C8, C11, C12, after C7 is merged);
+   - `fe` second agent (B11 navigation e2e, run only when no other e2e is running).
+4. **Wave 4:** C13, then V1–V3 (coordinator; fewer lanes).
+
+The tiers in the time box still decide what gets cut. Parallel lanes do not change the hour-13.5 stop.
+
 - Shared-file conflicts to expect:
   - `sceneStore.ts`: B7 owns it.
-  - `engine.ts`: A3 and B8, both in lane 3d, run sequentially.
-  - `schema.d.ts`: be only; fe rebases after.
+  - `engine.ts`: A3, B8 and C9 are all in lane 3d and run in sequence.
+  - `schema.d.ts`: written only by the be lanes (B3, B4, C7 each run `pnpm gen`); fe rebases after.
+  - `SP/models.py`, `SP/tools.py`: be-nav and be-dev each add their own block; the coordinator resolves trivial conflicts at merge.
 
 ---
 
@@ -328,7 +370,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 ### Part B — navigation compare
 
-#### B1. `compare_routes` core (lane be) — AC-B2…B8, B10
+#### B1. `compare_routes` core (lane be-nav) — AC-B2…B8, B10
 
 **Files:** `SP/compare.py` (new), `SP/models.py` (new `CompareResult`, `ReasonSet`, `StopPoint`, `Poi`, `UncheckedStretch`), `packages/spatial/tests/test_compare.py` (new).
 
@@ -367,7 +409,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 **Commit:** `feat(spatial): compare fastest vs profile route with known-fact reasons`
 
-#### B2. Register the tool, file the VR, compute N (lane be) — AC-B1, B9, B10
+#### B2. Register the tool, file the VR, compute N (lane be-nav) — AC-B1, B9, B10
 
 **Files:** `SP/tools.py` (new `compare_routes` + `TOOLS["compare_routes"]`), `packages/spatial/tests/test_tools_flood.py:13`, `packages/agent/tests/test_run.py:281`, docs with tool counts (`AGENTS.md:57`, `packages/spatial/README.md:5` and :386, `docs/04-architecture/README.md:25`, `docs/04-architecture/ai-target-design.md:57`, `docs/05-team/dev-setup.md:25` and :187, `docs/03-product/mvp-status-2026-10-15.md:38`).
 
@@ -384,7 +426,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 **Commit:** `feat(spatial): compare_routes tool files one survey ticket and counts trips it would confirm`
 
-#### B3. REST and client (lane be) — AC-B11
+#### B3. REST and client (lane be-nav) — AC-B11
 
 **Files:** `apps/api/src/townshiplens_api/routes/core.py` (next to `POST /routes` :546), api tests, `packages/api-client/*` (generated).
 
@@ -394,7 +436,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 **Commit:** `feat(api): POST /routes/compare` (the client is in the same commit)
 
-#### B4. Agent: intent, mock, template, validator, golden (lane be) — AC-B12
+#### B4. Agent: intent, mock, template, validator, golden (lane be-nav) — AC-B12
 
 **Files:** `AG/events.py` (`IntentKind` + `route.compare` payload fields on `SceneIntent` :51), `AG/agent.py` (`call_tool` branch :402-443: record routes of both, `rec.compare`, VR and journeys), `AG/record.py`, `AG/run.py:387-439` (attach the compare payload to the intent), `AG/mock.py` (`_ACCESS_Q` branch :946), `AG/template.py`, `AG/validate.py`, `evals/golden/hero.yaml`, agent tests.
 
@@ -409,7 +451,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 **Commit:** `feat(agent): route.compare intent for mobility-profile route questions`
 
-#### B5. Demo corridor data (lane be) — AC-B13, B14, B15
+#### B5. Demo corridor data (lane be-nav) — AC-B13, B14, B15
 
 **Files:** `data/scripts/pick_demo_corridor.py` (new), `data/scripts/build_overlay.py`, `data/scripts/tests/test_build_overlay_corridor.py` (new), `data/seed/elmina/access/overlay.geojson` (regenerated), `data/demo/*.jsonl` (re-recorded).
 
@@ -433,7 +475,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 **Commits:** `feat(data): demo corridor placeholder claims built by build_overlay` (script + test); `data: rebuild overlay with the demo corridor`; `data: re-record demo replays after the corridor overlay`
 
-#### B6. Recorded compare fixture for web tests (lane be) — supports AC-N3
+#### B6. Recorded compare fixture for web tests (lane be-nav) — supports AC-N3
 
 **Steps:** dump the `route.compare` intent for the corridor question to `apps/web/src/features/journey/fixtures/compare.elmina.json` and `apps/web/e2e/fixtures/compare-intent.json`, with a pytest that checks they match a fresh build (same pattern as `test_devsim.py:339`).
 
@@ -521,7 +563,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 ### Part C — building impact
 
-#### C1. Hoarding impact summary (lane be) — AC-C1
+#### C1. Hoarding impact summary (lane be-dev) — AC-C1
 
 **Files:** `SP/devsim.py` (new `hoarding_impact(world, site, lay)`), `SP/devsim_models.py` (`HoardingImpact`, `HoardingOption`), `packages/spatial/tests/test_devsim_impact.py`.
 
@@ -539,7 +581,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 **Commit:** `feat(spatial): hoarding impact over every nearby home, per hoarding side`
 
-#### C2. Lorry route (lane be) — AC-C2
+#### C2. Lorry route (lane be-dev) — AC-C2
 
 **Steps:** a `drive` profile route from the nearest `major_road` node (to the site) to the site gate node (the snapped entrance on the street side). `sensitive` = places of type school, kindergarten, park or playground whose node or outline lies within 50 m of the route geometry, with names, ordered by distance along the route. `school_run_note` = `"School run assumed 7–8 am (typical); not from data"`.
 
@@ -547,7 +589,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 **Commit:** `feat(spatial): devsim lorry route with sensitive places along it`
 
-#### C3. Estimate sources research (lane be; no code) — AC-C3
+#### C3. Estimate sources research (lane be-dev; no code) — AC-C3
 
 **Steps:**
 1. Research and record in `docs/04-architecture/devsim-estimates-sources.md`, as a table: figure | value | unit | source title | edition/year | URL | accessed | kind (gazetted / benchmark / climatology / assumption). Figures needed:
@@ -561,7 +603,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 **Commit:** `docs: devsim estimate sources (cost, durations, holidays, monsoon)`
 
-#### C4. Schedule and cost model (lane be) — AC-C4
+#### C4. Schedule and cost model (lane be-dev) — AC-C4
 
 **Files:** `SP/devsim_schedule.py` (new), `packages/spatial/tests/test_devsim_schedule.py`.
 
@@ -582,7 +624,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 **Commit:** `feat(spatial): devsim schedule and cost estimate from sourced benchmarks`
 
-#### C5. Flood exposure and daily-life matrix (lane be) — AC-C5, C6
+#### C5. Flood exposure and daily-life matrix (lane be-dev) — AC-C5, C6
 
 **Steps:**
 1. Flood: for each scenario `stage_p1m`…`stage_p5m`, check whether the route from the tower entrance to the nearest `major_road` node (default profile) crosses an edge with `likely_flooded` (`world.flood.edge_classes[s][edge]`). `cut_from_scenario` = the first such scenario, or null.
@@ -593,7 +635,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 **Commit:** `feat(spatial): devsim flood exposure and daily-life access matrix`
 
-#### C6. Forty simulated residents (lane be) — AC-C7
+#### C6. Forty simulated residents (lane be-dev) — AC-C7
 
 **Files:** `SP/devsim_residents.py` (new), `SP/devsim_models.py` (`SimResident`, `ResidentLines`), tests.
 
@@ -610,7 +652,7 @@ Each task lists: **Files**, **Steps**, **Tests**, **Done when** (AC ids), **Comm
 
 **Commit:** `feat(spatial): forty simulated residents with fact-checked phase lines`
 
-#### C7. Plan model, 45 s timeline, bubbles, checks, fixtures (lane be) — AC-C8
+#### C7. Plan model, 45 s timeline, bubbles, checks, fixtures (lane be-dev) — AC-C8
 
 **Files:** `SP/devsim_models.py` (`DevelopmentPlan` gets `impact: HoardingImpact`, `lorry_route`, `schedule`, `flood`, `access_matrix`, `residents: list[SimResident]`; `total_s=45`), `SP/devsim.py` (`build_beats`, `_bubbles` :587, `_end_card` :627 → removed or reduced to the brief; `check_plan` :765; `expected_numbers` :731), `AG/validate.py` `devsim_errors` (:1811), `AG/mock.py`/`template.py` devsim branch, fixtures, `test_devsim.py`.
 
