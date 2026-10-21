@@ -108,6 +108,21 @@ async def test_detour_closure_is_named(ctx):
     assert evs[-1].model == "mock-scripted" and evs[-1].answer_status == "partial"
 
 
+async def test_event_closure_names_the_event_and_the_route_goes_around(ctx):
+    """T-025: during an event window a resident's route avoids the course and says why."""
+    _close(ctx, "seg-cd", name="Jalan Detour", reason="event")
+    ctx.world.set_closures(
+        [
+            c.model_copy(update={"event_name": "Elmina Marathon"})
+            for c in ctx.world.active_closures()
+        ]
+    )
+    evs = await ask(ctx, Q)
+    assert "Closed (staff report): Jalan Detour until" in text(evs)
+    assert "— event (Elmina Marathon)" in text(evs)
+    assert evs[-1].model == "mock-scripted" and evs[-1].answer_status == "partial"
+
+
 async def test_is_x_closed_uses_get_closures(ctx):
     _close(ctx, "toilet-1", name="Elmina Toilet", reason="event")
     evs = await ask(ctx, "Is the toilet closed?", profile="default")

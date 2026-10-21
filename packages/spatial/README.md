@@ -139,7 +139,7 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
   empty: a major road carries no `width_m`, `step_count` or `incline_pct` claim, so flipping its
   sidewalk alone never makes a journey `confirmed`. It stays empty until those are surveyed.
 - `sim.run_evacuation` runs evacuation journeys: a profile x river-stage table (default, stroller,
-  wheelchair, older_adult_rest x baseline, +1, +3, +5 m) for a seeded sample (seed 47, N=50) of
+  wheelchair, older_adult_rest x baseline, +1, +2, +3 m) for a seeded sample (seed 47, N=50) of
   origins, each to the nearest reachable centre via `flood.centres_reachability`. Places that are
   a centre, or share a centre's node, are excluded (a 0 m journey is not a journey) and counted in
   `origins_excluded_centres`. E1 (a worse river stage never improves a journey) and E2 (baseline
@@ -418,3 +418,49 @@ Driving endpoint-gap warnings describe the first returned route's actual graph e
 Positive seating, shelter and sidewalk verifications require a value and a usable verification date, as do the hard edge constraints. An undated rest claim counts only in the lenient search; a route depending on it names the stop in `rest_points_unverified` and stays `partly_unverified`. An undated positive sidewalk cannot establish PASS. Derived road-section and access-layer `sidewalk_status` values are `unknown` for unusable verifications and `stale` after expiry; the raw claim and evidence keep their audit status. Negative rest/sidewalk barriers and the default profile's reported-sidewalk policy retain their existing treatment.
 
 Flood-island centre membership and place samples use the same explicit entrances and mode-specific road snaps as routing. Any entrance in a centre-connected component prevents a place from being sampled as isolated. Components disconnected from every centre at baseline remain data gaps. Island counts describe flood-induced graph components under ruling R5; they do not establish a legal, verified or rest-constrained route for an individual origin.
+
+## Flood impact markers (T-024)
+
+Public river scenarios are baseline and +1/+2/+3 m. All scenario disclaimers state
+“Flash floods from heavy rain are not shown.” No flood data was rebuilt.
+`flood.affected` retains its existing briefing lists and flood-induced island counts, and adds
+uncapped `flooded_places` and `cut_off_places` (`id`, `name`, `type`, `lonlat`), plus
+`flooded_path_m` (sum of physical lengths of likely-flooded mapped edges).
+Flooded markers describe the place itself. Cut-off markers exclude flooded places and mean
+no mapped non-FAIL path from any entrance to any available centre, for the selected profile.
+Unknown edges remain usable; driving respects one-way directions. Mapped components already
+isolated at baseline can appear here; the older island field remains flood-induced only.
+Places without mapped entrances or road snaps are omitted as data gaps. These markers do not
+establish a verified route or a route within a rest-distance limit.
+
+## Event comparison (T-025)
+
+`events.simulate_event(world, EventSpec(name, segment_ids, starts_at, ends_at), profiles)`
+uses `twm.ClosePath`, `apply` and `compare` over the existing everyday sample journeys.
+Default profiles are `default`, `wheelchair`, `drive`; up to five known profiles and 40
+unique course segments are supported. Total samples are capped at 300, split evenly
+between selected profiles; `sample_limit_per_profile` exposes the cap.
+Other staff closures are frozen at the event start. The same origin/destination pairs
+are used before and after; neither the world nor the closure store is changed.
+
+`trips_affected` counts rerouted or newly disconnected sample trips. `trips_no_route`
+counts all trips with no route after, including existing gaps; `trips_no_route_before`
+and `trips_newly_no_route` distinguish these. Each `trips` row keeps the router's
+`before_status` and `after_status`: pre-existing data gaps stay `no_data`, never a
+known barrier. Extra distance/minute medians cover rerouted trips only (null if none);
+minutes come from the router's physical distance and profile pace, never traffic delay.
+Per-profile results use the same definitions.
+
+`places_cut_off` contains newly lost mapped centre access in at least one selected
+profile; pre-existing isolation and missing entrances are excluded. Detour roads group
+newly used segments by their mapped name and count each rerouted trip once per name.
+Unnamed segments are labelled “Unnamed paths”. Suggestions cite these counts and do
+not claim that an alternative time or crossing has been evaluated.
+
+`TOOLS["simulate_event"]` returns this contract and indicative evidence for management.
+The AI lane must explicitly bind this tool and adapt its numeric validation before
+natural-language management answers can use the new fields.
+
+Stored event courses use atomic batches in `ClosureStore`, with the public `event_name`
+separate from private staff notes. The schema migrates existing closure databases
+without changing their rows. Resident closure labels name the event.

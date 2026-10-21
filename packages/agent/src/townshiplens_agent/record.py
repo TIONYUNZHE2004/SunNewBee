@@ -60,6 +60,8 @@ class TurnRecord:
     # An earlier turn of this session ran a simulation (from memory): its numbers may not be
     # repeated unless re-simulated this turn.
     history_simulated: bool = False
+    # The screen that asked (ChatRequest.panel): management answers never refuse a topic.
+    panel: str = "resident"
     # plan_verifications results this turn (survey plans: facts, places, summary).
     plans: list[dict] = field(default_factory=list)
     # rising_river_rollout / river_tipping_point results this turn (Cycle 3).
@@ -73,6 +75,8 @@ class TurnRecord:
     my_trips: list[dict] = field(default_factory=list)  # residents' own rehearsed trips
     # affected_places counts this turn: places and path segments apart (Cycles 5-6 review B1).
     affected: list[dict] = field(default_factory=list)
+    # simulate_event results this turn (T-025): the numbers an event answer may quote.
+    events: list[dict] = field(default_factory=list)
     # Diagnostics (never shown to users, never stored): the validator's errors for each rejected
     # final_answer attempt, and token usage across all model requests of the turn.
     validator_errors: list[list[str]] = field(default_factory=list)

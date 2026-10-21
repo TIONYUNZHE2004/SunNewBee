@@ -4,7 +4,7 @@
    "id": "baseline",
    "label": "Normal river level",
    "stage_m": 0,
-   "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance. Flash floods from heavy rain are not shown.",
    "links": [
     {
      "label": "Public InfoBanjir",
@@ -16,21 +16,21 @@
    "id": "stage_p1m",
    "label": "River +1 m (indicative)",
    "stage_m": 1,
-   "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance. Flash floods from heavy rain are not shown.",
+   "links": []
+  },
+  {
+   "id": "stage_p2m",
+   "label": "River +2 m (indicative)",
+   "stage_m": 2,
+   "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance. Flash floods from heavy rain are not shown.",
    "links": []
   },
   {
    "id": "stage_p3m",
    "label": "River +3 m (indicative)",
    "stage_m": 3,
-   "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.",
-   "links": []
-  },
-  {
-   "id": "stage_p5m",
-   "label": "River +5 m (indicative)",
-   "stage_m": 5,
-   "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance. Flash floods from heavy rain are not shown.",
    "links": []
   }
  ],
@@ -43,10 +43,8 @@
    "seg-cd": "likely_flooded",
    "seg-bc": "possible"
   },
-  "stage_p5m": {
-   "seg-cd": "likely_flooded",
-   "seg-bc": "likely_flooded",
-   "seg-ab": "possible"
+  "stage_p2m": {
+   "seg-cd": "possible"
   }
  },
  "place_classes": {
@@ -55,8 +53,6 @@
   "stage_p3m": {
    "playground": "likely_flooded"
   },
-  "stage_p5m": {
-   "playground": "likely_flooded"
-  }
+  "stage_p2m": {}
  }
 }

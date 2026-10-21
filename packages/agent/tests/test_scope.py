@@ -330,3 +330,93 @@ async def test_in_scope_mock_still_executes_real_tools(ctx):
     ]
     assert any(e.type == "tool.call" and e.name == "plan_route" for e in evs)
     assert evs[-1].model == "mock-scripted"
+
+
+# T-023: the management panel gets every tool and no topic refusal, whatever ASSISTANT_SCOPE is;
+# the resident panel keeps scope B+.
+STAFF = AgentSettings(
+    _env_file=None, llm_provider="mock", assistant_scope="access_flood", turn_timeout_s=600
+)
+
+
+def test_chat_request_panel_defaults_to_resident():
+    assert ChatRequest(message="hi").panel == "resident"
+    assert ChatRequest(message="hi", panel="management").panel == "management"
+    with pytest.raises(ValueError):
+        ChatRequest(message="hi", panel="admin")
+
+
+async def test_management_panel_registers_every_tool(ctx):
+    seen = []
+
+    def model(messages, info):
+        seen.extend(t.name for t in info.function_tools)
+        assert "panel=management" in info.instructions and "PANEL: management" in info.instructions
+        return ModelResponse(
+            parts=[ToolCallPart("final_answer", scope_answer("hello").model_dump())]
+        )
+
+    req = ChatRequest(message="hello", panel="management")
+    await A.build_agent(
+        FunctionModel(model), assistant_scope="access_flood", panel="management"
+    ).run("hello", deps=A.Deps(ctx, TurnRecord(), req))
+    assert set(seen) == set(tools.TOOLS)
+
+
+@pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
+@pytest.mark.parametrize(
+    "question, tool",
+    [
+        ("What happens to residents as the river rises?", "rising_river_rollout"),
+        ("Which facts should staff verify first?", "plan_verifications"),
+        ("What if we build a ramp at the steps?", "simulate_what_if"),
+    ],
+)
+async def test_management_questions_answer_with_tool_evidence(question, tool, tmp_path):
+    world = load_world(SEED)
+    ctx = tools.Ctx(world=world, vrs=VerificationStore(str(tmp_path / "vr.db")))
+    rec = TurnRecord()
+    req = ChatRequest(message=question, panel="management")
+    evs = [e async for e in run_turn(ctx, req, STAFF, record=rec, memory=SessionMemory())]
+    assert tool in rec.tool_calls
+    assert evs[-1].answer_status in ("answered", "partial")
+    assert evs[-1].model == "mock-scripted"  # the mock's answer passed the validator
+    assert [e for e in evs if e.type == "citation"]
+    # the resident panel keeps today's behaviour: no rollout, plan or what-if
+    rec = TurnRecord()
+    evs = [
+        e
+        async for e in run_turn(
+            ctx, ChatRequest(message=question), STAFF, record=rec, memory=SessionMemory()
+        )
+    ]
+    assert tool not in rec.tool_calls and evs[-1].answer_status == "cannot_answer"
+
+
+@pytest.mark.parametrize(
+    "question, head", [("hello", "Hello!"), ("terima kasih", "Sama-sama!"), ("你好", "你好！")]
+)
+async def test_management_greeting_says_what_staff_can_ask(ctx, monkeypatch, question, head):
+    monkeypatch.setattr(A, "model_for", lambda *a, **k: (_ for _ in ()).throw(AssertionError))
+    req = ChatRequest(message=question, panel="management")
+    evs = [e async for e in run_turn(ctx, req, STAFF, memory=SessionMemory())]
+    text = evs[0].delta
+    assert text.startswith(head) and "Elmina" in text
+    assert "outside" not in text and "Where would you like to go" not in text
+    assert validate_answer(greeting_answer(question, "management"), TurnRecord()) == []
+
+
+async def test_management_question_no_tool_answers_says_so_without_a_ticket(ctx):
+    req = ChatRequest(message="What is the weather tomorrow?", panel="management")
+    evs = [e async for e in run_turn(ctx, req, STAFF, memory=SessionMemory())]
+    text = "".join(e.delta for e in evs if e.type == "text.delta")
+    assert "I can't answer that from our data." in text
+    assert evs[-1].answer_status == "cannot_answer" and ctx.vrs.list(status="all") == []
+
+
+def test_validator_rejects_a_topic_refusal_on_the_management_panel():
+    refusal = scope_answer("Which facts should staff verify first?")
+    staff = TurnRecord()
+    staff.panel = "management"
+    assert validate_answer(refusal, staff)
+    assert validate_answer(refusal, TurnRecord()) == []  # the resident panel may refuse

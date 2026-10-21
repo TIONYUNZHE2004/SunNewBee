@@ -293,6 +293,8 @@ class RouteState(BaseModel):
     status: str  # confirmed | partly_unverified | blocked | no_data
     route_id: str | None = None
     distance_m: float | None = None
+    est_minutes: float | None = None
+    segment_ids: list[str] = Field(default_factory=list)
     unknowns: int = 0
     geometry: dict[str, Any] | None = None
     target_name: str | None = None  # the destination (for evacuation: the centre reached)
@@ -339,6 +341,8 @@ def _route_state(world, rr, to_id: str, imagined: bool) -> RouteState:
         status=rr.status,
         route_id=r0.id if r0 else None,
         distance_m=r0.distance_m if r0 else None,
+        est_minutes=r0.est_minutes if r0 else None,
+        segment_ids=[s.edge_id for s in r0.segments] if r0 else [],
         unknowns=len(r0.unknowns) if r0 else 0,
         geometry=r0.geometry if r0 else None,
         target_name=_name(world, to_id),

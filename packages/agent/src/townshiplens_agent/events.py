@@ -174,6 +174,9 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     profile: Literal["default", "stroller", "wheelchair", "older_adult_rest", "drive"] = "default"
     # Constrained: it is interpolated into the agent's instructions (prompt-injection guard).
-    scenario_id: str | None = Field(default=None, pattern=r"^(baseline|stage_p[1-5]m)$")
+    scenario_id: str | None = Field(default=None, pattern=r"^(baseline|stage_p[1-3]m)$")
     # A random per-tab id (the web client mints it) keying short in-memory follow-up context.
     session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{8,64}$")
+    # Which screen asks (T-023): the management panel gets every tool and no topic refusal; the
+    # resident panel keeps ASSISTANT_SCOPE.
+    panel: Literal["resident", "management"] = "resident"

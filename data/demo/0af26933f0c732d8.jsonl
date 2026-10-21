@@ -1,8 +1,8 @@
-{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "elmina", "world_fingerprint": "5efc6bae340a4c0f4e57992ceea27d21befe4a0f260158054b88b2873675d068", "model": "mock-scripted", "recorded_at": "2026-10-20T13:33:39+00:00"}}
+{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "elmina", "world_fingerprint": "57b035863e830a8dcad4d2bcbdb8c8b6cba53d7f305e3b5ce33db9e030b6cb10", "model": "mock-scripted", "recorded_at": "2026-10-20T20:51:51+00:00"}}
 {"type": "answer.draft", "attempt": 1, "delta": "Please name your starting place before I select an evacuation route."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Please name your starting place before I"}
 {"type": "text.delta", "delta": " select an evacuation route."}
 {"type": "uncertainty", "level": "high", "items": []}
-{"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
+{"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not. Flash floods from heavy rain are not shown.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
 {"type": "done", "message_id": "demo", "answer_status": "cannot_answer", "model": "mock-scripted"}

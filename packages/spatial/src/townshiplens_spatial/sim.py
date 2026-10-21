@@ -290,7 +290,7 @@ def run_suite(
 # logic behind the `list_evacuation_centres` tool. Scenarios are indicative, never forecasts.
 
 EVAC_PROFILES = ("default", "stroller", "wheelchair", "older_adult_rest")
-EVAC_SCENARIOS = ("baseline", "stage_p1m", "stage_p3m", "stage_p5m")  # rising river stage
+EVAC_SCENARIOS = ("baseline", "stage_p1m", "stage_p2m", "stage_p3m")  # rising river stage
 EVAC_N = 50  # sampled origins per profile
 EVAC_SEED = 47
 EVAC_RESULTS = (

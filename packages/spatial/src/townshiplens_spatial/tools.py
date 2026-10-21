@@ -683,6 +683,7 @@ def closure_row(world: World, c: Closure, now=None, with_note: bool = False) -> 
         "starts_at": c.starts_at.astimezone(zone).isoformat(),  # site-local, with offset
         "ends_at": c.ends_at.astimezone(zone).isoformat() if c.ends_at else None,
         "note": c.note if with_note else None,
+        "event_name": c.event_name,
         "label": c.label(tz),
         "source_label": CLOSURE_SOURCE_LABEL,
         "active": c.is_active(now),
@@ -801,6 +802,17 @@ def affected_places(
             ("possible", a.possible_place_ids + a.possible_edge_ids),
         )
         for eid in xs
+    ]
+    ev += [
+        Evidence(
+            id=f"ev-scn-{scenario_id}.cut-off.{p.id}",
+            element_id=p.id,
+            attribute="mapped_centre_access",
+            value="no mapped non-FAIL route to an available centre",
+            status="indicative",
+            source_type="Mapped paths and scenario comparison",
+        )
+        for p in a.cut_off_places
     ]
     return ToolResult(ok=True, data=a.model_dump(mode="json"), evidence=ev, warnings=a.warnings)
 
@@ -1857,3 +1869,55 @@ def engine_disclaimer() -> str:
 
 
 TOOLS["rehearse_my_trip"] = rehearse_my_trip
+
+
+def simulate_event(
+    ctx: Ctx,
+    name: str,
+    segment_ids: list[str],
+    starts_at: str,
+    ends_at: str,
+    profiles: list[str] | None = None,
+) -> ToolResult:
+    """Management: compare sample trips without/with a named event's course closures.
+
+    ISO timestamps include their UTC offset. No traffic counts, crowd predictions, live
+    model calls or persistent writes. Use POST /events separately to store staff closures.
+    """
+    from . import events
+
+    if not _WM_SLOTS.acquire(blocking=False):
+        return ToolResult(ok=False, warnings=["world-model solver busy; try again shortly"])
+    try:
+        spec = events.EventSpec(
+            name=name, segment_ids=segment_ids, starts_at=starts_at, ends_at=ends_at
+        )
+        result = events.simulate_event(
+            ctx.world, spec, tuple(profiles) if profiles is not None else events.DEFAULT_PROFILES
+        )
+        return ToolResult(
+            ok=True,
+            data=result.model_dump(mode="json"),
+            evidence=[
+                Evidence(
+                    id=result.evidence_id,
+                    element_id="event",
+                    attribute="event_simulation",
+                    value={
+                        "trips_total": result.trips_total,
+                        "trips_affected": result.trips_affected,
+                        "trips_no_route": result.trips_no_route,
+                    },
+                    status="indicative",
+                    source_type="Mapped roads and sample journeys",
+                )
+            ],
+            warnings=[result.disclaimer, *result.warnings],
+        )
+    except ValueError as exc:
+        return ToolResult(ok=False, warnings=[str(exc)])
+    finally:
+        _WM_SLOTS.release()
+
+
+TOOLS["simulate_event"] = simulate_event

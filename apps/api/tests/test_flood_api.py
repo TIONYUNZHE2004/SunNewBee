@@ -12,6 +12,23 @@ def test_scenarios_and_water():
     assert c.get("/scenarios/nope").status_code == 404
 
 
+def test_scenarios_are_limited_to_three_metres_and_explain_rain_gap():
+    from townshiplens_api import state
+
+    scenarios = c.get("/scenarios").json()
+    assert [s["id"] for s in scenarios] == ["baseline", "stage_p1m", "stage_p2m", "stage_p3m"]
+    assert all("Flash floods from heavy rain are not shown." in s["disclaimer"] for s in scenarios)
+    for removed in ("stage_p4m", "stage_p5m"):
+        assert c.get(f"/scenarios/{removed}").status_code == 404
+        assert c.get(f"/scenarios/{removed}/affected").status_code == 404
+    world = state.get_ctx().world
+    world.flood.edge_classes["stage_p3m"]["seg-bc"] = "likely_flooded"
+    result = c.get("/scenarios/stage_p3m/affected", params={"profile": "stroller"}).json()
+    assert result["flooded_places"][0]["id"] == "playground"
+    assert any(p["id"] == "park-b" and len(p["lonlat"]) == 2 for p in result["cut_off_places"])
+    assert result["flooded_path_m"] == sum(world.edges[e].length_m for e in ("seg-bc", "seg-cd"))
+
+
 def test_water_applies_datum_offset():
     from townshiplens_api import state
 

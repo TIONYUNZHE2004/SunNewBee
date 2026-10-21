@@ -150,6 +150,44 @@ OUTSIDE_NOTE = {
 }
 
 
+# T-024: every river-rise answer says what the scenarios leave out (added after the check).
+FLASH_FLOOD_NOTE = {
+    "en": "Flash floods from heavy rain are not shown.",
+    "ms": "Banjir kilat akibat hujan lebat tidak ditunjukkan.",
+    "zh": "未显示暴雨引起的突发洪水。",
+}
+_FLASH_SAID = re.compile(r"flash flood|banjir kilat|突发洪水", re.IGNORECASE)
+
+
+def flash_flood_note(ans: FinalAnswer, rec: TurnRecord, lang: str = "en") -> str | None:
+    """The flash-flood line for an answer that used a river stage, unless it already says so
+    (a question back to the resident, cannot_answer, states no flood facts)."""
+    if ans.answer_status == "cannot_answer" or not any(
+        s.startswith("stage_") for s in rec.scenarios_used | {ans.scenario_id or ""}
+    ):
+        return None
+    if _FLASH_SAID.search(" ".join([ans.summary, *ans.caveats])):
+        return None
+    return FLASH_FLOOD_NOTE.get(lang, FLASH_FLOOD_NOTE["en"])
+
+
+# T-025: every event answer says what its numbers are (added after the check).
+EVENT_NOTE = {
+    "en": "Estimate from mapped roads and sample trips, not traffic counts.",
+    "ms": "Anggaran daripada jalan yang dipetakan dan perjalanan sampel, bukan kiraan trafik.",
+    "zh": "根据已绘制的道路和样本出行估算，并非交通流量统计。",
+}
+_EVENT_SAID = re.compile(r"not traffic counts|bukan kiraan trafik|并非交通流量", re.IGNORECASE)
+
+
+def event_note(ans: FinalAnswer, rec: TurnRecord, lang: str = "en") -> str | None:
+    if not rec.events or ans.answer_status == "cannot_answer":
+        return None
+    if _EVENT_SAID.search(" ".join([ans.summary, *ans.caveats])):
+        return None
+    return EVENT_NOTE.get(lang, EVENT_NOTE["en"])
+
+
 def outside_note(ans: FinalAnswer, rec: TurnRecord, world, lang: str = "en") -> str | None:
     """The caveat when the answered route (else every route this turn) or a cited place lies
     outside the access deep spot; None inside it, or when the world defines no such spot."""
@@ -282,6 +320,9 @@ def _answer_events(
     ]
     if missing:
         ans = ans.model_copy(update={"caveats": [*ans.caveats, *missing]})
+    for note in (flash_flood_note(ans, rec, lang), event_note(ans, rec, lang)):
+        if note:
+            ans = ans.model_copy(update={"caveats": [*ans.caveats, note]})
     if note := outside_note(ans, rec, ctx.world, lang):
         ans = ans.model_copy(update={"caveats": [*ans.caveats, note]})
     text = answer_text(ans, _route_status_line(ans, rec, lang), rec, lang)
@@ -608,11 +649,13 @@ async def run_turn(
     # Redact first, then enforce scope before cache/model construction or tool side effects.
     question = redact(req.message)
     # Scope B+: a bare greeting or thanks gets a fixed hello and what the assistant can do, and
-    # only clearly removed features are refused; neither reaches the model or a tool.
-    scoped = settings.assistant_scope == "access_flood"
-    greeting = scoped and is_greeting(question)
+    # only clearly removed features are refused; neither reaches the model or a tool. The
+    # management panel (T-023) has every feature, whatever ASSISTANT_SCOPE says.
+    scope = "all" if req.panel == "management" else settings.assistant_scope
+    scoped = scope == "access_flood"
+    greeting = (scoped or req.panel == "management") and is_greeting(question)
     if greeting or (scoped and outside_scope(question)):
-        ans = greeting_answer(question) if greeting else scope_answer(question)
+        ans = greeting_answer(question, req.panel) if greeting else scope_answer(question)
         memory.add_turn(req.session_id, question, ans.summary)
         yield TextDelta(delta=ans.summary)
         yield Done(
@@ -646,12 +689,13 @@ async def run_turn(
     rec = record or TurnRecord()
     rec.strict_selection = True
     rec.context_route = memory.route_context(req.session_id)
-    # Stages the resident named, and the stages the world has scenarios for ("+1 m to +5 m").
+    # Stages the resident named, and the stages the world has scenarios for ("+1 m to +3 m").
     rec.asked_stages = {f.value for f in extract_facts(question) if f.kind == "stage"} | {
         float(s.stage_m) for s in ctx.world.flood.scenarios if s.stage_m is not None
     }
     rec.queue = asyncio.Queue()
     rec.history_simulated = memory.simulated(req.session_id)
+    rec.panel = req.panel
     deps = agent_mod.Deps(ctx=ctx, rec=rec, request=req)
     msg_id = uuid.uuid4().hex[:12]
     model_name = "unknown"
@@ -668,7 +712,7 @@ async def run_turn(
             else None
         )
         agent = agent_mod.build_agent(
-            model, escalate_to=escalate_model, assistant_scope=settings.assistant_scope
+            model, escalate_to=escalate_model, assistant_scope=scope, panel=req.panel
         )
     except Exception as exc:  # misconfiguration (e.g. no key): still answer from the template
         failure = exc

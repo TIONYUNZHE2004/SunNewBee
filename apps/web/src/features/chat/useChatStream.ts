@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { ChatEvent } from "@tl/api-client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useMode } from "../../app/modeStore";
 import { useJourney } from "../journey/journeyStore";
 import { type Profile, useScene } from "../scene/sceneStore";
 import {
@@ -24,7 +25,8 @@ function newSessionId(): string {
   return `tab-${hex === "0".repeat(32) ? `${Date.now()}${Math.floor(Math.random() * 1e9)}` : hex}`;
 }
 
-/** Request body; an explicit profile wins over the store so a chip's persona is never stale. */
+/** Request body; an explicit profile wins over the store so a chip's persona is never stale.
+ * `panel` is the screen asking (T-023): the management panel gets every assistant tool. */
 export function chatRequestBody(message: string, profile?: Profile, scenarioId?: string | null) {
   const s = useScene.getState();
   return {
@@ -32,6 +34,7 @@ export function chatRequestBody(message: string, profile?: Profile, scenarioId?:
     profile: profile ?? s.profile,
     scenario_id: scenarioId === undefined ? s.scenarioId : scenarioId,
     session_id: CHAT_SESSION_ID,
+    panel: useMode.getState().mode,
   };
 }
 

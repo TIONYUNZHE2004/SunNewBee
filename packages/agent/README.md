@@ -39,6 +39,34 @@ values, not yet surveyed. The registry restricts MCP too; its existing verificat
 (`MCP_ALLOW_VR`) still applies, so it exposes eight tools by default and nine when writes are
 explicitly enabled.
 
+**Management panel (T-023).** `ChatRequest.panel` is `resident` (default) or `management`;
+the web client sends the screen's mode. A management turn runs with every tool and no topic
+refusal, whatever `ASSISTANT_SCOPE` says: rollouts, verify-next plans, what-if changes, tipping
+points and fix-it searches are answered with tools (`scope.MANAGEMENT` replaces prompt rule 10).
+A question no tool can answer gets "I can't answer that from our data." (plus a verification
+request only for a missing fact about a mapped place), and the validator rejects a topic refusal
+("out of scope", "outside what I can check") on this panel. A greeting gets a fixed hello that
+lists what staff can ask. Resident turns keep scope B+ unchanged. MCP still follows
+`ASSISTANT_SCOPE`.
+
+**River rise (T-024).** Scenarios are +1/+2/+3 m (`ChatRequest.scenario_id` accepts only
+those). Flood briefings name places from `affected_places.flooded_places` ("likely flooded
+(indicative)") and `cut_off_places` ("cut off: no mapped way in or out (indicative)") and give
+`flooded_path_m`; `validate.flood_impact_errors` rejects a place called flooded or cut off that
+the tool did not return as such. The app adds "Flash floods from heavy rain are not shown."
+(EN/BM/中文, `run.flash_flood_note`) to every answer that used a river stage.
+
+**Events (T-025, management only).** `simulate_event` takes the roads as staff name them
+(`event_course.course_segments`: exact name, else one clear loose match; unknown, ambiguous or
+over-40-segment courses are asked about; a road too long for one event lists the roads that
+cross it and one stretch that resolves, closed as "<road> between <A> and <B>") and HH:MM times; the window's date is filled in after
+the tool-call event (`event_course.event_window`), so recordings stay stable. Answers quote
+`trips_affected` of `trips_total`, `trips_newly_no_route` (trips with no route before the event
+are data gaps), places cut off, detour roads and suggestions; `validate.event_errors` checks the
+trip counts and rejects jam, queue or crowd predictions, and the app adds "Estimate from mapped
+roads and sample trips, not traffic counts." Resident route answers name an event closure
+("— event (Elmina Marathon)") and take the detour.
+
 `ASSISTANT_SCOPE=all` opts into the legacy features documented below. Legacy engine/pipeline
 tests and removed-feature golden cases opt in explicitly; `tests/test_scope.py` tests the
 default separately. The existing browser hero suite opts into `all` because it includes
@@ -318,6 +346,6 @@ real spatial tools on the tiny fixture. They make no network calls.
 - **MCP**: expose the 10 spatial tools as an MCP server so other agents can use the same
   grounded facts.
 
-Route selection is checked before a tool can choose a journey. The request supplies both endpoints, a clear follow-up uses stored server endpoint IDs, and ambiguous or missing places need clarification. The guard preserves the requested mode and river scenario, including nearby amenity searches. An evacuation destination must come from the centre search for that same origin, profile and scenario. Route distances bind to exact place IDs, and the highlighted route must match the answer's selected route. Map-derived `likely_ok` sections require an estimate caveat in English, Bahasa Melayu or Chinese; they cannot support accessibility or staff-survey claims. Demo replay requires a fingerprint of the current world, profiles, engine/agent code and expiry day.
+Route selection is checked before a tool can choose a journey. The request supplies both endpoints, a clear follow-up uses stored server endpoint IDs, and ambiguous or missing places need clarification. The guard preserves the requested mode and river scenario, including nearby amenity searches. An evacuation destination must come from the centre search for that same origin, profile and scenario. Route distances bind to exact place IDs, and the highlighted route must match the answer's selected route. Map-derived `likely_ok` sections require an estimate caveat in English, Bahasa Melayu or Chinese; they cannot support accessibility or staff-survey claims. Demo replay requires a fingerprint of the current world, closures, profiles, engine/agent code and the verified claims past their TTL today (`demo.expired_claims`); the date itself is not part of it, so a recording replays on later days until a fact expires.
 
 `find_place` also accepts `near_place`: this limits identity candidates to 1 km of an already resolved origin. It supplies no walking-distance fact. For a generic destination and a unique named origin, the server supplies that context before calling the tool. Multiple local matches still require clarification. Amenity replies may recommend only matching returned destinations of the requested type; they cannot widen a user-stated search radius.

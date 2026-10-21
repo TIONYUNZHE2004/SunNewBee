@@ -26,6 +26,7 @@ class ClosureOut(BaseModel):
     starts_at: datetime
     ends_at: datetime | None = None
     note: str | None = None
+    event_name: str | None = None
     label: str  # "Closed: works until 2026-10-20" or "... until further notice"
     source_label: str = tools.CLOSURE_SOURCE_LABEL  # "Reported closure (staff)"
     active: bool

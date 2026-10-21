@@ -323,6 +323,8 @@ def closure_line(row: dict) -> str:
     """ "Closed (staff report): Jalan Hopea until 20 Oct 2026 - works". `row` is a closure_row
     (spatial tools); its `ends_at` is already in the site's time zone, so the date is read as is."""
     reason = _CLOSURE_REASONS.get(row.get("reason") or "", "reason not stated")
+    if row.get("event_name"):  # T-025: an event's course closure names the event
+        reason = f"event ({row['event_name']})"
     return f"{CLOSURE_WORDS}: {closure_name(row)} {closure_until(row)} \u2014 {reason}"
 
 

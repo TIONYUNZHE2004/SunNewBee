@@ -309,7 +309,7 @@ _ID_VALUE = re.compile(r"^[a-z_]+[-:][\w.:-]+$|^[0-9a-f]{8,}$", re.IGNORECASE)
 
 def kind_of_key(key: str) -> str | None:
     """What a numeric tool field measures, from its key (or an evidence attribute name)."""
-    k = key.lower()
+    k = key.lower().removesuffix("_median")  # "extra_m_median" is a length (T-025)
     if "width" in k:
         return "width"
     if k.endswith("_pct") or "incline" in k or "slope" in k or "percent" in k:
