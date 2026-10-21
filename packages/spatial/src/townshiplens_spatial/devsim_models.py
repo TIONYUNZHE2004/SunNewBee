@@ -143,3 +143,57 @@ class DevelopmentPlan(BaseModel):
     end_card: EndCard
     labels: DevsimLabels
     total_s: float = 66
+
+
+# ---- Demo polish impact outputs (spec 2026-10-21 demo polish §6.1; C7 wires them into the plan) --
+TargetKind = Literal["mall", "park", "school", "clinic"]
+
+
+class ImpactTarget(BaseModel):
+    """A daily-life destination: Lakeside Mall, Urban Park, and the school and clinic nearest the
+    tower entrance on foot (default profile). Every home uses the same four."""
+
+    id: str  # place id
+    name: str
+    kind: TargetKind
+    # Places that count as arriving (default: just `id`); the mall includes its Car Park B.
+    arrive_at: list[str] = []
+
+
+class HoardingHome(BaseModel):
+    """One residential building within the radius, before vs after the hoarding (default walk)."""
+
+    home_id: str  # building id
+    extra_min: int  # the largest rounded extra walk over the four targets (>= 0)
+    cut_off: bool = False  # a default route that existed before has none after
+    wheelchair_cut: bool = False  # a wheelchair route that existed before has none after
+
+
+class HoardingOption(BaseModel):
+    """The impact with only one side of the site hoarded (its frontage walk paths closed)."""
+
+    side: str  # compass side of the site, e.g. "north-east"
+    edge_ids: list[str]
+    homes_2min_plus: int
+    max_extra_min: int
+    wheelchair_links_cut: int
+
+
+class HoardingImpact(BaseModel):
+    """Every nearby home's walks to the four targets before and after the hoarding closes the
+    frontage paths (routing engine; default profile for minutes, wheelchair for links cut)."""
+
+    radius_m: int
+    homes_considered: int  # residential buildings within radius_m of the tower centre
+    homes_2min_plus: int  # homes with any target >= 2 min longer (or cut off)
+    max_extra_min: int
+    # Homes whose wheelchair route to any target was confirmed / likely_ok / partly_unverified
+    # before and is blocked / no_data after.
+    wheelchair_links_cut: int
+    targets: list[ImpactTarget]
+    closed_edges: list[str]  # every frontage path the full hoarding closes
+    options: list[HoardingOption]  # one per hoarded side
+    best_side: str | None  # fewest homes_2min_plus, ties by max_extra_min
+    homes: list[HoardingHome]
+    profile: str = "default"
+    provenance: str = "routing engine, default profile (wheelchair profile for links cut)"
