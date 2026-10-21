@@ -1,7 +1,7 @@
 import re
 
 from .answer import Claim, FinalAnswer
-from .compare_intent import compare_for
+from .compare_intent import compare_for, unchecked_noun
 from .developments import EVIDENCE_PREFIX, devsim_answer
 from .events import SceneIntent
 from .journeys import PLAYABLE, journey_facts, journey_steps, start_time_for
@@ -592,7 +592,6 @@ _WHO = {
     "stroller": "a stroller",
     "older_adult_rest": "an older adult who needs rests",
 }
-_UNCHECKED_ATTR = {"incline_pct": "Incline", "width_m": "Width", "step_count": "Steps"}
 
 
 def _g(v: float) -> str:
@@ -643,15 +642,16 @@ def compare_caveats(d: dict) -> list[str]:
     filed = d.get("vr") or {}
     out = []
     for u in d.get("unchecked") or []:
-        attr = _UNCHECKED_ATTR.get(u["attribute"], attribute_label(u["attribute"]))
+        noun = unchecked_noun(u["attribute"])
         ticket = (
             "; a survey ticket was filed"
             if filed.get("target_id") == u["edge_id"] and filed.get("attribute") == u["attribute"]
             else ""
         )
+        # "On N m ... the width": "Width on N m" would read as a width of N m (facts.py)
         out.append(
-            f"{attr} on {_g(u['length_m'])} m of the recommended path is not checked yet; it did "
-            f"not count for or against this route{ticket}."
+            f"On {_g(u['length_m'])} m of the recommended path the {noun} is not checked yet; "
+            f"it did not count for or against this route{ticket}."
         )
     return out
 

@@ -3,7 +3,6 @@
 Skipped when the Elmina seed is absent (world: elmina)."""
 
 import shutil
-from datetime import date
 from pathlib import Path
 
 import pytest
@@ -59,7 +58,7 @@ def test_exactly_one_unchecked_incline_stretch_of_30_to_60_m(world, result):
     for s in result.recommended.segments:
         e = world.edges[s.edge_id]
         for attr in ("step_count", "incline_pct", "width_m"):
-            known = _known(e, attr, prof, date.today(), ev) is not None
+            known = _known(e, attr, prof, bo.EVAL_DATE, ev) is not None
             assert known == (not (e.id in run and attr == "incline_pct")), (e.id, attr)
 
 
@@ -94,3 +93,21 @@ def test_rebuild_reproduces_the_overlay_byte_for_byte(tmp_path, monkeypatch):
     bo.main()
     for rel in ("access/overlay.geojson", "base/places.geojson", "access/README.md"):
         assert (seed / rel).read_bytes() == (SEED / rel).read_bytes(), rel
+
+
+def test_streets_carry_a_walking_width_never_the_carriageway(world, result):
+    """Review fix round 1: a street's width_m claim is the walker's width (footway range)."""
+    for s in result.recommended.segments:
+        e = world.edges[s.edge_id]
+        if e.type == "street":
+            assert 1.2 <= e.claims["width_m"].value <= 2.0, e.id
+
+
+def test_unchecked_stretch_is_a_candidate_with_the_most_confirmations(world, result):
+    """Ruling R30: no other candidate stretch would confirm more sampled wheelchair trips; on
+    the seed none is confirmable at all, so the tie keeps the stretch nearest the beat."""
+    runs = bo.unchecked_runs(world, result.recommended)
+    assert [result.unchecked[0].edge_id] in [r["edge_ids"] for r in runs]
+    assert not bo._any_confirmable(world)
+    best = min(runs, key=bo._beat_key)
+    assert result.unchecked[0].edge_id == best["edge_ids"][0]

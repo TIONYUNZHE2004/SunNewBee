@@ -422,8 +422,13 @@ def _answer_events(
             intent.est_minutes = route.get("est_minutes")
         if intent.kind == "route.compare":
             d = compare_for(rec, intent.route_id)
-            if d is None or ans.answer_status == "cannot_answer" or rec.selection_error:
-                continue  # no compare_routes result for that route this turn
+            if (
+                d is None
+                or d.get("recommended") is None
+                or ans.answer_status == "cannot_answer"
+                or rec.selection_error
+            ):
+                continue  # no compare_routes result with a recommended route this turn
             intent.compare = compare_payload(ctx.world, d)
         if intent.kind == "journey.play":
             intent.journey = _journey(ctx, rec, intent)

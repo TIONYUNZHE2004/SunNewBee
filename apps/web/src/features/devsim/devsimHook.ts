@@ -1,5 +1,6 @@
 import { isDemoPreset } from "../demo/demoFlag";
 import { registerDemo } from "../demo/demoHook";
+import { moveInCounter } from "../scene/three/devsim/setPieces";
 import { collectProbe, hasProbe } from "./anchors";
 import { buildBeatsAt, hudAt } from "./buildModel";
 import { useDevsim } from "./devsimStore";
@@ -40,7 +41,9 @@ export function createDevsimHook(): DevsimHook {
       const { plan, t } = s();
       const p = collectProbe(t);
       if (!plan) return p;
-      const expected = stateAt(t, plan).windowsLitFraction;
+      // the lit share the tower draws: the move-in's floor-by-floor share in schedule mode (C10),
+      // the timeline's otherwise (`litShareAt` returns it unchanged in legacy mode)
+      const expected = moveInCounter(plan, t).litShare;
       p.expectedWindowsLitFraction = expected;
       // Only without a 3D part is the timeline's value reported as the drawn one (List view);
       // a registered scene part's value is never masked, so a broken render shows (Q4).

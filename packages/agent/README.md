@@ -215,7 +215,10 @@ model is dropped, because the label line already says it.
   - the summary's numbers must be `compare_routes` values;
   - each unchecked stretch must be named as not checked yet.
   - `_recorded_values` includes `rec.compares`.
-- **Tests:** `tests/test_compare_agent.py`; golden case `nav-compare-wheelchair` (`world: elmina`, the B5 demo corridor).
+- **Closures (fix round 1).** `compare_routes` names staff-reported closures that stop or reshape the recommended route (`_closure_notes` with compare's own search) in its warnings and evidence, and adds `data.closures` only when there are any. `_record_compare` puts them in `rec.route_closures`, so the closure-line rule applies as for `plan_route`.
+- **Demo qualifier (fix round 1).** "demo values, not yet surveyed" hedges no estimate claim. It excuses only a demo-valued "step-free" in its own sentence, and only on a turn with placeholder evidence (`route_binding.demo_step_free`). "accessible" and "barrier-free" stay estimate claims.
+- **Rest-limit profiles (R31).** older_adult_rest is recommended `plan_route`'s rest-aware route. If the shortest walk breaks no known rule, the compare is `same_path`.
+- **Tests:** `tests/test_compare_agent.py`, `tests/test_demo_hedge.py`; golden case `nav-compare-wheelchair` (`world: elmina`, the B5 demo corridor).
 
 **Fix-it search and MCP (Cycle 4):**
 - **`find_fixes`:** beam search over imagined fixes on the world model (`townshiplens_spatial.fixit`).

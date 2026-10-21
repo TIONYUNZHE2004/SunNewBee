@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useJourney } from "../journey/journeyStore";
 import { useScene } from "../scene/sceneStore";
+import { litShareAt, setPieceTiming } from "../scene/three/devsim/setPieces";
 import { collectProbe, hasProbe, registerDomProbe, registerProbe } from "./anchors";
 import { createDevsimHook, installDevsimHook } from "./devsimHook";
 import { useDevsim } from "./devsimStore";
@@ -250,6 +251,27 @@ describe("probe window state (Q4)", () => {
     });
     off();
     expect(hasProbe("scene")).toBe(false);
+  });
+});
+
+describe("probe expected lit share in schedule mode (C10 review minor 5)", () => {
+  it("is the move-in's floor-by-floor share the tower draws, the same as the 45 s timeline's", () => {
+    d().start(plan, "b");
+    const hook = createDevsimHook();
+    const tm = setPieceTiming(plan);
+    expect(tm.mode).toBe("schedule");
+    let lit = 0;
+    for (const t of [27.5, 29, 30.5, 32, 33]) {
+      hook.seek(t);
+      const tl = stateAt(t, plan).windowsLitFraction;
+      const want = litShareAt(tm, t, plan.site.storeys, tl);
+      const got = hook.probe().expectedWindowsLitFraction;
+      expect(got).toBe(want);
+      // C11's timeline lights the windows on the same curve, so the HUD and the tower agree
+      expect(got).toBe(tl);
+      if ((got ?? 0) > 0) lit++;
+    }
+    expect(lit).toBeGreaterThan(2);
   });
 });
 

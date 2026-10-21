@@ -6,6 +6,7 @@ import { facadeInstances } from "../facade/facadePlan";
 import { CLAY_PALETTE, DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, TowerPart } from "./devsimLayer";
 import { type SiteGeom, TOWER_STOREY_M, type XZ } from "./geom";
+import { mergeStatic } from "./merge";
 
 const NOOP = () => {};
 /** Role 3 (glass) in COLOR_0.g, as the facade layer writes it. */
@@ -74,7 +75,8 @@ export interface TowerOpts {
 
 /**
  * The hypothetical tower (spec §5.3 Tower): instanced floor slabs over the plan's footprint that
- * rise with `floorsBuilt` (raw concrete on the top floors while building, a scaffold band above),
+ * rise with `floorsBuilt` (raw concrete on the top floors while building; the scaffold and netting
+ * are their own part, `scaffold.ts`),
  * window quads from the city facade plan in the shared role material, a roof cap once topped out,
  * and the lobby entrance (glass doors, a canopy on posts, a paved path). Its windows have their own
  * glow and lit-share uniforms: dark (exactly 0) until `windowsLitFraction` rises in Handover, then
@@ -191,62 +193,6 @@ export function createTower(o: TowerOpts): TowerPart & {
   roof.visible = false;
   group.add(roof);
 
-  // --- scaffold band: kit scaffold bays round the top floors while building, else a frame
-  const scaffold = new THREE.Group();
-  scaffold.name = "devsim-scaffold";
-  group.add(scaffold);
-  {
-    const bayGeo = o.lib?.geometry("construction", "scaffold_bay", 0) ?? null;
-    const ring = grow(geom.ring, geom.centre, 1.2);
-    const mats: THREE.Matrix4[] = [];
-    for (let i = 0; i < ring.length; i++) {
-      const a = ring[i] as XZ;
-      const b = ring[(i + 1) % ring.length] as XZ;
-      const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      const n = Math.max(1, Math.round(L / 2.5));
-      const yaw = Math.atan2(-(b[1] - a[1]), b[0] - a[0]);
-      for (let k = 0; k < n; k++) {
-        const u = (k + 0.5) / n;
-        const m = new THREE.Matrix4().compose(
-          new THREE.Vector3(a[0] + (b[0] - a[0]) * u, 0, a[1] + (b[1] - a[1]) * u),
-          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw),
-          new THREE.Vector3(L / n / 2.5, 1, 1),
-        );
-        mats.push(m);
-      }
-    }
-    if (bayGeo) {
-      const pal = o.manifest?.assets.construction?.palettes.default?.[0] as
-        | [string, string, string]
-        | undefined;
-      const mat = own(
-        createRoleMaterial({
-          instanced: false,
-          uniforms: o.roleUniforms,
-          ...(pal ? { palette: pal } : {}),
-        }),
-      );
-      const im = own(new THREE.InstancedMesh(bayGeo, mat, mats.length));
-      mats.forEach((m, i) => {
-        im.setMatrixAt(i, m);
-      });
-      im.frustumCulled = false;
-      im.raycast = NOOP;
-      scaffold.add(im);
-    } else {
-      const box = own(
-        new THREE.EdgesGeometry(
-          own(prism(grow(geom.ring, geom.centre, 1.2), SH * 2) as THREE.BufferGeometry),
-        ),
-      );
-      const lines = new THREE.LineSegments(
-        box,
-        own(new THREE.LineBasicMaterial({ color: DEVSIM_COLOURS.scaffoldLine })),
-      );
-      scaffold.add(lines);
-    }
-  }
-
   // --- entrance: glass doors, canopy on posts, door mat, paved path (built from the door frame)
   const entrance = new THREE.Group();
   entrance.name = "devsim-entrance";
@@ -291,6 +237,8 @@ export function createTower(o: TowerOpts): TowerPart & {
     for (const z of [-3, 3])
       add(new THREE.CylinderGeometry(0.14, 0.14, 3.8, 8), white, 3.3, 1.95, z);
     add(new THREE.BoxGeometry(2.4, 0.06, 1.1), mat, 1.2, 0.05, 0);
+    // C10p: six parts in four materials, one draw per material
+    for (const geo of mergeStatic(entrance)) own(geo);
     entrance.position.set(geom.door[0], 0, geom.door[1]);
     // +x of the group onto `out`
     entrance.rotation.y = Math.atan2(-geom.out[1], geom.out[0]);
@@ -326,6 +274,8 @@ export function createTower(o: TowerOpts): TowerPart & {
         pathGroup.add(e);
       }
     }
+    // C10p: the paving and kerb segments, one draw each
+    for (const geo of mergeStatic(pathGroup)) own(geo);
   }
 
   const _m = new THREE.Matrix4();
@@ -335,6 +285,7 @@ export function createTower(o: TowerOpts): TowerPart & {
   let top = 0;
   let lit = 0;
   let shown = 0;
+  let occupancy = 0;
 
   return {
     group,
@@ -342,7 +293,8 @@ export function createTower(o: TowerOpts): TowerPart & {
     topM: () => top,
     litFraction: () => lit,
     floorsShown: () => shown,
-    update({ s, t, night }: DevsimFrame) {
+    demoState: () => ({ litShare: lit, occupancy }),
+    update({ s, t, night, sp }: DevsimFrame) {
       const built = Math.max(0, Math.min(N, s.floorsBuilt));
       const n = Math.max(0, Math.ceil(built - 1e-6));
       const building = built < N - 1e-3 && s.act === "Construction";
@@ -364,15 +316,16 @@ export function createTower(o: TowerOpts): TowerPart & {
       top = n > 0 ? Math.min(built, n) * SH || SH : 0;
       windows.count = winUpTo[nFin] ?? 0;
       roof.visible = built >= N - 1e-3;
-      scaffold.visible = building && n > 0;
-      scaffold.position.y = Math.max(0, top - SH * 2);
       entrance.visible = built >= 1;
       // the paved path is laid at Handover (the hoarding comes down)
       pathGroup.visible = !s.hoarding || s.act === "Handover" || s.act === "Daily Life";
       // Q4: exactly 0 until the timeline lights floors in Handover; then lit floor by floor, a
       // little glow by day (occupied homes read as lit, as in the prototype), kept under the city windows at night (a fully lit face blooms white)
-      lit = Math.max(0, Math.min(1, s.windowsLitFraction));
+      // C10: the move-in share (schedule mode: 0 -> 0.9 over 28-33 s, floor by floor), else the
+      // timeline's
+      lit = Math.max(0, Math.min(1, sp ? sp.lit : s.windowsLitFraction));
       windowUniforms.uLitShare.value = lit;
+      occupancy = sp ? sp.occupancy : s.occupancy;
       windowUniforms.uWindowGlow.value = lit > 0 ? 0.2 + 0.6 * night : 0;
       doorMat.emissiveIntensity = n > 0 ? 0.1 + night * 1.4 : 0.1;
       void t;
