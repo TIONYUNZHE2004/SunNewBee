@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { useEvacCentres, useGaps, useLayer, useScenarioWater } from "../../../../lib/api";
+import {
+  useEvacCentres,
+  useFloodImpact,
+  useGaps,
+  useLayer,
+  useScenarioWater,
+} from "../../../../lib/api";
 import { useDevsim } from "../../../devsim/devsimStore";
+import { impactSummary } from "../../../flood/impactModel";
 import { gapsActive } from "../../../gaps/gapModel";
 import { useJourney } from "../../../journey/journeyStore";
 import { type LonLat, pointFeatures } from "../../geo";
@@ -80,6 +87,8 @@ export function useOverlays({
   const floodQ = useLayer("flood", profile, scenarioId, floodOn);
   const wasteQ = useLayer("waste", profile, scenarioId, wasteLens);
   const evacQ = useEvacCentres(floodOn ? scenarioId : null, profile);
+  const impactQ = useFloodImpact(floodOn ? scenarioId : null);
+  const impact = useMemo(() => impactSummary(impactQ.data)?.markers ?? null, [impactQ.data]);
   /**
    * Place markers drawn (`data-markers`): the access layer's points minus those hidden off the slab
    * (A-T5); without an outline, every point.
@@ -120,6 +129,7 @@ export function useOverlays({
       waste: wasteQ.data ?? null,
       wasteOn: wasteLens,
       evac: evacQ.data ?? null,
+      impact,
       focusPlaceId,
       boundary,
       keepPlaceIds,
@@ -147,6 +157,7 @@ export function useOverlays({
     wasteQ.data,
     wasteLens,
     evacQ.data,
+    impact,
     focusPlaceId,
     boundary,
     keepPlaceIds,

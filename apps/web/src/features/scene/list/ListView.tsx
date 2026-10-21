@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useClosures, useLayer, useScenarios } from "../../../lib/api";
+import { FloodImpactList } from "../../flood/FloodImpact";
 import { GapsLensSection } from "../../gaps/GapsSection";
 import { gapsApplicable } from "../../gaps/gapModel";
 import { useJourney } from "../../journey/journeyStore";
@@ -168,6 +169,7 @@ export function ListView() {
             Scenario: {withIndicative(scenario?.label ?? scenarioId)}
           </h2>
           {scenario?.disclaimer && <p className="mt-1 text-sm">{scenario.disclaimer}</p>}
+          {scenarioId !== "baseline" && <FloodImpactList scenarioId={scenarioId} />}
           {flooded.length === 0 ? (
             <p className="mt-2 text-sm text-ink-soft">
               No paths flagged for this scenario in the loaded data.

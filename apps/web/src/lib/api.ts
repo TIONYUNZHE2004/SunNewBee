@@ -61,6 +61,19 @@ export const useScenarioWater = (id: string | null) =>
   });
 
 /** Evacuation centres reachability. May 404/empty under API stubs: callers treat errors as "none". */
+/** T-024: places likely flooded and cut off, and the flooded path length, for one river scenario. */
+export const useFloodImpact = (id: string | null) =>
+  useQuery({
+    queryKey: ["scenario-affected", id],
+    enabled: !!id && id !== "baseline",
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/scenarios/{scenario_id}/affected", {
+          params: { path: { scenario_id: id as string } },
+        }),
+      ),
+  });
+
 export const useEvacCentres = (
   scenarioId: string | null,
   profile: Profile,

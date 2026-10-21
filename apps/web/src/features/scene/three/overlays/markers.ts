@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { centreMapMarker } from "../../../../lib/routeStatus";
+import { IMPACT_STYLE, type ImpactMarker } from "../../../flood/impactModel";
 import type { LonLat } from "../../geo";
 import type { LocalFrame } from "../frame";
 
@@ -18,9 +19,11 @@ export const MARKER_STYLE = {
   place: { color: "#0f5c63", px: 9, focusPx: 16 },
   waste: { color: "#6B46C1", px: 9 },
   evac: { px: 12 },
+  /** T-024 flood impact: "!" likely flooded, "⚠" cut off (colours in IMPACT_STYLE). */
+  impact: { px: 11 },
 } as const;
 
-type Kind = "place" | "waste" | "evac";
+type Kind = "place" | "waste" | "evac" | "impact";
 
 export interface MarkerPoint {
   id: string;
@@ -43,6 +46,8 @@ export interface MarkerInput {
   placeShown?: (id: string, x: number, z: number) => boolean;
   waste: readonly MarkerPoint[];
   evac: readonly EvacMarkerRow[];
+  /** Places the river scenario marks likely flooded or cut off (`GET /scenarios/{id}/affected`). */
+  impact?: readonly ImpactMarker[];
 }
 export interface MarkerView {
   x: number;
@@ -246,6 +251,24 @@ export function createMarkers(
   }
   for (const [color, items] of byColour)
     group.add(pointsOf("evac", items, MARKER_STYLE.evac.px, color, 1));
+
+  for (const kind of ["flooded", "cut_off"] as const) {
+    const rows = (input.impact ?? []).filter((m) => m.kind === kind);
+    const items = rows.map(item);
+    if (items.length)
+      group.add(pointsOf("impact", items, MARKER_STYLE.impact.px, IMPACT_STYLE[kind].color, 1));
+    rows.forEach((m, i) => {
+      const it = items[i] as Item;
+      labels.push({
+        key: `impact:${kind}:${m.id}`,
+        id: m.id,
+        kind: "impact",
+        text: `${IMPACT_STYLE[kind].glyph} ${m.name}`,
+        x: it.x,
+        z: it.z,
+      });
+    });
+  }
 
   let pixelRatio = 1;
   let focusId: string | null = null;

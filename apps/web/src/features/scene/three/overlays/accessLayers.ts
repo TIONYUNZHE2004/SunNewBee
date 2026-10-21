@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { LineMaterial } from "three/addons/lines/LineMaterial.js";
+import type { ImpactMarker } from "../../../flood/impactModel";
 import { GAP_BANDS, GAP_CESIUM_DASH, type GapBand, parseGaps } from "../../../gaps/gapModel";
 import { diffLines, WHATIF_STYLE } from "../../../whatif/whatifModel";
 import { groupEdgesByStatus, type LonLat, lineFeatures, pointFeatures } from "../../geo";
@@ -38,6 +39,8 @@ export interface OverlayState {
   waste?: unknown;
   wasteOn?: boolean;
   evac?: readonly EvacMarkerRow[] | null;
+  /** T-024 flood impact markers; drawn with the evacuation centres while `floodOn`. */
+  impact?: readonly ImpactMarker[] | null;
   focusPlaceId?: string | null;
   /** The Elmina outline (display only): place markers outside it are not drawn (A-T5), except: */
   boundary?: Boundary | null;
@@ -178,6 +181,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
     const places = s.accessVisible ? s.access : null;
     const waste = s.wasteOn ? s.waste : null;
     const evac = s.floodOn ? (s.evac ?? null) : null;
+    const impact = s.floodOn ? (s.impact ?? null) : null;
     const b = s.boundary ?? null;
     const keepIds = new Set([
       ...(s.keepPlaceIds ?? []),
@@ -192,18 +196,19 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       b || tripOnly
         ? `${tripOnly}|${[...keepIds].sort().join(",")}|${keepNear.flat().map(Math.round).join(",")}`
         : "";
-    const key = [places, waste, evac, b, rule];
+    const key = [places, waste, evac, impact, b, rule];
     if (!markerKey || key.some((k, i) => k !== markerKey?.[i])) {
       markerKey = key;
       markers?.dispose();
       markers = null;
       markerGroup.clear();
-      if (places || waste || evac) {
+      if (places || waste || evac || impact?.length) {
         markers = createMarkers(
           {
             places: places ? pointFeatures(places) : [],
             waste: waste ? pointFeatures(waste) : [],
             evac: evac ?? [],
+            impact: impact ?? [],
             placeShown: placeShown({
               inside: b ? (x, z) => insideBoundary(b, x, z) : null,
               keepIds,

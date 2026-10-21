@@ -1,4 +1,5 @@
 import { useScenarios } from "../../lib/api";
+import { FloodImpactCard } from "../flood/FloodImpact";
 import { useScene } from "../scene/sceneStore";
 import { InSlot } from "./mapSlots";
 
@@ -46,6 +47,7 @@ export function FloodNote() {
           </a>
         </p>
         {sc?.disclaimer && <p className="m-0 mt-1 text-xs text-fg-soft">{sc.disclaimer}</p>}
+        <FloodImpactCard />
       </div>
     </InSlot>
   );
