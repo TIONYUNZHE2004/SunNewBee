@@ -503,7 +503,9 @@ active. Suggestions disclose unassessed alternatives; they do not change routing
 
 `route_batch()` shares strict/lenient shortest-path trees, weighted adjacency and road
 snaps within an immutable snapshot, preserving route selection, direction and endpoint
-checks. Rest-constrained searches keep their normal solver. A bounded baseline cache
+checks. Static road nodes and up to 512 road snaps are shared across snapshots, keyed
+by road membership and endpoint coordinates; closures never change the geometry snap.
+Rest-constrained searches keep their normal solver. A bounded baseline cache
 (12 profile/sample entries) keys by graph, world version, date, frozen closure set, profile
 and sample. Only baseline routes intersecting active proposed segments are recalculated.
 `timing_ms` includes snapshotting, cache lookup/calculation, impacts and suggestions.

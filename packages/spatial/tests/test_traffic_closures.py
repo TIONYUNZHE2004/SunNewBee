@@ -252,3 +252,19 @@ def test_management_closure_tool_returns_weights_pressure_and_evidence_without_w
     assert not tools.simulate_closure(ctx, **(kwargs | {"reason": "invented"})).ok
     assert not tools.simulate_closure(ctx, **kwargs, at="bad-date").ok
     assert not tools.simulate_closure(ctx, **kwargs, profiles=[]).ok
+
+
+def test_static_road_snaps_reuse_geometry_but_invalidate_changed_road_membership(world):
+    from townshiplens_spatial import routing
+    from townshiplens_spatial.sim import snapshot_world
+
+    world.edges["seg-bc"].type = "street"
+    roads = routing._road_nodes(world, world.profiles["drive"])
+    before = routing._targets(world, "toilet-1", world.profiles["drive"])
+    snapshot, _ = snapshot_world(world)
+    assert routing._road_nodes(snapshot, snapshot.profiles["drive"]) is roads
+    assert routing._targets(snapshot, "toilet-1", snapshot.profiles["drive"]) == before
+    world.edges["seg-be"].type = "street"
+    changed = routing._road_nodes(world, world.profiles["drive"])
+    assert changed is not roads and "n-e" in changed
+    assert routing._targets(world, "toilet-1", world.profiles["drive"]) == ["n-e"]

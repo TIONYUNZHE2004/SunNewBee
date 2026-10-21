@@ -81,7 +81,16 @@ def _road_nodes(world: World, profile) -> set[str]:
     if batch is not None and key in batch:
         return batch[key]
     allowed = set(profile.allowed_types or [])
-    nodes = {n for e in world.edges.values() if e.type in allowed for n in (e.from_node, e.to_node)}
+    edges = [e for e in world.edges.values() if e.type in allowed]
+    signature = tuple((e.id, e.from_node, e.to_node) for e in edges)
+    static = world.graph.graph.setdefault("_road_nodes", {})
+    static_key = tuple(sorted(allowed))
+    cached = static.get(static_key)
+    if cached is not None and cached[0] == signature:
+        nodes = cached[1]
+    else:
+        nodes = {n for e in edges for n in (e.from_node, e.to_node)}
+        static[static_key] = signature, nodes
     if batch is not None:
         batch[key] = nodes
     return nodes
@@ -91,10 +100,13 @@ def _snap_to_road(world: World, roads: set[str], node: str, coord) -> str | None
     """Own node if it touches a road, else the nearest road node within SNAP_CAP_M (ties by id)."""
     if node in roads:
         return node
-    batch = _ROUTE_BATCH.get()
-    key = ("snap", id(world), id(roads), node, tuple(coord))
-    if batch is not None and key in batch:
-        return batch[key]
+    # Road geometry is shared across closure snapshots. Hold the road-node set in
+    # the value so its id cannot be reused; membership changes get a different set.
+    snaps = world.graph.graph.setdefault("_road_snaps", {})
+    key = (id(roads), node, tuple(coord))
+    cached = snaps.get(key)
+    if cached is not None:
+        return cached[1]
     best: tuple[float, str] | None = None
     for n in sorted(roads):
         xy = world.node_coords.get(n)
@@ -104,8 +116,9 @@ def _snap_to_road(world: World, roads: set[str], node: str, coord) -> str | None
         if d <= SNAP_CAP_M and (best is None or d < best[0]):
             best = (d, n)
     result = best[1] if best else None
-    if batch is not None:
-        batch[key] = result
+    if len(snaps) >= 512:
+        snaps.clear()
+    snaps[key] = roads, result
     return result
 
 
