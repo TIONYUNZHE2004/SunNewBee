@@ -10,8 +10,12 @@ const spy = vi.hoisted(() => ({
   passScenes: [] as unknown[],
   aoSkips: [] as (() => readonly unknown[])[],
   bokehSkips: [] as (() => readonly unknown[])[],
-  renderer: null as null | { autoClear: boolean },
+  renderer: null as null | {
+    autoClear: boolean;
+    shadowMap: { autoUpdate?: boolean; needsUpdate?: boolean };
+  },
   cam: null as unknown,
+  shadowAtComposer: [] as (boolean | undefined)[],
   drawn: [] as { x: number; aspect: number }[],
 }));
 vi.mock("three", async (orig) => {
@@ -20,7 +24,10 @@ vi.mock("three", async (orig) => {
     toneMapping = 0;
     outputColorSpace = "";
     autoClear = true;
-    shadowMap = { type: 0, enabled: false };
+    shadowMap: { type: number; enabled: boolean; autoUpdate?: boolean; needsUpdate?: boolean } = {
+      type: 0,
+      enabled: false,
+    };
     info = { autoReset: true, reset: vi.fn(), render: { calls: 0, triangles: 0 } };
     debug: { onShaderError: unknown } = { onShaderError: null };
     toneMappingExposure = 1;
@@ -68,6 +75,7 @@ vi.mock("three/addons/postprocessing/EffectComposer.js", () => ({
     addPass = vi.fn();
     setSize = vi.fn((w: number, h: number) => spy.log.push(`composerSize:${w}x${h}`));
     render = vi.fn(() => {
+      spy.shadowAtComposer.push(spy.renderer?.shadowMap.needsUpdate);
       spy.log.push("composer");
       const c = spy.cam as null | { position: { x: number }; aspect: number };
       if (c) spy.drawn.push({ x: c.position.x, aspect: c.aspect });
@@ -185,6 +193,26 @@ describe("Engine.setSplit (B8)", () => {
       ]);
       // the engine camera is back where the driver / rig left it, at the canvas aspect
       expect(main.aspect).toBeCloseTo(1440 / 900, 6);
+    } finally {
+      e.dispose();
+    }
+  });
+
+  it("the shadow map is drawn once per half (C10p L1): each composer render asks for it", async () => {
+    const { e, sv } = await setup();
+    try {
+      expect(spy.renderer?.shadowMap.autoUpdate).toBe(false);
+      e.setSplit?.(sv);
+      spy.shadowAtComposer.length = 0;
+      e.renderNow?.();
+      // two halves, each with its own light placement: one redraw per composer render, never
+      // a second one from the passes inside it (the flag drops after each render)
+      expect(spy.shadowAtComposer).toEqual([true, true]);
+      expect(spy.renderer?.shadowMap.needsUpdate).toBe(false);
+      e.setSplit?.(null);
+      spy.shadowAtComposer.length = 0;
+      e.renderNow?.();
+      expect(spy.shadowAtComposer).toEqual([true]);
     } finally {
       e.dispose();
     }

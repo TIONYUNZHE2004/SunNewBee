@@ -5,7 +5,7 @@ import { setTreeCut } from "../assets/treeCut";
 import type { Clearance } from "../clearance";
 import type { DevsimOverlay } from "../engine";
 import type { LocalFrame } from "../frame";
-import { devsimAoWeight } from "./devsimView";
+import { cameraRangeM, devsimAoWeight } from "./devsimView";
 import { dayness } from "./ease";
 import { inRing, type SiteGeom, siteGeom, TOWER_STOREY_M } from "./geom";
 import { onStage, screenRect, toScreen } from "./project";
@@ -372,7 +372,10 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       hideEmpty(group);
     },
     aoExcluded: () => parts.flatMap((p) => p.aoExcluded?.() ?? []),
-    aoWeight: devsimAoWeight,
+    // One range source (C10p review minor): the beat camera's range, the same number the
+    // small-prop shadows switch on (`smallShadows`), so both change on the same frame; the
+    // engine's measured range only before the first frame state.
+    aoWeight: (rangeM) => devsimAoWeight(s ? cameraRangeM(s) : rangeM),
     demoState() {
       const out: Record<string, unknown> = {};
       for (const p of parts) if (p.demoState) Object.assign(out, p.demoState());

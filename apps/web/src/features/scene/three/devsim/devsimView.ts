@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { StateAt } from "../../../devsim/types";
 import type { Clearance, Vec3 } from "../clearance";
+import type { CameraDriver } from "../engine";
 import type { LocalFrame } from "../frame";
 import type { LightPreset } from "../lighting";
 import type { MoodSource, MoodWeights } from "../mood";
@@ -141,7 +142,10 @@ export function devsimAoWeight(rangeM: number): number {
   return 1 - ease(span(rangeM, a, b));
 }
 
-/** The camera's range from its target (m) in a frame state (the beat offset). */
+/**
+ * The camera's range from its target (m) in a frame state (the beat offset): the one range source
+ * for the devsim AO fade (`DevsimLayer.aoWeight`) and the small-prop shadows (`smallShadows`).
+ */
 export const cameraRangeM = (s: StateAt): number => Math.hypot(...s.camera.offset);
 
 /**
@@ -153,3 +157,22 @@ export const DEVSIM_SMALL_SHADOW_M = DEVSIM_AO_FADE_M[1];
 
 /** Whether small devsim props cast shadows in this frame state. */
 export const smallShadows = (s: StateAt): boolean => cameraRangeM(s) < DEVSIM_SMALL_SHADOW_M;
+
+/**
+ * The devsim camera driver (C10p): the beat pose at the layer's frame state, flagged `animating`
+ * only while the playback plays, so the engine schedules its own next frame then (without it every
+ * playback frame was a one-off request the engine counted as idle) and goes idle again at a pause
+ * or at the end (the store stops playing at `total_s`).
+ */
+export function devsimCameraDriver(o: {
+  state: () => StateAt | null;
+  pose: (s: StateAt) => DevsimCameraPose;
+  playing: () => boolean;
+}): CameraDriver {
+  return () => {
+    const st = o.state();
+    if (!st) return null;
+    const pose = o.pose(st);
+    return o.playing() ? { ...pose, animating: true } : pose;
+  };
+}
