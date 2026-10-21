@@ -1395,6 +1395,16 @@ export interface components {
              */
             starts_at: string;
         };
+        /**
+         * CompareEnd
+         * @description A route end of a compare: the place id and its name.
+         */
+        CompareEnd: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
         /** CompareResult */
         CompareResult: {
             /** Confirm N */
@@ -1422,6 +1432,38 @@ export interface components {
             /** Unchecked */
             unchecked: components["schemas"]["UncheckedStretch"][];
             vr: components["schemas"]["CompareVr"] | null;
+        };
+        /**
+         * CompareRoute
+         * @description One route of a compare, trimmed for the scene: geometry as [lon, lat] points in travel
+         *     order and the edge sequence with its evaluation.
+         */
+        CompareRoute: {
+            /** Coordinates */
+            coordinates: number[][];
+            /** Distance M */
+            distance_m: number;
+            /** Est Minutes */
+            est_minutes: number;
+            /** Id */
+            id: string;
+            /** Segments */
+            segments: components["schemas"]["CompareSegment"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
+        };
+        /** CompareSegment */
+        CompareSegment: {
+            /** Edge Id */
+            edge_id: string;
+            /**
+             * Eval
+             * @enum {string}
+             */
+            eval: "PASS" | "FAIL" | "UNKNOWN";
         };
         /** CompareVr */
         CompareVr: {
@@ -2691,6 +2733,41 @@ export interface components {
                 [key: string]: string;
             }[];
         };
+        /**
+         * RouteCompare
+         * @description The `route.compare` payload: compare_routes' result as recorded this turn (run.py builds
+         *     it from TurnRecord.compares; the model never writes any of it). `fastest` is the shortest
+         *     walk, `recommended` the profile's route; with `same_path` both are the same route.
+         */
+        RouteCompare: {
+            /** Confirm N */
+            confirm_n: number | null;
+            /** Extra Minutes */
+            extra_minutes: number | null;
+            fastest: components["schemas"]["CompareRoute"] | null;
+            from_place: components["schemas"]["CompareEnd"];
+            /** Pois */
+            pois: components["schemas"]["Poi"][];
+            /**
+             * Profile
+             * @enum {string}
+             */
+            profile: "default" | "stroller" | "wheelchair" | "older_adult_rest" | "drive";
+            reasons: components["schemas"]["RouteReasons"];
+            recommended: components["schemas"]["CompareRoute"] | null;
+            /** Same Path */
+            same_path: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
+            stop: components["schemas"]["StopPoint"] | null;
+            to_place: components["schemas"]["CompareEnd"];
+            /** Unchecked */
+            unchecked: components["schemas"]["UncheckedStretch"][];
+            vr: components["schemas"]["CompareVr"] | null;
+        };
         /** RouteReasons */
         RouteReasons: {
             fastest: components["schemas"]["ReasonSet"] | null;
@@ -2836,6 +2913,7 @@ export interface components {
             brief_text?: string | null;
             /** Center */
             center?: number[] | null;
+            compare?: components["schemas"]["RouteCompare"] | null;
             /** Day */
             day?: string | null;
             /** Distance M */
@@ -2851,7 +2929,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip" | "journey.play" | "development.play";
+            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip" | "journey.play" | "development.play" | "route.compare";
             /** Lens */
             lens?: ("access" | "flood" | "waste") | null;
             /** Place Id */

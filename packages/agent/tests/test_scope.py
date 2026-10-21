@@ -292,8 +292,7 @@ async def test_model_registration_uses_scope_allowlist(ctx, scope):
     await A.build_agent(FunctionModel(model), assistant_scope=scope).run(
         "hello", deps=A.Deps(ctx, TurnRecord(), ChatRequest(message="hello"))
     )
-    # compare_routes reaches the assistant in task B4 (with its validator, mock and template).
-    every = set(tools.TOOLS) - {"compare_routes"}
+    every = set(tools.TOOLS)
     assert set(seen) == (ACCESS_FLOOD_TOOLS if scope == "access_flood" else every)
 
 
@@ -362,7 +361,7 @@ async def test_management_panel_registers_every_tool(ctx):
     await A.build_agent(
         FunctionModel(model), assistant_scope="access_flood", panel="management"
     ).run("hello", deps=A.Deps(ctx, TurnRecord(), req))
-    assert set(seen) == set(tools.TOOLS) - {"compare_routes"}  # agent wiring is task B4
+    assert set(seen) == set(tools.TOOLS)
 
 
 @pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")

@@ -1,0 +1,58 @@
+"""The `route.compare` scene intent payload (demo polish B4), built from compare_routes' data.
+
+The server fills it from the tool result recorded this turn (TurnRecord.compares); the model only
+names the intent and the recommended route id, so no number in the payload is model-written.
+"""
+
+from __future__ import annotations
+
+from .events import CompareEnd, CompareRoute, CompareSegment, RouteCompare
+
+
+def _end(world, place_id: str) -> CompareEnd:
+    p = world.places.get(place_id)
+    return CompareEnd(id=place_id, name=p.name if p else place_id)
+
+
+def _route(r: dict | None) -> CompareRoute | None:
+    if r is None:
+        return None
+    return CompareRoute(
+        id=r["id"],
+        status=r["status"],
+        distance_m=r["distance_m"],
+        est_minutes=r["est_minutes"],
+        coordinates=[list(c[:2]) for c in (r.get("geometry") or {}).get("coordinates") or []],
+        segments=[CompareSegment(edge_id=s["edge_id"], eval=s["eval"]) for s in r["segments"]],
+    )
+
+
+def compare_payload(world, d: dict) -> RouteCompare:
+    """`d` is compare_routes' data as recorded (CompareResult.model_dump(mode="json") plus the
+    call's from_id / to_id)."""
+    return RouteCompare(
+        from_place=_end(world, d["from_id"]),
+        to_place=_end(world, d["to_id"]),
+        profile=d["profile"],
+        status=d["status"],
+        same_path=d["same_path"],
+        fastest=_route(d.get("fastest")),
+        recommended=_route(d.get("recommended")),
+        stop=d.get("stop"),
+        reasons=d["reasons"],
+        extra_minutes=d.get("extra_minutes"),
+        unchecked=d.get("unchecked") or [],
+        pois=d.get("pois") or [],
+        vr=d.get("vr"),
+        confirm_n=d.get("confirm_n"),
+    )
+
+
+def compare_for(rec, route_id: str | None) -> dict | None:
+    """The compare this turn whose recommended route is `route_id` (the latest one); with no
+    route id, the latest compare that has no recommended route (no_data / blocked)."""
+    for d in reversed(rec.compares):
+        rid = (d.get("recommended") or {}).get("id")
+        if rid == route_id:
+            return d
+    return None
