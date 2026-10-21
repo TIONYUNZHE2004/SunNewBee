@@ -162,3 +162,42 @@ export interface SimResidents {
   /** "Lines are written for the simulation; every number comes from the world model." */
   note: string;
 }
+
+// ---- Lorry route (devsim_impact.lorry_route, C2) and the C7 plan fields -----------------------
+
+export type LorrySensitiveType = "school" | "kindergarten" | "park" | "playground";
+
+/** A school, kindergarten, park or playground within 50 m of the lorry route. */
+export interface LorrySensitive {
+  place_id: string;
+  name: string;
+  type: LorrySensitiveType;
+  /** From the route line to the place (its point, walk node or park outline). */
+  distance_m: number;
+  /** How far along the route from the main road it is passed. */
+  along_m: number;
+}
+
+/** Construction lorries: the `drive` route from the nearest major road to the site gate. */
+export interface LorryRoute {
+  from_node: string;
+  gate_node: string;
+  /** [lon, lat], main road first, the site gate last. */
+  path: number[][];
+  distance_m: number;
+  minutes: number;
+  status: string;
+  sensitive: LorrySensitive[];
+  school_run_note?: string;
+  profile?: string;
+  warnings?: string[];
+}
+
+/**
+ * The fields C7 adds to `DevelopmentPlan` (optional until it lands; absent on today's 66 s plan).
+ * Read through one adapter (`scene/three/devsim/setPieces.ts` `planExtras`), never ad hoc.
+ */
+export interface DevelopmentPlanExtras {
+  lorry_route?: LorryRoute | null;
+  schedule?: Schedule | null;
+}

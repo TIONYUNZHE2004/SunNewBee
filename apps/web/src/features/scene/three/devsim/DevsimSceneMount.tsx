@@ -1,4 +1,5 @@
 import { type RefObject, useEffect, useState } from "react";
+import { registerDemoState } from "../../../demo/demoHook";
 import { registerProbe } from "../../../devsim/anchors";
 import { useDevsim } from "../../../devsim/devsimStore";
 import type { DevelopmentPlan } from "../../../devsim/types";
@@ -17,6 +18,9 @@ import { type Cast, createCast } from "./cast";
 import { devDemoRequested, startDevDemo } from "./devDemo";
 import { createDevsimLayer, type DevsimLayer } from "./devsimLayer";
 import { devsimCamera } from "./devsimView";
+import { createPilingRig } from "./pilingRig";
+import { createRain } from "./rain";
+import { createScaffold } from "./scaffold";
 import { createSite, nearClosed, nearQueue, queueShown } from "./site";
 import { flowSeconds } from "./state";
 import { createTower } from "./tower";
@@ -141,6 +145,10 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
       createTower({ geom: l.geom, roleUniforms, lib: loaded?.lib, manifest: loaded?.manifest }),
     );
     l.add(createSite({ geom: l.geom, roleUniforms, lib: loaded?.lib, manifest: loaded?.manifest }));
+    // C9 construction set pieces: scaffold + netting, the piling rig, monsoon rain
+    l.add(createScaffold({ geom: l.geom }));
+    l.add(createPilingRig({ geom: l.geom }));
+    l.add(createRain());
     const cast = createCast({
       plan,
       geom: l.geom,
@@ -189,12 +197,15 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
       }
     });
     const unprobe = registerProbe("scene", () => l.probe());
+    // `window.__tl.demo.state()` ("bld"): crane, rain, rig, lorries, scaffold (AC-W3/W4)
+    const undemo = registerDemoState("bld", () => l.demoState());
     // dev builds: the layer for console inspection (QA and lane debugging)
     const w = window as unknown as { __devsimLayer?: DevsimLayer };
     if (import.meta.env.DEV) w.__devsimLayer = l;
     return () => {
       unsub();
       unprobe();
+      undemo();
       if (w.__devsimLayer === l) delete w.__devsimLayer;
       // only its own slots: a trip that took them meanwhile keeps its camera and clock
       releaseSlots(engine, { driver, clock });

@@ -8,6 +8,7 @@ import type { LocalFrame } from "../frame";
 import { dayness } from "./ease";
 import { inRing, type SiteGeom, siteGeom, TOWER_STOREY_M } from "./geom";
 import { onStage, screenRect, toScreen } from "./project";
+import { type SetPiecesAt, setPiecesAt } from "./setPieces";
 import { stateAt } from "./state";
 
 /** Everything a part needs for one frame. */
@@ -17,6 +18,8 @@ export interface DevsimFrame {
   t: number;
   /** 0 by day, 1 at night (from the sun elevation). */
   night: number;
+  /** Construction set pieces at t (`setPieces.ts`); the layer always sets it, tests may leave it out. */
+  sp?: SetPiecesAt;
 }
 
 /** A piece of the devsim scene (tower, site kit, cast): posed from the frame state. */
@@ -33,6 +36,8 @@ export interface DevsimPart {
   aoExcluded?(): readonly THREE.Object3D[];
   /** Per-frame screen work (name tags). */
   project?(camera: THREE.Camera, size: readonly [number, number]): void;
+  /** Fields for `window.__tl.demo.state()` ("bld"; spec §7, AC-W3/W4). */
+  demoState?(): object;
   dispose(): void;
 }
 
@@ -57,6 +62,8 @@ export interface DevsimLayer extends DevsimOverlay {
   towerTopM(): number;
   /** The scene part of `window.__devsim.probe()`. */
   probe(): SceneProbe;
+  /** Every part's demo-hook fields merged (`registerDemoState("bld", …)`). */
+  demoState(): Record<string, unknown>;
 }
 
 export interface DevsimLayerOpts {
@@ -172,7 +179,12 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
 
   const apply = () => {
     if (!s) return;
-    const f: DevsimFrame = { s, t, night: 1 - dayness(s.sun.elevation) };
+    const f: DevsimFrame = {
+      s,
+      t,
+      night: 1 - dayness(s.sun.elevation),
+      sp: setPiecesAt(o.plan, t, s),
+    };
     for (const p of parts) p.update(f);
   };
 
@@ -309,6 +321,11 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       lastSpeaker = speaker;
     },
     aoExcluded: () => parts.flatMap((p) => p.aoExcluded?.() ?? []),
+    demoState() {
+      const out: Record<string, unknown> = {};
+      for (const p of parts) if (p.demoState) Object.assign(out, p.demoState());
+      return out;
+    },
     probe() {
       if (!seen || !s) return {};
       // One entry per agent in a stable order (index i is the same agent in every frame); an agent

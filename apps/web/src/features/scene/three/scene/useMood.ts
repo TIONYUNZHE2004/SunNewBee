@@ -5,6 +5,7 @@ import { reducedMotion } from "../../cesium/controls/cameraOps";
 import { useScene } from "../../sceneStore";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import { devsimGrade, devsimMoodSource, devsimMoodWeights } from "../devsim/devsimView";
+import { planRainAt } from "../devsim/setPieces";
 import { stateAt } from "../devsim/state";
 import type { Engine } from "../engine";
 import { LIGHT_PRESETS } from "../lighting";
@@ -69,9 +70,13 @@ export function useMood({
       const d = useDevsim.getState();
       if (!d.plan || d.status !== "ready") return null;
       const sun = stateAt(d.t, d.plan).sun;
-      return { w: devsimMoodWeights(sun), src: devsimMoodSource(sun) };
+      return {
+        w: devsimMoodWeights(sun),
+        src: devsimMoodSource(sun),
+        wet: planRainAt(d.plan, d.t),
+      };
     };
-    const apply = (w: MoodWeights, src: MoodSource, devsim = false) => {
+    const apply = (w: MoodWeights, src: MoodSource, devsim = false, wet = 0) => {
       shown = w;
       bus.setState({ mood: w });
       bus.getState().driver?.setWeights(w);
@@ -79,7 +84,8 @@ export function useMood({
       roleUniforms.uWindowGlow.value = g.uWindowGlow;
       roleUniforms.uLitShare.value = g.uLitShare;
       roleUniforms.uLightGlow.value = g.uLightGlow;
-      const preset = devsim ? devsimGrade(moodPreset(w), w) : moodPreset(w);
+      // the devsim grade, greyed by the monsoon set piece's rain (C9)
+      const preset = devsim ? devsimGrade(moodPreset(w), w, wet) : moodPreset(w);
       if (sectionRef.current) sectionRef.current.style.background = preset.background;
       engine.setLighting(preset, moodKeyDir(src, w, sunNow(), home.lat, home.lon));
     };
@@ -100,7 +106,7 @@ export function useMood({
       if (dv) {
         fade = null;
         key = "devsim";
-        apply(dv.w, dv.src, true);
+        apply(dv.w, dv.src, true, dv.wet);
         return;
       }
       const src = source();

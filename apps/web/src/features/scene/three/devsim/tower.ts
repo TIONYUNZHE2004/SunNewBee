@@ -74,7 +74,8 @@ export interface TowerOpts {
 
 /**
  * The hypothetical tower (spec §5.3 Tower): instanced floor slabs over the plan's footprint that
- * rise with `floorsBuilt` (raw concrete on the top floors while building, a scaffold band above),
+ * rise with `floorsBuilt` (raw concrete on the top floors while building; the scaffold and netting
+ * are their own part, `scaffold.ts`),
  * window quads from the city facade plan in the shared role material, a roof cap once topped out,
  * and the lobby entrance (glass doors, a canopy on posts, a paved path). Its windows have their own
  * glow and lit-share uniforms: dark (exactly 0) until `windowsLitFraction` rises in Handover, then
@@ -190,62 +191,6 @@ export function createTower(o: TowerOpts): TowerPart & {
   roof.castShadow = true;
   roof.visible = false;
   group.add(roof);
-
-  // --- scaffold band: kit scaffold bays round the top floors while building, else a frame
-  const scaffold = new THREE.Group();
-  scaffold.name = "devsim-scaffold";
-  group.add(scaffold);
-  {
-    const bayGeo = o.lib?.geometry("construction", "scaffold_bay", 0) ?? null;
-    const ring = grow(geom.ring, geom.centre, 1.2);
-    const mats: THREE.Matrix4[] = [];
-    for (let i = 0; i < ring.length; i++) {
-      const a = ring[i] as XZ;
-      const b = ring[(i + 1) % ring.length] as XZ;
-      const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      const n = Math.max(1, Math.round(L / 2.5));
-      const yaw = Math.atan2(-(b[1] - a[1]), b[0] - a[0]);
-      for (let k = 0; k < n; k++) {
-        const u = (k + 0.5) / n;
-        const m = new THREE.Matrix4().compose(
-          new THREE.Vector3(a[0] + (b[0] - a[0]) * u, 0, a[1] + (b[1] - a[1]) * u),
-          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw),
-          new THREE.Vector3(L / n / 2.5, 1, 1),
-        );
-        mats.push(m);
-      }
-    }
-    if (bayGeo) {
-      const pal = o.manifest?.assets.construction?.palettes.default?.[0] as
-        | [string, string, string]
-        | undefined;
-      const mat = own(
-        createRoleMaterial({
-          instanced: false,
-          uniforms: o.roleUniforms,
-          ...(pal ? { palette: pal } : {}),
-        }),
-      );
-      const im = own(new THREE.InstancedMesh(bayGeo, mat, mats.length));
-      mats.forEach((m, i) => {
-        im.setMatrixAt(i, m);
-      });
-      im.frustumCulled = false;
-      im.raycast = NOOP;
-      scaffold.add(im);
-    } else {
-      const box = own(
-        new THREE.EdgesGeometry(
-          own(prism(grow(geom.ring, geom.centre, 1.2), SH * 2) as THREE.BufferGeometry),
-        ),
-      );
-      const lines = new THREE.LineSegments(
-        box,
-        own(new THREE.LineBasicMaterial({ color: DEVSIM_COLOURS.scaffoldLine })),
-      );
-      scaffold.add(lines);
-    }
-  }
 
   // --- entrance: glass doors, canopy on posts, door mat, paved path (built from the door frame)
   const entrance = new THREE.Group();
@@ -364,8 +309,6 @@ export function createTower(o: TowerOpts): TowerPart & {
       top = n > 0 ? Math.min(built, n) * SH || SH : 0;
       windows.count = winUpTo[nFin] ?? 0;
       roof.visible = built >= N - 1e-3;
-      scaffold.visible = building && n > 0;
-      scaffold.position.y = Math.max(0, top - SH * 2);
       entrance.visible = built >= 1;
       // the paved path is laid at Handover (the hoarding comes down)
       pathGroup.visible = !s.hoarding || s.act === "Handover" || s.act === "Daily Life";

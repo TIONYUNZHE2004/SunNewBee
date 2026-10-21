@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import type { StateAt } from "../../../devsim/types";
 import type { Clearance, Vec3 } from "../clearance";
 import type { LocalFrame } from "../frame";
@@ -25,14 +26,50 @@ export function devsimMoodWeights(sun: StateAt["sun"]): MoodWeights {
  * evening and night so the lit windows, street lights, floodlights and the speakers read (Q3).
  * Display only.
  */
-export function devsimGrade(p: LightPreset, w: MoodWeights): LightPreset {
+export function devsimGrade(p: LightPreset, w: MoodWeights, wet = 0): LightPreset {
   const dark = w.night + 0.6 * w.dusk;
-  return {
+  const graded: LightPreset = {
     ...p,
     exposure: p.exposure * (1 - 0.45 * dark),
     hemiIntensity: p.hemiIntensity * (1 - 0.35 * dark),
     envIntensity: p.envIntensity * (1 - 0.6 * dark),
     groundGrade: p.groundGrade * (1 - 0.3 * w.night),
+  };
+  return wet > 0 ? rainGrade(graded, wet) : graded;
+}
+
+/** How far the monsoon rain greys the sky and fog (saturation kept) and darkens them. */
+const RAIN_DESAT = 0.8;
+const RAIN_DARKEN = 0.12;
+const _hsl = { h: 0, s: 0, l: 0 };
+const _c = new THREE.Color();
+const greyed = (hex: string, wet: number) => {
+  _c.set(hex).getHSL(_hsl);
+  _c.setHSL(_hsl.h, _hsl.s * (1 - RAIN_DESAT * wet), _hsl.l * (1 - RAIN_DARKEN * wet));
+  return `#${_c.getHexString()}`;
+};
+
+/**
+ * The monsoon set piece's grade (C9 step 5): the sky, background and fog turn toward grey at
+ * their own lightness (so night stays night: ruling in the C9 report), the sun weakens and the fog
+ * closes in a little. `wet` 0..1 (the set piece's rain level); 0 returns the preset unchanged.
+ */
+export function rainGrade(p: LightPreset, wet: number): LightPreset {
+  const k = Math.max(0, Math.min(1, wet));
+  if (k === 0) return p;
+  return {
+    ...p,
+    background: greyed(p.background, k),
+    skyTop: greyed(p.skyTop, k),
+    hemiSky: greyed(p.hemiSky, k),
+    sunIntensity: p.sunIntensity * (1 - 0.55 * k),
+    exposure: p.exposure * (1 - 0.08 * k),
+    fog: {
+      ...p.fog,
+      color: greyed(p.fog.color, k),
+      nearK: p.fog.nearK * (1 - 0.35 * k),
+      farK: p.fog.farK * (1 - 0.2 * k),
+    },
   };
 }
 

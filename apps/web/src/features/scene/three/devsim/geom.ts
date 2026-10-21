@@ -1,5 +1,6 @@
 import type { DevelopmentPlan } from "../../../devsim/types";
 import type { LocalFrame } from "../frame";
+import { planExtras } from "./setPieces";
 
 /** A point in the local frame's ground plane: x east, z = -north (metres). */
 export type XZ = [x: number, z: number];
@@ -45,6 +46,11 @@ export interface SiteGeom {
    * across lots), with the lane offset to the left of a car facing the junction (left-hand traffic).
    */
   lane: QueueLane;
+  /**
+   * The plan's lorry route (C7 `lorry_route`, main road first, site gate last), local; [] when the
+   * plan has none (today's 66 s plan: the Handover lorries keep the lane).
+   */
+  lorryRoute: XZ[];
   /** Radius of the footprint (centre to farthest corner). */
   radius: number;
   storeys: number;
@@ -224,6 +230,7 @@ export function siteGeom(
     lane,
     park: L(plan.anchors.park),
     mall: L(plan.anchors.mall),
+    lorryRoute: planExtras(plan).lorryRoute?.path.map(L) ?? [],
     radius,
     storeys: plan.site.storeys,
   };

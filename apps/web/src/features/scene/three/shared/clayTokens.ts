@@ -241,6 +241,16 @@ export const DEVSIM_COLOURS = {
   hoardingNavy: "#3d4a63",
   hoardingPale: "#efe2c4",
   kerbSand: "#c9b892",
+  // C9 construction set pieces (prototype demo-storyboards): lorry route ribbon, netting, scaffold
+  // tubes, rain streaks, the piling rig, the crane's load and its sling
+  lorryRoute: "#e8931f",
+  netting: "#3fa35b",
+  scaffoldTube: "#a08a62",
+  rain: "#c4d2e0",
+  rigRed: "#d2544f",
+  rigSteel: "#3a3d42",
+  loadTimber: "#8a6d3b",
+  cable: "#33353a",
 } as const;
 
 export type ClayRole =

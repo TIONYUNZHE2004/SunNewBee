@@ -577,17 +577,21 @@ export function createCast(o: CastOpts): Cast {
       group.add(crowd.group);
       draw();
     },
-    update({ s, t: tt }: DevsimFrame) {
+    update({ s, t: tt, sp }: DevsimFrame) {
       t = tt;
       speaker = s.bubbles[0]?.who ?? null;
       glowK = speaker ? speakerGlow(s.sun) : 0;
       poses = castAt(tt, g, {
-        workersActive: s.workersActive,
+        // the site is closed over the Hari Raya hold (C9): no workers
+        workersActive: s.workersActive && !sp?.hold,
         ...(o.flowT ? { flowT: o.flowT(tt) } : {}),
       });
       draw();
     },
     people: () => pts,
+    demoState: () => ({
+      workers: [...poses.keys()].filter((id) => id.startsWith("worker")).length,
+    }),
     aoExcluded: () => [glow],
     personBox,
     project(camera, size) {
