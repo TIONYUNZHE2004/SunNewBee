@@ -19,6 +19,18 @@ export function SourceBadge({ badge }: { badge: EndCardBadge }) {
   );
 }
 
+/** The phrases spec §4.5 sets in bold; the text itself is never changed. */
+const EMPHASIS =
+  /(about \d+ min longer|morning school-run jam|Urban Park \d+ min|the mall \d+ min)/;
+
+/** Splits an item's text into plain and bold runs (§4.5 layout). */
+export function emphasise(text: string): { text: string; bold: boolean }[] {
+  return text
+    .split(EMPHASIS)
+    .map((part, i) => ({ text: part, bold: i % 2 === 1 }))
+    .filter((r) => r.text !== "");
+}
+
 /**
  * "What residents raised" (spec §4.5): the plan's end card, verbatim, with each item's sources.
  * `inline` lays it out in the flow (the List text version) instead of over the map.
@@ -34,10 +46,17 @@ export function EndCard({ card, inline = false }: { card: EndCardData; inline?: 
     >
       <h2 className="m-0 text-xl font-semibold tracking-tight">{card.title}</h2>
       <p className="mt-1 mb-3 text-xs font-semibold text-fg-soft">{card.subtitle}</p>
-      <ol className="m-0 space-y-2 pl-5">
+      <ol className="m-0 list-decimal space-y-2 pl-5 marker:font-bold">
         {card.items.map((it) => (
           <li key={it.text} data-testid="devsim-end-item" className="text-[15px] leading-snug">
-            {it.text}
+            {emphasise(it.text).map((r, i) =>
+              r.bold ? (
+                // biome-ignore lint/suspicious/noArrayIndexKey: runs are positional and fixed
+                <strong key={i}>{r.text}</strong>
+              ) : (
+                r.text
+              ),
+            )}
             {it.badges.map((b) => (
               <SourceBadge key={b} badge={b} />
             ))}

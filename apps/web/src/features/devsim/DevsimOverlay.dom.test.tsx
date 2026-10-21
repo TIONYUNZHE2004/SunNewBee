@@ -142,6 +142,14 @@ describe("DevsimOverlay", () => {
       "Parents complain about the morning school-run jam at the junction.SIMULATED",
       "Residents like having Urban Park 9 min and the mall 10 min away on foot.ROUTE ENGINESIMULATED",
     ]);
+    // §4.5 layout: numbered items, key phrases in bold
+    expect(card.querySelector("ol")?.className).toMatch(/list-decimal/);
+    expect([...card.querySelectorAll("strong")].map((b) => b.textContent)).toEqual([
+      "about 3 min longer",
+      "morning school-run jam",
+      "Urban Park 9 min",
+      "the mall 10 min",
+    ]);
     expect(card).toHaveTextContent(
       "ROUTE ENGINE numbers come from the mapped walk network. SIMULATED marks invented reactions.",
     );
