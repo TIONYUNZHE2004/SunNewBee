@@ -56,7 +56,7 @@ async function openAndFill() {
 }
 
 describe("ClosurePanel (T-027)", () => {
-  it("runs the contract request and shows the result with pressure for managers", async () => {
+  it("runs the request and shows the result with pressure for managers", async () => {
     const fetchMock = reply(200, SIM_RESULT);
     vi.stubGlobal("fetch", fetchMock);
     const user = await openAndFill();
@@ -72,8 +72,12 @@ describe("ClosurePanel (T-027)", () => {
     expect(card).toHaveTextContent("3 trips newly without a mapped route");
     expect(card).toHaveTextContent("data gaps, not the closure");
     expect(card).toHaveTextContent("High detour pressure");
-    expect(card).toHaveTextContent("Signpost the detour via Jalan Dillenia");
-    expect(card).toHaveTextContent("detour_roads[Persiaran Tamarind].weighted_trips=8");
+    expect(card).toHaveTextContent("Review signposting the detour via Jalan Dillenia");
+    // the basis in plain words for managers, never the engine's raw field path
+    expect(card).toHaveTextContent("Based on: 8 weighted sample trips on Persiaran Tamarind");
+    expect(card.textContent).not.toContain("detour_roads[");
+    // the marshal suggestion the engine repeated once per stretch shows once
+    expect(card.textContent?.match(/Consider a marshal/g)).toHaveLength(1);
     expect(card).toHaveTextContent("not traffic counts");
     expect(card).toHaveTextContent("Peak weights are an assumed travel pattern, not measured.");
     expect(card.textContent).not.toMatch(/\bsafe\b|minutes? of delay|vehicles/i);
