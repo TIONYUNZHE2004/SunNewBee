@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useJourney } from "../journey/journeyStore";
 import { useScene } from "../scene/sceneStore";
+import pre from "../scene/three/devsim/fixtures/setPieces.preC7.elmina.json";
+import { litShareAt, setPieceTiming } from "../scene/three/devsim/setPieces";
 import { collectProbe, hasProbe, registerDomProbe, registerProbe } from "./anchors";
 import { createDevsimHook, installDevsimHook } from "./devsimHook";
 import { useDevsim } from "./devsimStore";
+import elmina from "./fixtures/plan.elmina.json";
 import provisional from "./fixtures/plan.provisional.json";
 import { asDevsimIntent, beginDevsim, fetchDevsimPlan } from "./intent";
 import { stateAt } from "./timeline";
@@ -250,6 +253,29 @@ describe("probe window state (Q4)", () => {
     });
     off();
     expect(hasProbe("scene")).toBe(false);
+  });
+});
+
+describe("probe expected lit share in schedule mode (C10 review minor 5)", () => {
+  it("is the move-in's floor-by-floor share the tower draws, not the legacy timeline's", () => {
+    const c7 = {
+      ...(elmina as object),
+      lorry_route: pre.lorry_route,
+      schedule: pre.schedule,
+    } as unknown as DevelopmentPlan;
+    d().start(c7, "b");
+    const hook = createDevsimHook();
+    const tm = setPieceTiming(c7);
+    expect(tm.mode).toBe("schedule");
+    let differs = false;
+    for (const t of [27.5, 29, 30.5, 32, 33]) {
+      hook.seek(t);
+      const want = litShareAt(tm, t, c7.site.storeys, stateAt(t, c7).windowsLitFraction);
+      const got = hook.probe().expectedWindowsLitFraction;
+      expect(got).toBe(want);
+      if (got !== stateAt(t, c7).windowsLitFraction) differs = true;
+    }
+    expect(differs).toBe(true);
   });
 });
 

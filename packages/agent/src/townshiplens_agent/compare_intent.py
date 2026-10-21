@@ -8,6 +8,13 @@ from __future__ import annotations
 
 from .events import CompareEnd, CompareRoute, CompareSegment, RouteCompare, SceneIntent
 
+_NOUN = {"incline_pct": "incline", "width_m": "width", "step_count": "step count"}
+
+
+def unchecked_noun(attribute: str) -> str:
+    """How a compare answer names an unchecked attribute ("incline", "width", ...)."""
+    return _NOUN.get(attribute, attribute.replace("_", " "))
+
 
 def _end(world, place_id: str) -> CompareEnd:
     p = world.places.get(place_id)
@@ -50,8 +57,11 @@ def compare_payload(world, d: dict) -> RouteCompare:
 
 def compare_for(rec, route_id: str | None) -> dict | None:
     """The compare this turn whose recommended route is `route_id` (the latest one); with no
-    route id, the latest compare that has no recommended route (no_data / blocked)."""
+    route id, the latest compare that has no recommended route (no_data / blocked). Same-path
+    compares are skipped: nothing was compared."""
     for d in reversed(rec.compares):
+        if d.get("same_path"):
+            continue  # nothing was compared: that route's answer is plan_route's
         rid = (d.get("recommended") or {}).get("id")
         if rid == route_id:
             return d

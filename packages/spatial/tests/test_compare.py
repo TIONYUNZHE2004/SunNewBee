@@ -547,3 +547,16 @@ def test_tool_no_data_and_blocked_file_nothing(tmp_path):
 def test_tool_rejects_unknown_profile(ctx):
     r = _tool(ctx, profile="hovercraft")
     assert not r.ok and r.warnings
+
+
+def test_rest_limit_profile_keeps_plan_routes_rest_aware_route(w):
+    """R31: older_adult_rest is recommended plan_route's rest-aware route (the neutral search
+    ignores the rest limit); a shortest walk with no known FAIL means nothing to compare."""
+    from townshiplens_spatial import routing
+
+    r = compare(w, "start", "end", "older_adult_rest")
+    planned = routing.plan_route(w, "start", "end", "older_adult_rest").routes[0]
+    assert [s.edge_id for s in r.recommended.segments] == [s.edge_id for s in planned.segments]
+    assert r.recommended.rest_limit_m == planned.rest_limit_m
+    if r.stop is None:
+        assert r.same_path and r.fastest == r.recommended

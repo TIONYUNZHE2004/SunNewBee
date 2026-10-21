@@ -1,18 +1,36 @@
 import * as THREE from "three";
+import type { StateAt } from "../../../devsim/types";
 import type { AssetLibrary } from "../assets/library";
 import type { Manifest } from "../assets/manifest";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import { DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
+import { smallShadows } from "./devsimView";
 import { ease, span } from "./ease";
 import { along, distToLine, laneAt, lengthOf, type SiteGeom, type XZ } from "./geom";
 import { kitMesh, kitPalettes, place } from "./kit";
+import { mergeStatic } from "./merge";
+import { type MoveInTiming, SET_PIECE_S, type SetPiecesAt } from "./setPieces";
 
 const NOOP = () => {};
 const HOARD_M = 6;
 const CRANE_TOP_M = 50;
 const STACKS = 5;
 const LORRIES = 3;
+/** Construction traffic on the lorry route (C9): lorries and concrete mixers, alternating. */
+const ROUTE_LORRIES = 2;
+const ROUTE_MIXERS = 2;
+const ROUTE_VEHICLES = ROUTE_LORRIES + ROUTE_MIXERS;
+/** Screen seconds for one loop (main road -> gate in one lane, back out in the other). */
+const ROUTE_LOOP_S = 9;
+/** Lane centre off the route centreline (left of the facing; AC-W4 allows 3 m). */
+const ROUTE_LANE_M = 1.6;
+/** A vehicle within this distance of the gate is inside the site (not drawn). */
+const GATE_HIDE_M = 5;
+/** The crane's load hangs under the kit hook: hook point in the slewing head's frame (m). */
+const HOOK_X = 26;
+const HOOK_Y = 21;
+const SLING_M = 3;
 const QUEUE = 8;
 /** School-run queue: centre-to-centre gap and how far a car creeps forward (the lane is `g.lane`). */
 const QUEUE_GAP_M = 7;
@@ -262,20 +280,46 @@ export function createSite(o: SiteOpts): DevsimPart {
   const beacon = new THREE.Mesh(own(new THREE.SphereGeometry(0.7, 10, 8)), beaconMat);
   beacon.position.y = CRANE_TOP_M + 0.8;
   craneHead.add(beacon);
+  // the swinging load: a sling and a timber bundle under the kit hook (pivot at the hook)
+  let loadBundle: THREE.Mesh | null = null;
+  const loadPivot = new THREE.Group();
+  loadPivot.name = "devsim-crane-load";
+  loadPivot.position.set(HOOK_X, HOOK_Y, 0);
+  craneHead.add(loadPivot);
+  {
+    const cable = own(
+      new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.cable, roughness: 0.6 }),
+    );
+    const sling = new THREE.Mesh(
+      own(new THREE.CylinderGeometry(0.05, 0.05, SLING_M, 4).translate(0, -SLING_M / 2, 0)),
+      cable,
+    );
+    const bundle = new THREE.Mesh(
+      own(new THREE.BoxGeometry(3.4, 0.9, 1.4).translate(0, -SLING_M - 0.45, 0)),
+      own(new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.loadTimber, roughness: 0.85 })),
+    );
+    // shadows in the close beats only (`smallShadows`, set per frame)
+    bundle.castShadow = false;
+    loadPivot.add(sling, bundle);
+    loadBundle = bundle;
+  }
 
   // cement mixer: the construction kit's model (one LOD node, no separable drum, so it stays
-  // static; ruling R21: the kit model wins over the drum spin)
-  const mixer = kit("cement_mixer", 1, [2.5, 3.6, 8.5]);
+  // static; ruling R21: the kit model wins over the drum spin). Instance 0 stands in the yard; the
+  // others drive the lorry route (C9), drawn in the same mesh.
+  const mixer = kit("cement_mixer", 1 + ROUTE_MIXERS, [2.5, 3.6, 8.5]);
   mixer.mesh.name = "devsim-mixer";
-  {
-    const p: XZ = [
-      g.yard[0] + g.side[0] * -(g.radius + 4) + g.out[0] * 6,
-      g.yard[1] + g.side[1] * -(g.radius + 4) + g.out[1] * 6,
-    ];
-    mixer.set(0, place(_m, p[0], 0.05, p[1], yawZ(g.side)));
-    mixer.setCount(1);
-  }
-  yard.add(mixer.mesh);
+  const yardMixer = place(
+    new THREE.Matrix4(),
+    g.yard[0] + g.side[0] * -(g.radius + 4) + g.out[0] * 6,
+    0.05,
+    g.yard[1] + g.side[1] * -(g.radius + 4) + g.out[1] * 6,
+    yawZ(g.side),
+  );
+  mixer.set(0, yardMixer);
+  mixer.setCount(1);
+  // the route mixers drive outside the yard: the mesh joins the site group
+  group.add(mixer.mesh);
 
   // floodlights: masts at the yard corners, heads glow and pools light the yard at night
   const flood = new THREE.Group();
@@ -317,10 +361,13 @@ export function createSite(o: SiteOpts): DevsimPart {
       pp.renderOrder = 2;
       flood.add(pp);
     }
+    // C10p: 4 masts x (pole, head, pool) were 12 draws per pass; baked into pole, head, pool
+    for (const geo of mergeStatic(flood)) own(geo);
   }
+  const pools = flood.children.filter((c) => (c as THREE.Mesh).material === poolMat);
 
   // closed edge (red) and detour (dashed blue): ground strips over the road surface
-  const strip = (pts: readonly XZ[], colour: string, dash: number, y: number) => {
+  const strip = (pts: readonly XZ[], colour: string, dash: number, y: number, w = 2.4) => {
     const mat = own(
       new THREE.MeshStandardMaterial({
         color: colour,
@@ -334,7 +381,7 @@ export function createSite(o: SiteOpts): DevsimPart {
         polygonOffsetUnits: -3,
       }),
     );
-    const m = new THREE.Mesh(own(ribbonGeometry(pts, 2.4, y, dash)), mat);
+    const m = new THREE.Mesh(own(ribbonGeometry(pts, w, y, dash)), mat);
     m.receiveShadow = true;
     m.raycast = NOOP;
     m.renderOrder = 1;
@@ -345,6 +392,13 @@ export function createSite(o: SiteOpts): DevsimPart {
     closedNear.length >= 2 ? strip(closedNear, DEVSIM_COLOURS.closedStrip, 0, 0.3) : null;
   const detourMesh =
     g.detour.length >= 2 ? strip(g.detour, DEVSIM_COLOURS.detourStrip, 2.2, 0.32) : null;
+  // the lorry route (C9): a thin orange ribbon on the computed drive route
+  const routeMesh =
+    g.lorryRoute.length >= 2 ? strip(g.lorryRoute, DEVSIM_COLOURS.lorryRoute, 0, 0.34, 1.4) : null;
+  if (routeMesh) {
+    routeMesh.name = "devsim-lorry-route";
+    routeMesh.visible = false;
+  }
 
   // the lot marker for the Brief overview (prototype: the outlined parcel under its label): a
   // tinted patch and a dashed outline where the yard will stand; gone once the hoarding is up
@@ -411,17 +465,20 @@ export function createSite(o: SiteOpts): DevsimPart {
     [DEVSIM_COLOURS.slateBlue, DEVSIM_COLOURS.slate, DEVSIM_COLOURS.glass],
     ...vPal,
   ];
-  const lorries = vkit("lorry", LORRIES, [2.2, 3.0, 7.0], lorryPal);
+  const lorries = vkit("lorry", LORRIES + ROUTE_LORRIES, [2.2, 3.0, 7.0], lorryPal);
   const cars = [
     vkit("small_sedan", Math.ceil(QUEUE / 2), [1.7, 1.5, 4.3], carPal),
     vkit("mpv", Math.floor(QUEUE / 2), [1.7, 1.7, 4.4], carPal),
   ];
   // one entry per vehicle in a fixed order (probe: index i is the same vehicle); NaN = not drawn
-  const vehiclePts: [number, number, number][] = Array.from({ length: LORRIES + QUEUE }, () => [
-    Number.NaN,
-    0,
-    0,
-  ]);
+  const vehiclePts: [number, number, number][] = Array.from(
+    { length: LORRIES + QUEUE + ROUTE_VEHICLES },
+    () => [Number.NaN, 0, 0],
+  );
+  /** Drawn lorries and mixers this frame (demo hook). */
+  const drawnLorries: { kind: "lorry" | "mixer"; x: number; z: number }[] = [];
+  let movingLorries = 0;
+  let last: SetPiecesAt | null = null;
   const setPt = (i: number, x: number, y: number, z: number) => {
     const v = vehiclePts[i] as [number, number, number];
     v[0] = x;
@@ -433,7 +490,33 @@ export function createSite(o: SiteOpts): DevsimPart {
     group,
     vehicles: () => vehiclePts,
     aoExcluded: () => [lot],
-    update({ s, t, night }: DevsimFrame) {
+    demoState() {
+      const route = g.lorryRoute;
+      return {
+        crane: {
+          yaw: craneHead.rotation.y,
+          yawDeg: (craneHead.rotation.y * 180) / Math.PI,
+          stopped: last?.crane.stopped ?? true,
+          wetBeat: last?.wetBeat ?? false,
+          hold: last?.hold ?? false,
+          hookParked: !loadPivot.visible,
+          loadSwingRad: loadPivot.rotation.x,
+        },
+        movingLorries,
+        lorries: drawnLorries.map((v) => ({
+          ...v,
+          distToRoute: route.length >= 2 ? distToLine(route, v.x, v.z) : null,
+        })),
+        lorryRoute: {
+          drawn: !!routeMesh?.visible,
+          points: route.length,
+          mode: last?.timing.mode ?? "legacy",
+        },
+      };
+    },
+    update({ s, t, night, sp: spIn }: DevsimFrame) {
+      const sp = spIn ?? legacySetPieces(s);
+      last = sp;
       const cons = s.act === "Construction" && s.hoarding;
       lot.visible = t < 4;
       const fade = ease(span(t, 31.6, 32.4)); // the kit sinks away as Handover begins
@@ -448,30 +531,63 @@ export function createSite(o: SiteOpts): DevsimPart {
       mast.scale.y = Math.max(0.01, lift);
       mast.visible = lift > 0.05;
       craneHead.position.y = lift;
-      craneHead.rotation.y = s.crane.slewRad;
+      craneHead.rotation.y = sp.crane.yaw;
       beacon.visible = s.crane.beaconOn;
+      // the load trails the slew (lag) and sways a little along the jib; parked in the Raya hold
+      loadPivot.visible = !sp.hold;
+      if (loadBundle) loadBundle.castShadow = smallShadows(s);
+      loadPivot.rotation.x = Math.max(-0.4, Math.min(0.4, -sp.crane.vel * 0.35));
+      loadPivot.rotation.z = 0.06 * (sp.crane.stopped ? 0.25 : 1) * Math.sin(t * 2.1);
       // the crane sinks by its own height over the same 0.8 s, so it reads as a quick fade
       craneGroup.position.y = -(CRANE_TOP_M + craneHead.position.y + 2) * fade;
-      mixer.mesh.visible = cons;
-      // floodlights: on at night while building
-      const lit = cons ? night : 0;
+      mixer.mesh.visible = cons || sp.traffic;
+      // floodlights: on at night while building; off while the site is closed (Raya hold)
+      const lit = cons && !sp.hold ? night : 0;
       poolMat.opacity = 0.6 * lit;
+      // an unlit pool (opacity 0) adds nothing: not drawn (C10p)
+      for (const p of pools) p.visible = lit > 0;
       headMat.color.copy(HEAD_OFF).lerp(HEAD_ON, lit);
       const routesOn = t >= 6 && s.act === "Construction";
       if (closedMesh) closedMesh.visible = routesOn;
       if (detourMesh) detourMesh.visible = t >= 6.5 && s.act === "Construction";
+      if (routeMesh) routeMesh.visible = sp.routeOn;
 
       for (const v of vehiclePts) v[0] = Number.NaN;
-      // lorries drive in up the lane and park, nose to tail, short of the junction
+      drawnLorries.length = 0;
+      // Handover lorries: along the lorry route to the gate when the plan has one, else up the
+      // lane, parking nose to tail short of the junction
       let nl = 0;
-      if (s.lorries)
-        lorryPoses(g, t).forEach((v, i) => {
+      movingLorries = 0;
+      if (sp.moveInLorries && !sp.hold) {
+        const poses =
+          g.lorryRoute.length >= 2
+            ? moveInRoutePoses(g.lorryRoute, t, sp.timing.moveIn)
+            : lorryPoses(g, t);
+        poses.forEach((v, i) => {
           if (!v) return;
           lorries.set(nl, place(_m, v.x, 0.05, v.z, yawZ(v.dir)), i);
           setPt(i, v.x, 1.5, v.z);
+          drawnLorries.push({ kind: "lorry", x: v.x, z: v.z });
           nl++;
+          movingLorries++;
+        });
+      }
+      // construction traffic on the lorry route (lorries and mixers alternate); gone in the hold.
+      // The yard mixer (instance 0) is drawn only while building behind the hoarding.
+      let nm = 0;
+      if (cons) mixer.set(nm++, yardMixer);
+      const tr = sp.timing.lorryRoute;
+      if (sp.traffic && tr && g.lorryRoute.length >= 2)
+        routeTrafficPoses(g.lorryRoute, t, tr[0]).forEach((v, k) => {
+          if (!v) return;
+          const isMixer = k % 2 === 1;
+          if (isMixer) mixer.set(nm++, place(_m, v.x, 0.05, v.z, yawZ(v.dir)));
+          else lorries.set(nl++, place(_m, v.x, 0.05, v.z, yawZ(v.dir)), k % LORRIES);
+          setPt(LORRIES + QUEUE + k, v.x, 1.5, v.z);
+          drawnLorries.push({ kind: isMixer ? "mixer" : "lorry", x: v.x, z: v.z });
         });
       lorries.setCount(nl);
+      mixer.setCount(nm);
       // the school-run queue (Daily Life morning)
       const counts = [0, 0];
       queuePoses(g, t).forEach((v, i) => {
@@ -541,6 +657,87 @@ export function lorryPoses(g: SiteGeom, t: number): (VehiclePose | null)[] {
     const a = laneAt(g.lane, d);
     return { x: a.p[0], z: a.p[1], dir: a.dir };
   });
+}
+
+/** The Handover lorries' stops, metres short of the gate along the lorry route. */
+const ROUTE_STOPS = [GATE_HIDE_M + 2, GATE_HIDE_M + 11.5, GATE_HIDE_M + 21];
+
+/** Pose `d` m along a route, facing `fwd` (true: toward the gate), in the lane left of the facing. */
+function routePose(route: readonly XZ[], d: number, fwd: boolean): VehiclePose {
+  const a = along(route, d);
+  const f: XZ = fwd ? a.dir : [-a.dir[0], -a.dir[1]];
+  const left: XZ = [f[1], -f[0]];
+  return { x: a.p[0] + left[0] * ROUTE_LANE_M, z: a.p[1] + left[1] * ROUTE_LANE_M, dir: f };
+}
+
+/**
+ * The Handover lorries on the lorry route at t (pure; index i is lorry i, null = not drawn): one
+ * every `lorryGap` s from `t0` (schedule: parked by 29.5 s) they drive the last stretch of the
+ * route to the gate and park nose to tail in the inbound lane, each within ROUTE_LANE_M of the
+ * route (AC-W4).
+ */
+export function moveInRoutePoses(
+  route: readonly XZ[],
+  t: number,
+  m: Pick<MoveInTiming, "t0" | "lorryGap" | "lorryDrive">,
+): (VehiclePose | null)[] {
+  const L = lengthOf(route);
+  return Array.from({ length: LORRIES }, (_, i) => {
+    const stop = L - (ROUTE_STOPS[i] as number);
+    const a = m.t0 + i * m.lorryGap;
+    const d = stop - (1 - ease(span(t, a, a + m.lorryDrive))) * 120;
+    if (d < 0 || stop < 0) return null;
+    return routePose(route, d, true);
+  });
+}
+
+/**
+ * Construction traffic on the lorry route at t (pure; index k is vehicle k, lorries even, mixers
+ * odd, null = inside the site): each loops main road -> gate in the inbound lane and back out in
+ * the outbound lane, ROUTE_LOOP_S per loop, spaced evenly; within ROUTE_LANE_M of the route.
+ */
+export function routeTrafficPoses(
+  route: readonly XZ[],
+  t: number,
+  t0: number,
+): (VehiclePose | null)[] {
+  const L = lengthOf(route);
+  return Array.from({ length: ROUTE_VEHICLES }, (_, k) => {
+    if (L < GATE_HIDE_M * 3) return null;
+    const ph = ((((t - t0) / ROUTE_LOOP_S + k / ROUTE_VEHICLES) % 1) + 1) % 1;
+    const d = ph * 2 * L;
+    const inbound = d < L;
+    const at = inbound ? d : 2 * L - d;
+    if (at > L - GATE_HIDE_M) return null;
+    return routePose(route, at, inbound);
+  });
+}
+
+/** Set pieces for a bare frame (part tests without a layer): today's crane, nothing else. */
+function legacySetPieces(s: StateAt): SetPiecesAt {
+  return {
+    timing: {
+      mode: "legacy",
+      piling: [0, 0],
+      lorryRoute: null,
+      raya: null,
+      monsoon: null,
+      moveIn: SET_PIECE_S.legacyMoveIn,
+      total: 0,
+    },
+    hold: false,
+    monsoon: false,
+    wetBeat: false,
+    rain: 0,
+    piling: false,
+    pilingU: 0,
+    routeOn: false,
+    traffic: false,
+    crane: { yaw: s.crane.slewRad, vel: 0, stopped: !s.workersActive },
+    lit: s.windowsLitFraction,
+    occupancy: s.occupancy,
+    moveInLorries: s.lorries,
+  };
 }
 
 /**

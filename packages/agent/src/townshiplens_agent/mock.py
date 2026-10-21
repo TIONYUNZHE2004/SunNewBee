@@ -979,6 +979,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
                 "status": cmp["status"],
                 "routes": [cmp["recommended"]] if cmp.get("recommended") else [],
                 "verification_requests": cmp.get("verification_requests") or [],
+                "closures": cmp.get("closures") or [],
             }
         routes = rr.get("routes") or []
         r0 = routes[0] if routes else None

@@ -205,16 +205,24 @@ describe("honesty and contrast", () => {
     to(35);
     fireEvent.click(screen.getByTestId("devsim-residents-button"));
     const texts = [screen.getByRole("dialog").textContent ?? ""];
-    for (const r of data.residents) {
-      fireEvent.click(
-        screen.getByRole("button", { name: new RegExp(`^.?${r.name}(New tower|Neighbour)`) }),
+    // A text match over the dialog's buttons (none has an aria-label, so the text is the name):
+    // getByRole computes every accessible name, and 80 such lookups timed out once under load.
+    const button = (re: RegExp) => {
+      const b = [...screen.getByRole("dialog").querySelectorAll("button")].find((x) =>
+        re.test(x.textContent ?? ""),
       );
+      if (!b) throw new Error(`no button ${re}`);
+      return b;
+    };
+    for (const r of data.residents) {
+      fireEvent.click(button(new RegExp(`^.?${r.name}(New tower|Neighbour)`)));
       texts.push(screen.getByTestId("devsim-resident-detail").textContent ?? "");
-      fireEvent.click(screen.getByRole("button", { name: /All 40 residents/ }));
+      fireEvent.click(button(/All 40 residents/));
     }
+    expect(texts).toHaveLength(data.residents.length + 1);
     expect(honestyViolations(texts.join("\n"))).toEqual([]);
     expect(texts.join("\n")).not.toMatch(/\bblocked\b|not reachable/i);
-  });
+  }, 20_000);
 
   it("avatar initials pick the more readable ink", () => {
     expect(inkOn("#ffffff")).toBe("#1c1b19");

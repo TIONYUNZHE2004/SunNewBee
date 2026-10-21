@@ -46,14 +46,14 @@ export function reasonsTitle(c: CompareIntent): string {
 
 /**
  * The toast body after its title (AC-N5); null without a ticket or unchecked stretch. Without a
- * computed N (`confirm_n` null) only the first sentence is shown (R22: N always counts wheelchair
- * sample journeys, whatever the profile).
+ * computed N, or with N = 0 (`confirm_n` null or 0, ruling R30), only the first sentence is shown
+ * (R22: N always counts wheelchair sample journeys, whatever the profile).
  */
 export function toastBody(c: CompareIntent): string | null {
   const u = c.unchecked[0];
   if (!c.vr || !u) return null;
   const first = `${attributeName(u.attribute)} on ${metres(u.length_m)} m of the recommended path is not checked yet.`;
-  return c.confirm_n === null
+  return !c.confirm_n
     ? first
     : `${first} Checking it would confirm ${c.confirm_n} wheelchair trips.`;
 }
@@ -116,6 +116,14 @@ export function reasonRows(c: CompareIntent): ReasonRow[] {
 export const usesDemoValues = (c: CompareIntent): boolean =>
   !!c.fastest?.demo_evidence || !!c.recommended?.demo_evidence || c.pois.some((p) => p.demo);
 
+/**
+ * Whether the stop fact is a demo value. The wire payload has no evidence type for the stop, so
+ * without a route-level flag it follows the POIs: any placeholder POI on this compare means the
+ * corridor's facts are placeholders. This can over-label a real fact, never under-label one.
+ */
+export const stopIsDemo = (c: CompareIntent): boolean =>
+  c.fastest?.demo_evidence ?? c.pois.some((p) => p.demo);
+
 // ---------------------------------------------------------------- 3D overlay copy (B10)
 
 const minutes = (m: number | null | undefined): string =>
@@ -142,7 +150,7 @@ const PROFILE_NAMES: Record<string, string> = {
 
 /** The query chip: "Wheelchair · {from} → {to}". */
 export function queryChip(c: CompareIntent): string {
-  return `${PROFILE_NAMES[c.profile] ?? c.profile} · ${c.from.name || c.from.id} → ${c.to.name || c.to.id}`;
+  return `${PROFILE_NAMES[c.profile] ?? c.profile} · ${c.from_place.name || c.from_place.id} → ${c.to_place.name || c.to_place.id}`;
 }
 
 export const DEMO_VALUE = "Demo value · not surveyed";
@@ -194,7 +202,7 @@ export function stopTag(c: CompareIntent): TagCopy | null {
   return {
     key: "Not passable",
     text: barrierText(c.stop.attribute, c.stop.value),
-    note: c.fastest?.demo_evidence ? DEMO_VALUE : undefined,
+    note: stopIsDemo(c) ? DEMO_VALUE : undefined,
     tone: "fail",
   };
 }
@@ -242,7 +250,7 @@ export function poiTag(c: CompareIntent, index: number): TagCopy | null {
     case "arrival":
       return {
         key: "Arrived",
-        text: `${c.to.name || c.to.id}${isStepFree(c) ? " · step-free" : ""}`,
+        text: `${c.to_place.name || c.to_place.id}${isStepFree(c) ? " · step-free" : ""}`,
         note,
         tone: "ok",
       };

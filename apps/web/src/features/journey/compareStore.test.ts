@@ -5,6 +5,7 @@ import provisional from "../devsim/fixtures/plan.provisional.json";
 import type { DevelopmentPlan } from "../devsim/types";
 import { COMPARE_TOTAL_S, registerCompareDemo, useCompare } from "./compareStore";
 import { asCompareIntent, isPlayableCompare } from "./compareTypes";
+import elmina from "./fixtures/compare.elmina.json";
 import { handCompare } from "./fixtures/compareHand";
 import demoPlan from "./fixtures/demoPlan.json";
 import { useJourney } from "./journeyStore";
@@ -88,11 +89,27 @@ describe("asCompareIntent / isPlayableCompare", () => {
     const p = handCompare();
     expect(asCompareIntent({ kind: "route.highlight" })).toBeNull();
     expect(asCompareIntent(p)?.recommended?.id).toBe("rt-rec");
-    const { kind: _k, from, to, ...rest } = p;
-    const nested = asCompareIntent({ kind: "route.compare", from, to, compare: rest });
+    const { kind: _k, route_id, ...rest } = p;
+    const nested = asCompareIntent({ kind: "route.compare", route_id, compare: rest });
     expect(nested?.recommended?.id).toBe("rt-rec");
-    expect(nested?.from.name).toBe("Car Park B");
+    expect(nested?.route_id).toBe("rt-rec");
+    expect(nested?.from_place.name).toBe("Car Park B");
+    expect(nested?.to_place.id).toBe("pl-playground");
     expect(nested?.unchecked).toHaveLength(1);
+  });
+  it("reads the recorded Elmina route.compare intent (B6 fixture)", () => {
+    const c = asCompareIntent(elmina);
+    expect(c?.from_place).toEqual({ id: "lakeside-mall", name: "Elmina Lakeside Mall" });
+    expect(c?.to_place.name).toBe("Surau Kiambang");
+    expect(c?.route_id).toBe(c?.recommended?.id);
+    expect(c?.recommended?.coordinates.length).toBeGreaterThan(1);
+    expect(c?.fastest?.coordinates.length).toBeGreaterThan(1);
+    expect(isPlayableCompare(c)).toBe(true);
+  });
+  it("rejects a route without coordinates", () => {
+    const p = handCompare();
+    const bad = { ...p, recommended: { ...p.recommended, coordinates: undefined }, fastest: null };
+    expect(asCompareIntent(bad)).toBeNull();
   });
   it("plays only two different routes with a recommended one", () => {
     expect(isPlayableCompare(handCompare())).toBe(true);
@@ -119,6 +136,10 @@ describe("nav demo registration", () => {
     hook.seek(19.5);
     expect(hook.state()).toMatchObject({ counters: { tickets: 1 }, camera: "split" });
     expect(hook.state().beats).toContain("ticket-toast");
+    expect(hook.state()).toMatchObject({ recommendedM: 520, stopAtM: 274 });
+    const tl = hook.state().timeline as { id: string; t0: number; raw: number | null }[];
+    expect(tl.find((b) => b.id === "ticket-flight")).toMatchObject({ t0: 17.6, raw: 17.6 });
+    expect(tl.find((b) => b.id === "intro")).toMatchObject({ t0: 0, raw: null });
     off();
     expect(hook.state()).toMatchObject({ key: "nav", registered: false });
   });
