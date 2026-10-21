@@ -11,13 +11,36 @@ const g = siteGeom(P, createFrame([101.5076, 3.1794]));
 const at = (t: number) => castAt(t, g, { workersActive: stateAt(t, P).workersActive });
 
 describe("devsim cast script", () => {
-  it("Halim walks the detour path in Construction", () => {
-    const a = at(17.2)?.get("halim");
-    const b = at(21.6)?.get("halim");
+  it("Halim walks the detour path in Construction, and stands still while he talks", () => {
+    const a = at(17)?.get("halim");
+    const b = at(22.6)?.get("halim");
     expect(a && b).toBeTruthy();
     expect(distToLine(g.halimPath, a!.x, a!.z)).toBeLessThan(0.5);
-    expect(Math.hypot(a!.x - b!.x, a!.z - b!.z)).toBeGreaterThan(20);
-    expect(at(19).get("halim")?.walk).toBe(true);
+    expect(distToLine(g.halimPath, b!.x, b!.z)).toBeLessThan(0.5);
+    expect(Math.hypot(a!.x - b!.x, a!.z - b!.z)).toBeGreaterThan(10);
+    expect(at(17).get("halim")?.walk).toBe(true);
+    expect(at(19).get("halim")?.walk).toBe(false);
+    expect(at(22).get("halim")?.walk).toBe(true);
+    // he stands at the point the 17.2-21.6 s camera aims at (halimMid)
+    const mid = g.halimPath[Math.floor(g.halimPath.length * 0.5)]!;
+    expect(
+      Math.hypot(at(20)!.get("halim")!.x - mid[0], at(20)!.get("halim")!.z - mid[1]),
+    ).toBeLessThan(0.01);
+  });
+
+  it("owner fix: every speaker stands still for their whole bubble (all 7)", () => {
+    for (const b of P.bubbles) {
+      const first = at(b.t0).get(b.who);
+      expect(first, `bubble ${b.n} ${b.who}`).toBeTruthy();
+      for (let t = b.t0; t < b.t1; t += 0.05) {
+        const p = at(t).get(b.who);
+        expect(p, `bubble ${b.n} at ${t}`).toBeTruthy();
+        expect(Math.hypot(p!.x - first!.x, p!.z - first!.z), `bubble ${b.n} at ${t}`).toBeLessThan(
+          1e-6,
+        );
+        expect(p!.walk, `bubble ${b.n} at ${t}`).toBe(false);
+      }
+    }
   });
 
   it("Farid stands by the hoarding (24 s); movers queue on the path (37 s)", () => {

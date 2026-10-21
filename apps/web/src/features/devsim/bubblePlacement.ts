@@ -67,6 +67,8 @@ export function placeBubbleBox(
   keepClear: readonly Rect[],
   size: { w: number; h: number },
   area: BubbleArea,
+  /** The side the bubble is on now: kept while it still fits, so it does not flip (owner fix). */
+  prefer?: BubbleSide | null,
 ): BubbleBox {
   const sp = union(keepClear);
   const cx = sp.x + sp.w / 2;
@@ -94,7 +96,9 @@ export function placeBubbleBox(
     const shifted = vertical ? Math.abs(top - w.top) : Math.abs(left - w.left);
     return { box: { left, top, side: w.side }, cover, shifted, i };
   });
-  // 1. a side that fits as it is; 2. one that fits once slid along the area; 3. the least cover
+  // 0. the side it is on, while it fits (exactly or slid); 1. a side that fits as it is; 2. one that fits once slid along the area; 3. the least cover
+  const kept = prefer ? tried.find((c) => c.box.side === prefer && c.cover === 0) : undefined;
+  if (kept) return kept.box;
   const exact = tried.find((c) => c.cover === 0 && c.shifted < 0.5);
   if (exact) return exact.box;
   const slid = tried
@@ -103,4 +107,31 @@ export function placeBubbleBox(
   if (slid) return slid.box;
   const best = [...tried].sort((a, b) => a.cover - b.cover || a.i - b.i)[0];
   return (best ?? tried[0])?.box as BubbleBox;
+}
+
+/** Time constant of the bubble's glide after its anchor (screen s). */
+export const BUBBLE_SMOOTH_S = 0.2;
+
+/**
+ * Pure: one smoothing step of a bubble's box towards `target` over `dt` screen seconds (owner fix:
+ * the bubble and its ROUTE ENGINE tag jumped with the speaker's projected rect every frame). Snaps
+ * to the target when there is no previous box, time did not run forward by a frame (paused or a
+ * seek), or the glide would cover the speaker or a name tag (AC-C2 stays exact).
+ */
+export function smoothBubbleBox(
+  prev: BubbleBox | null,
+  target: BubbleBox,
+  dt: number,
+  keepClear: readonly Rect[],
+  size: { w: number; h: number },
+): BubbleBox {
+  if (!prev || !(dt > 0) || dt > 0.5) return target;
+  const k = 1 - Math.exp(-dt / BUBBLE_SMOOTH_S);
+  const box: BubbleBox = {
+    left: prev.left + (target.left - prev.left) * k,
+    top: prev.top + (target.top - prev.top) * k,
+    side: target.side,
+  };
+  const r: Rect = { x: box.left, y: box.top, w: size.w, h: size.h };
+  return keepClear.some((c) => overlapArea(r, c) > 0) ? target : box;
 }

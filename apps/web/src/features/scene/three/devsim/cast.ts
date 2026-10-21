@@ -86,6 +86,17 @@ const MOVER_LOOKS = [
 /** The ASSETS lane's worker look (if the manifest has one), else the adult man with runtime hat + vest. */
 const WORKER_FALLBACK = "man_office_white";
 
+/** Halim's bubble 1 window (spec §4.3, fixed in the plan builder): he stands still through it. */
+export const HALIM_SAYS: readonly [number, number] = [18.4, 21.4];
+/** How far he walks into and out of his standing spot (m, ~5 m/s at the fast-forward clock). */
+const HALIM_WALK_M = 9;
+
+/** Metres along Halim's path to its middle point (the camera's `halimMid`: point floor(n / 2)). */
+export function halimMidM(g: SiteGeom): number {
+  const i = Math.floor(g.halimPath.length * 0.5);
+  return lengthOf(g.halimPath.slice(0, i + 1));
+}
+
 export interface CastPose {
   x: number;
   z: number;
@@ -161,10 +172,19 @@ export function castAt(
 
   // Construction: Halim on the detour, Farid by the hoarding
   if (t >= 16.6 && t < 23) {
+    // Owner fix (6.png): he stands still while his bubble is up (18.4-21.4 s), at the detour's
+    // middle point the 17.2-21.6 s camera frames (`halimMid`), and walks a few metres before and
+    // after it. He used to cross the whole 180 m stretch in 4.4 s, so the bubble and its ROUTE
+    // ENGINE tag chased him across the screen.
+    const mid = halimMidM(g);
     const L = lengthOf(g.halimPath);
-    const u = span(t, 17.2, 21.6);
-    const a = along(g.halimPath, L * u);
-    put("halim", a.p, yawOf(a.dir), u > 0 && u < 1);
+    const d =
+      t < HALIM_SAYS[0]
+        ? mid - HALIM_WALK_M * (1 - span(t, 16.6, HALIM_SAYS[0]))
+        : mid + HALIM_WALK_M * span(t, HALIM_SAYS[1], 23);
+    const a = along(g.halimPath, Math.max(0, Math.min(L, d)));
+    const walking = t < HALIM_SAYS[0] || t > HALIM_SAYS[1];
+    put("halim", a.p, yawOf(a.dir), walking);
   }
   if (t >= 22.4 && t < 27.5) put("farid", g.farid, toward(g.farid, g.centre), false);
   // workers by day

@@ -3,7 +3,14 @@ import type { CardViewport } from "../journey/cardPlacement";
 import { InSlot } from "../map-ui/mapSlots";
 import { registerDomProbe, useDevsimAnchors } from "./anchors";
 import { Bubble, type BubbleView } from "./Bubble";
-import { BUBBLE_BELOW, BUBBLE_ESTIMATE, placeBubbleBox, speakerKeepClear } from "./bubblePlacement";
+import {
+  BUBBLE_BELOW,
+  BUBBLE_ESTIMATE,
+  type BubbleBox,
+  placeBubbleBox,
+  smoothBubbleBox,
+  speakerKeepClear,
+} from "./bubblePlacement";
 import { SITE_LABEL } from "./copy";
 import { DevsimHud } from "./DevsimHud";
 import { DevsimStatusNotice } from "./DevsimStatus";
@@ -27,13 +34,21 @@ function AnchoredBubble({
   b,
   keepClear,
   viewport,
+  onPlaced,
 }: {
   b: BubbleView;
   keepClear: Rect[];
   viewport: CardViewport;
+  /** The bubble's centre once placed (the envelope leaves from there). */
+  onPlaced?: (n: number, centre: { x: number; y: number }) => void;
 }) {
   const ref = useRef<HTMLElement>(null);
   const [size, setSize] = useState<{ w: number; h: number }>(BUBBLE_ESTIMATE);
+  const t = useDevsim((s) => s.t);
+  const playing = useDevsim((s) => s.playing);
+  // the box shown last frame and its screen time: the bubble glides after its anchor while the
+  // simulation plays (owner fix: no per-frame jumps) and snaps when paused or after a seek
+  const last = useRef<{ t: number; box: BubbleBox } | null>(null);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -42,7 +57,22 @@ function AnchoredBubble({
     if (w > 0 && h > 0 && (Math.abs(w - size.w) > 0.5 || Math.abs(h - size.h) > 0.5))
       setSize({ w, h });
   });
-  const box = placeBubbleBox(keepClear, size, viewport);
+  const prev = last.current;
+  const target = placeBubbleBox(keepClear, size, viewport, playing ? prev?.box.side : null);
+  const box =
+    prev && prev.t === t && playing
+      ? prev.box // a re-render within the same frame (new anchors): the next frame glides
+      : smoothBubbleBox(
+          playing ? (prev?.box ?? null) : null,
+          target,
+          t - (prev?.t ?? t),
+          keepClear,
+          size,
+        );
+  useLayoutEffect(() => {
+    last.current = { t, box };
+    onPlaced?.(b.n, { x: box.left + size.w / 2, y: box.top + size.h / 2 });
+  });
   return <Bubble ref={ref} b={b} at={box} />;
 }
 
@@ -119,6 +149,11 @@ export function DevsimOverlay({
   const siteLabel = useDevsimAnchors((s) => s.siteLabel);
   const labelPoint = useDevsimAnchors((s) => s.labelPoint ?? s.towerTop);
   const badgeRef = useRef<HTMLDivElement>(null);
+  // where each bubble was last drawn: its envelope leaves from there after the bubble closes
+  const bubbleAt = useRef(new Map<number, { x: number; y: number }>());
+  const onPlaced = useRef((n: number, c: { x: number; y: number }) => {
+    bubbleAt.current.set(n, c);
+  }).current;
   const ownStage = useRef<HTMLDivElement>(null);
   const stage = stageRef ?? ownStage;
 
@@ -200,6 +235,7 @@ export function DevsimOverlay({
                 ),
               ]}
               viewport={viewport}
+              onPlaced={onPlaced}
             />
           ))
         : views.length > 0 && (
@@ -216,7 +252,10 @@ export function DevsimOverlay({
       {st.envelope && (
         <Envelope
           progress={st.envelope.progress}
-          from={speakerHead ? { x: speakerHead[0], y: speakerHead[1] } : null}
+          from={
+            (st.envelope.from !== undefined ? bubbleAt.current.get(st.envelope.from) : undefined) ??
+            (speakerHead ? { x: speakerHead[0], y: speakerHead[1] } : null)
+          }
           stageRef={stage}
           badgeRef={badgeRef}
         />
