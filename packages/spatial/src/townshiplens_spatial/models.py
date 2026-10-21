@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 ClaimStatus = Literal["unknown", "reported", "verified", "stale", "contested"]
 EvalResult = Literal["PASS", "FAIL", "UNKNOWN"]
@@ -484,10 +484,15 @@ class JourneyPlan(BaseModel):
 
 # ---- Navigation compare (demo polish B1): fastest vs profile route -------------------------
 PoiKind = Literal["kerb", "covered_start", "incline", "seating", "unknown", "arrival"]
+# Every compare field is always in the payload (null when unknown): required in the response
+# schema, so the generated client types need no optional checks.
+_ALWAYS = ConfigDict(json_schema_serialization_defaults_required=True)
 
 
 class StopPoint(BaseModel):
     """The first known FAIL along the fastest route under the requested profile."""
+
+    model_config = _ALWAYS
 
     edge_id: str
     at_m: float  # distance from the route start to the start of that edge
@@ -501,6 +506,8 @@ class ReasonSet(BaseModel):
     """Per-route reasons from known facts only (spec D2): a field is None when no edge on the
     route has a known value for it. Unknown values never count for or against a route."""
 
+    model_config = _ALWAYS
+
     steps: int | None = None
     max_incline_pct: float | None = None
     min_width_m: float | None = None
@@ -513,12 +520,16 @@ class ReasonSet(BaseModel):
 
 
 class RouteReasons(BaseModel):
+    model_config = _ALWAYS
+
     fastest: ReasonSet | None = None
     recommended: ReasonSet | None = None
 
 
 class UncheckedStretch(BaseModel):
     """A contiguous run of recommended-route edges whose `attribute` is not checked yet."""
+
+    model_config = _ALWAYS
 
     edge_id: str  # the run's first edge
     attribute: str
@@ -528,6 +539,8 @@ class UncheckedStretch(BaseModel):
 
 
 class Poi(BaseModel):
+    model_config = _ALWAYS
+
     kind: PoiKind
     at_m: float
     value: Any = None
@@ -536,6 +549,8 @@ class Poi(BaseModel):
 
 
 class CompareVr(BaseModel):
+    model_config = _ALWAYS
+
     id: str
     created: bool
     target_id: str
@@ -543,6 +558,8 @@ class CompareVr(BaseModel):
 
 
 class CompareResult(BaseModel):
+    model_config = _ALWAYS
+
     status: RouteStatus  # the recommended route's status (or the plan's no_data / blocked)
     profile: ProfileId
     same_path: bool

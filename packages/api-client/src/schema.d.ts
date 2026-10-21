@@ -612,6 +612,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/routes/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Routes Compare
+         * @description Fastest route next to the profile's route (navigation compare, demo polish B3): stop
+         *     point, known-fact reasons, unchecked stretches, points of interest and `confirm_n`. Like
+         *     POST /routes it never files verification requests, so `vr` is always null.
+         */
+        post: operations["routes_compare_routes_compare_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/scenarios": {
         parameters: {
             query?: never;
@@ -1372,6 +1394,45 @@ export interface components {
              * Format: date-time
              */
             starts_at: string;
+        };
+        /** CompareResult */
+        CompareResult: {
+            /** Confirm N */
+            confirm_n: number | null;
+            /** Extra Minutes */
+            extra_minutes: number | null;
+            fastest: components["schemas"]["Route"] | null;
+            /** Pois */
+            pois: components["schemas"]["Poi"][];
+            /**
+             * Profile
+             * @enum {string}
+             */
+            profile: "default" | "stroller" | "wheelchair" | "older_adult_rest" | "drive";
+            reasons: components["schemas"]["RouteReasons"];
+            recommended: components["schemas"]["Route"] | null;
+            /** Same Path */
+            same_path: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
+            stop: components["schemas"]["StopPoint"] | null;
+            /** Unchecked */
+            unchecked: components["schemas"]["UncheckedStretch"][];
+            vr: components["schemas"]["CompareVr"] | null;
+        };
+        /** CompareVr */
+        CompareVr: {
+            /** Attribute */
+            attribute: string;
+            /** Created */
+            created: boolean;
+            /** Id */
+            id: string;
+            /** Target Id */
+            target_id: string;
         };
         /** CreateClosureBody */
         CreateClosureBody: {
@@ -2346,6 +2407,25 @@ export interface components {
             /** Ticket Id */
             ticket_id?: string | null;
         };
+        /** Poi */
+        Poi: {
+            /** At M */
+            at_m: number;
+            /**
+             * Demo
+             * @default false
+             */
+            demo: boolean;
+            /** Evidence Ids */
+            evidence_ids: string[];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kerb" | "covered_start" | "incline" | "seating" | "unknown" | "arrival";
+            /** Value */
+            value: unknown;
+        };
         /** ProfileImpact */
         ProfileImpact: {
             /** Extra M Median */
@@ -2418,6 +2498,27 @@ export interface components {
             kind: "raise_paths";
             /** Label */
             label?: string | null;
+        };
+        /**
+         * ReasonSet
+         * @description Per-route reasons from known facts only (spec D2): a field is None when no edge on the
+         *     route has a known value for it. Unknown values never count for or against a route.
+         */
+        ReasonSet: {
+            /** Covered Share */
+            covered_share: number | null;
+            /** Distance M */
+            distance_m: number | null;
+            /** Max Incline Pct */
+            max_incline_pct: number | null;
+            /** Min Width M */
+            min_width_m: number | null;
+            /** Minutes */
+            minutes: number | null;
+            /** Rest Stops */
+            rest_stops: number | null;
+            /** Steps */
+            steps: number | null;
         };
         /** Resident */
         Resident: {
@@ -2589,6 +2690,11 @@ export interface components {
             unknowns?: {
                 [key: string]: string;
             }[];
+        };
+        /** RouteReasons */
+        RouteReasons: {
+            fastest: components["schemas"]["ReasonSet"] | null;
+            recommended: components["schemas"]["ReasonSet"] | null;
         };
         /** RouteRequest */
         RouteRequest: {
@@ -3057,6 +3163,24 @@ export interface components {
             /** Label */
             label: string;
         };
+        /**
+         * StopPoint
+         * @description The first known FAIL along the fastest route under the requested profile.
+         */
+        StopPoint: {
+            /** At M */
+            at_m: number;
+            /** Attribute */
+            attribute: string;
+            /** Edge Id */
+            edge_id: string;
+            /** Evidence Id */
+            evidence_id: string | null;
+            /** Limit */
+            limit: number | null;
+            /** Value */
+            value: unknown;
+        };
         /** StoredEvent */
         StoredEvent: {
             /** Closures */
@@ -3159,6 +3283,22 @@ export interface components {
              * @enum {string}
              */
             type: "uncertainty";
+        };
+        /**
+         * UncheckedStretch
+         * @description A contiguous run of recommended-route edges whose `attribute` is not checked yet.
+         */
+        UncheckedStretch: {
+            /** Attribute */
+            attribute: string;
+            /** Edge Id */
+            edge_id: string;
+            /** End M */
+            end_m: number;
+            /** Length M */
+            length_m: number;
+            /** Start M */
+            start_m: number;
         };
         /**
          * VRRow
@@ -4559,6 +4699,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RouteResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    routes_compare_routes_compare_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RouteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompareResult"];
                 };
             };
             /** @description Validation Error */
