@@ -1,4 +1,4 @@
-{"meta": {"message": "Can I get to the lakeside mall if I am an older adult who needs to rest?", "profile": "older_adult_rest", "scenario_id": null, "world": "elmina", "world_fingerprint": "e12794899c761e4a115e6657d06743e4426823ad38402503401fe5d1ae4c639e", "model": "mock-scripted", "recorded_at": "2026-10-21T08:10:31+00:00"}}
+{"meta": {"message": "Can I get to the lakeside mall if I am an older adult who needs to rest?", "profile": "older_adult_rest", "scenario_id": null, "world": "elmina", "world_fingerprint": "c8c9d795ad013dc645af8593ccb8d0a4c420a03704a9abc3064b7a97169366be", "model": "mock-scripted", "recorded_at": "2026-10-21T11:49:00+00:00"}}
 {"type": "answer.draft", "attempt": 1, "delta": "Please name the exact start and destination before I select a route."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Please name the exact start and destinat"}
