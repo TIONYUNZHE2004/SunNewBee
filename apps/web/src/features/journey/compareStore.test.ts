@@ -136,6 +136,10 @@ describe("nav demo registration", () => {
     hook.seek(19.5);
     expect(hook.state()).toMatchObject({ counters: { tickets: 1 }, camera: "split" });
     expect(hook.state().beats).toContain("ticket-toast");
+    expect(hook.state()).toMatchObject({ recommendedM: 520, stopAtM: 274 });
+    const tl = hook.state().timeline as { id: string; t0: number; raw: number | null }[];
+    expect(tl.find((b) => b.id === "ticket-flight")).toMatchObject({ t0: 17.6, raw: 17.6 });
+    expect(tl.find((b) => b.id === "intro")).toMatchObject({ t0: 0, raw: null });
     off();
     expect(hook.state()).toMatchObject({ key: "nav", registered: false });
   });
