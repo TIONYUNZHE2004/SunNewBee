@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { AssetLibrary } from "../assets/library";
 import type { Manifest } from "../assets/manifest";
 import { createRoleMaterial, type RoleUniforms } from "../assets/roleMaterial";
+import { DEVSIM_COLOURS } from "../shared/clayTokens";
 
 const NOOP = () => {};
 
@@ -104,7 +105,9 @@ export function kitPalettes(
   asset: string,
 ): [string, string, string][] {
   const p = m?.assets[asset]?.palettes.default as [string, string, string][] | undefined;
-  return p && p.length > 0 ? p : [["#d8d6d0", "#62666c", "#8a8f96"]];
+  return p && p.length > 0
+    ? p
+    : [[DEVSIM_COLOURS.kitWall, DEVSIM_COLOURS.slate, DEVSIM_COLOURS.grey]];
 }
 
 const _q = new THREE.Quaternion();

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { AssetLibrary } from "../assets/library";
 import type { Manifest } from "../assets/manifest";
 import type { RoleUniforms } from "../assets/roleMaterial";
+import { DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
 import { ease, span } from "./ease";
 import { along, distToLine, lengthOf, type SiteGeom, type XZ } from "./geom";
@@ -100,8 +101,8 @@ export function mastFoot(g: THREE.BufferGeometry): [number, number] {
   return n > 0 ? [x / n, z / n] : [0, 0];
 }
 
-const HEAD_OFF = new THREE.Color("#5a5f68");
-const HEAD_ON = new THREE.Color("#fff6d8");
+const HEAD_OFF = new THREE.Color(DEVSIM_COLOURS.headOff);
+const HEAD_ON = new THREE.Color(DEVSIM_COLOURS.headOn);
 
 /** The construction yard ring: a box in the (out, side) frame round the tower and its yard. */
 export function yardRing(g: SiteGeom): XZ[] {
@@ -244,11 +245,15 @@ export function createSite(o: SiteOpts): DevsimPart {
   crane.set(0, place(_m, -foot[0], 0, -foot[1], 0));
   crane.setCount(1);
   craneHead.add(crane.mesh);
-  const yellow = own(new THREE.MeshStandardMaterial({ color: "#f4b942", roughness: 0.5 }));
+  const yellow = own(
+    new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.amber, roughness: 0.5 }),
+  );
   const mast = new THREE.Mesh(own(new THREE.BoxGeometry(1.8, 1, 1.8).translate(0, 0.5, 0)), yellow);
   mast.castShadow = true;
   craneGroup.add(mast);
-  const beaconMat = own(new THREE.MeshBasicMaterial({ color: "#ff3b30", toneMapped: false }));
+  const beaconMat = own(
+    new THREE.MeshBasicMaterial({ color: DEVSIM_COLOURS.beaconRed, toneMapped: false }),
+  );
   const beacon = new THREE.Mesh(own(new THREE.SphereGeometry(0.7, 10, 8)), beaconMat);
   beacon.position.y = CRANE_TOP_M + 0.8;
   craneHead.add(beacon);
@@ -271,10 +276,10 @@ export function createSite(o: SiteOpts): DevsimPart {
   const flood = new THREE.Group();
   flood.name = "devsim-floodlights";
   yard.add(flood);
-  const headMat = own(new THREE.MeshBasicMaterial({ color: "#5a5f68" }));
+  const headMat = own(new THREE.MeshBasicMaterial({ color: DEVSIM_COLOURS.headOff }));
   const poolMat = own(
     new THREE.MeshBasicMaterial({
-      color: "#fff2c8",
+      color: DEVSIM_COLOURS.headGlow,
       transparent: true,
       opacity: 0,
       blending: THREE.AdditiveBlending,
@@ -288,7 +293,9 @@ export function createSite(o: SiteOpts): DevsimPart {
     const pole = own(new THREE.CylinderGeometry(0.2, 0.25, 14, 6).translate(0, 7, 0));
     const head = own(new THREE.BoxGeometry(2.4, 1.2, 0.6).translate(0, 14.2, 0));
     const pool = own(new THREE.CircleGeometry(16, 28).rotateX(-Math.PI / 2));
-    const grey = own(new THREE.MeshStandardMaterial({ color: "#6b6f78", roughness: 0.6 }));
+    const grey = own(
+      new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.craneGrey, roughness: 0.6 }),
+    );
     const yc: XZ = [(g.yard[0] + g.centre[0]) / 2, (g.yard[1] + g.centre[1]) / 2];
     for (const c of ring) {
       const p: XZ = [c[0] + (yc[0] - c[0]) * 0.08, c[1] + (yc[1] - c[1]) * 0.08];
@@ -329,8 +336,10 @@ export function createSite(o: SiteOpts): DevsimPart {
     group.add(m);
     return m;
   };
-  const closedMesh = closedNear.length >= 2 ? strip(closedNear, "#d6455d", 0, 0.3) : null;
-  const detourMesh = g.detour.length >= 2 ? strip(g.detour, "#2f7fd1", 2.2, 0.32) : null;
+  const closedMesh =
+    closedNear.length >= 2 ? strip(closedNear, DEVSIM_COLOURS.closedStrip, 0, 0.3) : null;
+  const detourMesh =
+    g.detour.length >= 2 ? strip(g.detour, DEVSIM_COLOURS.detourStrip, 2.2, 0.32) : null;
 
   // vehicles: lorries at Handover, the school-run queue in Daily Life
   const vPal = kitPalettes(o.manifest, "vehicles");
@@ -356,17 +365,17 @@ export function createSite(o: SiteOpts): DevsimPart {
     return k;
   };
   const lorryPal: [string, string, string][] = [
-    ["#3f88c5", "#62666c", "#f4f1ea"],
-    ["#57b38a", "#62666c", "#f4f1ea"],
-    ["#e8644f", "#62666c", "#f4f1ea"],
+    [DEVSIM_COLOURS.blue, DEVSIM_COLOURS.slate, DEVSIM_COLOURS.offWhite],
+    [DEVSIM_COLOURS.green, DEVSIM_COLOURS.slate, DEVSIM_COLOURS.offWhite],
+    [DEVSIM_COLOURS.coral, DEVSIM_COLOURS.slate, DEVSIM_COLOURS.offWhite],
   ];
   const carPal: [string, string, string][] = [
-    ["#e8644f", "#62666c", "#9fc6dc"],
-    ["#f4f1ea", "#62666c", "#9fc6dc"],
-    ["#3f88c5", "#62666c", "#9fc6dc"],
-    ["#f4b942", "#62666c", "#9fc6dc"],
-    ["#57b38a", "#62666c", "#9fc6dc"],
-    ["#8f9bb3", "#62666c", "#9fc6dc"],
+    [DEVSIM_COLOURS.coral, DEVSIM_COLOURS.slate, DEVSIM_COLOURS.glass],
+    [DEVSIM_COLOURS.offWhite, DEVSIM_COLOURS.slate, DEVSIM_COLOURS.glass],
+    [DEVSIM_COLOURS.blue, DEVSIM_COLOURS.slate, DEVSIM_COLOURS.glass],
+    [DEVSIM_COLOURS.amber, DEVSIM_COLOURS.slate, DEVSIM_COLOURS.glass],
+    [DEVSIM_COLOURS.green, DEVSIM_COLOURS.slate, DEVSIM_COLOURS.glass],
+    [DEVSIM_COLOURS.slateBlue, DEVSIM_COLOURS.slate, DEVSIM_COLOURS.glass],
     ...vPal,
   ];
   const lorries = vkit("lorry", LORRIES, [2.4, 3.2, 8], lorryPal);

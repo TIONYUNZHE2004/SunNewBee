@@ -3,7 +3,7 @@ import type { AssetLibrary } from "../assets/library";
 import type { Manifest } from "../assets/manifest";
 import { createRoleMaterial, type RoleUniforms } from "../assets/roleMaterial";
 import { facadeInstances } from "../facade/facadePlan";
-import { CLAY_PALETTE } from "../shared/clayTokens";
+import { CLAY_PALETTE, DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, TowerPart } from "./devsimLayer";
 import { type SiteGeom, TOWER_STOREY_M, type XZ } from "./geom";
 
@@ -13,9 +13,13 @@ const GLASS_G = 3 / 7;
 /** Floors under construction at the top of a rising tower stay raw concrete (prototype). */
 const RAW_FLOORS = 3;
 const SLAB_GAP_M = 0.25;
-const RAW_PALETTE: [string, string, string] = ["#b9b4ab", "#9d978d", "#8a8f96"];
+const RAW_PALETTE: [string, string, string] = [
+  DEVSIM_COLOURS.towerA,
+  DEVSIM_COLOURS.towerB,
+  DEVSIM_COLOURS.grey,
+];
 /** Lobby canopy / roof accent (the prototype's teal). */
-const ACCENT = "#5fa8a0";
+const ACCENT = DEVSIM_COLOURS.towerAccent;
 
 /** COLOR_0 = (AO 1, role, seed 1) on every vertex: role 0 wall / 1 roof / 2 accent / 3 glass. */
 function roleColour(g: THREE.BufferGeometry, role: number): THREE.BufferGeometry {
@@ -237,7 +241,7 @@ export function createTower(o: TowerOpts): TowerPart & {
       );
       const lines = new THREE.LineSegments(
         box,
-        own(new THREE.LineBasicMaterial({ color: "#e98b2a" })),
+        own(new THREE.LineBasicMaterial({ color: DEVSIM_COLOURS.scaffoldLine })),
       );
       scaffold.add(lines);
     }
@@ -252,9 +256,9 @@ export function createTower(o: TowerOpts): TowerPart & {
   group.add(pathGroup);
   const doorMat = own(
     new THREE.MeshStandardMaterial({
-      color: "#2f4a63",
+      color: DEVSIM_COLOURS.windowDark,
       roughness: 0.2,
-      emissive: "#ffcf86",
+      emissive: DEVSIM_COLOURS.windowGlow,
       emissiveIntensity: 0.1,
     }),
   );
@@ -273,9 +277,13 @@ export function createTower(o: TowerOpts): TowerPart & {
       entrance.add(m);
       return m;
     };
-    const white = own(new THREE.MeshStandardMaterial({ color: "#f4f1ea", roughness: 0.7 }));
+    const white = own(
+      new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.offWhite, roughness: 0.7 }),
+    );
     const teal = own(new THREE.MeshStandardMaterial({ color: ACCENT, roughness: 0.6 }));
-    const mat = own(new THREE.MeshStandardMaterial({ color: "#3d4a63", roughness: 0.9 }));
+    const mat = own(
+      new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.hoardingNavy, roughness: 0.9 }),
+    );
     // local frame of the door: +x out of the lobby, z along the face
     add(new THREE.BoxGeometry(0.5, 3, 4.2), doorMat, 0.1, 1.6, 0);
     add(new THREE.BoxGeometry(0.6, 0.25, 4.6), white, 0.12, 3.2, 0);
@@ -289,14 +297,16 @@ export function createTower(o: TowerOpts): TowerPart & {
     // paved path, door -> walk node (3 m wide, kerb edges), above the ground with polygonOffset
     const paving = own(
       new THREE.MeshStandardMaterial({
-        color: "#efe2c4",
+        color: DEVSIM_COLOURS.hoardingPale,
         roughness: 0.9,
         polygonOffset: true,
         polygonOffsetFactor: -2,
         polygonOffsetUnits: -2,
       }),
     );
-    const kerb = own(new THREE.MeshStandardMaterial({ color: "#c9b892", roughness: 0.9 }));
+    const kerb = own(
+      new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.kerbSand, roughness: 0.9 }),
+    );
     for (let i = 1; i < geom.path.length; i++) {
       const a = geom.path[i - 1] as XZ;
       const b = geom.path[i] as XZ;

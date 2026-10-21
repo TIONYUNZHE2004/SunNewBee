@@ -198,6 +198,41 @@ export const EFFECT_COLOURS = {
   heroDisc: "#fff3c2",
 } as const;
 
+/** Development Simulation set dressing (hypothetical tower, site kit, cast): display only. */
+export const DEVSIM_COLOURS = {
+  white: "#ffffff",
+  nearBlack: "#1b1b1b",
+  castHelmetYellow: "#ffd21f",
+  castVestOrange: "#ff7a1a",
+  castSkinTan: "#c98a4a",
+  kitWall: "#d8d6d0",
+  slate: "#62666c",
+  grey: "#8a8f96",
+  headOff: "#5a5f68",
+  headOn: "#fff6d8",
+  amber: "#f4b942",
+  beaconRed: "#ff3b30",
+  headGlow: "#fff2c8",
+  craneGrey: "#6b6f78",
+  closedStrip: "#d6455d",
+  detourStrip: "#2f7fd1",
+  blue: "#3f88c5",
+  offWhite: "#f4f1ea",
+  green: "#57b38a",
+  coral: "#e8644f",
+  glass: "#9fc6dc",
+  slateBlue: "#8f9bb3",
+  towerA: "#b9b4ab",
+  towerB: "#9d978d",
+  towerAccent: "#5fa8a0",
+  scaffoldLine: "#e98b2a",
+  windowDark: "#2f4a63",
+  windowGlow: "#ffcf86",
+  hoardingNavy: "#3d4a63",
+  hoardingPale: "#efe2c4",
+  kerbSand: "#c9b892",
+} as const;
+
 export type ClayRole =
   | "wall"
   | "roof"

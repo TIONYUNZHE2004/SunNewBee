@@ -5,6 +5,7 @@ import { peopleScale } from "../motion/agents";
 import type { CrowdKit } from "../motion/crowdBake";
 import { framePair } from "../motion/crowdGait";
 import { type CrowdRenderer, createCrowdRenderer } from "../motion/crowdRenderer";
+import { DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
 import { ease, span } from "./ease";
 import { along, lengthOf, onPath, type SiteGeom, type XZ, yawOf } from "./geom";
@@ -188,7 +189,7 @@ export function castAt(
 export function tagTextColour(hex: string): string {
   const c = new THREE.Color(hex);
   const L = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; // linear
-  return 1.05 / (L + 0.05) >= (L + 0.05) / 0.061 ? "#ffffff" : "#1b1b1b";
+  return 1.05 / (L + 0.05) >= (L + 0.05) / 0.061 ? DEVSIM_COLOURS.white : DEVSIM_COLOURS.nearBlack;
 }
 
 export interface CastOpts {
@@ -282,7 +283,9 @@ export function createCast(o: CastOpts): Cast {
   const hats = own(
     new THREE.InstancedMesh(
       hatGeo,
-      own(new THREE.MeshStandardMaterial({ color: "#ffd21f", roughness: 0.35 })),
+      own(
+        new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.castHelmetYellow, roughness: 0.35 }),
+      ),
       WORKERS,
     ),
   );
@@ -291,9 +294,9 @@ export function createCast(o: CastOpts): Cast {
       vestGeo,
       own(
         new THREE.MeshStandardMaterial({
-          color: "#ff7a1a",
+          color: DEVSIM_COLOURS.castVestOrange,
           roughness: 0.6,
-          emissive: "#ff7a1a",
+          emissive: DEVSIM_COLOURS.castVestOrange,
           emissiveIntensity: 0.15,
           side: THREE.DoubleSide,
         }),
@@ -304,7 +307,7 @@ export function createCast(o: CastOpts): Cast {
   const boxes = own(
     new THREE.InstancedMesh(
       boxGeo,
-      own(new THREE.MeshStandardMaterial({ color: "#c98a4a", roughness: 0.8 })),
+      own(new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.castSkinTan, roughness: 0.8 })),
       MOVERS,
     ),
   );
