@@ -29,6 +29,18 @@
   --c-glass: rgba(26, 26, 28, 0.88);
   --c-glass-edge: rgba(255, 255, 255, 0.08);
   --c-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  /* Navigation compare overlay (journey/compare): route hues match the 3D ribbons
+   * (scene/styles.ts COMPARE_RIBBON_STYLE) in both skins; tints and notes are per skin. */
+  --c-cmp-fastest: #e07a3a;
+  --c-cmp-recommended: #2fa97c;
+  --c-cmp-unknown: #8b7fd6;
+  --c-cmp-fail: #d2544f;
+  --c-cmp-info: #4f7fd1;
+  --c-cmp-on-tone: #1c1b19;
+  --c-cmp-fail-tint: #3b2422;
+  --c-cmp-unknown-tint: #2a2640;
+  --c-cmp-demo-note: #e2a54a;
+  --c-cmp-resident: #9db8f0;
 }
 :root[data-skin="light"] {
   color-scheme: light;
@@ -55,6 +67,18 @@
   --c-glass: rgba(255, 255, 255, 0.9);
   --c-glass-edge: rgba(28, 27, 25, 0.08);
   --c-shadow: 0 1px 2px rgba(28, 27, 25, 0.06), 0 8px 24px rgba(28, 27, 25, 0.08);
+  /* Navigation compare overlay (journey/compare): route hues match the 3D ribbons
+   * (scene/styles.ts COMPARE_RIBBON_STYLE) in both skins; tints and notes are per skin. */
+  --c-cmp-fastest: #e07a3a;
+  --c-cmp-recommended: #2fa97c;
+  --c-cmp-unknown: #8b7fd6;
+  --c-cmp-fail: #d2544f;
+  --c-cmp-info: #4f7fd1;
+  --c-cmp-on-tone: #1c1b19;
+  --c-cmp-fail-tint: #fff1ef;
+  --c-cmp-unknown-tint: #f3f0ff;
+  --c-cmp-demo-note: #7a5a00;
+  --c-cmp-resident: #3f68b8;
 }
 
 @theme inline {
@@ -89,6 +113,16 @@
   --color-warn-tint: var(--c-warn-tint);
   --color-danger-tint: var(--c-danger-tint);
   --color-danger: var(--c-rose);
+  --color-cmp-fastest: var(--c-cmp-fastest);
+  --color-cmp-recommended: var(--c-cmp-recommended);
+  --color-cmp-unknown: var(--c-cmp-unknown);
+  --color-cmp-fail: var(--c-cmp-fail);
+  --color-cmp-info: var(--c-cmp-info);
+  --color-cmp-on-tone: var(--c-cmp-on-tone);
+  --color-cmp-fail-tint: var(--c-cmp-fail-tint);
+  --color-cmp-unknown-tint: var(--c-cmp-unknown-tint);
+  --color-cmp-demo-note: var(--c-cmp-demo-note);
+  --color-cmp-resident: var(--c-cmp-resident);
   --font-display: "Geist", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Geist", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;

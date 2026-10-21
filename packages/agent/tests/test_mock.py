@@ -27,6 +27,14 @@ def _agent(calls: list[str], plan_evidence: list[dict] | None = None) -> Agent:
         }
 
     @agent.tool_plain
+    def compare_routes(
+        from_id: str, to_id: str, profile: str = "wheelchair", scenario_id: str | None = None
+    ) -> dict:
+        # Nothing to compare: the mock goes on to plan_route (demo polish B4).
+        calls.append("compare_routes")
+        return {"ok": True, "data": {"status": "partly_unverified", "same_path": True}}
+
+    @agent.tool_plain
     def plan_route(
         from_id: str, to_id: str, profile: str = "default", scenario_id: str | None = None
     ) -> dict:
@@ -58,7 +66,7 @@ def test_mock_access_hero_script():
     res = _agent(calls).run_sync(
         "Can I get from Car Park B to the playground with a stroller, no stairs?"
     )
-    assert calls == ["find_place", "find_place", "plan_route"]
+    assert calls == ["find_place", "find_place", "compare_routes", "plan_route"]
     ans = res.output
     assert ans.answer_status == "partial" and ans.route_id == "rt-1"
     assert ans.claims[0].evidence_ids == [

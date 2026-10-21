@@ -97,11 +97,8 @@ test("AC-P1: compare split screen against the single-view journey at Medium (one
       const fx = await import(/* @vite-ignore */ fxUrl);
       const coords = plan.polyline.map((c) => [c[0], c[1]]);
       const c = fx.handCompare();
-      c.recommended = { ...c.recommended, geometry: { type: "LineString", coordinates: coords } };
-      c.fastest = {
-        ...c.fastest,
-        geometry: { type: "LineString", coordinates: [...coords].reverse() },
-      };
+      c.recommended = { ...c.recommended, coordinates: coords };
+      c.fastest = { ...c.fastest, coordinates: [...coords].reverse() };
       store.useCompare.getState().load(c);
       store.useCompare.getState().seek(3.5);
       return "ok";

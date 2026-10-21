@@ -7,6 +7,7 @@ route, asks which place is meant, and refuses; the steps come from the maneuvers
 """
 
 from .answer import FinalAnswer
+from .compare_intent import compare_for
 from .journeys import PLAYABLE, journey_steps
 from .labels import (
     LIKELY_OK_CAVEAT,
@@ -18,7 +19,7 @@ from .labels import (
     unchecked_caveats,
 )
 from .record import TurnRecord
-from .template import inferred_caveats
+from .template import compare_caveats, compare_summary, inferred_caveats
 from .validate import PLACEHOLDER_CAVEAT, PLACEHOLDER_SOURCE
 
 # Engine warnings another canonical line already states (demo places, estimates, road and
@@ -187,11 +188,22 @@ def canonical_route_answer(
         caveats.append(f"Some segment facts are {PLACEHOLDER_CAVEAT}.")
     if sid := route.get("scenario_id") or next(iter(sorted(rec.scenarios_used)), None):
         caveats.append(SCENARIO_NOTE[_I[lang]].format(level=_level(world, sid, lang)))
+    summary = (
+        _walk_summary(world, route, status, lang)
+        if walk
+        else _summary(world, route, status, lang, rec.route_closures)
+    )
+    if (cmp := compare_for(rec, rid)) is not None:
+        # Navigation compare (B4): the recommendation and its unchecked stretches, from the
+        # compare_routes record (same lines as the mock and the template).
+        demo = any(
+            getattr(e, "source_type", None) == PLACEHOLDER_SOURCE for e in rec.evidence.values()
+        )
+        summary = compare_summary(cmp, cmp["from_name"], cmp["to_name"], demo) or summary
+        caveats = [*compare_caveats(cmp), *caveats]
     return ans.model_copy(
         update={
-            "summary": _walk_summary(world, route, status, lang)
-            if walk
-            else _summary(world, route, status, lang, rec.route_closures),
+            "summary": summary,
             "steps": [],
             "caveats": list(dict.fromkeys(caveats)),
             "route_id": rid,

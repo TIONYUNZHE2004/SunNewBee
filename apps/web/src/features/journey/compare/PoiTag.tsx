@@ -1,17 +1,18 @@
 import type { ScreenPoint } from "../compareStore";
 import type { TagCopy } from "./copy";
 
+/** Key colours (index.css `--c-cmp-*`, the same hues as the 3D ribbons). */
 export const TONE: Record<TagCopy["tone"], string> = {
-  ok: "#2fa97c",
-  info: "#4f7fd1",
-  unknown: "#8b7fd6",
-  fail: "#d2544f",
-  route: "#e07a3a",
+  ok: "var(--c-cmp-recommended)",
+  info: "var(--c-cmp-info)",
+  unknown: "var(--c-cmp-unknown)",
+  fail: "var(--c-cmp-fail)",
+  route: "var(--c-cmp-fastest)",
 };
 
 const TINT: Partial<Record<TagCopy["tone"], string>> = {
-  fail: "bg-[#fff1ef] text-[#2c2a3a]",
-  unknown: "bg-[#f3f0ff] text-[#2c2a3a]",
+  fail: "bg-cmp-fail-tint text-fg",
+  unknown: "bg-cmp-unknown-tint text-fg",
 };
 
 /**
@@ -34,11 +35,11 @@ export function PoiTag({
   return (
     <div
       data-beat={beat}
-      className={`${placed} whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-bold shadow-[0_3px_0_var(--c-edge),0_8px_20px_rgba(44,42,58,.15)] ${TINT[copy.tone] ?? "bg-surface text-fg"}`}
+      className={`${placed} whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-bold shadow-[0_3px_0_var(--c-edge),0_8px_20px_rgba(0,0,0,.15)] ${TINT[copy.tone] ?? "bg-surface text-fg"}`}
       style={at ? { left: at.x, top: at.y } : undefined}
     >
       <span
-        className="mr-1.5 inline-block rounded-full px-1.5 py-px align-[1px] text-[10px] uppercase tracking-[.06em] text-white"
+        className="mr-1.5 inline-block rounded-full px-1.5 py-px align-[1px] text-[10px] uppercase tracking-[.06em] text-cmp-on-tone"
         style={{ background: TONE[copy.tone] }}
       >
         {copy.key}
@@ -46,7 +47,7 @@ export function PoiTag({
       {copy.tone === "unknown" ? " · " : ""}
       {copy.text}
       {copy.note && (
-        <span className="mt-0.5 block text-[10.5px] font-semibold text-[#7a5a00]">
+        <span className="mt-0.5 block text-[10.5px] font-semibold text-cmp-demo-note">
           {copy.tone === "unknown" ? " · " : ""}
           {copy.note}
         </span>

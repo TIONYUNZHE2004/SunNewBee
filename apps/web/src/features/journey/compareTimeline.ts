@@ -19,10 +19,10 @@ export const T_END = 45;
 export const BEAT_TOLERANCE_S = 1.5;
 /** The ticket card's flight from the unchecked stretch to the Tickets chip (AC-N5). */
 export const FLIGHT_S = 1.8;
-/** The unchecked tag shows this long before the walker reaches the stretch (13.6 → 17.6). */
-const UNCHECKED_LEAD_S = 4;
-/** …and this long after (until 18.0). */
+/** The unchecked tag stays until this long after the ticket flight starts (until 18.0). */
 const UNCHECKED_TAIL_S = 0.4;
+/** …and at least this long (the baseline 13.6–18.0 window). */
+const UNCHECKED_MIN_S = 4.4;
 /** The ticket toast after the counter goes to 1 (19.4 → 25). */
 const TOAST_S = 5.6;
 /** The stop tag stays until 31 s (spec §5.4). */
@@ -62,6 +62,11 @@ export interface Beat {
   raw: number | null;
   /** Route-tied beats: the metre on its route (recommended, or fastest for the stop). */
   at_m?: number;
+  /**
+   * Ticket flight: when the walker reaches `unchecked[0].start_m` (unfloored). `raw` is floored at
+   * the 17.6 s baseline by construction (R32), so this is the route fact to check.
+   */
+  reach?: number;
   /** POI beats: index into `payload.pois`. */
   poi?: number;
 }
@@ -75,7 +80,7 @@ export interface CompareTimeline {
   fastestEndM: number;
   /** When the fastest walker stops at the stop point; null without one. */
   stopAt: number | null;
-  /** When the ticket flight starts (the walker passes `unchecked[0].start_m`); null without a ticket. */
+  /** When the ticket flight starts (17.6 s, or when the walker reaches `unchecked[0].start_m` if later); null without a ticket. */
   flightAt: number | null;
   /** Recommended-route metre for the greeting resident (renderer placement). */
   greetingAtM: number;
@@ -173,19 +178,25 @@ export function buildCompareTimeline(c: CompareIntent): CompareTimeline {
     });
   }
 
-  // the unchecked stretch and its ticket: the flight starts as the walker passes start_m
+  // the unchecked stretch and its ticket. The tag is tied to the walker reaching start_m (13.6 s
+  // baseline). The card flies at its 17.6 s baseline, or later if the walker reaches the stretch
+  // after that (never before the stretch is passed), so on any corridor the counter turns at 19.4 s
+  // whenever the stretch comes first (AC-N5).
   const u = c.unchecked[0];
   let flightAt: number | null = null;
   if (u) {
-    const raw = at(u.start_m);
-    const f = near(raw, BASE["ticket-flight"][0]);
+    const reach = at(u.start_m);
+    const tagAt = near(reach, BASE["tag-unchecked"][0]);
+    const flightBase = BASE["ticket-flight"][0];
+    const flightRaw = Math.max(flightBase, reach);
+    const f = Math.max(tagAt, near(flightRaw, flightBase));
     beats.push({
       id: "tag-unchecked",
       side: "R",
-      t0: f - UNCHECKED_LEAD_S,
-      t1: f + UNCHECKED_TAIL_S,
+      t0: tagAt,
+      t1: Math.max(tagAt + UNCHECKED_MIN_S, f + UNCHECKED_TAIL_S),
       baseline: BASE["tag-unchecked"],
-      raw: raw - UNCHECKED_LEAD_S,
+      raw: reach,
       at_m: u.start_m,
     });
     if (c.vr) {
@@ -196,7 +207,8 @@ export function buildCompareTimeline(c: CompareIntent): CompareTimeline {
         t0: f,
         t1: f + FLIGHT_S,
         baseline: BASE["ticket-flight"],
-        raw,
+        raw: flightRaw,
+        reach,
         at_m: u.start_m,
       });
       beats.push({
@@ -205,7 +217,7 @@ export function buildCompareTimeline(c: CompareIntent): CompareTimeline {
         t0: f + FLIGHT_S,
         t1: f + FLIGHT_S + TOAST_S,
         baseline: BASE["ticket-toast"],
-        raw: raw + FLIGHT_S,
+        raw: flightRaw + FLIGHT_S,
       });
     }
   }

@@ -32,6 +32,7 @@ def test_registry_has_the_ten_lookups_and_three_world_model_tools(ctx):
         "rehearse_my_trip",
         "simulate_event",
         "simulate_development",
+        "compare_routes",
     }
 
 

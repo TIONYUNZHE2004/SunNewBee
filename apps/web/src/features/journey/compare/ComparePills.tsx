@@ -35,13 +35,13 @@ export function ComparePills({
       />
       <div className="absolute top-16 flex justify-center" style={l}>
         <span data-beat="split-pill-fastest" className={pill}>
-          <span aria-hidden="true" className="size-2.5 rounded-full bg-[#e07a3a]" />
+          <span aria-hidden="true" className="size-2.5 rounded-full bg-cmp-fastest" />
           {left}
         </span>
       </div>
       <div className="absolute top-16 flex justify-center" style={r}>
         <span data-beat="split-pill-recommended" className={pill}>
-          <span aria-hidden="true" className="size-2.5 rounded-full bg-[#2fa97c]" />
+          <span aria-hidden="true" className="size-2.5 rounded-full bg-cmp-recommended" />
           {right}
         </span>
       </div>
