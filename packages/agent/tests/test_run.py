@@ -113,6 +113,9 @@ async def test_flood_management(ctx):
     assert "Likely flooded (indicative): Urban Park playground." in text
     assert "About 111 m of mapped paths are likely flooded." in text
     assert "Flash floods from heavy rain are not shown." in text
+    # a fixed statement of scope, not an unchecked fact: never under "Not verified"
+    unc = next(e for e in evs if e.type == "uncertainty")
+    assert not any("Flash floods" in i.get("note", "") for i in unc.items)
 
 
 async def test_flash_flood_line_only_with_a_river_stage(ctx):

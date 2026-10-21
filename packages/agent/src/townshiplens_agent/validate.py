@@ -1674,8 +1674,13 @@ def closure_claim_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         if _RESIDENT_PRESSURE.search(text):
             errs.append("No detour pressure was computed this turn: do not state one.")
         return errs
-    roads = {r["name"]: r.get("pressure") for e in rec.events for r in e.get("detour_roads") or []}
-    bands = {b for b in roads.values() if b}
+    # one name can band differently per stretch (the engine returns "Unnamed paths" several times)
+    roads: dict[str, set[str]] = {}
+    for e in rec.events:
+        for r in e.get("detour_roads") or []:
+            if r.get("pressure"):
+                roads.setdefault(r["name"], set()).add(r["pressure"])
+    bands = set().union(*roads.values())
     for sent in _sentences(text):
         if not _PRESSURE.search(sent):
             continue
@@ -1685,7 +1690,7 @@ def closure_claim_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         if not bands:
             errs.append("No detour pressure was computed this turn: do not state one.")
             break
-        named = {roads[n] for n in roads if n and n.lower() in sent.lower() and roads[n]}
+        named = set().union(*(b for n, b in roads.items() if n and n.lower() in sent.lower()))
         if bad := sorted(said - (named or bands)):
             errs.append(
                 f"Detour pressure {bad} is not what the tool returned for that road: quote each "

@@ -504,17 +504,20 @@ def _answer_events(
         for u in unknowns
     ]
     items += _caveat_items(rec, ans)
-    # Every caveat is an item: whatever no specific item covers gets a plain one, so "partial"
-    # never comes with an empty list.
+    # The flash-flood line is a fixed statement of scope, not an unchecked fact: it stays in the
+    # answer's notes and never reads as "Not verified".
+    open_caveats = [c for c in ans.caveats if c not in FLASH_FLOOD_NOTE.values()]
+    # Every other caveat is an item: whatever no specific item covers gets a plain one, so
+    # "partial" never comes with an empty list.
     items += [
         {"element_id": "answer", "attribute": "caveat", "note": c.rstrip(". ")}
-        for c in ans.caveats
+        for c in open_caveats
         if not _covered(c, items, bool(unknowns))
     ]
     if rec.what_ifs:
         items.append({"element_id": "whatif", "attribute": "whatif", "note": WHATIF_NOTE})
-    # Partial whenever the answer carries any caveat (not only unchecked segments).
-    level = "partial" if unknowns or items or ans.caveats else "none"
+    # Partial whenever the answer carries any open caveat (not only unchecked segments).
+    level = "partial" if unknowns or items or open_caveats else "none"
     if ans.answer_status == "cannot_answer":
         level = "high"
     evs.append(Uncertainty(level=level, items=items))

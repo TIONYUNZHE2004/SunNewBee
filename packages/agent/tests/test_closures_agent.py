@@ -1,11 +1,9 @@
-"""T-026: management answers about any closure (simulate_closure) and their checks. The backend
-tool is replaced by tests/closure_stub.py until it lands (same contract)."""
+"""T-026: management answers about any closure (simulate_closure) and their checks, on the
+backend's real closure engine."""
 
 from datetime import date
 
 import pytest
-from closure_stub import DISCLAIMER, WEIGHTS_NOTE
-from closure_stub import simulate_closure as stub
 from townshiplens_agent.answer import Claim, FinalAnswer
 from townshiplens_agent.event_course import event_window
 from townshiplens_agent.events import ChatRequest
@@ -15,7 +13,7 @@ from townshiplens_agent.record import TurnRecord
 from townshiplens_agent.run import run_turn
 from townshiplens_agent.settings import ROOT, AgentSettings
 from townshiplens_agent.validate import closure_claim_errors, event_coverage_errors
-from townshiplens_spatial import tools
+from townshiplens_spatial import events, tools, traffic
 from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
@@ -24,11 +22,6 @@ needs_seed = pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmin
 STAFF = AgentSettings(
     _env_file=None, llm_provider="mock", assistant_scope="access_flood", turn_timeout_s=600
 )
-
-
-@pytest.fixture
-def backend(monkeypatch):
-    monkeypatch.setitem(tools.TOOLS, "simulate_closure", stub)
 
 
 @pytest.fixture(scope="module")
@@ -84,7 +77,7 @@ async def _ask(world, tmp_path, q, panel="management"):
     ],
 )
 async def test_closure_questions_are_simulated_with_pressure_for_managers(
-    backend, seed, tmp_path, q, reason, day
+    seed, tmp_path, q, reason, day
 ):
     evs, rec, text = await _ask(seed, tmp_path, q)
     call = next(e for e in evs if e.type == "tool.call" and e.name == "simulate_closure")
@@ -93,11 +86,14 @@ async def test_closure_questions_are_simulated_with_pressure_for_managers(
     assert evs[-1].model == "mock-scripted" and evs[-1].answer_status == "answered"
     assert "Persiaran Tamarind (detour pressure: high)" in text
     assert "Suggestion:" in text and "had no mapped route before the" in text
-    assert DISCLAIMER in text and WEIGHTS_NOTE in text
+    assert events.PRESSURE_DISCLAIMER in text and traffic.config().weights_note in text
 
 
 @needs_seed
-async def test_without_the_backend_tool_events_still_use_simulate_event(seed, tmp_path):
+async def test_without_the_backend_tool_events_still_use_simulate_event(
+    seed, tmp_path, monkeypatch
+):
+    monkeypatch.delitem(tools.TOOLS, "simulate_closure")
     evs, rec, _ = await _ask(
         seed, tmp_path, "What if we close Persiaran Garcinia for a marathon 7-11 am?"
     )
@@ -105,7 +101,7 @@ async def test_without_the_backend_tool_events_still_use_simulate_event(seed, tm
 
 
 @needs_seed
-async def test_residents_cannot_run_closure_simulations(backend, seed, tmp_path):
+async def test_residents_cannot_run_closure_simulations(seed, tmp_path):
     q = "Road works on Persiaran Garcinia next Tuesday 9 am-5 pm: what is affected?"
     evs, rec, text = await _ask(seed, tmp_path, q, panel="resident")
     assert "simulate_closure" not in rec.tool_calls and "pressure" not in text.lower()
@@ -121,7 +117,7 @@ CLOSURE = {
         {"name": "Jalan Kecil", "trips": 1, "pressure": "low"},
     ],
     "suggestions": [{"kind": "signpost", "text": "Signpost the detour.", "basis": "x=4"}],
-    "weights_note": WEIGHTS_NOTE,
+    "weights_note": "Peak weights are an assumed travel pattern, not measured.",
 }
 
 
@@ -187,7 +183,7 @@ def test_chinese_band_words_count_only_next_to_pressure():
 
 
 @needs_seed
-async def test_a_too_long_course_refusal_can_be_relayed(backend, seed, tmp_path):
+async def test_a_too_long_course_refusal_can_be_relayed(seed, tmp_path):
     q = "We need to close Persiaran Elmina for road works tomorrow 9 am to 5 pm. What is affected?"
     evs, rec, text = await _ask(seed, tmp_path, q)
     assert evs[-1].model == "mock-scripted" and evs[-1].answer_status == "cannot_answer"
@@ -202,3 +198,24 @@ def test_a_chinese_answer_gives_its_suggestions_in_chinese():
         "可考虑在 Persiaran Tamarind 设置指示牌。"
     )
     assert _check(zh) == []
+
+
+def test_a_road_name_on_several_stretches_may_carry_each_stretch_band():
+    rec = TurnRecord(
+        events=[
+            {
+                **CLOSURE,
+                "detour_roads": [
+                    {"name": "Unnamed paths", "trips": 39, "pressure": "high"},
+                    {"name": "Unnamed paths", "trips": 2, "pressure": "low"},
+                ],
+            }
+        ],
+        panel="management",
+    )
+    ok = "39 sample trips reroute onto Unnamed paths (detour pressure: high)."
+    bad = "39 sample trips reroute onto Unnamed paths (detour pressure: medium)."
+    claim = Claim(text="Road works", status="indicative", evidence_ids=["ev-closure-x"])
+    for text, errs in ((ok, 0), (bad, 1)):
+        ans = FinalAnswer(answer_status="answered", summary=text, claims=[claim])
+        assert len(closure_claim_errors(ans, rec)) == errs
