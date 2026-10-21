@@ -185,3 +185,30 @@ def test_elmina_hoarding_agrees_with_halims_detour():
     row = next(h for h in imp.homes if h.home_id == d.home_id)
     assert row.extra_min == d.detour_min
     assert imp.max_extra_min >= d.detour_min
+
+
+# ---- C2: lorry route ---------------------------------------------------------------------------
+@seed_only
+def test_elmina_lorry_route():  # AC-C2
+    w = _world()
+    r = di.lorry_route(w, _site())
+    assert r.profile == "drive" and r.status != "confirmed"
+    assert len(r.path) >= 2 and r.distance_m > 0 and r.minutes >= 1
+    roads = {
+        n for e in w.edges.values() if e.type == "major_road" for n in (e.from_node, e.to_node)
+    }
+    assert r.from_node in roads
+    allowed = set(w.profiles["drive"].allowed_types)
+    drive = {n for e in w.edges.values() if e.type in allowed for n in (e.from_node, e.to_node)}
+    assert r.gate_node in drive
+    assert r.school_run_note == "School run assumed 7–8 am (typical); not from data"
+    assert r.sensitive, "Elmina's lorry route passes Urban Park"
+    for s in r.sensitive:
+        assert w.places[s.place_id].name == s.name
+        assert s.type in di.SENSITIVE_TYPES and w.places[s.place_id].type == s.type
+        assert 0 <= s.distance_m <= di.SENSITIVE_M
+    along = [s.along_m for s in r.sensitive]
+    assert along == sorted(along)
+    # The gate is the road node nearest the entrance; the route starts on the main road.
+    assert r.path[0] == pytest.approx(w.node_coords[r.from_node][:2], abs=1e-6)
+    assert r.path[-1] == pytest.approx(w.node_coords[r.gate_node][:2], abs=1e-6)

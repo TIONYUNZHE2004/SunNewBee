@@ -26,6 +26,7 @@ import time
 from collections.abc import Callable, Iterable
 from typing import Any
 
+from shapely.geometry import Point, shape
 from shapely.ops import nearest_points
 
 from . import devsim, routing, twm
@@ -35,6 +36,8 @@ from .devsim_models import (
     HoardingImpact,
     HoardingOption,
     ImpactTarget,
+    LorryRoute,
+    LorrySensitive,
 )
 from .world import World
 
@@ -338,3 +341,97 @@ def hoarding_impact(world: World, site: DevelopmentSite, lay=None) -> HoardingIm
         )
 
     return _cached("hoarding_impact", world, site, build)
+
+
+# ---- C2: lorry route ---------------------------------------------------------------------------
+LORRY_PROFILE = "drive"
+SENSITIVE_TYPES = ("school", "kindergarten", "park", "playground")
+SENSITIVE_M = 50.0
+GATE_PLACE = "devsim-gate"
+ROAD_PLACE = "devsim-main-road"
+MAX_ROAD_TRIES = 8
+
+
+def _major_road_nodes(world: World, lay) -> list[str]:
+    """Nodes on `major_road` edges, nearest the tower centre first (ties by id)."""
+    nodes = {
+        n for e in world.edges.values() if e.type == "major_road" for n in (e.from_node, e.to_node)
+    }
+    return sorted(nodes, key=lambda n: (lay.centre.distance(_xy(world, lay, n)), n))
+
+
+def _xy(world: World, lay, node: str):
+    return Point(lay.fr.xy(world.node_coords[node]))
+
+
+def _outlines(world: World) -> dict[str, Any]:
+    """OSM outlines of park places (base/parks.geojson, by OSM way id)."""
+    out = {}
+    for f in devsim._features(world, "parks.geojson"):
+        osm = f["properties"].get("id", "")
+        out[f"osm-{osm.replace('/', '-')}"] = shape(f["geometry"])
+    return out
+
+
+def _sensitive(world: World, lay, line) -> list[LorrySensitive]:
+    outlines = _outlines(world)
+    rows = []
+    for p in world.places.values():
+        if p.type not in SENSITIVE_TYPES:
+            continue
+        geoms = [Point(lay.fr.xy(p.coord))]
+        if p.node_id and p.node_id in world.node_coords:
+            geoms.append(_xy(world, lay, p.node_id))
+        if (o := outlines.get(p.id)) is not None:
+            geoms.append(lay.fr.geom(o))
+        d, g = min(((line.distance(g), i) for i, g in enumerate(geoms)), key=lambda t: t)
+        if d > SENSITIVE_M:
+            continue
+        on_line = nearest_points(line, geoms[g])[0]
+        rows.append(
+            LorrySensitive(
+                place_id=p.id,
+                name=p.name,
+                type=p.type,
+                distance_m=round(d),
+                along_m=round(line.project(on_line)),
+            )
+        )
+    return sorted(rows, key=lambda r: (r.along_m, r.distance_m, r.place_id))
+
+
+def lorry_route(world: World, site: DevelopmentSite, lay=None) -> LorryRoute:
+    """AC-C2: the `drive` route from the nearest major-road node to the site gate, and the schools,
+    kindergartens, parks and playgrounds within 50 m of it.
+
+    The gate is the road node nearest the tower entrance's walk node (drive routing snaps a place
+    to the nearest road node within 150 m). When the nearest major-road node has no mapped road
+    connection to the gate, the next nearest is tried. Raises DevsimUnavailable when none does."""
+
+    def build() -> LorryRoute:
+        layout = lay or devsim._layout(world, site)
+        entrance = devsim._node_at(world, site.entrance.path[-1])
+        gate = devsim._temp_place(GATE_PLACE, "Site gate", world, entrance)
+        for node in _major_road_nodes(world, layout)[:MAX_ROAD_TRIES]:
+            road = devsim._temp_place(ROAD_PLACE, "Main road", world, node)
+            w = devsim._with_places(world, [gate, road])
+            res = routing.plan_route(w, ROAD_PLACE, GATE_PLACE, LORRY_PROFILE)
+            if not res.routes:
+                continue
+            r = res.routes[0]
+            path = devsim._route_path(r)
+            line = layout.fr.line(path)
+            pace = _pace(world, LORRY_PROFILE)
+            return LorryRoute(
+                from_node=node,
+                gate_node=r.target_node,
+                path=path,
+                distance_m=round(r.distance_m),
+                minutes=max(1, devsim._round_min(r.distance_m / pace)),
+                status=r.status,
+                sensitive=_sensitive(world, layout, line),
+                warnings=res.warnings,
+            )
+        raise devsim.DevsimUnavailable("no mapped road from a major road to the site gate")
+
+    return _cached("lorry_route", world, site, build)

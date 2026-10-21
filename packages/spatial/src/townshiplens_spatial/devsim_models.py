@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .models import LonLat
+from .models import LonLat, RouteStatus
 
 CastHome = Literal["tower", "existing"]
 BubbleTone = Literal["pos", "neg"]
@@ -197,3 +197,32 @@ class HoardingImpact(BaseModel):
     homes: list[HoardingHome]
     profile: str = "default"
     provenance: str = "routing engine, default profile (wheelchair profile for links cut)"
+
+
+SensitiveType = Literal["school", "kindergarten", "park", "playground"]
+SCHOOL_RUN_NOTE = "School run assumed 7–8 am (typical); not from data"
+
+
+class LorrySensitive(BaseModel):
+    """A school, kindergarten, park or playground within 50 m of the lorry route."""
+
+    place_id: str
+    name: str
+    type: SensitiveType
+    distance_m: int  # from the route line to the place (its point, walk node or park outline)
+    along_m: int  # how far along the route from the main road it is passed
+
+
+class LorryRoute(BaseModel):
+    """Construction lorries: `drive` route from the nearest major road to the site gate."""
+
+    from_node: str  # the major-road node the lorries leave the main road at
+    gate_node: str  # the road node nearest the tower entrance (the site gate)
+    path: list[LonLat]
+    distance_m: int
+    minutes: int  # at the drive profile's 30 km/h
+    status: RouteStatus  # a drive route is never "confirmed"
+    sensitive: list[LorrySensitive]  # ordered by along_m
+    school_run_note: str = SCHOOL_RUN_NOTE  # a labelled assumption, not from data
+    profile: str = "drive"
+    warnings: list[str] = []
