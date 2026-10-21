@@ -5,6 +5,7 @@ from the routing engine; residents' lines are simulated reactions. The plan is d
 it is computed once per loaded world and cached.
 """
 
+import logging
 import threading
 
 from fastapi import APIRouter, HTTPException
@@ -19,6 +20,7 @@ from townshiplens_spatial.devsim_models import (
 from .. import state
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 UNAVAILABLE = "development simulation not available for this world"
 _lock = threading.Lock()
@@ -38,6 +40,11 @@ def _plan() -> DevelopmentPlan | None:
             try:
                 _cache[key] = devsim.build_development_plan(world, DevelopmentBrief())
             except DevsimUnavailable:
+                _cache[key] = None
+            except devsim.DevsimCheckError:
+                # a plan that fails its own honesty check is never shown; the build is
+                # deterministic, so the failure is cached (no 1 s rebuild and 500 per request)
+                log.exception("development plan failed its check; served as unavailable")
                 _cache[key] = None
         return _cache[key]
 

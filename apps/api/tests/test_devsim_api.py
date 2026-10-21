@@ -17,6 +17,27 @@ def test_tiny_fixture_returns_404_with_the_spec_message():  # AC-H6
     assert TestClient(app).post("/developments/simulate").status_code == 404  # body optional
 
 
+def test_a_plan_failing_its_check_is_unavailable_and_cached(monkeypatch):
+    from townshiplens_api.routes import devsim as route
+    from townshiplens_spatial import devsim
+
+    calls = []
+
+    def bad(world, brief):
+        calls.append(1)
+        raise devsim.DevsimCheckError("a number in the copy is not a fact")
+
+    monkeypatch.setattr(devsim, "build_development_plan", bad)
+    route.clear_cache()
+    c = TestClient(app)
+    try:
+        assert c.post("/developments/simulate", json={}).status_code == 404
+        assert c.post("/developments/simulate", json={}).status_code == 404
+        assert calls == [1]  # deterministic: the failure is cached, not rebuilt per request
+    finally:
+        route.clear_cache()
+
+
 def test_brief_text_is_bounded():
     r = TestClient(app).post("/developments/simulate", json={"brief_text": "x" * 2001})
     assert r.status_code == 422
