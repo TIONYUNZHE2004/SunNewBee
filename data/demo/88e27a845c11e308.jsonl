@@ -1,4 +1,4 @@
-{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "c8c9d795ad013dc645af8593ccb8d0a4c420a03704a9abc3064b7a97169366be", "model": "mock-scripted", "recorded_at": "2026-10-21T11:49:05+00:00"}}
+{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "671125dadbf37fc932937de4722cf83664dfcc4e0255b877bcc0ab81d16930f3", "model": "mock-scripted", "recorded_at": "2026-10-21T15:27:43+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "urban park", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5, "near_place": null}}
@@ -37,4 +37,4 @@
 {"type": "citation", "ref": 8, "evidence_id": "ev-rt-279d8891.access_estimate", "element_id": "rt-279d8891", "attribute": "route_access_estimate", "status": "reported", "verified_at": null, "source_type": "map-derived estimate (not checked on site)", "photo_url": null}
 {"type": "citation", "ref": 9, "evidence_id": "ev-osm-way-1309457596.access_point", "element_id": "osm-way-1309457596", "attribute": "access_point", "status": "reported", "verified_at": null, "source_type": "osm_area_boundary_snap", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "route", "attribute": "entrance", "note": "Route starts at the nearest mapped path to Elmina Urban Park; its entrance is not mapped"}, {"element_id": "route", "attribute": "demo_values", "note": "Some segment facts are demo values, not yet surveyed"}, {"element_id": "answer", "attribute": "caveat", "note": "Estimated from map data (OpenStreetMap path types and tags), not checked on site"}]}
-{"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}
+{"type": "done", "message_id": "5932db9b48f7", "answer_status": "partial", "model": "mock-scripted"}
