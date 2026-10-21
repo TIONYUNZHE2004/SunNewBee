@@ -35,6 +35,8 @@ The resident assistant covers **access** (routes, places, amenities, closures, t
 | [T-023](tasks/T-023-management-panel-scope.md) | Management panel answers like the resident panel | assigned | P1 | Cloud AI worker |
 | [T-024](tasks/T-024-flood-impact-markers.md) | River rise +1/+2/+3 m with flooded and cut-off markers | assigned | P1 | Cloud backend worker + shaoxian04 |
 | [T-025](tasks/T-025-event-closure-simulation.md) | Event simulation (marathon): affected routes, detours, suggestions | assigned | P1 | Cloud workers + shaoxian04 |
+| [T-026](tasks/T-026-traffic-closure-system.md) | General traffic and closure simulation (any closure, detour pressure, keep traffic moving) | assigned | P1 | Cloud backend + AI workers |
+| [T-027](tasks/T-027-ui-flood-and-closures.md) | UI: flood markers and closure screen in shaoxian04's style | assigned | P1 | Cloud UI worker |
 
 
 ## Audit P1 fixes (control, 19 Oct 16:30 UTC)
