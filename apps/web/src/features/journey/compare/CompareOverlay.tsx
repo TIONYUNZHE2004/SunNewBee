@@ -54,6 +54,8 @@ export function CompareOverlay() {
   const qc = useQueryClient();
   const host = useRef<HTMLDivElement>(null);
   const card = useRef<HTMLElement>(null);
+  const chipCount = useRef<HTMLSpanElement>(null);
+  const [chipAt, setChipAt] = useState<ScreenPoint | null>(null);
   const [size, setSize] = useState<Size>({ w: 0, h: 0, panel: 0 });
   const playable = isPlayableCompare(payload);
   const st = playable ? compareStateAt(compareTimelineOf(payload), t, { reduced }) : null;
@@ -89,6 +91,24 @@ export function CompareOverlay() {
   }, [reasonsOn, size]);
   useEffect(() => () => useCompare.getState().setCardTop(null), []);
 
+  // the ticket flight lands on the chip's counter: measured (map slot px), not guessed
+  const chipOn = !!st?.beats.includes("tickets-chip");
+  const flying = !!st?.beats.includes("ticket-flight");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-measured when the map resizes or a flight starts
+  useLayoutEffect(() => {
+    const el = chipCount.current;
+    const h = host.current;
+    if (!chipOn || !el || !h) {
+      setChipAt(null);
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    const o = h.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return setChipAt(null);
+    const next = { x: r.left + r.width / 2 - o.left, y: r.top + r.height / 2 - o.top };
+    setChipAt((p) => (p && p.x === next.x && p.y === next.y ? p : next));
+  }, [chipOn, flying, size]);
+
   if (!playable || !st) return null;
   const c = payload;
   const tl = compareTimelineOf(c);
@@ -119,11 +139,12 @@ export function CompareOverlay() {
         copy =
           b.poi !== undefined
             ? poiTag(c, b.poi)
-            : { key: "Arrived", text: c.to.name || c.to.id, tone: "ok" };
+            : { key: "Arrived", text: c.to_place.name || c.to_place.id, tone: "ok" };
       else if (b.poi !== undefined) copy = poiTag(c, b.poi);
       if (copy) tags.push([b.id, b.side, copy]);
     }
-  const greeting = split && on.has("greeting") ? greetingFor(`${c.from.id}>${c.to.id}`) : null;
+  const greeting =
+    split && on.has("greeting") ? greetingFor(`${c.from_place.id}>${c.to_place.id}`) : null;
   const unplaced = (side: BeatSide) => tags.filter(([id, s]) => s === side && !point(id));
   const column = (side: "L" | "R") => {
     const items = unplaced(side);
@@ -145,7 +166,8 @@ export function CompareOverlay() {
   };
   const fc = flightCard(c);
   const from = screen?.unchecked ?? point("tag-unchecked") ?? halfCentre("R");
-  const to = { x: visW - 16 - 40, y: 30 };
+  // fallback before the chip has been measured (first frame, or no layout): its usual place
+  const to = chipAt ?? { x: visW - 16 - 40, y: 30 };
   const bump =
     tl.flightAt !== null && t >= tl.flightAt + FLIGHT_S && t < tl.flightAt + FLIGHT_S + 0.6;
 
@@ -184,7 +206,7 @@ export function CompareOverlay() {
         {greeting && point("greeting") && <GreetingBubble text={greeting} at={point("greeting")} />}
         {column("L")}
         {column("R")}
-        {on.has("tickets-chip") && <TicketsChip count={tickets} bump={bump} />}
+        {on.has("tickets-chip") && <TicketsChip count={tickets} bump={bump} countRef={chipCount} />}
         {on.has("ticket-flight") && fc && st.flight !== null && (
           <TicketFlight title={fc.title} text={fc.text} from={from} to={to} progress={st.flight} />
         )}

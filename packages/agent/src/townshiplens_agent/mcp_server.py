@@ -46,7 +46,7 @@ INSTRUCTIONS = (
 EXCLUDED = {"create_verification_request"}
 # Parameters an MCP client may not set: the server fills them (PDPA: no client free text is
 # stored in the staff queue).
-HIDDEN = {"plan_route": {"question_summary"}}
+HIDDEN = {"plan_route": {"question_summary"}, "compare_routes": {"question_summary"}}
 
 
 def allow_vr() -> bool:
@@ -91,7 +91,7 @@ def _expose(mcp: FastMCP, name: str, fn) -> None:
         ctx = _ctx()
         if name == "create_verification_request":  # only exposed with MCP_ALLOW_VR
             kwargs = safe_vr_args(ctx.world, kwargs, source="mcp")
-        if name == "plan_route":  # the stored summary names places, never client text
+        if name in ("plan_route", "compare_routes"):  # the stored summary names places only
             kwargs["question_summary"] = route_summary(
                 ctx.world, kwargs.get("profile"), kwargs.get("from_id"), kwargs.get("to_id")
             )

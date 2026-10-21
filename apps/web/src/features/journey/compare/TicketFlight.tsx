@@ -31,7 +31,7 @@ export function TicketFlight({
   return (
     <div
       data-beat="ticket-flight"
-      className="absolute w-[230px] rounded-xl border-l-[5px] border-[#8b7fd6] bg-surface px-2.5 py-2 text-xs text-fg shadow-[0_10px_30px_rgba(44,42,58,.25)]"
+      className="absolute w-[230px] rounded-xl border-l-[5px] border-cmp-unknown bg-surface px-2.5 py-2 text-xs text-fg shadow-[0_10px_30px_rgba(44,42,58,.25)]"
       style={{
         left: p.x,
         top: p.y,

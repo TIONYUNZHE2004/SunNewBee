@@ -60,9 +60,12 @@ def clear_cache() -> None:
     responses={404: {"description": UNAVAILABLE}},
 )
 def simulate_development(body: SimulateRequest | None = None) -> DevelopmentPlan:
-    """The Development Simulation plan for the loaded world: site, routed facts (detour, park and
-    mall walks), cast, timeline, bubbles and end card. Illustrative, not a forecast; 404 when the
-    world lacks the parcel (e.g. the tiny fixture)."""
+    """The Development Simulation plan for the loaded world (the 45 s building timeline): site,
+    routed facts (detour, park and mall walks), cast, acts, bubbles, tags, banners, the hoarding
+    impact over every nearby home, the lorry route, the ESTIMATE schedule and cost with its
+    sources and month keys, flood exposure at handover, the daily-life access matrix, 40
+    simulated residents and the Impact Brief. Illustrative, not a forecast; 404 when the world
+    lacks the parcel (e.g. the tiny fixture)."""
     plan = _plan()
     if plan is None:
         raise HTTPException(status_code=404, detail=UNAVAILABLE)

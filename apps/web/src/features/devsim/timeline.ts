@@ -423,7 +423,7 @@ export function feedbackBeats(plan: DevelopmentPlan): FeedbackBeat[] {
   const byN = (n: number) => plan.bubbles.find((b) => b.n === n);
   const last = [...plan.bubbles].sort((a, b) => a.t1 - b.t1).at(-1);
   const out: FeedbackBeat[] = [];
-  plan.end_card.items.forEach((it, item) => {
+  (plan.end_card?.items ?? []).forEach((it, item) => {
     const n = /footpath/i.test(it.text) ? 1 : /school-run/i.test(it.text) ? 5 : 7;
     const b = byN(n) ?? last;
     if (!b) return;

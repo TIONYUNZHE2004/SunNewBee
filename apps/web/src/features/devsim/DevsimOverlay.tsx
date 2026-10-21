@@ -260,7 +260,7 @@ export function DevsimOverlay({
           badgeRef={badgeRef}
         />
       )}
-      {st.endCard && (
+      {st.endCard && plan.end_card && (
         <div className="pointer-events-none absolute inset-y-0 left-0 right-[calc(var(--panel-w,0px))] z-30 flex items-center justify-end pr-6 *:pointer-events-auto">
           <EndCard card={plan.end_card} />
         </div>

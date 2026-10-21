@@ -177,7 +177,7 @@ function pathOf(
 ): RoutePath {
   return createRoutePath(
     {
-      polyline: r.geometry.coordinates as unknown as JourneyPlan["polyline"],
+      polyline: r.coordinates as unknown as JourneyPlan["polyline"],
       spans: spans as unknown as JourneyPlan["spans"],
     },
     (lon, lat) => frame.toLocal(lon, lat),

@@ -131,16 +131,19 @@ def test_raya_and_monsoon_set_pieces():  # AC-C4
     first_raya = min(d for d, n, _ in ds.HOLIDAYS if n == ds.RAYA and d >= struct.start)
     assert raya.date == first_raya and raya.date < struct.end
     assert s.months[raya.month_index] == raya.date[:7]
+    # Ruling R25: the staged monsoon is the first band starting after the Raya month and before
+    # the handover month (Nov 2028 - Mar 2029 here, during fit-out: no structure days lost).
     mp = s.monsoon_set_piece
     assert mp is not None and mp.months
-    assert mp.start_month >= struct.start[:7] and mp.end_month <= struct.end[:7]
+    band = next(b for b in s.monsoon_bands if b.start_month == mp.start_month)
+    assert raya.month_index < band.start_index < s.months_total - 1
+    assert not [b for b in s.monsoon_bands if raya.month_index < b.start_index < band.start_index]
+    assert (mp.start_month, mp.end_month) == ("2028-11", "2029-03")
+    assert [m.month_index for m in mp.months] == list(range(band.start_index, band.end_index + 1))
     for m in mp.months:
         assert int(m.month[5:]) in (11, 12, 1, 2, 3)
-        assert 0 < m.days_lost <= m.wet_days * ds.value("rain_lost_fraction")
-    # Month figures are rounded to 0.1 day; the total is the unrounded sum, rounded.
-    assert abs(s.rain_days_lost - sum(m.days_lost for m in mp.months)) <= 0.5 + 0.05 * len(
-        mp.months
-    )
+        assert m.wet_days == ds.value(ds.WET_DAYS[int(m.month[5:])])
+        assert m.month >= struct.end[:7] and m.days_lost == 0  # fit-out: rain is not counted
     for b in s.monsoon_bands:
         assert 0 <= b.start_index <= b.end_index < s.months_total
         assert s.months[b.start_index] == b.start_month and s.months[b.end_index] == b.end_month
@@ -150,9 +153,28 @@ def test_full_monsoon_month_loses_wet_days_times_fraction():
     """A monsoon month wholly inside structure work loses exactly wet days x the fraction."""
     s = ds.schedule()
     struct = next(p for p in s.phases if p.name == "structure")
-    nov = next(m for m in s.monsoon_set_piece.months if m.month == "2027-11")
+    i = s.months.index("2027-11")
     assert struct.start < "2027-11-01" and struct.end > "2027-12-01"
-    assert nov.days_lost == pytest.approx(18 * 0.25, abs=0.05)
+    assert not [h for h in s.holidays_lost if h.startswith("2027-11")]
+    nov = s.days_lost_by_month[i] - s.days_lost_by_month[i - 1]
+    assert nov == pytest.approx(18 * 0.25, abs=0.15)
+
+
+def test_days_lost_by_month_adds_holidays_shutdown_and_rain():  # ruling R25
+    s = ds.schedule()
+    lost = s.days_lost_by_month
+    assert len(lost) == s.months_total
+    assert all(b >= a for a, b in zip(lost, lost[1:], strict=False))
+    total = s.holiday_days_lost + s.raya_shutdown_days + s.rain_days_lost
+    assert abs(lost[-1] - total) <= 0.5
+    # nothing is lost before structure work starts, nothing after it ends
+    struct = next(p for p in s.phases if p.name == "structure")
+    before = [x for m, x in zip(s.months, lost, strict=True) if m < struct.start[:7]]
+    after = [x for m, x in zip(s.months, lost, strict=True) if m > struct.end[:7]]
+    assert set(before) == {0} and set(after) == {lost[-1]}
+    # the Raya month carries the holiday plus the shutdown days started in it
+    r = s.raya_set_piece.month_index
+    assert lost[r + 1] - lost[r - 1] >= s.raya_shutdown_days
 
 
 def test_more_storeys_take_longer():

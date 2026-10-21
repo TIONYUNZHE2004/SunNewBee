@@ -22,6 +22,9 @@ from .labels import (
 )
 from .scope import CANNOT_FROM_DATA
 from .template import (
+    COMPARE_PROFILES,
+    compare_caveats,
+    compare_summary,
     day_answer,
     day_change_answer,
     event_answer,
@@ -146,7 +149,10 @@ def _placeholder_caveat(rets, caveats: list[str]) -> list[str]:
         route.get("access_metres", {}).get("likely_ok", 0) or route.get("status") == "likely_ok"
         for _, result in rets
         if isinstance(result.get("data"), dict)
-        for route in result["data"].get("routes", [])
+        for route in [
+            *result["data"].get("routes", []),
+            *[result["data"][k] for k in ("recommended",) if result["data"].get(k)],
+        ]
     ) and not any("estimated from map data" in c.lower() for c in caveats):
         caveats = [*caveats, f"{LIKELY_OK_CAVEAT}."]
     if any(
@@ -952,13 +958,29 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         if need:
             return _call("find_place", query=need)
         plan_profile = _profile(q, info, _ui(info, "profile") or "stroller")
+        # Demo polish B4: a mobility-profile route compares the fastest walk with the profile's
+        # route (compare_routes). A flood scenario keeps plan_route (endpoint flood flags).
+        compare = plan_profile in COMPARE_PROFILES and not ui_sid
         if n == used:
             if not a or not b:
                 return _cannot("I couldn't find one of those places yet.")
-            return _call("plan_route", from_id=a["id"], to_id=b["id"], profile=plan_profile)
+            tool = "compare_routes" if compare else "plan_route"
+            return _call(tool, from_id=a["id"], to_id=b["id"], profile=plan_profile)
         rr = _data(rets[-1][1])
         if not isinstance(rr, dict):
             return _cannot()
+        cmp = rr if rets[-1][0] == "compare_routes" else None
+        if cmp is not None and (not cmp.get("recommended") or cmp.get("same_path")):
+            # Nothing to compare (same path, no_data, blocked): today's plan_route answer, with
+            # its closures, rest search and journey requests.
+            return _call("plan_route", from_id=a["id"], to_id=b["id"], profile=plan_profile)
+        if cmp is not None:  # read like a plan_route result: the recommended route is the answer
+            rr = {
+                "status": cmp["status"],
+                "routes": [cmp["recommended"]] if cmp.get("recommended") else [],
+                "verification_requests": cmp.get("verification_requests") or [],
+                "closures": cmp.get("closures") or [],
+            }
         routes = rr.get("routes") or []
         r0 = routes[0] if routes else None
         status = rr.get("status") or "no_data"
@@ -968,7 +990,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         ev += [e["id"] for e in rets[-1][1].get("evidence", [])]
         flood_cav, flood_ev, likely = _endpoint_flood(rr)
         ev += flood_ev
-        caveats = _unknown_caveats(routes, _vrs(rets[-1][1]))
+        caveats = _unknown_caveats(routes, rr.get("verification_requests") or [])
         # Rest-limit lines (older_adult_rest): the gap over the limit, or unverified rest points.
         rest = rest_caveats(r0) if r0 else []
         closed = rr.get("closures") or []
@@ -1006,6 +1028,9 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             intents.append(
                 {"kind": "journey.play", "route_id": r0["id"], "start_time": start_time_for(q)}
             )
+        if cmp is not None:  # the split screen first; highlight and journey keep List/Mapbox
+            intents.insert(0, {"kind": "route.compare", "route_id": r0["id"] if r0 else None})
+            caveats = compare_caveats(cmp) + caveats
         summary = (
             f"No mapped connection between {a.get('name', a['id'])} and "
             f"{b.get('name', b['id'])} (data gap)."
@@ -1022,6 +1047,14 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
                 f"{route_status_text(status, r0)}. There is a mapped walking route of about "
                 f"{round(dist)} m, about {mins:g} min at this pace plus rests."
             )
+        if cmp is not None:
+            demo = any(
+                e.get("source_type") == "team_survey_placeholder"
+                for _, r in rets
+                for e in r.get("evidence", [])
+            )
+            names = (a.get("name", a["id"]), b.get("name", b["id"]))
+            summary = compare_summary(cmp, *names, demo) or summary
         return _final(
             answer_status="answered"
             if status == "confirmed" and not likely and not closed
