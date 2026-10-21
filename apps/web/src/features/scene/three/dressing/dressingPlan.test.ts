@@ -229,6 +229,19 @@ describe("decorative props (AC-B8)", () => {
     expect([...west, ...east].map(key).sort()).toEqual(decor.map(key).sort());
   });
 
+  it("keeps out of water: base water and landcover water (F3)", () => {
+    const inPark = (d: DressItem) => d.x > 20 && d.x < 140 && d.z > 20 && d.z < 120;
+    expect(decor.some(inPark)).toBe(true);
+    const lake = square(20, 20, 140, 120);
+    const water = planDecorProps({ walk, parks, frame, box, water: fc([lake]) });
+    expect(water.filter(inPark)).toEqual([]);
+    const cls = { ...lake, properties: { class: "water" } };
+    const land = planDecorProps({ walk, parks, frame, box, landcover: fc([cls]) });
+    expect(land.filter(inPark)).toEqual([]);
+    const other = { ...lake, properties: { class: "residential" } };
+    expect(planDecorProps({ walk, parks, frame, box, landcover: fc([other]) })).toEqual(decor);
+  });
+
   it("keeps out of building footprints and the boundary's outside", () => {
     const buildings = fc([square(-150, 3, 150, 20)]);
     const inB = planDecorProps({ walk, parks, frame, box, buildings });

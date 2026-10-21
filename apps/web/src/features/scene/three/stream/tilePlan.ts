@@ -124,6 +124,7 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
           landcover: buildings.landcover,
           buildings: buildings.buildings,
           parks: buildings.parks,
+          water: buildings.water,
           trees: buildings.trees,
           places: walk,
           frame,

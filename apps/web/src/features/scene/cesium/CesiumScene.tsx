@@ -11,6 +11,7 @@ import { isWide } from "../../main/usePanelReserve";
 import { frustumXOffset, mapPanelOverlapPx } from "../../main/viewport";
 import { InSlot } from "../../map-ui/mapSlots";
 import { pickedFloodEdgeId, pointFeatures } from "../geo";
+import { DevsimTextPanel } from "../list/DevsimTextPanel";
 import { useScene } from "../sceneStore";
 import { useMapStyle } from "../useMapStyle";
 import { useCameraIntents } from "./camera";
@@ -306,6 +307,8 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
       <CameraControls ops={ops} />
       <PerfOverlay />
       <SlowBanner />
+      {/* Development Simulation: text version only in Realistic (spec §10: 3D is Stylised only) */}
+      <DevsimTextPanel />
     </section>
   );
 }

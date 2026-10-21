@@ -20,6 +20,7 @@ from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from townshiplens_spatial import tools as sp
+from townshiplens_spatial.devsim_models import DevelopmentPlan
 from townshiplens_spatial.models import Evidence, VerificationRequest
 from townshiplens_spatial.routing import CENTRE_PREFIX
 from townshiplens_spatial.scenario_meta import scenario_source
@@ -597,6 +598,12 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
             for t in (o.get("change"), o.get("why"))
             if t
         }
+    if name == "simulate_development" and res.ok and isinstance(res.data, dict):
+        # The plan is for the development.play intent (run.py), not for the model: only the
+        # brief numbers and the computed facts stay in the record the validator checks.
+        if plan := res.data.pop("plan", None):
+            rec.development_plan = DevelopmentPlan.model_validate(plan)
+        rec.developments.append(res.data)
     if name == "river_tipping_point" and res.ok and isinstance(res.data, dict):
         rec.tippings.append(res.data)
         rec.place_names |= {
@@ -1042,6 +1049,15 @@ def build_agent(
         older, wheelchair users, parents with strollers, households without a car), school
         and the busiest places. A rehearsal, not a forecast; residents are synthetic."""
         return await call_tool(ctx.deps, "day_rehearsal", day=str(day).strip().lower())
+
+    @register_tool
+    async def simulate_development(ctx: RunContext[Deps]) -> dict:
+        """Developer lens: simulate the fixed demo brief, a hypothetical 30-storey, 500-home
+        tower near Lakeside Mall, from construction to daily life. Call it only when the
+        resident's message is that brief. It returns the brief numbers and `available`; the
+        simulation itself is played on the map. Hypothetical: never an SDP project, never a
+        forecast."""
+        return await call_tool(ctx.deps, "simulate_development")
 
     @register_tool
     async def find_fixes(

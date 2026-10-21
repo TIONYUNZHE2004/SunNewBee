@@ -1,8 +1,11 @@
 import { type RefObject, useEffect, useState } from "react";
 import { useTheme } from "../../../../ui/theme";
+import { useDevsim } from "../../../devsim/devsimStore";
 import { reducedMotion } from "../../cesium/controls/cameraOps";
 import { useScene } from "../../sceneStore";
 import type { RoleUniforms } from "../assets/roleMaterial";
+import { devsimGrade, devsimMoodSource, devsimMoodWeights } from "../devsim/devsimView";
+import { stateAt } from "../devsim/state";
 import type { Engine } from "../engine";
 import { LIGHT_PRESETS } from "../lighting";
 import {
@@ -24,7 +27,8 @@ const DAY_DUSK_FADE_MS = 3000;
 const FADE_MS = 2000;
 
 /**
- * Lighting follows the mood clock: Elmina Day playback, else a pinned theme, else the real Kuala
+ * Lighting follows the mood clock: the Development Simulation's sim sun while it plays, then Elmina
+ * Day playback, else a pinned theme, else the real Kuala
  * Lumpur clock. A source change crossfades (reduced motion applies at once). Also the window glow,
  * the container background and the fog range. Display only.
  */
@@ -61,7 +65,13 @@ export function useMood({
         now: sunNow(),
       });
     };
-    const apply = (w: MoodWeights, src: MoodSource) => {
+    const devsimSun = () => {
+      const d = useDevsim.getState();
+      if (!d.plan || d.status !== "ready") return null;
+      const sun = stateAt(d.t, d.plan).sun;
+      return { w: devsimMoodWeights(sun), src: devsimMoodSource(sun) };
+    };
+    const apply = (w: MoodWeights, src: MoodSource, devsim = false) => {
       shown = w;
       bus.setState({ mood: w });
       bus.getState().driver?.setWeights(w);
@@ -69,7 +79,7 @@ export function useMood({
       roleUniforms.uWindowGlow.value = g.uWindowGlow;
       roleUniforms.uLitShare.value = g.uLitShare;
       roleUniforms.uLightGlow.value = g.uLightGlow;
-      const preset = moodPreset(w);
+      const preset = devsim ? devsimGrade(moodPreset(w), w) : moodPreset(w);
       if (sectionRef.current) sectionRef.current.style.background = preset.background;
       engine.setLighting(preset, moodKeyDir(src, w, sunNow(), home.lat, home.lon));
     };
@@ -84,6 +94,15 @@ export function useMood({
       else raf = requestAnimationFrame(step);
     };
     const evaluate = () => {
+      // Development Simulation playing: its sim sun drives the mood at once (no crossfade), the
+      // way Elmina Day playback does; leaving it crossfades back like any source change.
+      const dv = devsimSun();
+      if (dv) {
+        fade = null;
+        key = "devsim";
+        apply(dv.w, dv.src, true);
+        return;
+      }
       const src = source();
       const to = moodWeights(src);
       const k = src.kind === "pinned" ? `p:${src.theme}` : src.kind;
@@ -106,12 +125,16 @@ export function useMood({
     engine.setFogRange(engine.rig.get().rangeM);
     evaluate();
     const offTheme = useTheme.subscribe(evaluate);
+    const offDevsim = useDevsim.subscribe((s, prev) => {
+      if (s.t !== prev.t || s.plan !== prev.plan || s.status !== prev.status) evaluate();
+    });
     const offDay = useScene.subscribe((s, prev) => {
       if (s.day.on !== prev.day.on || s.day.t !== prev.day.t) evaluate();
     });
     const timer = setInterval(evaluate, 60_000);
     return () => {
       offTheme();
+      offDevsim();
       offDay();
       clearInterval(timer);
       if (raf) cancelAnimationFrame(raf);

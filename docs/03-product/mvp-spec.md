@@ -10,6 +10,8 @@
 
 > **Status (2026-10-18, Three.js stylised view):** the Three.js Stylised view now covers the whole township: tiles stream rich content around the camera (hero district richest), buildings get procedural facades, dressed roofs and lit windows at night, the ground gets verges, parking lots and dressed construction land, and traffic and people move smoothly at display rate. The owner passed the P4 gate. **P5 (2026-10-19, owner gate passed, merged to `main`):** Three.js is the default (and only) Stylised renderer and the Cesium Stylised code is retired; Cesium draws Realistic only. Tile planning runs in a Worker and layer rebuilds are time-sliced (streaming spikes 9–20 ms, down from up to 128 ms; the residuals and the resident trip route in Stylised are logged for P6). Log: [overnight log, 2026-10-19 P5](../superpowers/overnight-log.md).
 
+> **Status (2026-10-21, Developer lens):** the Development Simulation (a Hypothetical Development near Lakeside Mall, played from construction to daily life in Management mode) is built on branch `feat/devsim`, not merged to `main`. It is labelled "Hypothetical development · not an SDP project", and every number comes from the route engine. Spec: [developer-lens design](../superpowers/specs/2026-10-21-developer-lens-development-simulation-design.md); [ADR 0014](../00-overview/decisions/0014-developer-lens-hypothetical-developments-on-real-parcels.md).
+
 ## How the product is organised
 
 ```

@@ -1,5 +1,6 @@
 import { useMemo, useRef } from "react";
 import { useBuildings, useLayer, useSite } from "../../../lib/api";
+import { DevsimMount } from "../../devsim/DevsimMount";
 import { JourneyMount } from "../../journey/JourneyMount";
 import { InSlot } from "../../map-ui/mapSlots";
 import { CameraControls, handleMapKey } from "../cesium/controls/CameraControls";
@@ -9,6 +10,8 @@ import { PerfOverlay, SlowBanner } from "../cesium/PerfOverlay";
 import { type LonLat, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { createRoleUniforms } from "./assets/roleMaterial";
+import { DevsimSceneMount } from "./devsim/DevsimSceneMount";
+import { useDevsimSuppress } from "./devsim/suppress";
 import { createEngine } from "./engine";
 import { createFrame } from "./frame";
 import { boundaryOf } from "./ground/boundary";
@@ -179,9 +182,11 @@ export default function ThreeScene({
     roofSrc: city.roofSrc,
     boundary,
   });
+  // Devsim: the city's own construction dressing on the simulated parcel gives way to the devsim kit.
+  const suppress = useDevsimSuppress(frame, buildings?.landcover);
   const { roads, stalls } = useRoads({ engine, active, tier });
   // Verges and construction ground: one ground-decor mesh (stall lines ride the road markings).
-  const { decorOn } = useGroundDecor({ engine, active, tier });
+  const { decorOn } = useGroundDecor({ engine, active, tier, suppress });
   const { facadesOn } = useFacades({
     engine,
     active,
@@ -202,6 +207,7 @@ export default function ThreeScene({
     kitJob: city.kitJob,
     bus,
     boundary,
+    suppress,
   });
   // Street dressing kit (B-T7): fact props (crossings, signals, bus stops, shelters, benches; one
   // per data feature) and decorative props near the camera target.
@@ -299,6 +305,19 @@ export default function ThreeScene({
         footprints={buildings?.buildings}
         factBenches={dressing.benches}
       />
+      {/* Developer lens Development Simulation: tower, kit, cast, camera (spec §5.3 Scene). */}
+      <DevsimSceneMount
+        engine={engine}
+        frame={frame}
+        bus={bus}
+        roleUniforms={roleUniforms}
+        tier={tier}
+        loaded={loaded}
+        accessData={access.data}
+        hostRef={hostRef}
+      />
+      {/* Development Simulation overlays (FE): HUD, bubbles, labels, end card, playback bar. */}
+      <DevsimMount hostRef={hostRef} decorativeNote={!decorativeShown} />
       {showroom && (assetsState === "loading" || assetsState === "ready") && <ShowroomChip />}
     </section>
   );

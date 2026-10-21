@@ -1060,6 +1060,63 @@ window.__devsim = {
   play() { setPlaying(true); },
   pause() { setPlaying(false); },
   facts: F,
+  // QA probe (spec AC-C1/AC-H3): stage-relative CSS-px rects at the last rendered t, same shape as the product's Probe.
+  probe() {
+    const sr = stageRect();
+    const rel = (r) => ({ x: r.left - sr.left, y: r.top - sr.top, w: r.width, h: r.height });
+    const box = (cx, cz, hw, hd, h0, h1) => {
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      for (const dx of [-hw, hw]) for (const dz of [-hd, hd]) for (const h of [h0, h1]) {
+        const q = toScreen(new THREE.Vector3(cx + dx, h, cz + dz));
+        x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y);
+      }
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    };
+    const onScreen = (r) => r.x < sr.width && r.y < sr.height && r.x + r.w > 0 && r.y + r.h > 0;
+    const shown = (el) => el && el.style.display !== "none" && el.getBoundingClientRect().width > 0;
+    const rects = {};
+    const built = builtAt(t);
+    const tw = S.tower.ext.map(V2), tx = tw.map((q) => q.x), ty = tw.map((q) => q.y);
+    const cx = (Math.min(...tx) + Math.max(...tx)) / 2, cy = (Math.min(...ty) + Math.max(...ty)) / 2;
+    if (built >= 1) rects.tower = box(cx, -cy, (Math.max(...tx) - Math.min(...tx)) / 2, (Math.max(...ty) - Math.min(...ty)) / 2, 0, built * SH);
+    const bi = BUBBLES.findIndex((b) => t >= b.t0 && t < b.t1 && CAST[b.who].p.visible);
+    let subjectWho = null;
+    if (bi >= 0) {
+      const b = BUBBLES[bi], pp = CAST[b.who].p.position;
+      rects.speaker = box(pp.x, pp.z, 0.8, 0.8, 0, 3.2);
+      if (shown(bubbleEls[bi].el)) rects.bubble = rel(bubbleEls[bi].el.getBoundingClientRect());
+      subjectWho = b.who;
+    }
+    if (shown(hypo)) rects.hypotheticalLabel = rel(hypo.getBoundingClientRect());
+    rects.simBadge = rel($("simlabel").getBoundingClientRect());
+    for (const k of Object.keys(rects)) if (k !== "simBadge" && !onScreen(rects[k])) { if (k === "tower") rects.towerOffscreen = rects.tower; delete rects[k]; }
+    const pt = (v) => { const q = toScreen(v); return [q.x, q.y]; };
+    const people = [], vehicles = [];
+    for (const w of workers) if (w.p.visible) people.push(pt(w.p.position));
+    for (const m of movers) if (m.p.visible) people.push(pt(m.p.position));
+    for (const c of crowd) if (c.p.visible) people.push(pt(c.p.position));
+    for (const c of Object.values(CAST)) if (c.p.visible) people.push(pt(c.p.position));
+    for (const l of lorries) if (l.g.visible) vehicles.push(pt(l.g.position));
+    for (const q of queue) if (q.g.visible) vehicles.push(pt(q.g.position));
+    for (const c of ambient) if (c.g.visible) vehicles.push(pt(c.g.position));
+    // Subject per spec 4.4, as a world point at the current t.
+    const cast = (k) => CAST[k].p.position;
+    const door = onPath(6, 0);
+    const sub = t < 4.5 ? W3(TC.x, TC.y, 4) : t < 10 ? W3(YARD.x, YARD.y, 4)
+      : t < 16 || (t >= 27.5 && t < 33) || t >= 63.6 ? W3(TC.x, TC.y, Math.max(built, 1) * SH / 2)
+      : t < 22.5 ? cast("halim") : t < 27.5 ? cast("farid")
+      : t < 45 ? W3(door.x, door.y, 2) : t < 52 ? cast("meiling") : t < 57.5 ? cast("zainab") : cast("arjun");
+    const subjectName = t < 4.5 ? "site" : t < 10 ? "yard" : t < 16 || (t >= 27.5 && t < 33) || t >= 63.6 ? "tower"
+      : t < 22.5 ? "halim" : t < 27.5 ? "farid" : t < 45 ? "entrance" : t < 52 ? "meiling" : t < 57.5 ? "zainab" : "arjun";
+    const sc = pt(sub);
+    const litFloors = floors.filter((m) => m.visible && m.material === facadeOn).length;
+    return {
+      t, rects, people, vehicles, cameraInsideBuilding: false,
+      windowsLitFraction: litFloors / NFL,
+      subject: { name: subjectName, x: sc[0], y: sc[1], speaker: subjectWho },
+      stage: { w: sr.width, h: sr.height },
+    };
+  },
 };
 requestAnimationFrame(frame);
 </script>

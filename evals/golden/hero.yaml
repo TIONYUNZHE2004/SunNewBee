@@ -114,3 +114,8 @@
   message: "My mum uses a walker. Can she walk from Harmoni 1 to Lakeside Mall Car Park B?"
   profile: older_adult_rest
   expect: { tools_include: [find_place, plan_route], events_include: [scene.intent, citation, verification.requested], intents_include: [route.highlight, journey.play], done_status_in: [partial], first_line: "Route status: partly unverified", text_includes: ["demo values, not yet surveyed", "without a rest point"], text_excludes: [" safe", "selamat", " deep"], mock_only: { text_includes: ["about 966 m", "3 rest stops on the way", "not checked yet: 3 places on the way", "persiaran elmina crossing", "no known barrier"] } }
+- id: devsim-brief
+  world: elmina  # the developer-lens brief needs the Elmina parcel (ADR 0014, spec 2026-10-21 §5.2)
+  message: "Simulate a 30-storey, 500-home tower near Lakeside Mall, from construction to daily life"
+  profile: default
+  expect: { tools_include: [simulate_development], events_include: [scene.intent, citation], intents_include: [development.play], done_status_in: [answered], text_includes: ["illustrative", "not an SDP project", "Brief: 30 storeys"], text_excludes: [" safe", "selamat", "flood", " deep"] }

@@ -238,3 +238,14 @@ describe("journey.play", () => {
     expect(reduceChatEvent(m, ev({ type: "scene.intent", intent: play }))).toBe(m);
   });
 });
+
+describe("development.play", () => {
+  it("leaves the answer unchanged (playback lives in the devsim store)", () => {
+    const a = emptyAssistant("a");
+    expect(reduceIntent(a, { kind: "development.play", brief_text: "b" } as never)).toBe(a);
+    const e = emptyAssistant("b");
+    expect(
+      reduceChatEvent(e, ev({ type: "scene.intent", intent: { kind: "development.play" } })),
+    ).toBe(e);
+  });
+});
