@@ -164,3 +164,80 @@ async def test_elmina_corridor_compare(seed, tmp_path):
         "wheelchair route Elmina Lakeside Mall -> Surau Kiambang"
     )
     assert validate_answer(template_answer(rec, CORRIDOR_Q), rec) == []
+
+
+# ------------------------------------------------------------------ fix round 1 (review)
+
+
+def _close(world, element, cid="cl-0001"):
+    from datetime import UTC, datetime, timedelta
+
+    from townshiplens_spatial.models import Closure
+
+    now = datetime.now(UTC)
+    world.set_closures(
+        [
+            Closure(
+                id=cid,
+                element_id=element,
+                reason="works",
+                starts_at=now - timedelta(hours=1),
+                ends_at=now + timedelta(hours=24),
+            )
+        ]
+    )
+
+
+async def test_compare_answer_names_a_closed_destination(tmp_path):
+    """Review Important 1: the plan_route path names a closed destination; so must compare."""
+    world = load_world(TINY)
+    _close(world, "toilet-1")
+    evs, rec, _ = await _turn(world, tmp_path, TINY_Q, "wheelchair")
+    assert "compare_routes" in _calls(evs)
+    t = _text(evs)
+    assert "Closed (staff report): " in t and "— works" in t
+    assert evs[-1].model == "mock-scripted"
+    assert rec.route_closures and rec.route_closures[0]["impact"] == "endpoint"
+    # the validator asks for the closure line on a compare answer too
+    ans = template_answer(rec, TINY_Q)
+    assert validate_answer(ans, rec) == []
+    silent = ans.model_copy(
+        update={"caveats": [c for c in ans.caveats if "Closed (staff report)" not in c]}
+    )
+    assert any("staff-reported closure" in e for e in validate_answer(silent, rec))
+
+
+async def test_compare_answer_names_a_closure_it_detours_around(tmp_path):
+    """seg-cf is on the recommended route; closed, compare finds another way and says why."""
+    world = load_world(TINY)
+    _close(world, "seg-cf")
+    evs, rec, _ = await _turn(world, tmp_path, TINY_Q, "wheelchair")
+    assert _calls(evs) == ["find_place", "find_place", "compare_routes"]
+    assert [i.kind for i in _intents(evs)][:1] == ["route.compare"]
+    rows = rec.compares[-1]["closures"]
+    assert [r["impact"] for r in rows] == ["detour"]
+    assert "Closed (staff report): " in _text(evs)
+    assert evs[-1].model == "mock-scripted"
+    # no journey is played past a reported closure (same rule as plan_route answers)
+    assert "journey.play" not in [i.kind for i in _intents(evs)]
+
+
+async def test_validator_wants_each_stretch_with_its_length(tiny, tmp_path):
+    """Review minor: each unchecked stretch is named with its attribute and length."""
+    _, rec, _ = await _turn(tiny, tmp_path, TINY_Q, "wheelchair")
+    good = template_answer(rec, TINY_Q)
+    u = rec.compares[-1]["unchecked"][0]
+    wrong = good.model_copy(
+        update={"caveats": [c.replace(f"{u['length_m']:g} m", "999 m") for c in good.caveats]}
+    )
+    assert any("unchecked stretch" in e for e in compare_errors(wrong, rec))
+    assert compare_errors(good, rec) == []
+
+
+async def test_no_route_compare_intent_without_a_recommended_route(tiny, tmp_path):
+    """A compare without a recommended route (blocked) never reaches the client as route.compare."""
+    world = load_world(TINY)
+    _close(world, "seg-ab")
+    evs, rec, _ = await _turn(world, tmp_path, TINY_Q, "wheelchair")
+    assert rec.compares[-1]["recommended"] is None
+    assert "route.compare" not in [i.kind for i in _intents(evs)]

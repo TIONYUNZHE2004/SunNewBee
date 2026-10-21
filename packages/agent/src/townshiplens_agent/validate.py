@@ -3,7 +3,7 @@ import re
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
 
 from .answer import FinalAnswer
-from .compare_intent import compare_for
+from .compare_intent import compare_for, unchecked_noun
 from .developments import ILLUSTRATIVE_WORD, NOT_SDP, restatement
 from .facts import _matches as _fact_matches
 from .facts import (
@@ -30,6 +30,7 @@ from .route_binding import (
     amenity_selection_errors,
     amenity_text_errors,
     bound_measurement_errors,
+    demo_step_free,
     estimate_text_errors,
     has_estimate_qualifier,
     has_estimates,
@@ -508,15 +509,12 @@ ESTIMATE_HEDGE = re.compile(
     r"\b(?:likely|estimat\w*|may|might|not (?:yet )?(?:checked|verified|confirmed)|unverified"
     r"|unchecked|recorded|on the map|map data|tagged)\b"
     r"|\b(?:mungkin|kemungkinan|anggaran|dianggarkan|belum|direkodkan|data peta)\b"
-    r"|可能|估计|估算|未核实|尚未|记录|地图数据"
-    # the demo qualifier hedges a demo-value fact ("step-free path (demo values, not yet
-    # surveyed)", journey steps), as the existing demo rules already require
-    r"|demo values|not yet surveyed|nilai demo|belum ditinjau|演示数据|尚未实地调查",
+    r"|可能|估计|估算|未核实|尚未|记录|地图数据",
     re.IGNORECASE,
 )
-DEMO_HEDGE = re.compile(
-    r"demo values|not yet surveyed|nilai demo|belum ditinjau|演示数据|尚未实地调查", re.I
-)
+# The demo qualifier is no estimate hedge. It only excuses the journey's demo-valued
+# "step-free" stretch, and only on a turn with placeholder evidence (route_binding.demo_step_free,
+# review fix round 1).
 ESTIMATE_WORDS = re.compile(r"\bestimat|\banggar|估计|估算|推估", re.IGNORECASE)
 _CLAUSE = re.compile(r"[.;:!?。；：！？\n,，]")
 
@@ -541,10 +539,10 @@ def estimate_claim_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     bad = [
         m.group(0)
         for sentence in re.split(r"[.;!?。；！？\n]+", text)
-        if not DEMO_HEDGE.search(sentence)  # the demo qualifier covers its whole sentence
         for clause in _CLAUSE.split(sentence)
         for m in ACCESS_CLAIM.finditer(clause)
         if not ESTIMATE_HEDGE.search(clause)
+        and not demo_step_free(m.group(0), sentence, rec)  # its qualifier: whole sentence
     ]
     if not bad:
         return []
@@ -832,7 +830,11 @@ def compare_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     if not rec.compares or ans.answer_status == "cannot_answer":
         return []
     errs: list[str] = []
-    recommended = {(d.get("recommended") or {}).get("id") for d in rec.compares}
+    recommended = {
+        d["recommended"]["id"]
+        for d in rec.compares
+        if d.get("recommended") and not d.get("same_path")
+    }
     if any(i.kind == "route.compare" and i.route_id not in recommended for i in ans.scene_intents):
         errs.append(
             "route.compare must use the recommended route compare_routes returned this turn "
@@ -841,12 +843,21 @@ def compare_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     d = compare_for(rec, ans.route_id)
     if d is None or d.get("recommended") is None or d.get("same_path"):
         return errs
-    text = " ".join([ans.summary, *ans.steps, *ans.caveats])
-    if d.get("unchecked") and not UNCHECKED_WORDS.search(text):
-        errs.append(
-            "compare_routes found unchecked stretches on the recommended route: say each is "
-            "not checked yet and did not count for or against the route."
-        )
+    lines = [ans.summary, *ans.steps, *ans.caveats]
+    for u in d.get("unchecked") or []:
+        noun = unchecked_noun(u["attribute"])
+        sizes = {f"{u['length_m']:g}", f"{round(u['length_m']):g}"}
+        if not any(
+            UNCHECKED_WORDS.search(line)
+            and noun in line.lower()
+            and any(re.search(rf"(?<![\d.]){re.escape(n)}\s*m\b", line) for n in sizes)
+            for line in lines
+        ):
+            errs.append(
+                f"compare_routes found an unchecked stretch ({noun}, {u['length_m']:g} m) on the "
+                f"recommended route: name it with its length, say it is not checked yet and "
+                "that it did not count for or against the route."
+            )
     summary = _names_to_categories(ans.summary, rec.place_names)
     if bad := unsupported(summary, tool_values({"compare": d})):
         errs.append(

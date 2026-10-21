@@ -370,14 +370,20 @@ MAX_CLOSURE_PROBES = 30
 
 
 def _edge_closure_impact(
-    world: World, rr, from_id: str, to_id: str, profile: str, scenario_id: str | None
+    world: World, rr, from_id: str, to_id: str, profile: str, scenario_id: str | None, plan=None
 ) -> list[tuple]:
     """(edge, closure) pairs a staff-reported closure took out of this answer, or [].
 
     Search again on a shallow copy of the world whose closed edges have no closure. If that
     route uses closed edges, those closures are what blocked the question (no route now) or
     forced the detour (a different route now). Costs one extra search, and only while an edge
-    closure is in force."""
+    closure is in force. `plan(world) -> routes` is the search the answer used (default:
+    routing.plan_route; compare_routes passes its own recommended-route search)."""
+    if plan is None:
+
+        def plan(w):
+            return routing.plan_route(w, from_id, to_id, profile, scenario_id).routes
+
     live = [(e, c) for e in world.edges.values() for c in e.closures if c.is_active()]
     if not live or rr.status == "no_data":
         return []
@@ -388,10 +394,10 @@ def _edge_closure_impact(
             **{e.id: e.model_copy(update={"closures": []}) for e, _ in live},
         },
     )
-    alt = routing.plan_route(opened, from_id, to_id, profile, scenario_id)
-    if not alt.routes:
+    alt = plan(opened)
+    if not alt:
         return []
-    used = {s.edge_id for s in alt.routes[0].segments}
+    used = {s.edge_id for s in alt[0].segments}
     hit = [(e, c) for e, c in live if e.id in used]
     if rr.status == "blocked":
         # A closure that alone unblocks the question is also responsible (parallel closed
@@ -400,7 +406,7 @@ def _edge_closure_impact(
             if (e, c) in hit:
                 continue
             one = replace(world, edges={**world.edges, e.id: e.model_copy(update={"closures": []})})
-            if routing.plan_route(one, from_id, to_id, profile, scenario_id).routes:
+            if plan(one):
                 hit.append((e, c))
     if rr.status != "blocked" and rr.routes and {s.edge_id for s in rr.routes[0].segments} == used:
         return []  # same route either way: no closure was in its way
@@ -408,7 +414,7 @@ def _edge_closure_impact(
 
 
 def _closure_notes(
-    world: World, rr, from_id: str, to_id: str, profile: str, scenario_id: str | None
+    world: World, rr, from_id: str, to_id: str, profile: str, scenario_id: str | None, plan=None
 ) -> list[Evidence]:
     """Name staff-reported closures that stop or reshape this answer: a closed start or
     destination place, and closed segments that left no route or forced a detour. They go in
@@ -433,7 +439,7 @@ def _closure_notes(
         for c in p.closures if p else []:
             if c.is_active():
                 add(c, p.name, "endpoint")
-    for e, c in _edge_closure_impact(world, rr, from_id, to_id, profile, scenario_id):
+    for e, c in _edge_closure_impact(world, rr, from_id, to_id, profile, scenario_id, plan):
         name = e.name or f"an unnamed {e.type.replace('_', ' ')}"
         if rr.status == "blocked":
             add(c, name, "blocked", " Without it a route would exist.")
@@ -2054,6 +2060,21 @@ def compare_routes(
         else:
             warnings.extend(n.warnings)
     evidence = list(result.evidence)
+    # Staff-reported closures that stop or reshape the recommended route, judged with compare's
+    # own search (as plan_route does with its own). Named in the warnings, cited as evidence,
+    # and listed in `closures` only when there are any: the compare contract (AC-B2) is unchanged
+    # otherwise, and REST (response_model=CompareResult) never shows the extra key.
+    prof = ctx.world.profiles[profile]
+    shown = _m.RouteResult(
+        status=result.status, routes=[result.recommended] if result.recommended else []
+    )
+
+    def plan(w):
+        r = _compare.recommended_route(w, from_id, to_id, prof, scenario_id)
+        return [r] if r is not None else []
+
+    evidence += _closure_notes(ctx.world, shown, from_id, to_id, profile, scenario_id, plan)
+    warnings += shown.warnings
     if scenario_id:
         evidence.append(
             Evidence(
@@ -2064,9 +2085,10 @@ def compare_routes(
                 source_type=scenario_source(ctx.world, scenario_id),
             )
         )
-    return ToolResult(
-        ok=True, data=result.model_dump(mode="json"), evidence=evidence, warnings=warnings
-    )
+    data = result.model_dump(mode="json")
+    if shown.closures:
+        data["closures"] = shown.closures
+    return ToolResult(ok=True, data=data, evidence=evidence, warnings=warnings)
 
 
 TOOLS["compare_routes"] = compare_routes

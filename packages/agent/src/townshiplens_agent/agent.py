@@ -352,6 +352,11 @@ async def _record_compare(deps: Deps, res: sp.ToolResult, from_id: str, to_id: s
                 ),
             }
         )
+    # Staff-reported closures that stop or reshape the recommended route (compare_routes adds
+    # `closures` only when there are any): named in the answer exactly as for plan_route.
+    for c in d.get("closures") or []:
+        rec.route_closures.append(c)
+        rec.closures[c["id"]] = c
     d["verification_requests"] = []
     if d.get("vr"):
         vr = await asyncio.to_thread(deps.ctx.vrs.get, d["vr"]["id"])
