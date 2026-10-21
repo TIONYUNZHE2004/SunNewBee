@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useMode } from "../../app/modeStore";
@@ -74,6 +74,22 @@ describe("AssistantPanel", () => {
       ),
     ).toBeVisible();
     expect(fetchFn.mock.calls.some(([u]) => String(u).includes("/chat"))).toBe(true);
+  });
+  it("each perspective keeps its own conversation; switching back restores it", async () => {
+    stubFetch((url) =>
+      url.includes("/chat")
+        ? sse([{ type: "text.delta", delta: "ok" }, done("answered")])
+        : json([]),
+    );
+    renderWithClient(<AssistantPanel />);
+    const q = "From Elmina Lakeside Mall, nearest evacuation centre if the water rises 3 m";
+    fireEvent.click(screen.getByRole("button", { name: /nearest evacuation centre if the water/ }));
+    expect(await screen.findByText(q, { selector: "p" })).toBeVisible();
+    act(() => useMode.setState({ mode: "management" }));
+    expect(screen.queryByText(q, { selector: "p" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Ask about the township" })).toBeVisible();
+    act(() => useMode.setState({ mode: "resident" }));
+    expect(screen.getByText(q, { selector: "p" })).toBeVisible();
   });
   it("the suggestion chips row scrolls sideways without a visible scrollbar; chips stay tabbable", async () => {
     stubFetch((url) =>
