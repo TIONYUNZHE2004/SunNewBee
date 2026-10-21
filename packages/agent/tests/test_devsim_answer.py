@@ -7,6 +7,7 @@ tampered number or a missing honesty phrase.
 
 import asyncio
 import importlib.util
+import json
 import re
 from pathlib import Path
 
@@ -233,17 +234,56 @@ def test_our_own_strings_are_clean():
 # --- AI5: the recorded replay ----------------------------------------------------------------
 
 
-@pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
-async def test_demo_mode_replays_the_brief_with_a_plan(tmp_path):
+BANNED_IN_REPLAY = re.compile(r"safe|selamat|安全|flood|depth", re.I)
+
+
+def _strings(node):
+    """Every key and string value a recorded event carries, at any depth."""
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for k, v in node.items():
+            yield k
+            yield from _strings(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _strings(v)
+
+
+def test_the_committed_brief_replay_carries_no_banned_words():
+    """AC-H4: the recorded brief turn (what the demo shows) has no flood, depth or safety words."""
     from townshiplens_agent import demo
 
     key = demo.key(ChatRequest(message=BRIEF, profile="default"))
     path = ROOT / "data/demo" / f"{key}.jsonl"
     assert path.exists(), "brief replay not recorded"
+    rows = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert rows[0]["meta"]["world"] == "elmina"
+    hits = [s for row in rows for s in _strings(row) if BANNED_IN_REPLAY.search(s)]
+    assert hits == []
+    intents = [r["intent"] for r in rows[1:] if r.get("type") == "scene.intent"]
+    assert [i["kind"] for i in intents] == ["development.play"] and intents[0]["plan"]
+
+
+@pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
+async def test_demo_mode_replays_the_brief_with_a_plan(tmp_path):
+    """Record the brief with the mock into a tmp demo dir, then replay it.
+
+    Date-independent: the committed recording's fingerprint carries the day it was recorded,
+    so this test makes its own recording (same code, same day) instead of relying on it.
+    """
+    from townshiplens_agent import cli, demo
+
+    demo_dir = tmp_path / "demo"
+    rec_settings = AgentSettings(_env_file=None, llm_provider="mock", demo_dir=demo_dir)
+    await cli.main(BRIEF, "default", record=True, settings=rec_settings)
+    key = demo.key(ChatRequest(message=BRIEF, profile="default"))
+    assert (demo_dir / f"{key}.jsonl").exists()
+
     c = tools.Ctx(world=load_world(SEED), vrs=VerificationStore(str(tmp_path / "vr.db")))
-    settings = AgentSettings(_env_file=None, llm_provider="mock", demo_mode=True)
+    settings = AgentSettings(_env_file=None, llm_provider="mock", demo_mode=True, demo_dir=demo_dir)
     evs, _ = await _turn(c, BRIEF, settings)
-    assert evs[-1].model.endswith(demo.SUFFIX)
+    assert evs[-1].model.endswith(demo.SUFFIX)  # a replay, not a fresh mock turn
     [it] = [e.intent for e in evs if e.type == "scene.intent"]
     assert it.kind == "development.play" and it.plan is not None
     assert it.plan.world == "elmina" and it.brief_text == BRIEF
