@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import type { CompareIntent } from "../compareTypes";
 import {
   DEMO_VALUES,
@@ -15,14 +16,17 @@ import {
 export function ReasonsCard({
   compare,
   className = "",
+  ref,
 }: {
   compare: CompareIntent;
   className?: string;
+  ref?: Ref<HTMLElement>;
 }) {
   const rows = reasonRows(compare);
   const unchecked = uncheckedLine(compare);
   return (
     <section
+      ref={ref}
       data-beat="reasons"
       aria-labelledby="compare-reasons-h"
       className={`rounded-lg border border-line bg-card p-4 ${className}`}

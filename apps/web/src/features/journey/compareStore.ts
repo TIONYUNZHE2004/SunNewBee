@@ -55,12 +55,28 @@ export interface CompareStore {
   seek: (t: number) => void;
   restart: () => void;
   clear: () => void;
+  /**
+   * The renderer's frame (B8). `cardTop` is the overlay's (the reasons card): a screen whose
+   * `cardTop` is null keeps the one the overlay set.
+   */
   setScreen: (s: CompareScreen | null) => void;
+  /** The overlay's reasons-card top (AC-N7), merged into `screen` (created empty when null). */
+  setCardTop: (top: number | null) => void;
   /** Frame tick: moves t by dt while playing; stops at the end. */
   advance: (dt: number) => void;
 }
 
 const empty = { payload: null, t: 0, playing: false, screen: null };
+
+/** A screen with nothing drawn (before the renderer's first frame, or without a renderer). */
+export const EMPTY_SCREEN: CompareScreen = {
+  walkers: { fastest: null, recommended: null },
+  pois: {},
+  unchecked: null,
+  routesBbox: null,
+  cardTop: null,
+  viewports: null,
+};
 
 const clampT = (t: number) => Math.max(0, Math.min(COMPARE_TOTAL_S, Number.isFinite(t) ? t : 0));
 
@@ -80,7 +96,19 @@ export const useCompare = create<CompareStore>((set) => ({
   seek: (t) => set((s) => (s.payload ? { t: clampT(t) } : {})),
   restart: () => set((s) => (s.payload ? { t: 0, playing: true } : {})),
   clear: () => set({ ...empty }),
-  setScreen: (screen) => set({ screen }),
+  setScreen: (screen) =>
+    set((s) => ({
+      screen:
+        screen && screen.cardTop == null && s.screen?.cardTop != null
+          ? { ...screen, cardTop: s.screen.cardTop }
+          : screen,
+    })),
+  setCardTop: (cardTop) =>
+    set((s) =>
+      (s.screen?.cardTop ?? null) === cardTop
+        ? {}
+        : { screen: { ...(s.screen ?? EMPTY_SCREEN), cardTop } },
+    ),
   advance: (dt) =>
     set((s) => {
       if (!s.payload || !s.playing || !(dt > 0)) return {};
