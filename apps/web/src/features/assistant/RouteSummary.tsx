@@ -1,10 +1,11 @@
-import { useScenarios } from "../../lib/api";
+import { useClosures, useScenarios } from "../../lib/api";
 import { isPlaceholderSource } from "../../lib/evidence";
 import { Icon } from "../../ui/icons";
 import { StatusChip } from "../../ui/StatusChip";
 import type { StatusKey } from "../../ui/status";
 import type { AssistantMessage } from "../chat/chatReducer";
 import { useElementNames } from "../chat/useElementNames";
+import { closureTitle, closureWindow, routeClosures } from "../closures/routeClosures";
 import { useScene } from "../scene/sceneStore";
 import { useEffectiveView } from "../scene/useMapStyle";
 import { RouteSketch } from "./RouteSketch";
@@ -34,6 +35,8 @@ export function RouteSummary({ m }: { m: AssistantMessage }) {
   const isCurrent = useScene((s) => s.route?.id) === r?.id;
   const in3d = useEffectiveView() === "cesium";
   const names = useElementNames();
+  // T-027: the active staff closures this answer met, with their name and window (no pressure)
+  const closures = routeClosures(m.uncertainty?.items, useClosures().data);
   if (!chip && !flood && !demo) return null;
   // From/to names come from the plan_route call's ids, looked up in the map layers.
   const plan = [...m.tools].reverse().find((t) => t.name === "plan_route");
@@ -57,6 +60,18 @@ export function RouteSummary({ m }: { m: AssistantMessage }) {
         {demo && <StatusChip status="demo" />}
         {flood && <StatusChip status="likely" label={flood} />}
       </div>
+      {closures.length > 0 && (
+        <ul aria-label="Closures on this trip" className="m-0 list-none space-y-1.5 p-0">
+          {closures.map((c) => (
+            <li key={c.id} className="flex flex-wrap items-center gap-1.5 text-sm text-fg">
+              <StatusChip status="blocked" label="Closed (staff report)" />
+              <span>
+                {c.element_name ?? "A mapped path"} · {closureTitle(c)} · {closureWindow(c)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
       {(meters !== null || minutes !== null) && (
         <dl className="m-0 grid grid-cols-2 gap-3">
           {meters !== null && (

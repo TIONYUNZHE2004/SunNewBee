@@ -67,6 +67,21 @@ trip counts and rejects jam, queue or crowd predictions, and the app adds "Estim
 roads and sample trips, not traffic counts." Resident route answers name an event closure
 ("— event (Elmina Marathon)") and take the detour.
 
+**Closures of any kind (T-026, management only).** `simulate_closure` (bound once the backend's
+`TOOLS["simulate_closure"]` exists; `simulate_event` stays) takes a reason (event, works,
+accident, flooding, other) and one or more closures, each with road names or a stretch, HH:MM
+times and a day word ("next Tuesday", "Selasa depan", "下周二", "tomorrow" or a date; resolved
+in `event_course`). Answers add each top detour road's detour pressure band and the
+suggestions (each text once, at most two per kind);
+`validate.closure_claim_errors` rejects detour pressure in resident answers, a band or
+suggestion kind the tool did not return, and vehicle counts. If a road name ever comes back
+twice, any band the tool gave that name passes. The app adds the tool's disclaimer and
+peak-weights note (EN/BM/中文). Tests run on the backend's real engine. Resident closure lines
+name the reason and the closure ("— works (Pipe repair)", "— accident").
+
+The flash-flood line ("Flash floods from heavy rain are not shown.") is a fixed statement of
+scope: it stays in the answer's notes and is never an uncertainty item ("Not verified").
+
 `ASSISTANT_SCOPE=all` opts into the legacy features documented below. Legacy engine/pipeline
 tests and removed-feature golden cases opt in explicitly; `tests/test_scope.py` tests the
 default separately. The existing browser hero suite opts into `all` because it includes

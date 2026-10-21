@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import type { LineMaterial } from "three/addons/lines/LineMaterial.js";
+import { COURSE_STYLE, PRESSURE_STYLE, type Pressure } from "../../../closures/closureSimModel";
+import type { ImpactMarker } from "../../../flood/impactModel";
 import { GAP_BANDS, GAP_CESIUM_DASH, type GapBand, parseGaps } from "../../../gaps/gapModel";
 import { diffLines, WHATIF_STYLE } from "../../../whatif/whatifModel";
 import { groupEdgesByStatus, type LonLat, lineFeatures, pointFeatures } from "../../geo";
@@ -28,6 +30,8 @@ export interface OverlayState {
   gapsOn: boolean;
   route: GeoJSON.LineString | null;
   whatIf: WhatIf | null;
+  /** T-026 closure simulation: course (red) and detour lines coloured by pressure. */
+  closureSim?: WhatIf | null;
   /** GET /scenarios/{id}: the draped water polygons. Drawn only while `floodOn`. */
   water?: unknown;
   /** GET /layers/flood: the flooded edges (flooded_likely, flooded_possible). */
@@ -38,6 +42,8 @@ export interface OverlayState {
   waste?: unknown;
   wasteOn?: boolean;
   evac?: readonly EvacMarkerRow[] | null;
+  /** T-024 flood impact markers; drawn with the evacuation centres while `floodOn`. */
+  impact?: readonly ImpactMarker[] | null;
   focusPlaceId?: string | null;
   /** The Elmina outline (display only): place markers outside it are not drawn (A-T5), except: */
   boundary?: Boundary | null;
@@ -107,6 +113,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   const status = new THREE.Group();
   const gapsGroup = new THREE.Group();
   const whatIfGroup = new THREE.Group();
+  const closureGroup = new THREE.Group();
   const routeGroup = new THREE.Group();
   const floodGroup = new THREE.Group();
   const groundGroup = new THREE.Group();
@@ -115,7 +122,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   const markerGroup = new THREE.Group();
   const lineGroup = new THREE.Group();
   lineGroup.name = "overlay-lines";
-  lineGroup.add(floodGroup, status, gapsGroup, whatIfGroup, routeGroup);
+  lineGroup.add(floodGroup, status, gapsGroup, whatIfGroup, closureGroup, routeGroup);
   group.add(markerGroup);
   let flood: { dispose(): void } | null = null;
   let markers: Markers | null = null;
@@ -143,6 +150,8 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       fill(status, statusSrc ? statusBatches(statusSrc, frame) : []);
     if (s.gaps !== last.gaps) fill(gapsGroup, s.gaps ? gapBatches(s.gaps, frame) : []);
     if (s.whatIf !== last.whatIf) fill(whatIfGroup, s.whatIf ? whatIfBatches(s.whatIf, frame) : []);
+    if (s.closureSim !== last.closureSim)
+      fill(closureGroup, s.closureSim ? closureBatches(s.closureSim, frame) : []);
     if (s.route !== last.route) fill(routeGroup, s.route ? routeBatches(s.route, frame) : []);
     status.visible = s.accessVisible && !s.gapsOn;
     gapsGroup.visible = s.accessVisible && s.gapsOn;
@@ -178,6 +187,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
     const places = s.accessVisible ? s.access : null;
     const waste = s.wasteOn ? s.waste : null;
     const evac = s.floodOn ? (s.evac ?? null) : null;
+    const impact = s.floodOn ? (s.impact ?? null) : null;
     const b = s.boundary ?? null;
     const keepIds = new Set([
       ...(s.keepPlaceIds ?? []),
@@ -192,18 +202,19 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       b || tripOnly
         ? `${tripOnly}|${[...keepIds].sort().join(",")}|${keepNear.flat().map(Math.round).join(",")}`
         : "";
-    const key = [places, waste, evac, b, rule];
+    const key = [places, waste, evac, impact, b, rule];
     if (!markerKey || key.some((k, i) => k !== markerKey?.[i])) {
       markerKey = key;
       markers?.dispose();
       markers = null;
       markerGroup.clear();
-      if (places || waste || evac) {
+      if (places || waste || evac || impact?.length) {
         markers = createMarkers(
           {
             places: places ? pointFeatures(places) : [],
             waste: waste ? pointFeatures(waste) : [],
             evac: evac ?? [],
+            impact: impact ?? [],
             placeShown: placeShown({
               inside: b ? (x, z) => insideBoundary(b, x, z) : null,
               keepIds,
@@ -282,7 +293,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       groundGroup.clear();
       groundGroup.removeFromParent();
       markerGroup.clear();
-      for (const g of [status, gapsGroup, whatIfGroup, routeGroup]) drop(g);
+      for (const g of [status, gapsGroup, whatIfGroup, closureGroup, routeGroup]) drop(g);
       group.removeFromParent();
       lineGroup.removeFromParent();
     },
@@ -362,6 +373,40 @@ function whatIfBatches(w: WhatIf, f: LocalFrame): THREE.Object3D[] {
         ORDER.whatIf,
       ),
     );
+}
+
+/** T-026: the closed course in red, then each detour road in its pressure colour (managers). */
+function closureBatches(c: WhatIf, f: LocalFrame): THREE.Object3D[] {
+  type F = { properties?: { closure?: string; pressure?: Pressure }; geometry?: GeoJSON.Geometry };
+  const feats = (c.geojson.features ?? []) as F[];
+  const coords = (pick: (p: F["properties"]) => boolean) =>
+    feats
+      .filter((x) => x.geometry?.type === "LineString" && pick(x.properties))
+      .map((x) => local((x.geometry as GeoJSON.LineString).coordinates as Coords, f));
+  const out: THREE.Object3D[] = [];
+  const course = coords((p) => p?.closure === "course");
+  if (course.length)
+    out.push(
+      createLineBatch(
+        course,
+        { color: COURSE_STYLE.color, widthPx: COURSE_STYLE.width },
+        LIFT.whatIf,
+        ORDER.whatIf,
+      ),
+    );
+  for (const band of ["low", "medium", "high"] as const) {
+    const lines = coords((p) => p?.closure === "detour" && p.pressure === band);
+    if (lines.length)
+      out.push(
+        createLineBatch(
+          lines,
+          { color: PRESSURE_STYLE[band].color, widthPx: 7 },
+          LIFT.whatIf,
+          ORDER.whatIf,
+        ),
+      );
+  }
+  return out;
 }
 
 function routeBatches(route: GeoJSON.LineString, f: LocalFrame): THREE.Object3D[] {

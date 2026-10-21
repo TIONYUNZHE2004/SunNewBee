@@ -153,7 +153,9 @@ def test_event_answer_inventions_are_rejected(summary, why):
 
 
 @needs_seed
-async def test_management_event_question_is_simulated_and_checked(seed, tmp_path):
+async def test_management_event_question_is_simulated_and_checked(seed, tmp_path, monkeypatch):
+    # the T-025 event path; with the T-026 tool bound, managers get simulate_closure instead
+    monkeypatch.delitem(tools.TOOLS, "simulate_closure")
     ctx = tools.Ctx(world=seed, vrs=VerificationStore(str(tmp_path / "vr.db")))
     rec = TurnRecord()
     req = ChatRequest(message=Q, panel="management")

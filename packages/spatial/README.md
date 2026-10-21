@@ -453,34 +453,66 @@ isolated at baseline can appear here; the older island field remains flood-induc
 Places without mapped entrances or road snaps are omitted as data gaps. These markers do not
 establish a verified route or a route within a rest-distance limit.
 
-## Event comparison (T-025)
+## Closure comparison (T-026; T-025 event alias)
 
-`events.simulate_event(world, EventSpec(name, segment_ids, starts_at, ends_at), profiles)`
-uses `twm.ClosePath`, `apply` and `compare` over the existing everyday sample journeys.
-Default profiles are `default`, `wheelchair`, `drive`; up to five known profiles and 40
-unique course segments are supported. Total samples are capped at 300, split evenly
-between selected profiles; `sample_limit_per_profile` exposes the cap.
-Other staff closures are frozen at the event start. The same origin/destination pairs
-are used before and after; neither the world nor the closure store is changed.
+`events.simulate_closure(world, ClosureScenario(name, reason, closures), profiles, at)`
+compares the same sample trips before and after hypothetical closures. Reasons are
+`event`, `works`, `accident`, `flooding`, `other`. Each closure has its own `starts_at`,
+`ends_at`, and `segment_ids` or `road_names`; names can include a mapped stretch
+`<road> between <cross street A> and <cross street B>`. Unknown/ambiguous names are errors.
+A scenario is bounded to 40 segment/window pairs and 40 windows. All windows are
+validated, even when inactive. Times accept ISO offsets; naive datetimes are UTC.
 
-`trips_affected` counts rerouted or newly disconnected sample trips. `trips_no_route`
-counts all trips with no route after, including existing gaps; `trips_no_route_before`
-and `trips_newly_no_route` distinguish these. Each `trips` row keeps the router's
-`before_status` and `after_status`: pre-existing data gaps stay `no_data`, never a
-known barrier. Extra distance/minute medians cover rerouted trips only (null if none);
-minutes come from the router's physical distance and profile pace, never traffic delay.
-Per-profile results use the same definitions.
+`at` defaults to the first listed closure start. Only windows with `start <= at < end`
+apply. Other staff closures are also frozen at `at`. This is one instant, not a timeline
+or a worst case across the windows. Neither live state nor the closure store changes.
+Default profiles are `default`, `wheelchair`, `drive`; up to five known profiles are
+supported. Total samples are capped at 300, split evenly between profiles, exposed by
+`sample_limit_per_profile`. Sample origins are mapped parking/drop-offs/stops; destinations
+are facilities/toilets and the destination types in the peak table, sorted by id with
+origins interleaved. These are sample journeys, never measured demand.
 
+`trips_affected` counts rerouted or newly disconnected trips. `trips_no_route` includes
+existing gaps; `trips_no_route_before` and `trips_newly_no_route` distinguish them.
+Pre-existing disconnected data stays `no_data` and is never attributed to a closure.
+Extra metre/minute medians cover rerouted trips only (null if none); minutes describe
+physical distance/profile pace, never traffic delay. Per-profile counts use the same rules.
 `places_cut_off` contains newly lost mapped centre access in at least one selected
-profile; pre-existing isolation and missing entrances are excluded. Detour roads group
-newly used segments by their mapped name and count each rerouted trip once per name.
-Unnamed segments are labelled “Unnamed paths”. Suggestions cite these counts and do
-not claim that an alternative time or crossing has been evaluated.
+profile; pre-existing isolation and missing entrances are excluded.
 
-`TOOLS["simulate_event"]` returns this contract and indicative evidence for management.
-The AI lane must explicitly bind this tool and adapt its numeric validation before
-natural-language management answers can use the new fields.
+Peak assumptions, road-class capacities and pressure bands live together in
+`config/traffic/peak_weights.yaml`. Weights use the destination type, `at` in the site's
+time zone, weekdays unless stated, and start-inclusive/end-exclusive windows. Results
+carry `weights_note`: “Peak weights are an assumed travel pattern, not measured.”
+Detour roads group newly used segments by mapped name, counting each rerouted sample
+trip once per road. For a mixed-class road, `road_class` is the newly used segment class
+with the lowest capacity, a conservative bottleneck assumption. `weighted_trips` sums
+the destination/time weights;
+`trips` is the unweighted count. Unnamed segments are “Unnamed paths”; absent classes
+are `unknown` and use the `others` capacity. Rows sort by weighted trips, name, class.
+Pressure = weighted trips / class capacity: secondary 4, tertiary 3, unclassified 2,
+residential 1, service 0.5, others 1. Bands are low <1, medium 1–3, high >3.
+The disclaimer is “Detour pressure, estimated from mapped road class and sample trips,
+not traffic counts.” Pressure is for management, never a resident route claim.
 
-Stored event courses use atomic batches in `ClosureStore`, with the public `event_name`
-separate from private staff notes. The schema migrates existing closure databases
-without changing their rows. Resident closure labels name the event.
+Suggestions have numbered `basis` fields. High-pressure residential detours suggest
+reviewing signs via an adjacent mapped higher-capacity road when one exists; the route
+has not been assessed. Up to three detour roads get marshal suggestions. Mapped one-way
+detour segments suggest reviewing temporary two-way operation. Newly cut-off places
+suggest reviewing a crossing at a mapped closure-boundary junction. At least half of
+sample trips affected triggers rescheduling, plus splitting when multiple segments are
+active. Suggestions disclose unassessed alternatives; they do not change routing rules.
+
+`route_batch()` shares strict/lenient shortest-path trees, weighted adjacency and road
+snaps within an immutable snapshot, preserving route selection, direction and endpoint
+checks. Static road nodes and up to 512 road snaps are shared across snapshots, keyed
+by road membership and endpoint coordinates; closures never change the geometry snap.
+Rest-constrained searches keep their normal solver. A bounded baseline cache
+(12 profile/sample entries) keys by graph, world version, date, frozen closure set, profile
+and sample. Only baseline routes intersecting active proposed segments are recalculated.
+`timing_ms` includes snapshotting, cache lookup/calculation, impacts and suggestions.
+
+`simulate_event(EventSpec(...))` uses the same engine, retaining the old event shape,
+everyday sample and disclaimer. The API/tool aliases preserve existing callers.
+Stored named closures keep the public `event_name` separate from private staff notes;
+labels use their actual reason, including named works/accidents/flooding/other closures.

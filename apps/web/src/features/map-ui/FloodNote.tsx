@@ -1,4 +1,6 @@
 import { useScenarios } from "../../lib/api";
+import { FloodImpactCard } from "../flood/FloodImpact";
+import { FLASH_FLOOD_NOTE } from "../flood/impactModel";
 import { useScene } from "../scene/sceneStore";
 import { InSlot } from "./mapSlots";
 
@@ -46,6 +48,8 @@ export function FloodNote() {
           </a>
         </p>
         {sc?.disclaimer && <p className="m-0 mt-1 text-xs text-fg-soft">{sc.disclaimer}</p>}
+        {/* the scenario disclaimer above may already carry both notes (T-024 data) */}
+        <FloodImpactCard notes={!sc?.disclaimer?.includes(FLASH_FLOOD_NOTE)} />
       </div>
     </InSlot>
   );

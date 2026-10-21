@@ -547,7 +547,9 @@ def _top_stage(stages: list[str]) -> str | None:
 def event_answer(d: dict, evidence_ids: list[str]) -> dict:
     """T-025: an event simulation in words, every number from the tool. Trips that had no mapped
     route before the event are said apart from those the event cuts (data gaps, not the event)."""
-    name = (d.get("event") or {}).get("name") or "the event"
+    name = (d.get("event") or d.get("scenario") or {}).get("name") or d.get("name") or "the event"
+    reason = d.get("reason") or (d.get("event") or {}).get("reason")  # the engine nests it
+    word = "event" if reason in (None, "event") else "closure"  # T-026: any reason
     total, hit = d.get("trips_total", 0), d.get("trips_affected", 0)
     newly, before = d.get("trips_newly_no_route", 0), d.get("trips_no_route_before", 0)
     summary = (
@@ -559,19 +561,29 @@ def event_answer(d: dict, evidence_ids: list[str]) -> dict:
         summary += f" Rerouted trips go about {extra:g} m further (median)."
     steps = [
         f"{r['trips']} sample {'trip reroutes' if r['trips'] == 1 else 'trips reroute'} onto "
-        f"{r['name']}."
+        f"{r['name']}" + (f" (detour pressure: {r['pressure']})." if r.get("pressure") else ".")
         for r in (d.get("detour_roads") or [])[:3]
     ]
     if cut := d.get("places_cut_off"):
         names = ", ".join(dict.fromkeys(p["name"] for p in cut[:3]))
         more = f" and {len(cut) - 3} more" if len(cut) > 3 else ""
-        steps.append(f"Cut off during the event (no mapped route to a centre): {names}{more}.")
-    steps += [f"Suggestion: {s['text']}" for s in d.get("suggestions") or []]
+        steps.append(f"Cut off during the {word} (no mapped route to a centre): {names}{more}.")
+    # say each suggestion text once, at most two per kind
+    said, per_kind = list(dict.fromkeys(s["text"] for s in d.get("suggestions") or [])), {}
+    kinds = {s["text"]: s.get("kind") for s in d.get("suggestions") or []}
+    for text in said:
+        per_kind.setdefault(kinds[text], []).append(text)
+    kept = [t for t in said if t in per_kind[kinds[t]][:2]]
+    steps += [f"Suggestion: {t}" for t in kept]
     caveats = []
+    if len(said) > len(kept):
+        caveats.append(
+            f"{len(said) - len(kept)} more suggestions of the same kinds are not listed."
+        )
     if before:
         caveats.append(
-            f"{before} of the {total} sample trips had no mapped route before the event "
-            "(data gaps, not the event)."
+            f"{before} of the {total} sample trips had no mapped route before the {word} "
+            f"(data gaps, not the {word})."
         )
     return {
         "answer_status": "answered",
@@ -642,7 +654,7 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
             ]
             return FinalAnswer(**fields)
     if rec.events and not rec.routes:
-        ev = [i for i in rec.evidence if i.startswith("ev-event-")][-1:]
+        ev = [i for i in [rec.events[-1].get("evidence_id")] if i in rec.evidence]
         fields = event_answer(rec.events[-1], ev)
         fields["caveats"] = [*fields["caveats"], "Answer generated from data without AI wording."]
         return FinalAnswer(**fields)

@@ -26,7 +26,13 @@ from townshiplens_spatial.routing import CENTRE_PREFIX
 from townshiplens_spatial.scenario_meta import scenario_source
 
 from .answer import FinalAnswer
-from .event_course import CourseError, course_segments, event_window
+from .event_course import (
+    ClosureInput,
+    ClosureReason,
+    CourseError,
+    course_segments,
+    event_window,
+)
 from .events import (
     AnswerCheck,
     ChatRequest,
@@ -133,8 +139,9 @@ def _summarise(name: str, res: sp.ToolResult) -> str:
         sm = d.get("summary") or {}
         before, after, total = sm.get("reach_before"), sm.get("reach_after"), sm.get("total")
         return f"what-if: {before} -> {after} of {total} reach"
-    if name == "simulate_event" and isinstance(d, dict):
-        return f"event: {d.get('trips_affected')} of {d.get('trips_total')} sample trips affected"
+    if name in ("simulate_event", "simulate_closure") and isinstance(d, dict):
+        kind = "event" if name == "simulate_event" else "closures"
+        return f"{kind}: {d.get('trips_affected')} of {d.get('trips_total')} sample trips affected"
     if name == "plan_verifications" and isinstance(d, dict):
         sm = d.get("summary") or {}
         return f"plan: {len(d.get('facts') or [])} checks -> {sm.get('confirmed_after')} confirmed"
@@ -373,6 +380,13 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
             kwargs.pop("day", None),
             deps.ctx.world.site.timezone,
         )
+    if name == "simulate_closure":  # T-026: windows are built here too, never by the model
+        tz = deps.ctx.world.site.timezone
+        kwargs["closures"] = [
+            {"segment_ids": c["segment_ids"], "starts_at": s, "ends_at": e}
+            for c in kwargs["closures"]
+            for s, e in [event_window(c["start"], c["end"], c.get("day"), tz)]
+        ]
     if name == "plan_route":
         # Shown to staff on the VR: describe the request, never copy the user's words (PII).
         kwargs["question_summary"] = route_summary(
@@ -484,7 +498,7 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
         }
     if name == "plan_verifications" and res.ok and isinstance(res.data, dict):
         rec.plans.append(res.data)
-    if name == "simulate_event" and res.ok and isinstance(res.data, dict):
+    if name in ("simulate_event", "simulate_closure") and res.ok and isinstance(res.data, dict):
         rec.events.append(res.data)
         # road and place names hold digits ("Persiaran Elmina 1/1"): names, not counts
         rec.place_names |= {r["name"] for r in res.data.get("detour_roads") or []}
@@ -651,6 +665,22 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
     return out
 
 
+def _course_refusal(deps: Deps, name: str, exc: CourseError) -> dict:
+    """A course the engine cannot run (unknown, ambiguous or too long road): the reason goes
+    back to the model, and its counts and road names count as this turn's tool output, so a
+    reply that relays them ("51 mapped segments", "between Bulatan Elmina and ...") passes."""
+    msg = str(exc)
+    deps.rec.tool_calls.append(name)
+    for unit, vals in tool_values({"warnings": [msg]}).items():
+        deps.rec.tool_measures.setdefault(unit, set()).update(vals)
+    for a, b in re.findall(r"(\d+) mapped segments.*?at most (\d+)", msg):
+        deps.rec.tool_measures.setdefault("count", set()).update({float(a), float(b)})
+    deps.rec.place_names |= {
+        e.name for e in deps.ctx.world.edges.values() if e.name and e.name in msg
+    }
+    return {"ok": False, "data": None, "evidence": [], "warnings": [msg]}
+
+
 def place_categories(world, place_id: str) -> set[str]:
     """What a place or centre is (facts.categories of its type and name), so a route's length
     is bound to its two ends ("the toilet is 440.6 m from the mall" needs a toilet end)."""
@@ -731,12 +761,13 @@ def _for_model(name: str, out: dict) -> dict:
         for k in _MODEL_CAP.get(name, ()):
             if isinstance(data.get(k), list):
                 data[k] = data[k][:20]
-        if name == "simulate_event":  # per-trip rows and segment ids are for the map only
+        if name in ("simulate_event", "simulate_closure"):  # per-trip rows, ids: map only
             data.pop("trips", None)
             if isinstance(data.get("event"), dict):
                 data["event"].pop("segment_ids", None)
-            for r in data.get("detour_roads") or []:
-                r.pop("segment_ids", None)
+            for r in [*(data.get("detour_roads") or []), *(data.get("closures") or [])]:
+                if isinstance(r, dict):
+                    r.pop("segment_ids", None)
         if name == "affected_places":  # T-024 marker rows: map positions are for the UI only
             for k in ("flooded_places", "cut_off_places"):
                 if isinstance(data.get(k), list):
@@ -1105,7 +1136,7 @@ def build_agent(
             segs = course_segments(world, road_names, segment_ids)
             event_window(start, end, day, world.site.timezone)
         except CourseError as exc:  # unknown or ambiguous road, too long a course, bad time
-            return {"ok": False, "data": None, "evidence": [], "warnings": [str(exc)]}
+            return _course_refusal(ctx.deps, "simulate_event", exc)
         return await call_tool(
             ctx.deps,
             "simulate_event",
@@ -1117,6 +1148,37 @@ def build_agent(
             day=day,
             profiles=profiles,
         )
+
+    async def simulate_closure(
+        ctx: RunContext[Deps],
+        name: str,
+        reason: ClosureReason,
+        closures: list[ClosureInput],
+        profiles: list[str] | None = None,
+    ) -> dict:
+        """Management (T-026): any closure (event, works, accident, flooding, other), one or
+        several, each with its window. Each closure: road_names as the user names them (one
+        stretch as "<road> between <A> and <B>"), start and end as HH:MM local time, and day as
+        a weekday ("tuesday"), "tomorrow" or YYYY-MM-DD only when the user gives one. Compares
+        everyday sample trips (walking, wheelchair, driving) without and with the closures:
+        trips affected, trips that newly lose a route, places cut off, detour roads with their
+        detour pressure band (managers only), and suggestions. Detour pressure is estimated
+        from mapped road class and sample trips, not traffic counts."""
+        world = ctx.deps.ctx.world
+        rows = []
+        try:
+            for c in closures:
+                segs = course_segments(world, c.road_names, c.segment_ids)
+                event_window(c.start, c.end, c.day, world.site.timezone)
+                rows.append({**c.model_dump(), "segment_ids": segs})
+        except CourseError as exc:  # unknown or ambiguous road, too long a course, bad time
+            return _course_refusal(ctx.deps, "simulate_closure", exc)
+        return await call_tool(
+            ctx.deps, "simulate_closure", name=name, reason=reason, closures=rows, profiles=profiles
+        )
+
+    if "simulate_closure" in sp.TOOLS:  # the backend tool (T-026) is bound once it exists
+        register_tool(simulate_closure)
 
     @agent.output_validator
     async def check(ctx: RunContext[Deps], out: FinalAnswer) -> FinalAnswer:

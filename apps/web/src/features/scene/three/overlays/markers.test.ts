@@ -280,3 +280,19 @@ describe("place markers outside the Elmina outline (A-T5, display only)", () => 
     m.dispose();
   });
 });
+
+describe("flood impact markers (T-024)", () => {
+  const near = places[0]!.coord;
+  const impact = [
+    { id: "pg", name: "Urban Park playground", coord: near, kind: "flooded" as const },
+    { id: "b3", name: "Urban Park bench 3", coord: near, kind: "cut_off" as const },
+  ];
+  it("draws '!' and '⚠' points in the legend colours, labelled with the glyph and name", () => {
+    const m = createMarkers({ places: [], waste: [], evac: [], impact }, frame, fakeCanvas);
+    const pts = byKind(m.group, "impact");
+    expect(pts.map(hex).sort()).toEqual(["b7791f", "c53030"]);
+    cam(m, 0, 0);
+    const shown = sprites(m.group).filter((s) => s.visible);
+    expect(shown.length).toBe(2);
+  });
+});

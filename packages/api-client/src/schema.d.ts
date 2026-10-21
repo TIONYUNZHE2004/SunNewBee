@@ -115,6 +115,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/closures/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Simulate Closure
+         * @description Public, hypothetical closure impact; no persistent writes or traffic counts.
+         */
+        post: operations["simulate_closure_closures_simulate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/closures/{closure_id}/end": {
         parameters: {
             query?: never;
@@ -297,7 +317,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Event */
+        /**
+         * Create Event
+         * @description Staff alias for atomic named closures, including each window and the actual reason.
+         */
         post: operations["create_event_events_post"];
         delete?: never;
         options?: never;
@@ -314,7 +337,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Simulate Event */
+        /**
+         * Simulate Event
+         * @description Compatibility alias: accepts both the original event and general closure shapes.
+         */
         post: operations["simulate_event_events_simulate_post"];
         delete?: never;
         options?: never;
@@ -1334,6 +1360,56 @@ export interface components {
              */
             kind: "close_path";
         };
+        /** ClosureImpact */
+        ClosureImpact: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Detour Roads */
+            detour_roads: components["schemas"]["DetourRoad"][];
+            /**
+             * Disclaimer
+             * @default Detour pressure, estimated from mapped road class and sample trips, not traffic counts.
+             */
+            disclaimer: string;
+            event: components["schemas"]["ClosureScenario"];
+            /** Evidence Id */
+            evidence_id: string;
+            /** Extra M Median */
+            extra_m_median: number | null;
+            /** Extra Min Median */
+            extra_min_median: number | null;
+            /** Per Profile */
+            per_profile: {
+                [key: string]: components["schemas"]["ProfileImpact"];
+            };
+            /** Places Cut Off */
+            places_cut_off: components["schemas"]["EventPlace"][];
+            /** Sample Limit Per Profile */
+            sample_limit_per_profile: number;
+            /** Suggestions */
+            suggestions: components["schemas"]["EventSuggestion"][];
+            /** Timing Ms */
+            timing_ms: number;
+            /** Trips */
+            trips: components["schemas"]["EventTrip"][];
+            /** Trips Affected */
+            trips_affected: number;
+            /** Trips Newly No Route */
+            trips_newly_no_route: number;
+            /** Trips No Route */
+            trips_no_route: number;
+            /** Trips No Route Before */
+            trips_no_route_before: number;
+            /** Trips Total */
+            trips_total: number;
+            /** Warnings */
+            warnings?: string[];
+            /** Weights Note */
+            weights_note: string;
+        };
         /**
          * ClosureOut
          * @description A closure as the public sees it: always a staff report, never a verified fact.
@@ -1361,12 +1437,41 @@ export interface components {
              * Reason
              * @enum {string}
              */
-            reason: "works" | "event" | "flooding" | "other";
+            reason: "works" | "event" | "accident" | "flooding" | "other";
             /**
              * Source Label
              * @default Reported closure (staff)
              */
             source_label: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** ClosureScenario */
+        ClosureScenario: {
+            /** Closures */
+            closures: components["schemas"]["ClosureWindow"][];
+            /** Name */
+            name: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "works" | "event" | "accident" | "flooding" | "other";
+        };
+        /** ClosureWindow */
+        ClosureWindow: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Road Names */
+            road_names?: string[];
+            /** Segment Ids */
+            segment_ids?: string[];
             /**
              * Starts At
              * Format: date-time
@@ -1385,7 +1490,7 @@ export interface components {
              * Reason
              * @enum {string}
              */
-            reason: "works" | "event" | "flooding" | "other";
+            reason: "works" | "event" | "accident" | "flooding" | "other";
             /** Starts At */
             starts_at?: string | null;
         };
@@ -1653,10 +1758,19 @@ export interface components {
         DetourRoad: {
             /** Name */
             name: string;
+            /**
+             * Pressure
+             * @enum {string}
+             */
+            pressure: "low" | "medium" | "high";
+            /** Road Class */
+            road_class: string;
             /** Segment Ids */
             segment_ids: string[];
             /** Trips */
             trips: number;
+            /** Weighted Trips */
+            weighted_trips: number;
         };
         /** DevelopmentEntrance */
         DevelopmentEntrance: {
@@ -1955,6 +2069,8 @@ export interface components {
             sample_limit_per_profile: number;
             /** Suggestions */
             suggestions: components["schemas"]["EventSuggestion"][];
+            /** Timing Ms */
+            timing_ms: number;
             /** Trips */
             trips: components["schemas"]["EventTrip"][];
             /** Trips Affected */
@@ -1969,6 +2085,8 @@ export interface components {
             trips_total: number;
             /** Warnings */
             warnings?: string[];
+            /** Weights Note */
+            weights_note: string;
         };
         /** EventPlace */
         EventPlace: {
@@ -2002,7 +2120,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "marshal" | "crossing_point" | "reschedule";
+            kind: "signpost" | "marshal" | "crossing_point" | "two_way" | "split" | "reschedule";
             /** Text */
             text: string;
         };
@@ -2956,6 +3074,22 @@ export interface components {
             /** Task Id */
             task_id: string;
         };
+        /** SimulateClosureBody */
+        SimulateClosureBody: {
+            /** At */
+            at?: string | null;
+            /** Closures */
+            closures: components["schemas"]["ClosureWindow"][];
+            /** Name */
+            name: string;
+            /** Profiles */
+            profiles?: string[];
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "works" | "event" | "accident" | "flooding" | "other";
+        };
         /** SimulateEventBody */
         SimulateEventBody: {
             /**
@@ -3061,7 +3195,8 @@ export interface components {
         StoredEvent: {
             /** Closures */
             closures: components["schemas"]["ClosureOut"][];
-            event: components["schemas"]["EventSpec"];
+            /** Event */
+            event: components["schemas"]["EventSpec"] | components["schemas"]["ClosureScenario"];
         };
         /**
          * StreetFurnitureLayer
@@ -3630,6 +3765,39 @@ export interface operations {
             };
         };
     };
+    simulate_closure_closures_simulate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulateClosureBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClosureImpact"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     end_closure_closures__closure_id__end_post: {
         parameters: {
             query?: never;
@@ -3991,7 +4159,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["EventSpec"];
+                "application/json": components["schemas"]["EventSpec"] | components["schemas"]["ClosureScenario"];
             };
         };
         responses: {
@@ -4024,7 +4192,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SimulateEventBody"];
+                "application/json": components["schemas"]["SimulateEventBody"] | components["schemas"]["SimulateClosureBody"];
             };
         };
         responses: {
@@ -4034,7 +4202,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EventImpact"];
+                    "application/json": components["schemas"]["EventImpact"] | components["schemas"]["ClosureImpact"];
                 };
             };
             /** @description Validation Error */

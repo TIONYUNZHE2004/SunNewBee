@@ -60,6 +60,9 @@ export interface SceneState {
   route: { id: string; geojson: GeoJSON.LineString } | null;
   /** A what-if diff (imagined, never a real route): before/after lines and imagined changes. */
   whatIf: { geojson: { type: string; features: unknown[] } } | null;
+  /** T-026 closure simulation on the map (Management): course and detour lines, by pressure. */
+  closureSim: { geojson: { type: string; features: unknown[] } } | null;
+  setClosureSim: (c: SceneState["closureSim"]) => void;
   /** Rising-river rollout playback: synthetic residents on the map (simulation, not a forecast). */
   rollout: { on: boolean; stage: number; playing: boolean };
   setRollout: (r: Partial<SceneState["rollout"]>) => void;
@@ -136,6 +139,7 @@ const initial = {
   selectedBuildingId: null as string | null,
   route: null as SceneState["route"],
   whatIf: null as SceneState["whatIf"],
+  closureSim: null as SceneState["closureSim"],
   myTrip: null as SceneState["myTrip"],
   rollout: { on: false, stage: 0, playing: false } as SceneState["rollout"],
   day: {
@@ -385,6 +389,7 @@ export const useScene = create<SceneState>((set) => ({
     set({ route: null, journey: null });
   },
   clearWhatIf: () => set({ whatIf: null }),
+  setClosureSim: (closureSim) => set({ closureSim }),
   setRollout: (r) => set((s) => ({ rollout: { ...s.rollout, ...r } })),
   setDay: (d) => set((s) => ({ day: { ...s.day, ...d } })),
   setMyTrip: (geojson) => set({ myTrip: geojson ? { geojson } : null }),

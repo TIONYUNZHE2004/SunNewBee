@@ -967,6 +967,145 @@
         "title": "ClosePath",
         "type": "object"
       },
+      "ClosureImpact": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "detour_roads": {
+            "items": {
+              "$ref": "#/components/schemas/DetourRoad"
+            },
+            "title": "Detour Roads",
+            "type": "array"
+          },
+          "disclaimer": {
+            "default": "Detour pressure, estimated from mapped road class and sample trips, not traffic counts.",
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "event": {
+            "$ref": "#/components/schemas/ClosureScenario"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "extra_m_median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra M Median"
+          },
+          "extra_min_median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Min Median"
+          },
+          "per_profile": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ProfileImpact"
+            },
+            "title": "Per Profile",
+            "type": "object"
+          },
+          "places_cut_off": {
+            "items": {
+              "$ref": "#/components/schemas/EventPlace"
+            },
+            "title": "Places Cut Off",
+            "type": "array"
+          },
+          "sample_limit_per_profile": {
+            "title": "Sample Limit Per Profile",
+            "type": "integer"
+          },
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/EventSuggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          },
+          "timing_ms": {
+            "title": "Timing Ms",
+            "type": "number"
+          },
+          "trips": {
+            "items": {
+              "$ref": "#/components/schemas/EventTrip"
+            },
+            "title": "Trips",
+            "type": "array"
+          },
+          "trips_affected": {
+            "title": "Trips Affected",
+            "type": "integer"
+          },
+          "trips_newly_no_route": {
+            "title": "Trips Newly No Route",
+            "type": "integer"
+          },
+          "trips_no_route": {
+            "title": "Trips No Route",
+            "type": "integer"
+          },
+          "trips_no_route_before": {
+            "title": "Trips No Route Before",
+            "type": "integer"
+          },
+          "trips_total": {
+            "title": "Trips Total",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "weights_note": {
+            "title": "Weights Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trips_total",
+          "trips_affected",
+          "trips_no_route",
+          "trips_no_route_before",
+          "trips_newly_no_route",
+          "extra_m_median",
+          "extra_min_median",
+          "event",
+          "per_profile",
+          "places_cut_off",
+          "detour_roads",
+          "suggestions",
+          "trips",
+          "sample_limit_per_profile",
+          "evidence_id",
+          "weights_note",
+          "timing_ms",
+          "at"
+        ],
+        "title": "ClosureImpact",
+        "type": "object"
+      },
       "ClosureOut": {
         "description": "A closure as the public sees it: always a staff report, never a verified fact.",
         "properties": {
@@ -1046,6 +1185,7 @@
             "enum": [
               "works",
               "event",
+              "accident",
               "flooding",
               "other"
             ],
@@ -1072,6 +1212,81 @@
           "active"
         ],
         "title": "ClosureOut",
+        "type": "object"
+      },
+      "ClosureScenario": {
+        "additionalProperties": false,
+        "properties": {
+          "closures": {
+            "items": {
+              "$ref": "#/components/schemas/ClosureWindow"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Closures",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "works",
+              "event",
+              "accident",
+              "flooding",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "reason",
+          "closures"
+        ],
+        "title": "ClosureScenario",
+        "type": "object"
+      },
+      "ClosureWindow": {
+        "additionalProperties": false,
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "road_names": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Road Names",
+            "type": "array"
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Segment Ids",
+            "type": "array"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "ClosureWindow",
         "type": "object"
       },
       "CreateClosureBody": {
@@ -1109,6 +1324,7 @@
             "enum": [
               "works",
               "event",
+              "accident",
               "flooding",
               "other"
             ],
@@ -1782,6 +1998,19 @@
             "title": "Name",
             "type": "string"
           },
+          "pressure": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Pressure",
+            "type": "string"
+          },
+          "road_class": {
+            "title": "Road Class",
+            "type": "string"
+          },
           "segment_ids": {
             "items": {
               "type": "string"
@@ -1792,12 +2021,19 @@
           "trips": {
             "title": "Trips",
             "type": "integer"
+          },
+          "weighted_trips": {
+            "title": "Weighted Trips",
+            "type": "number"
           }
         },
         "required": [
           "name",
           "segment_ids",
-          "trips"
+          "trips",
+          "weighted_trips",
+          "road_class",
+          "pressure"
         ],
         "title": "DetourRoad",
         "type": "object"
@@ -2572,6 +2808,10 @@
             "title": "Suggestions",
             "type": "array"
           },
+          "timing_ms": {
+            "title": "Timing Ms",
+            "type": "number"
+          },
           "trips": {
             "items": {
               "$ref": "#/components/schemas/EventTrip"
@@ -2605,6 +2845,10 @@
             },
             "title": "Warnings",
             "type": "array"
+          },
+          "weights_note": {
+            "title": "Weights Note",
+            "type": "string"
           }
         },
         "required": [
@@ -2622,7 +2866,9 @@
           "suggestions",
           "trips",
           "sample_limit_per_profile",
-          "evidence_id"
+          "evidence_id",
+          "weights_note",
+          "timing_ms"
         ],
         "title": "EventImpact",
         "type": "object"
@@ -2691,8 +2937,11 @@
           },
           "kind": {
             "enum": [
+              "signpost",
               "marshal",
               "crossing_point",
+              "two_way",
+              "split",
               "reschedule"
             ],
             "title": "Kind",
@@ -5325,6 +5574,65 @@
         "title": "SimViolation",
         "type": "object"
       },
+      "SimulateClosureBody": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "closures": {
+            "items": {
+              "$ref": "#/components/schemas/ClosureWindow"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Closures",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "profiles": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Profiles",
+            "type": "array"
+          },
+          "reason": {
+            "enum": [
+              "works",
+              "event",
+              "accident",
+              "flooding",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "reason",
+          "closures"
+        ],
+        "title": "SimulateClosureBody",
+        "type": "object"
+      },
       "SimulateEventBody": {
         "additionalProperties": false,
         "properties": {
@@ -5614,7 +5922,15 @@
             "type": "array"
           },
           "event": {
-            "$ref": "#/components/schemas/EventSpec"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventSpec"
+              },
+              {
+                "$ref": "#/components/schemas/ClosureScenario"
+              }
+            ],
+            "title": "Event"
           }
         },
         "required": [
@@ -6848,6 +7164,45 @@
         "summary": "Create Closure"
       }
     },
+    "/closures/simulate": {
+      "post": {
+        "description": "Public, hypothetical closure impact; no persistent writes or traffic counts.",
+        "operationId": "simulate_closure_closures_simulate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateClosureBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClosureImpact"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Simulate Closure"
+      }
+    },
     "/closures/{closure_id}/end": {
       "post": {
         "operationId": "end_closure_closures__closure_id__end_post",
@@ -7324,6 +7679,7 @@
     },
     "/events": {
       "post": {
+        "description": "Staff alias for atomic named closures, including each window and the actual reason.",
         "operationId": "create_event_events_post",
         "parameters": [
           {
@@ -7347,7 +7703,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EventSpec"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/EventSpec"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ClosureScenario"
+                  }
+                ],
+                "title": "Body"
               }
             }
           },
@@ -7380,12 +7744,21 @@
     },
     "/events/simulate": {
       "post": {
+        "description": "Compatibility alias: accepts both the original event and general closure shapes.",
         "operationId": "simulate_event_events_simulate_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SimulateEventBody"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SimulateEventBody"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SimulateClosureBody"
+                  }
+                ],
+                "title": "Body"
               }
             }
           },
@@ -7396,7 +7769,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EventImpact"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/EventImpact"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ClosureImpact"
+                    }
+                  ],
+                  "title": "Response Simulate Event Events Simulate Post"
                 }
               }
             },

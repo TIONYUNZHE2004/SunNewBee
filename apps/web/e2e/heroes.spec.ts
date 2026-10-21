@@ -420,11 +420,21 @@ test("route answer lists every journey event as numbered steps in the list view 
   page,
 }) => {
   await open(page);
-  const chat = page.waitForResponse(
-    (r) => r.url().includes("/api/chat") && r.request().method() === "POST",
-  );
+  // Keep the /chat body as the page receives it: reading a finished streamed (SSE) response
+  // afterwards is flaky in Chromium ("No data found for resource", main too), so the route
+  // fetches it, keeps the text and hands the same body to the page.
+  let resolveBody: (text: string) => void = () => {};
+  const chat = new Promise<string>((resolve) => {
+    resolveBody = resolve;
+  });
+  await page.route("**/api/chat", async (route) => {
+    const response = await route.fetch();
+    const text = await response.text();
+    resolveBody(text);
+    await route.fulfill({ response, body: text });
+  });
   await ask(page, "Can I push a stroller from Car Park B to the playground without stairs?");
-  const body = await (await chat).text();
+  const body = await chat;
   // The plan the page received: the scene.intent whose kind is journey.play.
   let events: JourneyEvent[] = [];
   for (const line of body.split(/\r?\n/)) {

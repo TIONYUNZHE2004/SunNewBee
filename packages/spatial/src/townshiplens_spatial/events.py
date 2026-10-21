@@ -1,20 +1,28 @@
-"""Deterministic before/after event estimates over the existing everyday trip sample."""
+"""General closure impact and the backwards-compatible event simulation alias (T-026)."""
 
 from __future__ import annotations
 
 import hashlib
-from datetime import UTC, datetime
+import threading
+from collections import OrderedDict
+from datetime import UTC, date, datetime
 from statistics import median
+from time import perf_counter
 from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from . import flood, twm
-from .routing import eval_memo
-from .sim import snapshot_world
+from . import closure_roads, flood, traffic, twm
+from .direction import direction_rule
+from .models import ClosureReason
+from .routing import route_batch
+from .sim import ORIGIN_TYPES, snapshot_world
 from .world import World
 
 DISCLAIMER = "Estimate from mapped roads and sample trips, not traffic counts."
+PRESSURE_DISCLAIMER = (
+    "Detour pressure, estimated from mapped road class and sample trips, not traffic counts."
+)
 MAX_SEGMENTS = 40
 DEFAULT_PROFILES = ("default", "wheelchair", "drive")
 
@@ -53,6 +61,37 @@ class EventSpec(BaseModel):
         return self
 
 
+class ClosureWindow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(default_factory=list, max_length=MAX_SEGMENTS)
+    road_names: list[str] = Field(default_factory=list, max_length=MAX_SEGMENTS)
+    starts_at: datetime
+    ends_at: datetime
+
+    _utc = field_validator("starts_at", "ends_at")(EventSpec._utc.__func__)
+
+    @model_validator(mode="after")
+    def _window(self) -> Self:
+        if self.ends_at <= self.starts_at:
+            raise ValueError("ends_at must be after starts_at")
+        if not self.segment_ids and not self.road_names:
+            raise ValueError("provide segment_ids or road_names")
+        if any(not v.strip() or len(v) > 300 for v in self.segment_ids + self.road_names):
+            raise ValueError("road names and segment ids must be nonempty, at most 300 characters")
+        return self
+
+
+class ClosureScenario(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+    reason: ClosureReason
+    closures: list[ClosureWindow] = Field(min_length=1, max_length=MAX_SEGMENTS)
+
+    _name = field_validator("name")(EventSpec._name.__func__)
+
+
 class EventTrip(BaseModel):
     from_id: str
     to_id: str
@@ -87,10 +126,13 @@ class DetourRoad(BaseModel):
     name: str
     segment_ids: list[str]
     trips: int
+    weighted_trips: float
+    road_class: str
+    pressure: Literal["low", "medium", "high"]
 
 
 class EventSuggestion(BaseModel):
-    kind: Literal["marshal", "crossing_point", "reschedule"]
+    kind: Literal["signpost", "marshal", "crossing_point", "two_way", "split", "reschedule"]
     text: str
     basis: str
 
@@ -105,12 +147,36 @@ class EventImpact(ProfileImpact):
     sample_limit_per_profile: int
     evidence_id: str
     disclaimer: str = DISCLAIMER
+    weights_note: str
+    timing_ms: float
     warnings: list[str] = Field(default_factory=list)
+
+
+class ClosureImpact(EventImpact):
+    event: ClosureScenario
+    at: datetime
+    disclaimer: str = PRESSURE_DISCLAIMER
 
 
 def validate_event(world: World, spec: EventSpec) -> None:
     if unknown := sorted(set(spec.segment_ids) - world.edges.keys()):
         raise ValueError(f"unknown segments: {', '.join(unknown)}")
+
+
+def resolve_scenario(world: World, spec: ClosureScenario) -> ClosureScenario:
+    windows = [
+        window.model_copy(
+            update={
+                "segment_ids": closure_roads.resolve(
+                    world, window.road_names, window.segment_ids, MAX_SEGMENTS
+                )
+            }
+        )
+        for window in spec.closures
+    ]
+    if sum(len(window.segment_ids) for window in windows) > MAX_SEGMENTS:
+        raise ValueError(f"at most {MAX_SEGMENTS} segment/window pairs per scenario")
+    return spec.model_copy(update={"closures": windows})
 
 
 def _summary(trips: list[EventTrip]) -> ProfileImpact:
@@ -127,137 +193,311 @@ def _summary(trips: list[EventTrip]) -> ProfileImpact:
     )
 
 
+# Bounded across requests. Values retain the graph so object ids cannot be reused.
+# world.version invalidates staff edits; date invalidates expiring checks; closure_hash
+# invalidates clock-driven changes. Profiles and exact journey pairs are also in the key.
+_BASELINES: OrderedDict = OrderedDict()
+_BASELINE_LOCK = threading.Lock()
+
+
+def _journeys(world, profile, limit, expanded):
+    if not expanded:
+        return twm.suite_journeys(world, profile)[:limit]
+    types = {t for peak in traffic.config().peaks for t in peak.types} | {"facility", "toilet"}
+    origins = sorted(p.id for p in world.places.values() if p.type in ORIGIN_TYPES)
+    destinations = sorted(p.id for p in world.places.values() if p.type in types)
+    # Round-robin origins: the bounded sample represents all mapped parking/stops.
+    return [
+        twm.Journey(from_id=o, to_id=d, profile=profile)
+        for d in destinations
+        for o in origins
+        if o != d
+    ][:limit]
+
+
+def _baseline(world, closure_hash, profile, journeys):
+    key = (
+        id(world.graph),
+        world.version,
+        date.today(),
+        closure_hash,
+        world.profiles[profile].model_dump_json(),
+        tuple((j.from_id, j.to_id) for j in journeys),
+    )
+    with _BASELINE_LOCK:
+        if key in _BASELINES:
+            _BASELINES.move_to_end(key)
+            return _BASELINES[key][1:]
+    states = twm.rollout(world, None, journeys)
+    cut_off = {p.id for p in flood.cut_off_places(world, profile)}
+    with _BASELINE_LOCK:
+        _BASELINES[key] = world.graph, states, cut_off
+        while len(_BASELINES) > 12:
+            _BASELINES.popitem(last=False)
+    return states, cut_off
+
+
+def _suggestions(world, detours, cut_off, summary, closed):
+    suggestions = []
+    capacities = traffic.config().capacity
+    for road in detours:
+        if road.pressure == "high" and road.road_class == "residential":
+            nodes = closure_roads._nodes(world, road.segment_ids)
+            candidates = [
+                e
+                for e in world.edges.values()
+                if e.id not in closed
+                and not any(c.is_active() for c in e.closures)
+                and e.name
+                and e.name != road.name
+                and capacities.get(e.osm_tags.get("highway"), 1) > capacities["residential"]
+                and nodes & {e.from_node, e.to_node}
+            ]
+            if candidates:
+                via = min(
+                    candidates, key=lambda e: (-capacities[e.osm_tags["highway"]], e.name, e.id)
+                )
+                suggestions.append(
+                    EventSuggestion(
+                        kind="signpost",
+                        text=f"Review signposting the detour via {via.name} "
+                        f"instead of {road.name}: "
+                        f"{road.weighted_trips:g} weighted sample trips on a high-pressure "
+                        "residential road. This alternative has not been simulated.",
+                        basis=f"detour_roads[{road.name}].weighted_trips={road.weighted_trips:g}; "
+                        f"capacity[residential]={capacities['residential']:g}; "
+                        f"capacity[{via.osm_tags['highway']}]={capacities[via.osm_tags['highway']]:g}",
+                    )
+                )
+        one_way = [
+            eid for eid in road.segment_ids if direction_rule(world.edges[eid])[0] in (-1, 1)
+        ]
+        if one_way:
+            suggestions.append(
+                EventSuggestion(
+                    kind="two_way",
+                    text=f"Review temporary two-way operation on {road.name}: "
+                    f"{len(one_way)} mapped one-way detour segments; staff approval is needed.",
+                    basis=f"detour_roads[{road.name}].oneway_segments={len(one_way)}",
+                )
+            )
+        if len([s for s in suggestions if s.kind == "marshal"]) < 3:
+            suggestions.append(
+                EventSuggestion(
+                    kind="marshal",
+                    text=f"Consider a marshal at {road.name}: {road.trips} sample trips reroute "
+                    f"onto it ({road.weighted_trips:g} weighted trips).",
+                    basis=f"detour_roads[{road.name}].trips={road.trips}; "
+                    f"weighted_trips={road.weighted_trips:g}",
+                )
+            )
+    if cut_off:
+        boundaries = sorted(
+            n
+            for n in closure_roads._nodes(world, closed)
+            if any(eid not in closed for data in world.graph[n].values() for eid in data)
+        )
+        if boundaries:
+            node = boundaries[0]
+            names = sorted(
+                {
+                    world.edges[eid].name
+                    for data in world.graph[node].values()
+                    for eid in data
+                    if world.edges[eid].name
+                }
+            )
+            junction = (
+                f"the junction of {names[0]} and {names[1]}"
+                if len(names) > 1
+                else f"the mapped junction on {names[0]}"
+                if names
+                else "the mapped closure-boundary junction"
+            )
+            suggestions.append(
+                EventSuggestion(
+                    kind="crossing_point",
+                    text=f"Review keeping one crossing point open at {junction}: "
+                    f"{len(cut_off)} mapped places lose centre access. Access is not established "
+                    "until the alternative is assessed.",
+                    basis=f"places_cut_off count={len(cut_off)}; mapped_junction={node}",
+                )
+            )
+    if summary.trips_affected and summary.trips_affected * 2 >= summary.trips_total:
+        basis = f"trips_affected={summary.trips_affected}; trips_total={summary.trips_total}"
+        if len(closed) > 1:
+            suggestions.append(
+                EventSuggestion(
+                    kind="split",
+                    text=f"Consider splitting the closure into stretches: {len(closed)} active "
+                    f"segments affect {summary.trips_affected} of {summary.trips_total} sample "
+                    "trips. Separate stretches have not been simulated.",
+                    basis=f"{basis}; active_segments={len(closed)}",
+                )
+            )
+        suggestions.append(
+            EventSuggestion(
+                kind="reschedule",
+                text=f"Consider shifting the time: {summary.trips_affected} of "
+                f"{summary.trips_total} sample trips are affected at this instant. "
+                "Other times have not been simulated.",
+                basis=basis,
+            )
+        )
+    return suggestions
+
+
+def simulate_closure(
+    world: World,
+    spec: ClosureScenario,
+    profiles: tuple[str, ...] = DEFAULT_PROFILES,
+    at: datetime | None = None,
+) -> ClosureImpact:
+    return _simulate(world, spec, profiles, at, legacy=None)
+
+
 def simulate_event(
     world: World, spec: EventSpec, profiles: tuple[str, ...] = DEFAULT_PROFILES
 ) -> EventImpact:
-    """Compare the same sampled trips without/with course closures at the window's start.
-
-    Other staff closures are frozen at starts_at. The supplied window is stored only by
-    POST /events; this function never mutates live state. Trip statuses retain no_data for
-    pre-existing disconnected data. Extra distance/time medians cover rerouted trips only;
-    time is the router's distance/pace estimate, never congestion or waiting time.
-    """
+    """Legacy event shape and sample; uses the same closure engine and route caches."""
     validate_event(world, spec)
+    scenario = ClosureScenario(
+        name=spec.name,
+        reason="event",
+        closures=[ClosureWindow(**spec.model_dump(exclude={"name"}))],
+    )
+    return _simulate(world, scenario, profiles, spec.starts_at, legacy=spec)
+
+
+def _simulate(world, spec, profiles, at, legacy):
+    started = perf_counter()
+    spec = resolve_scenario(world, spec)
     profiles = tuple(dict.fromkeys(profiles))
     if not profiles or len(profiles) > 5:
         raise ValueError("choose between one and five profiles")
     for profile in profiles:
         if profile not in world.profiles or world.profiles[profile].stub:
             raise ValueError(f"unknown or unavailable profile {profile}")
-    baseline, _ = snapshot_world(world, spec.starts_at)
-    # snapshot_world keeps future starts; normalise the frozen active closures so the
-    # wall clock cannot switch them off when simulating a future event.
+    at = EventSpec._utc(at or spec.closures[0].starts_at)
+    baseline, closure_hash = snapshot_world(world, at)
     for element in (*baseline.edges.values(), *baseline.places.values()):
         element.closures = [
             c.model_copy(update={"starts_at": datetime(2000, 1, 1, tzinfo=UTC)})
             for c in element.closures
         ]
-    actions = [twm.ClosePath(element_id=eid) for eid in spec.segment_ids]
-    limit = twm.MAX_JOURNEYS // len(profiles)
-    journeys = [j for p in profiles for j in twm.suite_journeys(baseline, p)[:limit]]
-    result = twm.compare(baseline, actions, journeys, max_actions=MAX_SEGMENTS)
+    closed = {
+        eid
+        for window in spec.closures
+        if window.starts_at <= at < window.ends_at
+        for eid in window.segment_ids
+    }
+    actions = [twm.ClosePath(element_id=eid) for eid in sorted(closed)]
     after = twm.apply(baseline, actions, max_actions=MAX_SEGMENTS).world
+    limit = twm.MAX_JOURNEYS // len(profiles)
     trips = []
-    roads: dict[str, tuple[set[str], int]] = {}
-    for outcome in result.journeys:
-        b, a = outcome.before, outcome.after
-        rerouted = (
-            b.distance_m is not None and a.distance_m is not None and b.segment_ids != a.segment_ids
-        )
-        lost = b.distance_m is not None and a.distance_m is None
-        trips.append(
-            EventTrip(
-                **outcome.journey.model_dump(),
-                before_status=b.status,
-                after_status=a.status,
-                affected=rerouted or lost,
-                no_route=a.distance_m is None,
-                before_m=b.distance_m,
-                after_m=a.distance_m,
-                extra_m=round(a.distance_m - b.distance_m, 1) if rerouted else None,
-                extra_min=round(a.est_minutes - b.est_minutes, 1) if rerouted else None,
-                segment_ids=a.segment_ids,
-            )
-        )
-        if rerouted:
-            per_road: dict[str, set[str]] = {}
-            for eid in set(a.segment_ids) - set(b.segment_ids):
-                name = world.edges[eid].name or "Unnamed paths"
-                per_road.setdefault(name, set()).add(eid)
-            for name, ids in per_road.items():
-                old_ids, count = roads.get(name, (set(), 0))
-                roads[name] = (old_ids | ids, count + 1)
-    detours = sorted(
-        (
-            DetourRoad(name=name, segment_ids=sorted(ids), trips=n)
-            for name, (ids, n) in roads.items()
-        ),
-        key=lambda r: (-r.trips, r.name),
-    )
-    cut_off: dict[str, EventPlace] = {}
-    with eval_memo():
+    roads = {}
+    cut_off = {}
+    demo = False
+    with route_batch():
         for profile in profiles:
-            before_ids = {p.id for p in flood.cut_off_places(baseline, profile)}
-            for p in flood.cut_off_places(after, profile):
-                if p.id not in before_ids:
-                    cut_off[p.id] = EventPlace(id=p.id, name=p.name)
+            journeys = _journeys(baseline, profile, limit, expanded=legacy is None)
+            states, before_ids = _baseline(baseline, closure_hash, profile, journeys)
+            for j, b in zip(journeys, states, strict=True):
+                # Removing edges cannot improve an unavailable route. An existing best
+                # route avoiding every removed edge is still optimal, so reuse it exactly.
+                a = twm._state(after, j, None, True) if closed.intersection(b.segment_ids) else b
+                rerouted = (
+                    b.distance_m is not None
+                    and a.distance_m is not None
+                    and b.segment_ids != a.segment_ids
+                )
+                lost = b.distance_m is not None and a.distance_m is None
+                demo |= b.demo_evidence or a.demo_evidence
+                trips.append(
+                    EventTrip(
+                        **j.model_dump(),
+                        before_status=b.status,
+                        after_status=a.status,
+                        affected=rerouted or lost,
+                        no_route=a.distance_m is None,
+                        before_m=b.distance_m,
+                        after_m=a.distance_m,
+                        extra_m=round(a.distance_m - b.distance_m, 1) if rerouted else None,
+                        extra_min=round(a.est_minutes - b.est_minutes, 1) if rerouted else None,
+                        segment_ids=a.segment_ids,
+                    )
+                )
+                if rerouted:
+                    per_road = {}
+                    for eid in set(a.segment_ids) - set(b.segment_ids):
+                        edge = world.edges[eid]
+                        per_road.setdefault(edge.name or "Unnamed paths", set()).add(eid)
+                    weight = traffic.trip_weight(
+                        world.places[j.to_id].type, at, world.site.timezone
+                    )
+                    for key, ids in per_road.items():
+                        old_ids, count, weighted = roads.get(key, (set(), 0, 0.0))
+                        roads[key] = old_ids | ids, count + 1, weighted + weight
+            if closed:
+                for place in flood.cut_off_places(after, profile):
+                    if place.id not in before_ids:
+                        cut_off[place.id] = EventPlace(id=place.id, name=place.name)
+    detours = sorted(
+        [
+            DetourRoad(
+                name=name,
+                segment_ids=sorted(ids),
+                trips=count,
+                weighted_trips=weighted,
+                road_class=_detour_class(world, ids),
+                pressure=traffic.pressure(weighted, _detour_class(world, ids)),
+            )
+            for name, (ids, count, weighted) in roads.items()
+        ],
+        key=lambda r: (-r.weighted_trips, r.name, r.road_class),
+    )
     summary = _summary(trips)
-    suggestions = [
-        EventSuggestion(
-            kind="marshal",
-            text=(
-                f"Consider marshals or signs on {road.name}: "
-                f"{road.trips} sample trips reroute onto it."
-            ),
-            basis=f"detour_roads[{road.name}].trips={road.trips}",
-        )
-        for road in detours[:3]
-    ]
-    if cut_off:
-        names = ", ".join(p.name for p in sorted(cut_off.values(), key=lambda p: p.id)[:3])
-        suggestions.append(
-            EventSuggestion(
-                kind="crossing_point",
-                text=(
-                    f"Review a crossing point near {names}: "
-                    f"{len(cut_off)} mapped places lose centre access."
-                ),
-                basis=f"places_cut_off count={len(cut_off)}",
-            )
-        )
-    if summary.trips_affected and summary.trips_affected * 2 >= summary.trips_total:
-        suggestions.append(
-            EventSuggestion(
-                kind="reschedule",
-                text=(
-                    "Consider shifting the start time or splitting the course: "
-                    f"{summary.trips_affected} of {summary.trips_total} sample trips are affected. "
-                    "Other times have not been simulated."
-                ),
-                basis=f"trips_affected={summary.trips_affected}; trips_total={summary.trips_total}",
-            )
-        )
-    digest = hashlib.sha256((spec.model_dump_json() + result.evidence.id).encode()).hexdigest()[:12]
     warnings = [
-        "Sample trips are a deterministic prefix of everyday journeys, not measured demand.",
-        "Existing closures are assessed at starts_at; "
-        "changes later in the window are not modelled.",
+        "Sample trips are a deterministic bounded sample of everyday journeys, "
+        "not measured demand.",
+        "Closures are assessed only at at (default: first closure start); changes later in "
+        "the window are not modelled.",
         "Extra minutes are travel-distance/pace estimates, not congestion or crowd predictions.",
     ]
-    if any(o.before.demo_evidence or o.after.demo_evidence for o in result.journeys):
+    if demo:
         warnings.append("Some routes use demo values, not yet surveyed.")
     warnings.extend(
         world.profiles[p].standing_warning for p in profiles if world.profiles[p].standing_warning
     )
-    return EventImpact(
+    digest = hashlib.sha256(
+        (
+            spec.model_dump_json()
+            + at.isoformat()
+            + closure_hash
+            + str(world.version)
+            + str(profiles)
+        ).encode()
+    ).hexdigest()[:12]
+    common = dict(
         **summary.model_dump(),
-        event=spec,
         per_profile={p: _summary([t for t in trips if t.profile == p]) for p in profiles},
         places_cut_off=sorted(cut_off.values(), key=lambda p: p.id),
         detour_roads=detours,
-        suggestions=suggestions,
+        suggestions=_suggestions(after, detours, cut_off, summary, closed),
         trips=trips,
         sample_limit_per_profile=limit,
-        evidence_id=f"ev-event-{digest}",
+        evidence_id=f"ev-event-{digest}" if legacy else f"ev-closure-{digest}",
+        weights_note=traffic.config().weights_note,
+        timing_ms=round((perf_counter() - started) * 1000, 2),
         warnings=warnings,
     )
+    if legacy:
+        return EventImpact(event=legacy, **common)
+    return ClosureImpact(event=spec, at=at, **common)
+
+
+def _detour_class(world, ids):
+    """A mixed-class named road uses its most restrictive sampled segment capacity."""
+    classes = {world.edges[eid].osm_tags.get("highway", "unknown") for eid in ids}
+    capacity = traffic.config().capacity
+    return min(classes, key=lambda cls: (capacity.get(cls, capacity["others"]), cls))

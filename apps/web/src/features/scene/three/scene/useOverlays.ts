@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { useEvacCentres, useGaps, useLayer, useScenarioWater } from "../../../../lib/api";
+import {
+  useEvacCentres,
+  useFloodImpact,
+  useGaps,
+  useLayer,
+  useScenarioWater,
+} from "../../../../lib/api";
 import { useDevsim } from "../../../devsim/devsimStore";
+import { impactSummary } from "../../../flood/impactModel";
 import { gapsActive } from "../../../gaps/gapModel";
 import { useJourney } from "../../../journey/journeyStore";
 import { type LonLat, pointFeatures } from "../../geo";
@@ -47,6 +54,7 @@ export function useOverlays({
   const pathStatus = useSceneSettings((s) => s.pathStatus);
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const whatIf = useScene((s) => s.whatIf);
+  const closureSim = useScene((s) => s.closureSim);
   const gapsQ = useGaps(profile, gapsOn && accessVisible);
   // Flood tint, waste points, place markers and evacuation centres share the overlay pass.
   const floodLens = useScene((s) => s.lensVisible.flood);
@@ -80,6 +88,8 @@ export function useOverlays({
   const floodQ = useLayer("flood", profile, scenarioId, floodOn);
   const wasteQ = useLayer("waste", profile, scenarioId, wasteLens);
   const evacQ = useEvacCentres(floodOn ? scenarioId : null, profile);
+  const impactQ = useFloodImpact(floodOn ? scenarioId : null);
+  const impact = useMemo(() => impactSummary(impactQ.data)?.markers ?? null, [impactQ.data]);
   /**
    * Place markers drawn (`data-markers`): the access layer's points minus those hidden off the slab
    * (A-T5); without an outline, every point.
@@ -114,12 +124,14 @@ export function useOverlays({
       gapsOn,
       route: routeOn && !journeyOn ? (route?.geojson ?? null) : null,
       whatIf,
+      closureSim,
       water: waterQ.data ?? null,
       floodEdges: floodQ.data ?? null,
       floodOn,
       waste: wasteQ.data ?? null,
       wasteOn: wasteLens,
       evac: evacQ.data ?? null,
+      impact,
       focusPlaceId,
       boundary,
       keepPlaceIds,
@@ -141,12 +153,14 @@ export function useOverlays({
     devsimOn,
     route,
     whatIf,
+    closureSim,
     waterQ.data,
     floodQ.data,
     floodOn,
     wasteQ.data,
     wasteLens,
     evacQ.data,
+    impact,
     focusPlaceId,
     boundary,
     keepPlaceIds,
