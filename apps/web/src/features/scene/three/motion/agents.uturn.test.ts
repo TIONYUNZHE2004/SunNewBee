@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import { parseManifest } from "../assets/manifest";
 import { createFrame, type LocalFrame } from "../frame";
 import { boxAround } from "../stream/area";
-import { type Agent, fadeAt, planAgents, poseAt } from "./agents";
+import { type Agent, alongPath, fadeAt, planAgents, poseAt, RESPAWN_APART_M } from "./agents";
 import { buildRoadGraph, type RoadGraph } from "./roadGraph";
 import { createReversalWatch } from "./uturnWatch";
+import { MIN_SHARE } from "./walkPath";
+
+const alongPathPose = (a: Agent, s: number, out: { x: number; z: number; yaw: number }) =>
+  alongPath(a.path, s, out);
 
 /**
  * AC-L1 / AC-L2 (demo polish A1): over 60 s at 30 Hz no planned agent reverses its heading by more
@@ -243,4 +247,80 @@ describe("AC-L2: vehicles drive through junctions", () => {
       expect(ok).toBeGreaterThanOrEqual(share);
     });
   }
+});
+
+describe("review fix round 1 (Elmina extract)", () => {
+  const s = elminaSet();
+  const agents = planFor(s);
+  it("Important 1: no vehicle turns more than 145 deg within 3 s while moving under 5 m (a pivot), away from dead ends", () => {
+    const { near, graphOf } = deadEndsOf(s);
+    const pose = { x: 0, z: 0, yaw: 0 };
+    const lap = { opacity: 1, lap: 0 };
+    const bad: string[] = [];
+    const W = 3 * 30;
+    for (const a of agents.filter((x) => x.kind === "vehicle")) {
+      const g = graphOf(a);
+      const hist: { x: number; z: number; yaw: number; lap: number; dead: boolean }[] = [];
+      for (let i = 0; i <= SECONDS * 30; i++) {
+        const t = i * DT;
+        poseAt(a, t, pose);
+        fadeAt(a, t, lap);
+        hist.push({
+          x: pose.x,
+          z: pose.z,
+          yaw: pose.yaw,
+          lap: lap.lap,
+          dead: near(g, pose.x, pose.z),
+        });
+        if (hist.length > W) hist.shift();
+        const now = hist[hist.length - 1]!;
+        for (const h of hist) {
+          if (h.lap !== now.lap) continue;
+          const turn = Math.abs(Math.atan2(Math.sin(now.yaw - h.yaw), Math.cos(now.yaw - h.yaw)));
+          if (turn <= (145 * Math.PI) / 180) continue;
+          if (Math.hypot(now.x - h.x, now.z - h.z) >= 5) continue;
+          if (hist.some((q) => q.dead)) continue;
+          bad.push(`${a.id} t=${t.toFixed(2)} (${now.x.toFixed(1)}, ${now.z.toFixed(1)})`);
+          break;
+        }
+        if (bad.length && bad[bad.length - 1]!.startsWith(a.id)) break;
+      }
+    }
+    expect(bad, bad.slice(0, 10).join("\n")).toEqual([]);
+  });
+
+  it("Important 1: no stretch away from a dead end is walked below MIN_SHARE of the speed", () => {
+    for (const a of agents) {
+      const w = a.warp;
+      if (!w) continue;
+      for (let i = 2; i < w.length; i += 2) {
+        const dn = (w[i] as number) - (w[i - 2] as number);
+        const ds = (w[i + 1] as number) - (w[i - 1] as number);
+        if (dn <= 1e-6 || ds < 0.05) continue; // millimetre segments: Float32 noise
+        // Float32 knots: a 2 % tolerance
+        if (ds / dn >= MIN_SHARE * 0.98) continue;
+        // only a dead-end U-turn half circle may be slower: it lies within 9 m of a dead end
+        const p = { x: 0, z: 0, yaw: 0 };
+        let atDead = false;
+        if (a.deadEnds)
+          for (let k = 0; k < a.deadEnds.length; k += 2) {
+            const s0 = (w[i - 1] as number) + ds / 2;
+            const q = alongPathPose(a, s0, p);
+            if (Math.hypot(q.x - a.deadEnds[k]!, q.z - a.deadEnds[k + 1]!) <= 9) atDead = true;
+          }
+        expect(atDead, `${a.id} share ${(ds / dn).toFixed(3)}`).toBe(true);
+      }
+    }
+  });
+
+  it("M3: every path ends at least RESPAWN_APART_M from where the agent reappears", () => {
+    expect(agents.length).toBeGreaterThan(100);
+    for (const a of agents) {
+      const n = a.path.length;
+      expect(
+        Math.hypot(a.path[n - 2]! - a.path[0]!, a.path[n - 1]! - a.path[1]!),
+        a.id,
+      ).toBeGreaterThanOrEqual(RESPAWN_APART_M - 0.01); // Float32 path
+    }
+  });
 });

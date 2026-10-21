@@ -1,6 +1,9 @@
 import { WIDTH_BY_TYPE } from "../../shared/roads";
 import type { LocalFrame } from "../frame";
 import { perLayer } from "../stream/area";
+import { pointAlong, polyLength } from "./walkPath";
+
+export { pointAlong };
 
 /**
  * DECORATIVE junction graph for the city's moving agents (demo polish A1): walk-layer LineStrings of
@@ -69,27 +72,53 @@ export const DIR_CHORD_M = 6;
 
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
-const polyLength = (pts: P[]) => {
-  let l = 0;
-  for (let i = 0; i < pts.length - 1; i++)
-    l += Math.hypot(pts[i + 1]![0] - pts[i]![0], pts[i + 1]![1] - pts[i]![1]);
-  return l;
-};
+/** One run of valid consecutive vertices of a walk LineString, in local metres. */
+export interface WalkRun {
+  fid: string;
+  /** Run index within the feature; `${fid}:${ri}` is the edge key everywhere. */
+  ri: number;
+  type: string;
+  pts: P[];
+  length: number;
+}
 
-/** The point `m` metres along `pts` (clamped to its end). */
-export function pointAlong(pts: P[], m: number): P {
-  let walked = 0;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i]!;
-    const b = pts[i + 1]!;
-    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (l > 0 && walked + l >= m) {
-      const t = (m - walked) / l;
-      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+/**
+ * The walk layer's LineStrings whose `type` passes `keep`, split into runs of valid consecutive
+ * vertices (an invalid coordinate breaks a line; repeated vertices are dropped; runs of fewer than
+ * two points are left out). The one parser behind `buildRoadGraph` and `agents.ts` `runsOf`, so
+ * their `${fid}:${ri}` keys always agree. Pure, in feature order.
+ */
+export function walkRuns(
+  walk: unknown,
+  frame: LocalFrame,
+  keep: (type: string) => boolean,
+): WalkRun[] {
+  const out: WalkRun[] = [];
+  const features = isRec(walk) && Array.isArray(walk.features) ? walk.features.filter(isRec) : [];
+  features.forEach((f, fi) => {
+    const g = f.geometry;
+    if (!isRec(g) || g.type !== "LineString" || !Array.isArray(g.coordinates)) return;
+    const props = isRec(f.properties) ? f.properties : {};
+    const type = String(props.type ?? "");
+    if (!keep(type)) return;
+    const fid = String(props.id ?? `w${fi}`);
+    const runs: P[][] = [[]];
+    for (const c of g.coordinates) {
+      const run = runs[runs.length - 1]!;
+      if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) {
+        if (run.length > 0) runs.push([]);
+        continue;
+      }
+      const q = frame.toLocal(c[0] as number, c[1] as number);
+      const last = run[run.length - 1];
+      if (!last || last[0] !== q[0] || last[1] !== q[1]) run.push(q);
     }
-    walked += l;
-  }
-  return pts[pts.length - 1]!;
+    runs.forEach((pts, ri) => {
+      if (pts.length < 2) return;
+      out.push({ fid, ri, type, pts, length: polyLength(pts) });
+    });
+  });
+  return out;
 }
 
 /** Unit chord direction from the start of `pts` over its first `m` metres. */
@@ -144,44 +173,22 @@ export function buildRoadGraph(
   };
 
   const edges: GraphEdge[] = [];
-  const features = isRec(walk) && Array.isArray(walk.features) ? walk.features.filter(isRec) : [];
-  features.forEach((f, fi) => {
-    const g = f.geometry;
-    if (!isRec(g) || g.type !== "LineString" || !Array.isArray(g.coordinates)) return;
-    const props = isRec(f.properties) ? f.properties : {};
-    const type = String(props.type ?? "");
-    if (!kinds.has(type)) return;
-    const fid = String(props.id ?? `w${fi}`);
-    const runs: P[][] = [[]];
-    for (const c of g.coordinates) {
-      const run = runs[runs.length - 1]!;
-      if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) {
-        if (run.length > 0) runs.push([]);
-        continue;
-      }
-      const q = frame.toLocal(c[0] as number, c[1] as number);
-      const last = run[run.length - 1];
-      if (!last || last[0] !== q[0] || last[1] !== q[1]) run.push(q);
-    }
-    runs.forEach((pts, ri) => {
-      if (pts.length < 2) return;
-      const length = polyLength(pts);
-      if (!(length > 0)) return;
-      const a = nodeAt(pts[0]!);
-      const b = nodeAt(pts[pts.length - 1]!);
-      edges.push({
-        id: edges.length,
-        key: `${fid}:${ri}`,
-        fid,
-        type,
-        width: WIDTH_BY_TYPE[type] ?? 6,
-        pts,
-        length,
-        a,
-        b,
-      });
+  for (const { fid, ri, type, pts, length } of walkRuns(walk, frame, (t) => kinds.has(t))) {
+    if (!(length > 0)) continue;
+    const a = nodeAt(pts[0]!);
+    const b = nodeAt(pts[pts.length - 1]!);
+    edges.push({
+      id: edges.length,
+      key: `${fid}:${ri}`,
+      fid,
+      type,
+      width: WIDTH_BY_TYPE[type] ?? 6,
+      pts,
+      length,
+      a,
+      b,
     });
-  });
+  }
 
   const inc: Step[][] = nodes.map(() => []);
   for (const e of edges) {

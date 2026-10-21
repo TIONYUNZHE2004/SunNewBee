@@ -58,6 +58,10 @@ export interface YawEntry {
   gait?: GaitState;
   /** C-T8 keep-out side memory (P8). */
   keep?: KeepOutMemory;
+  /** The fading lap the keep-out memory belongs to: a respawn forgets the side (review M2). */
+  lap?: number;
+  /** The keep-out's last push (m) and its motion time (s): a sudden change is not drawn. */
+  push?: { dx: number; dz: number; t: number };
 }
 export type YawMemory = Map<string, YawEntry>;
 
@@ -232,6 +236,9 @@ export function flowShare(density: number): number {
     Math.min(1, (density * densityFor({ day: 1, dusk: 0, night: 0 })) / DENSITY_PEAK),
   );
 }
+
+/** A keep-out push changing by more than this between frames (m) hides the person for that frame. */
+const PUSH_SNAP_M = 0.6;
 
 /** Agents just outside the view still get matrices, so nothing pops in at the edge while panning. */
 const FRUSTUM_MARGIN_M = 50;
@@ -584,9 +591,14 @@ export function createMotionLayer(
    * The keep-out (P8) on `pose` for a person: moves pose.x / z out of her zone; false when the
    * person must not be drawn this frame. Vehicles are untouched (they keep to the carriageway).
    */
-  const keepClear = (a: Agent, hero: HeroXZ | null): boolean => {
+  const keepClear = (a: Agent, hero: HeroXZ | null, t: number): boolean => {
     if (a.kind !== "person") return true;
     let mem = yawMemory.get(a.id);
+    // a respawned person is somewhere else: the side of her path it was held on no longer holds
+    if (mem && mem.lap !== fo.lap) {
+      mem.lap = fo.lap;
+      if (mem.keep) mem.keep.side = undefined;
+    }
     if (!hero) {
       if (mem?.keep) mem.keep.side = undefined;
       return true;
@@ -597,8 +609,21 @@ export function createMotionLayer(
     }
     mem.keep ??= {};
     keepOut(pose.x, pose.z, hero, mem.keep, kept);
+    // The zone's push can switch segment (her path's cap to its side) and move a person by over a
+    // metre in one frame; that frame is not drawn, the next one shows it settled (no visible snap).
+    const dx = kept.x - pose.x;
+    const dz = kept.z - pose.z;
+    const prev = mem.push;
+    mem.push = { dx, dz, t };
     pose.x = kept.x;
     pose.z = kept.z;
+    if (
+      prev &&
+      t > prev.t &&
+      t - prev.t < 0.25 &&
+      Math.hypot(dx - prev.dx, dz - prev.dz) > PUSH_SNAP_M
+    )
+      return false;
     return !kept.hidden;
   };
 
@@ -681,7 +706,7 @@ export function createMotionLayer(
         const fade = fadeAt(ag, t, fo).opacity;
         if (fade <= 0) continue;
         if (s.agent.kind === "vehicle" && flow?.avoidVehicles?.(pose.x, pose.z)) continue;
-        if (!keepClear(ag, hero)) continue;
+        if (!keepClear(ag, hero, t)) continue;
         // ITER2: no decorative vehicle by her route or between the camera and her, no person at the
         // camera's feet (whole agents, never half cut), while a journey hero is shown.
         if (
@@ -748,7 +773,8 @@ export function createMotionLayer(
         poseAt(ag, t, pose);
         const tangent = pose.yaw;
         const fade = fadeAt(ag, t, fo).opacity;
-        const clear = fade > 0 && keepClear(ag, hero) && personClear(pose.x, pose.z, hero, camera);
+        const clear =
+          fade > 0 && keepClear(ag, hero, t) && personClear(pose.x, pose.z, hero, camera);
         const d = Math.hypot(pose.x - camera.x, camera.y, pose.z - camera.z);
         const raw = lodFor(d, crowdLods, s.raw);
         s.raw = raw;
@@ -823,7 +849,7 @@ export function createMotionLayer(
       for (const g of wrappers) {
         // Detach the library's shared attributes first: dispose() would delete their GPU buffers.
         for (const name of Object.keys(g.attributes))
-          if (!name.startsWith("iPal")) g.deleteAttribute(name);
+          if (!name.startsWith("iPal") && name !== "iFade") g.deleteAttribute(name);
         g.setIndex(null);
         g.dispose();
       }

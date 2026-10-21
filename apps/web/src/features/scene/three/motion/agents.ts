@@ -6,8 +6,18 @@ import type { LocalFrame } from "../frame";
 import { type Boundary, insideBoundary } from "../ground/boundary";
 import { type BBox, bboxOf, inPoly, type Poly, polygonsOf } from "../props/polyGeom";
 import { boxAround, growBox, inBox, type PlanArea, perLayer, touchesBox } from "../stream/area";
-import { roadGraphOf, type Step } from "./roadGraph";
-import { createPathBuilder, ENDED, type Leg, leftTurn, pathWarp, REJECTED } from "./walkPath";
+import { roadGraphOf, type Step, walkRuns } from "./roadGraph";
+import {
+  createPathBuilder,
+  ENDED,
+  type Leg,
+  leftTurn,
+  pathWarp,
+  pointAlong as pointAt,
+  polyLength,
+  REJECTED,
+  reversalCut,
+} from "./walkPath";
 
 /**
  * DECORATIVE traffic and pedestrians for one planning box. Planned agents drive or walk a seeded
@@ -443,6 +453,14 @@ const FILLET_M = {
 } as const satisfies Record<string, readonly [number, number]>;
 /** Fastest heading change away from a dead end (rad/s): 150 deg then takes over 2 s even at +15 %. */
 const TURN_RATE: Record<Agent["kind"], number> = { vehicle: 0.8, person: 1.0 };
+/**
+ * A reversal (> 145 deg) closer than this along the path (m) ends the path before it (review fix
+ * 1): a car never pivots through a hairpin (an OSM teardrop loop) at a crawl. People keep only the
+ * share floor (MIN_SHARE).
+ */
+const REVERSE_MIN_ARC_M: Record<Agent["kind"], number> = { vehicle: 15, person: 0 };
+/** A path's end lies at least this far from its start, where the agent reappears (m; review M3). */
+export const RESPAWN_APART_M = 30;
 /** A leg is cut to the walk's remaining length only when it is this much longer (m). */
 const LEG_SLACK_M = 10;
 /** Safety bound on the legs of one walk. */
@@ -511,13 +529,6 @@ const featuresOf = (fc: unknown): Record<string, unknown>[] =>
 const propsOf = (f: Record<string, unknown>): Record<string, unknown> =>
   isRec(f.properties) ? f.properties : {};
 
-const polyLength = (pts: P[]) => {
-  let l = 0;
-  for (let i = 0; i < pts.length - 1; i++)
-    l += Math.hypot(pts[i + 1]![0] - pts[i]![0], pts[i + 1]![1] - pts[i]![1]);
-  return l;
-};
-
 /**
  * Longest agent path (m). A walk line longer than this is cut into equal chunks; each chunk is
  * owned by the box that holds its arc midpoint, so a path reaches at most half a chunk past its
@@ -578,45 +589,25 @@ const busyCache = new WeakMap<object, WeakMap<object, P[]>>();
 const runsOf = (walk: unknown, frame: LocalFrame): Run[] =>
   perLayer(runsCache, walk, frame, () => {
     const out: Run[] = [];
-    featuresOf(walk).forEach((f, fi) => {
-      const g = f.geometry;
-      if (!isRec(g) || g.type !== "LineString" || !Array.isArray(g.coordinates)) return;
-      const p = propsOf(f);
-      const type = String(p.type ?? "");
-      const kind: Agent["kind"] | null = VEHICLE_TYPES.has(type)
-        ? "vehicle"
-        : PEOPLE_TYPES.has(type)
-          ? "person"
-          : null;
-      if (!kind) return;
-      const fid = String(p.id ?? `w${fi}`);
-      // Runs of consecutive valid vertices (an invalid coordinate breaks the line).
-      const runs: P[][] = [[]];
-      for (const c of g.coordinates) {
-        const run = runs[runs.length - 1]!;
-        if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) {
-          if (run.length > 0) runs.push([]);
-          continue;
-        }
-        const q = frame.toLocal(c[0] as number, c[1] as number);
-        const last = run[run.length - 1];
-        if (!last || last[0] !== q[0] || last[1] !== q[1]) run.push(q);
+    // the same run parser as the road graph (`walkRuns`), so chunk keys always match its edges
+    for (const { fid, ri, type, pts, length } of walkRuns(
+      walk,
+      frame,
+      (t) => VEHICLE_TYPES.has(t) || PEOPLE_TYPES.has(t),
+    )) {
+      const kind: Agent["kind"] = VEHICLE_TYPES.has(type) ? "vehicle" : "person";
+      let x0 = Number.POSITIVE_INFINITY;
+      let z0 = Number.POSITIVE_INFINITY;
+      let x1 = Number.NEGATIVE_INFINITY;
+      let z1 = Number.NEGATIVE_INFINITY;
+      for (const [x, z] of pts) {
+        x0 = Math.min(x0, x);
+        z0 = Math.min(z0, z);
+        x1 = Math.max(x1, x);
+        z1 = Math.max(z1, z);
       }
-      runs.forEach((pts, ri) => {
-        if (pts.length < 2) return;
-        let x0 = Number.POSITIVE_INFINITY;
-        let z0 = Number.POSITIVE_INFINITY;
-        let x1 = Number.NEGATIVE_INFINITY;
-        let z1 = Number.NEGATIVE_INFINITY;
-        for (const [x, z] of pts) {
-          x0 = Math.min(x0, x);
-          z0 = Math.min(z0, z);
-          x1 = Math.max(x1, x);
-          z1 = Math.max(z1, z);
-        }
-        out.push({ fid, ri, kind, type, pts, length: polyLength(pts), bb: [x0, z0, x1, z1] });
-      });
-    });
+      out.push({ fid, ri, kind, type, pts, length, bb: [x0, z0, x1, z1] });
+    }
     return out;
   });
 
@@ -655,6 +646,57 @@ const insideObstacle = (grids: Map<number, Obstacle[]>[], x: number, z: number):
     }
   return false;
 };
+const cross2 = (ax: number, az: number, bx: number, bz: number) => ax * bz - az * bx;
+/** Whether segments p-q and r-s properly intersect or touch (2D). */
+function segsMeet(
+  px: number,
+  pz: number,
+  qx: number,
+  qz: number,
+  rx: number,
+  rz: number,
+  sx: number,
+  sz: number,
+): boolean {
+  const d1 = cross2(qx - px, qz - pz, rx - px, rz - pz);
+  const d2 = cross2(qx - px, qz - pz, sx - px, sz - pz);
+  const d3 = cross2(sx - rx, sz - rz, px - rx, pz - rz);
+  const d4 = cross2(sx - rx, sz - rz, qx - rx, qz - rz);
+  return d1 * d2 <= 0 && d3 * d4 <= 0;
+}
+/**
+ * Whether the short step a-b (at most OBSTACLE_STEP_M) crosses an obstacle outline (review fix
+ * round 1: a 1 m sample spacing let a path clip a 0.3 m sliver of a footprint corner).
+ */
+function stepCrossesObstacle(
+  grids: Map<number, Obstacle[]>[],
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+): boolean {
+  const x0 = Math.min(ax, bx);
+  const x1 = Math.max(ax, bx);
+  const z0 = Math.min(az, bz);
+  const z1 = Math.max(az, bz);
+  const keys = new Set([
+    obstKey(Math.floor(ax / OBST_CELL_M), Math.floor(az / OBST_CELL_M)),
+    obstKey(Math.floor(bx / OBST_CELL_M), Math.floor(bz / OBST_CELL_M)),
+  ]);
+  for (const g of grids)
+    for (const k of keys)
+      for (const o of g.get(k) ?? []) {
+        const b = o.bb;
+        if (x1 < b[0] || x0 > b[2] || z1 < b[1] || z0 > b[3]) continue;
+        for (const ring of o.poly)
+          for (let i = 0; i < ring.length; i++) {
+            const r = ring[i] as P;
+            const q = ring[(i + 1) % ring.length] as P;
+            if (segsMeet(ax, az, bx, bz, r[0], r[1], q[0], q[1])) return true;
+          }
+      }
+  return false;
+}
 /** Carriageway segments (street / major_road centre lines with half their drawn width), gridded. */
 interface Carriage {
   ax: number;
@@ -737,6 +779,8 @@ function clearPrefix(
   pts: P[],
   pointOk: ((x: number, z: number) => boolean) | null,
   vertexOk: (x: number, z: number) => boolean,
+  /** Also checked on every step between consecutive samples (an outline crossing). */
+  stepOk?: (ax: number, az: number, bx: number, bz: number) => boolean,
 ): number {
   let walked = 0;
   let prev = 0;
@@ -751,9 +795,17 @@ function clearPrefix(
     const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (pointOk) {
       const n = Math.floor(l / OBSTACLE_STEP_M);
-      for (let k = 1; k <= n; k++) {
-        const t = (k * OBSTACLE_STEP_M) / l;
-        if (!pointOk(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)) {
+      let px = a[0];
+      let pz = a[1];
+      for (let k = 1; k <= n + 1; k++) {
+        const last = k === n + 1;
+        const t = last ? 1 : (k * OBSTACLE_STEP_M) / l;
+        const qx = a[0] + (b[0] - a[0]) * t;
+        const qz = a[1] + (b[1] - a[1]) * t;
+        const stepBad = stepOk ? !stepOk(px, pz, qx, qz) : false;
+        px = qx;
+        pz = qz;
+        if (stepBad || (!last && !pointOk(qx, qz))) {
           // the cut point (the last clear sample) becomes a vertex: it must be inside as well
           const tc = ((k - 1) * OBSTACLE_STEP_M) / l;
           const ok = vertexOk(a[0] + (b[0] - a[0]) * tc, a[1] + (b[1] - a[1]) * tc);
@@ -803,22 +855,6 @@ function slice(pts: P[], s0: number, s1: number): P[] {
     walked += l;
   }
   return out;
-}
-
-/** The point at arc length s along `pts`. */
-function pointAt(pts: P[], s: number): P {
-  let walked = 0;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i]!;
-    const b = pts[i + 1]!;
-    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (s <= walked + l && l > 0) {
-      const t = (s - walked) / l;
-      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-    }
-    walked += l;
-  }
-  return pts[pts.length - 1]!;
 }
 
 /**
@@ -946,6 +982,9 @@ export function planAgents(input: AgentsInput): Agent[] {
                   !insideObstacle(grids, x, z) &&
                   (!pave || pavementPointOk(carriages, legFid, legNodes, x, z)),
             insidePt,
+            kind === "vehicle"
+              ? undefined
+              : (ax, az, bx, bz) => !stepCrossesObstacle(grids, ax, az, bx, bz),
           ),
       });
       // a long first edge is walked only as far as the walk needs (then the agent fades)
@@ -1033,8 +1072,27 @@ export function planAgents(input: AgentsInput): Agent[] {
         node = g.far(nx);
       }
       const r = builder.result();
-      if (r.length < 2 * FADE_S * speed + 4) continue;
-      return r;
+      // review fix 1: end the path before a hairpin only a crawl could take (the agent fades)
+      const keep = reversalCut(r.pts, r.uturn, speed, REVERSE_MIN_ARC_M[kind]);
+      let pts = r.pts.slice(0, keep);
+      let uturn = r.uturn.slice(0, keep);
+      // review M3: the respawn (path start) is never right next to where the agent faded out
+      const [sx, sz] = pts[0] as P;
+      let last = pts.length;
+      while (last >= 2) {
+        const q = pts[last - 1] as P;
+        if (Math.hypot(q[0] - sx, q[1] - sz) >= RESPAWN_APART_M) break;
+        last--;
+      }
+      if (last < 2) continue;
+      pts = pts.slice(0, last);
+      uturn = uturn.slice(0, last);
+      const length = polyLength(pts);
+      if (length < 2 * FADE_S * speed + 4) continue;
+      const deadEnds = r.deadEnds.filter((d) =>
+        pts.some((p) => Math.hypot(p[0] - d[0], p[1] - d[1]) <= 12),
+      );
+      return { pts, uturn, length, deadEnds };
     }
     return null;
   };

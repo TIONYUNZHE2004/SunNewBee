@@ -108,10 +108,11 @@ describe.skipIf(!HAVE_SEED)("P8: crowd keep-out over the full demo playback", ()
         if (c.inObstacle(pos.x, pos.z)) intoObstacle++;
         const prev = last.get(i);
         // Demo polish A1: a person fading at a path end respawns at its start (a planned jump,
-        // drawn at opacity near 0): steps are scored only while fully shown on both frames.
-        const shown = crowd.fadeOf(i) >= 1 && (lastFade.get(i) ?? 1) >= 1;
+        // drawn at opacity near 0 on both frames). Every step within a lap is scored, the fades
+        // included; only that lap-change step (both frames under 0.15 opacity) is not.
+        const respawn = crowd.fadeOf(i) < 0.15 && (lastFade.get(i) ?? 1) < 0.15;
         lastFade.set(i, crowd.fadeOf(i));
-        if (prev && shown) {
+        if (prev && !respawn) {
           const j = Math.hypot(pos.x - prev.x, pos.z - prev.z);
           if (j > 0.5) quick++;
           maxJump = Math.max(maxJump, j);

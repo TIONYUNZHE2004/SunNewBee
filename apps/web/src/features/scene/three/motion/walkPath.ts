@@ -83,11 +83,29 @@ function startDir(pts: P[]): P {
   return [0, 1];
 }
 
-const lengthOf = (pts: P[]) => {
+/** Arc length of a polyline (m). The one copy for the motion modules. */
+export function polyLength(pts: readonly P[]): number {
   let l = 0;
   for (let i = 0; i < pts.length - 1; i++) l += dist(pts[i]!, pts[i + 1]!);
   return l;
-};
+}
+const lengthOf = polyLength;
+
+/** The point `m` metres along `pts` (clamped to its ends). */
+export function pointAlong(pts: readonly P[], m: number): P {
+  let walked = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
+    const l = dist(a, b);
+    if (l > 0 && walked + l >= m) {
+      const t = Math.max(0, (m - walked) / l);
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    }
+    walked += l;
+  }
+  return pts[pts.length - 1]!;
+}
 
 /** `pts` without its first `m` metres (at least two points stay). */
 function trimStart(pts: P[], m: number): P[] {
@@ -340,6 +358,11 @@ export function createPathBuilder(o: {
 const REVERSE_RAD = (145 * Math.PI) / 180;
 /** ... are at least this many seconds apart at the nominal speed (2 s x 1.15 easing, plus margin). */
 const REVERSE_NOMINAL_S = 2.5;
+/**
+ * No stretch of a path is walked slower than this share of the agent's speed (review fix 1): a
+ * reversal that would need a crawl ends the path before it instead (`reversalCut`, a fade).
+ */
+export const MIN_SHARE = 0.3;
 /** A vertex turning by more than this (not on a U-turn) is a cusp of the offset or trim: dropped. */
 const CUSP_RAD = (100 * Math.PI) / 180;
 
@@ -383,6 +406,39 @@ export function removeCusps(pts: P[], flags: number[]): { pts: P[]; uturn: numbe
 }
 
 /**
+ * How many points of `pts` to keep so no reversal is left that only a crawl could slow to over
+ * 2 s (review fix 1): wherever two segments face more than REVERSE_RAD apart with less than
+ * `max(MIN_SHARE x REVERSE_NOMINAL_S x speed, minArc)` metres of path between them, and no dead-end
+ * U-turn among them, the path ends at the first of the two (the agent fades there). `pts.length`
+ * when nothing needs cutting; at least 2.
+ */
+export function reversalCut(pts: P[], uturn: number[], speed: number, minArc: number): number {
+  const n = pts.length;
+  if (n < 3) return n;
+  const len: number[] = [];
+  const yaw: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    len.push(dist(pts[i]!, pts[i + 1]!));
+    yaw.push(segYaw(pts[i]!, pts[i + 1]!));
+  }
+  const m = n - 1;
+  const onU = (i: number) => !!(uturn[i] && uturn[i + 1]);
+  const need = Math.max(MIN_SHARE * REVERSE_NOMINAL_S * speed, minArc);
+  for (let a = 0; a < m; a++) {
+    if (onU(a)) continue;
+    let d = 0;
+    for (let b = a + 1; b < m; b++) {
+      if (onU(b) || onU(b - 1)) break;
+      if (b > a + 1) d += len[b - 1] as number;
+      if (d >= need) break;
+      if (Math.abs(wrapPi((yaw[b] as number) - (yaw[a] as number))) > REVERSE_RAD)
+        return Math.max(2, a + 2); // keep segment a, end at its far point
+    }
+  }
+  return n;
+}
+
+/**
  * Distance warp for a path: each segment is walked at share f of the agent's speed so its heading
  * turns at most `omega` rad/s (the turns at its two ends, half each, spread over its length), and at
  * most `uturnOmega` on a dead-end U-turn. Knot pairs (nominal metres, path metres) from (0, 0) at
@@ -413,7 +469,8 @@ export function pathWarp(
     const load = (turnAt(i) + turnAt(i + 1)) / 2;
     const w = onU(i) ? uturnOmega : omega;
     // time on the segment at share f: l / (speed f) >= load / w
-    f.push(load > 0 && l > 0 ? Math.max(0.02, Math.min(1, (w * l) / (speed * load))) : 1);
+    const floor = onU(i) ? 0.02 : MIN_SHARE;
+    f.push(load > 0 && l > 0 ? Math.max(floor, Math.min(1, (w * l) / (speed * load))) : 1);
   }
   // Polyline corners turn in one step: wherever two segments face more than REVERSE_RAD apart,
   // the stretch between them takes at least REVERSE_NOMINAL_S at the nominal speed (over 2 s even
@@ -426,8 +483,12 @@ export function pathWarp(
       if (b > a + 1) d += (len[b - 1] as number) / (f[b - 1] as number);
       if (d >= need) break;
       if (b > a + 1 && Math.abs(wrapPi((yaw[b] as number) - (yaw[a] as number))) > REVERSE_RAD) {
-        const scale = d > 0 ? d / need : 1;
-        for (let i = a + 1; i < b; i++) f[i] = Math.max(0.005, (f[i] as number) * scale);
+        // one even share over the stretch makes it exactly `need` nominal metres; `reversalCut`
+        // has already ended the path before any reversal that would need less than MIN_SHARE
+        let arcAB = 0;
+        for (let i = a + 1; i < b; i++) arcAB += len[i] as number;
+        const share = Math.max(MIN_SHARE, Math.min(1, arcAB / need));
+        for (let i = a + 1; i < b; i++) f[i] = Math.min(f[i] as number, share);
         break;
       }
     }
