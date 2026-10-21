@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { type CSSProperties, forwardRef } from "react";
 import { RouteTag } from "./RouteTag";
 import type { BubbleTone } from "./types";
 
@@ -12,16 +12,21 @@ export interface BubbleView {
 
 /**
  * A Spotlight Resident's speech bubble (spec §4.3), with its ROUTE ENGINE tag beneath when it has
- * one. Positioned with its tail at `at` (stage CSS px) when the 3D view gives the speaker's head;
- * otherwise laid out in the overlay's fixed stack. Text is the plan's, verbatim.
+ * one. Placed at `at` (its top-left, stage CSS px; `placeBubbleBox`) when the 3D view gives the
+ * speaker; otherwise laid out in the overlay's fixed stack. Text is the plan's, verbatim.
  */
-export function Bubble({ b, at }: { b: BubbleView; at?: { x: number; y: number } | null }) {
+export const Bubble = forwardRef<
+  HTMLElement,
+  { b: BubbleView; at?: { left: number; top: number; side?: string } | null }
+>(function Bubble({ b, at }, ref) {
   const style: CSSProperties | undefined = at
-    ? { left: `${at.x}px`, top: `${at.y}px`, transform: "translate(-50%, calc(-100% - 14px))" }
+    ? { left: `${at.left}px`, top: `${at.top}px` }
     : undefined;
   return (
     <figure
+      ref={ref}
       data-testid="devsim-bubble"
+      data-side={at?.side}
       data-devsim="bubble"
       data-n={b.n}
       data-tone={b.tone}
@@ -48,4 +53,4 @@ export function Bubble({ b, at }: { b: BubbleView; at?: { x: number; y: number }
       {b.tag && <RouteTag tag={b.tag} />}
     </figure>
   );
-}
+});

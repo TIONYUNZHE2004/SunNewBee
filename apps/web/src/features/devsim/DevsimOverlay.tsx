@@ -1,8 +1,9 @@
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CardViewport } from "../journey/cardPlacement";
 import { InSlot } from "../map-ui/mapSlots";
 import { registerDomProbe, useDevsimAnchors } from "./anchors";
 import { Bubble, type BubbleView } from "./Bubble";
+import { BUBBLE_BELOW, BUBBLE_ESTIMATE, placeBubbleBox, speakerKeepClear } from "./bubblePlacement";
 import { ERROR_COPY, LOADING_COPY } from "./copy";
 import { DevsimHud } from "./DevsimHud";
 import { useDevsim } from "./devsimStore";
@@ -15,24 +16,34 @@ import { SimBadge } from "./SimBadge";
 import { CON, stateAt } from "./timeline";
 import type { DevelopmentPlan, Probe, Rect } from "./types";
 
-/** Half the widest bubble (15rem) plus a margin: bubbles stay inside the map area (AC-C2). */
-const HALF_W = 128;
-/** Room a bubble with its tag needs above its tail point, and the playback bar below. */
-const ABOVE = 150;
-const BELOW = 96;
+/** Room kept above the playback bar. */
+const BELOW = BUBBLE_BELOW;
 
 /**
- * Pure: where a bubble's tail goes. The speaker's head point, kept inside the map area: clear of
- * the top stack (badge, HUD), the side panel (`vp.w` already excludes it) and the playback bar.
+ * A bubble anchored at its speaker: measured after each layout, then placed by `placeBubbleBox`
+ * above the speaker and their name tag (beside or below when there is no room), never over them.
  */
-export function placeBubble(
-  at: [number, number],
-  vp: Pick<CardViewport, "w" | "h" | "top">,
-): { x: number; y: number } {
-  const x = Math.max(HALF_W, Math.min(vp.w - HALF_W, at[0]));
-  const lo = (vp.top ?? 0) + ABOVE;
-  const hi = Math.max(lo, vp.h - BELOW);
-  return { x, y: Math.max(lo, Math.min(hi, at[1])) };
+function AnchoredBubble({
+  b,
+  keepClear,
+  viewport,
+}: {
+  b: BubbleView;
+  keepClear: Rect[];
+  viewport: CardViewport;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  const [size, setSize] = useState<{ w: number; h: number }>(BUBBLE_ESTIMATE);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    if (w > 0 && h > 0 && (Math.abs(w - size.w) > 0.5 || Math.abs(h - size.h) > 0.5))
+      setSize({ w, h });
+  });
+  const box = placeBubbleBox(keepClear, size, viewport);
+  return <Bubble ref={ref} b={b} at={box} />;
 }
 
 /** Pure: the overlay's bubbles at t, with their speakers from the plan's cast. */
@@ -103,6 +114,8 @@ export function DevsimOverlay({
   const t = useDevsim((s) => s.t);
   const status = useDevsim((s) => s.status);
   const speakerHead = useDevsimAnchors((s) => s.speakerHead);
+  const speakerRect = useDevsimAnchors((s) => s.speaker);
+  const others = useDevsimAnchors((s) => s.others);
   const labelPoint = useDevsimAnchors((s) => s.labelPoint ?? s.towerTop);
   const badgeRef = useRef<HTMLDivElement>(null);
   const ownStage = useRef<HTMLDivElement>(null);
@@ -154,8 +167,24 @@ export function DevsimOverlay({
       <div className="pointer-events-none absolute right-[calc(var(--panel-w,0px)+1rem)] top-4 z-20 *:pointer-events-auto">
         <FeedbackBadge ref={badgeRef} count={st.feedbackCount} />
       </div>
-      {speakerHead
-        ? views.map((b) => <Bubble key={b.n} b={b} at={placeBubble(speakerHead, viewport)} />)
+      {speakerRect
+        ? views.map((b) => (
+            <AnchoredBubble
+              key={b.n}
+              b={b}
+              keepClear={[
+                ...speakerKeepClear(speakerRect, speakerHead, b.speaker.name),
+                ...others.flatMap((c) =>
+                  speakerKeepClear(
+                    c.rect,
+                    c.head,
+                    plan.cast.find((x) => x.id === c.id)?.name ?? c.id,
+                  ),
+                ),
+              ]}
+              viewport={viewport}
+            />
+          ))
         : views.length > 0 && (
             <div
               data-testid="devsim-bubble-stack"
@@ -170,7 +199,7 @@ export function DevsimOverlay({
       {st.envelope && (
         <Envelope
           progress={st.envelope.progress}
-          from={speakerHead ? placeBubble(speakerHead, viewport) : null}
+          from={speakerHead ? { x: speakerHead[0], y: speakerHead[1] } : null}
           stageRef={stage}
           badgeRef={badgeRef}
         />

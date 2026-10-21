@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { collectProbe, useDevsimAnchors } from "./anchors";
-import { bubbleViews, DevsimOverlay, placeBubble } from "./DevsimOverlay";
+import { bubbleViews, DevsimOverlay } from "./DevsimOverlay";
 import { useDevsim } from "./devsimStore";
 import provisional from "./fixtures/plan.provisional.json";
 import { NOT_AVAILABLE } from "./intent";
@@ -79,14 +79,22 @@ describe("DevsimOverlay", () => {
     expect(screen.queryByTestId("devsim-bubble")).toBeNull();
   });
 
-  it("bubbles sit at the speaker's head when 3D gives it, kept inside the map area", () => {
+  it("bubbles sit by the speaker when 3D gives them, inside the map area and off the speaker", () => {
     d().start(plan, "b");
     render(<DevsimOverlay viewport={vp} />);
     at(54);
-    act(() => useDevsimAnchors.getState().set({ speakerHead: [5, 690] }));
+    act(() =>
+      useDevsimAnchors.getState().set({
+        speaker: { x: 480, y: 400, w: 30, h: 90 },
+        speakerHead: [495, 400],
+      }),
+    );
     const b = screen.getByTestId("devsim-bubble");
-    expect(b.style.left).toBe("128px");
-    expect(b.style.top).toBe("604px");
+    // jsdom has no layout: the estimated 240 x 110 box, above the speaker and their name tag
+    expect(b.dataset.side).toBe("above");
+    expect(b.style.left).toBe("375px");
+    expect(Number.parseFloat(b.style.top) + 110).toBeLessThanOrEqual(400 - 28);
+    expect(Number.parseFloat(b.style.top)).toBeGreaterThanOrEqual(120);
   });
 
   it("AC-F5: the envelope flies and Resident feedback goes 0 -> 1", () => {
@@ -172,12 +180,6 @@ describe("RouteTag", () => {
 });
 
 describe("pure placement", () => {
-  it("placeBubble keeps the tail inside the map area", () => {
-    expect(placeBubble([500, 400], vp)).toEqual({ x: 500, y: 400 });
-    expect(placeBubble([-50, 10], vp)).toEqual({ x: 128, y: 270 });
-    expect(placeBubble([2000, 2000], vp)).toEqual({ x: 872, y: 604 });
-  });
-
   it("bubbleViews names the speaker from the cast", () => {
     expect(bubbleViews(plan, 59)).toEqual([
       expect.objectContaining({

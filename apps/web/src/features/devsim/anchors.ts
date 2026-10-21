@@ -11,11 +11,23 @@ export interface DevsimAnchorsState {
   speaker: Rect | null;
   speakerHead: [number, number] | null;
   labelPoint: [number, number] | null;
+  /**
+   * The other Spotlight Residents drawn now (rect and head point), so a bubble keeps off the
+   * listener too (e.g. Halim greeting Mei Ling). Empty when none.
+   */
+  others: readonly { id: string; rect: Rect; head: [number, number] }[];
   set: (partial: Partial<Omit<DevsimAnchorsState, "set" | "clear">>) => void;
   clear: () => void;
 }
 
-const none = { tower: null, towerTop: null, speaker: null, speakerHead: null, labelPoint: null };
+const none = {
+  tower: null,
+  towerTop: null,
+  speaker: null,
+  speakerHead: null,
+  labelPoint: null,
+  others: [],
+};
 
 export const useDevsimAnchors = create<DevsimAnchorsState>((set) => ({
   ...none,

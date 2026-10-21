@@ -252,18 +252,23 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       let speaker: Rect | null = null;
       let head: [number, number] | null = null;
       let chest: [number, number, number] | null = null;
-      if (who) {
+      const others: { id: string; rect: Rect; head: [number, number] }[] = [];
+      for (const c of o.plan.cast) {
         for (const p of parts) {
-          const b = p.personBox?.(who);
+          const b = p.personBox?.(c.id);
           if (!b) continue;
           const r = 0.5;
           box[0] = [b.x - r, 0, b.z - r];
           box[1] = [b.x + r, 0, b.z + r];
           box[2] = [b.x - r, b.h, b.z + r];
           box[3] = [b.x + r, b.h, b.z - r];
-          speaker = screenRect(camera, size, box);
-          head = toScreen(camera, size, b.x, b.h + 0.3, b.z);
-          chest = [b.x, b.h * 0.6, b.z];
+          const rect = screenRect(camera, size, box);
+          const hp = toScreen(camera, size, b.x, b.h + 0.3, b.z);
+          if (c.id === who) {
+            speaker = rect;
+            head = hp;
+            chest = [b.x, b.h * 0.6, b.z];
+          } else if (rect && hp && onStage(hp, size)) others.push({ id: c.id, rect, head: hp });
           break;
         }
       }
@@ -278,6 +283,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
           speaker,
           speakerHead: speaker ? head : null,
           labelPoint: labelFits(topPt, size) ? topPt : null,
+          others,
         });
       // the probe is computed on demand from this frame's camera (`probe()`)
       view.matrixWorldInverse.copy(camera.matrixWorldInverse);
