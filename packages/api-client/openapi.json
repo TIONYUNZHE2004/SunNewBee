@@ -2329,6 +2329,16 @@
             "title": "Month Keys Mode",
             "type": "string"
           },
+          "playground": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DevsimPlayground"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "provisional": {
             "default": false,
             "title": "Provisional",
@@ -2659,6 +2669,50 @@
           }
         },
         "title": "DevsimLabels",
+        "type": "object"
+      },
+      "DevsimPlayground": {
+        "description": "The playground nearest the tower entrance on foot (routing engine, default profile): where\nthe move-in children play (spec \u00a76.2, AC-W5). Decorative figures stand there; no copy quotes\nit today.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "m": {
+            "title": "M",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "walk_min": {
+            "title": "Walk Min",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "lon",
+          "lat",
+          "node_id",
+          "m",
+          "walk_min"
+        ],
+        "title": "DevsimPlayground",
         "type": "object"
       },
       "DevsimWalk": {

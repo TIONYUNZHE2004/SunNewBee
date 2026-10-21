@@ -617,6 +617,9 @@ def _mutations():
     def sources(p):
         p.estimate_sources = p.estimate_sources[1:]
 
+    def playground(p):
+        p.playground.walk_min += 9
+
     def best_side(p):
         worse = p.impact.options[0].model_copy(
             update={"side": "south-west", "homes_2min_plus": p.impact.homes_2min_plus + 5}
@@ -640,6 +643,7 @@ def _mutations():
         neighbour,
         sources,
         best_side,
+        playground,
     ]
 
 
@@ -649,3 +653,23 @@ def test_inconsistent_data_fails_the_check(mutate):  # AC-C8: check_plan covers 
     bad = _plan().model_copy(deep=True)
     mutate(bad)
     assert devsim.check_plan(bad), mutate.__name__
+
+
+@seed_only
+def test_the_plan_names_the_nearest_playground():  # spec §6.2 move-in, AC-W5
+    world, plan = _world(), _plan()
+    pg = plan.playground
+    assert pg is not None
+    tw = devsim.tower_world(world, plan.site)
+    walks = {}
+    for p in world.places.values():
+        if p.type == "playground" and p.node_id:
+            r = routing.plan_route(tw, devsim.TOWER_PLACE, p.id, "default")
+            if r.routes:
+                walks[p.id] = r.routes[0].distance_m
+    nearest = min(walks, key=lambda k: (walks[k], k))
+    place = world.places[nearest]
+    assert (pg.id, pg.name, pg.node_id) == (place.id, place.name, place.node_id)
+    assert [pg.lon, pg.lat] == [round(v, 7) for v in place.coord[:2]]
+    assert pg.m == round(walks[nearest])
+    assert pg.walk_min == max(1, math.floor(walks[nearest] / _pace(world) + 0.5))
