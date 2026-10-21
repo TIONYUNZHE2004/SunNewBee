@@ -2,7 +2,7 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDevsim } from "./devsimStore";
-import provisional from "./fixtures/plan.provisional.json";
+import provisional from "./fixtures/plan.elmina.json";
 import type { DevelopmentPlan } from "./types";
 import { useDevsimDriver } from "./useDevsimDriver";
 
@@ -45,12 +45,12 @@ describe("useDevsimDriver", () => {
         <Host />
       </>,
     );
-    d().seek(65.5);
+    d().seek(44.5);
     d().play();
     vi.advanceTimersByTime(250);
-    expect(d().t).toBeLessThan(65.85);
+    expect(d().t).toBeLessThan(44.85);
     vi.advanceTimersByTime(2000);
-    expect(d().t).toBe(66);
+    expect(d().t).toBe(45);
     expect(d().playing).toBe(false);
   });
 });

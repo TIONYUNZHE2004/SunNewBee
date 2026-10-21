@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { emptyAssistant, reduceIntent, type SceneIntent } from "../chat/chatReducer";
 import { useDevsim } from "../devsim/devsimStore";
-import provisional from "../devsim/fixtures/plan.provisional.json";
+import provisional from "../devsim/fixtures/plan.elmina.json";
 import type { DevelopmentPlan } from "../devsim/types";
 import { useCompare } from "../journey/compareStore";
 import { handCompare } from "../journey/fixtures/compareHand";

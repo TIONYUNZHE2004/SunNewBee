@@ -7,7 +7,6 @@ import {
 } from "./copy";
 import type { EstimateSource, Schedule } from "./planTypes";
 import type { ScheduleAt } from "./schedulePlayback";
-import type { StateAt } from "./types";
 
 function Cell({ id, value, label }: { id: string; value: string; label: string }) {
   return (
@@ -16,23 +15,6 @@ function Cell({ id, value, label }: { id: string; value: string; label: string }
         {value}
       </b>
       <span className="text-[11px] uppercase tracking-wide text-fg">{label}</span>
-    </div>
-  );
-}
-
-/**
- * Development Simulation HUD (spec §4.1): Act · Simulated time · Homes occupied. Display values of
- * the simulation clock, under the "Simulation · illustrative" badge; never cited as facts (§3).
- * Kept for the 66 s timeline until C7/C11 swap in `EstimateHud`.
- */
-export function DevsimHud({ state }: { state: StateAt }) {
-  return (
-    <div data-testid="devsim-hud" aria-live="off" className="glass rounded-2xl px-2 py-1.5 text-fg">
-      <div className="grid grid-cols-3 gap-1">
-        <Cell id="devsim-hud-act" value={state.act} label="Act" />
-        <Cell id="devsim-hud-when" value={state.simClock.label} label="Simulated time" />
-        <Cell id="devsim-hud-homes" value={String(state.occupancy)} label="Homes occupied" />
-      </div>
     </div>
   );
 }
@@ -75,10 +57,13 @@ export function EstimateHud({
   schedule,
   at,
   sources,
+  occupancy,
 }: {
   schedule: Schedule;
   at: ScheduleAt;
   sources: readonly EstimateSource[];
+  /** From handover: homes occupied (lit share × homes, the 3D move-in counter) of `homes`. */
+  occupancy?: { n: number; homes: number } | null;
 }) {
   return (
     <div
@@ -88,7 +73,7 @@ export function EstimateHud({
       aria-live="off"
       className="glass rounded-2xl px-2.5 py-2 text-fg"
     >
-      <div className="grid grid-cols-4 gap-0.5">
+      <div className={`grid gap-0.5 ${occupancy ? "grid-cols-5" : "grid-cols-4"}`}>
         <Cell
           id="devsim-hud-month"
           value={monthLabel(at.ym)}
@@ -97,6 +82,13 @@ export function EstimateHud({
         <Cell id="devsim-hud-floors" value={`${at.floors}/${schedule.storeys}`} label="Floors" />
         <Cell id="devsim-hud-cost" value={formatRmMillions(at.costRm)} label="Spent (est.)" />
         <Cell id="devsim-hud-lost" value={formatDays(at.daysLost)} label="Days lost" />
+        {occupancy && (
+          <Cell
+            id="devsim-hud-homes"
+            value={`${occupancy.n}/${occupancy.homes}`}
+            label="Homes occupied"
+          />
+        )}
       </div>
       <p
         data-testid="devsim-hud-footnote"
