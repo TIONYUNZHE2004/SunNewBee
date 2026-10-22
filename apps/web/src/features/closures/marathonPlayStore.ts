@@ -20,14 +20,15 @@ export interface MarathonPlayStore {
 
 const clamp = (t: number) => Math.max(0, Math.min(PLAY_S, Number.isFinite(t) ? t : 0));
 
-export const useMarathonPlay = create<MarathonPlayStore>((set) => ({
+export const useMarathonPlay = create<MarathonPlayStore>((set, get) => ({
   result: null,
   t: 0,
   playing: false,
   start: (result) => {
-    // the city's ambient cars give way to the playback's own (T-031 shared switch)
-    useScene.getState().setAmbientTraffic(false);
     set({ result, t: 0, playing: true });
+    // the city's ambient cars give way to the playback's own (T-031 shared switch); after the
+    // set, so another playback closing on this start cannot turn them back on
+    useScene.getState().setAmbientTraffic(false);
   },
   play: () =>
     set((s) => (s.result ? { playing: true, t: s.t >= PLAY_S ? 0 : s.t } : { playing: false })),
@@ -40,7 +41,8 @@ export const useMarathonPlay = create<MarathonPlayStore>((set) => ({
       return t >= PLAY_S ? { t: PLAY_S, playing: false } : { t };
     }),
   stop: () => {
-    useScene.getState().setAmbientTraffic(true);
+    // only a playback that turned the cars off turns them back on
+    if (get().result) useScene.getState().setAmbientTraffic(true);
     set({ result: null, t: 0, playing: false });
   },
 }));

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useScene } from "../scene/sceneStore";
 import { type FloodStory, loadFloodStory } from "./floodStoryData";
 import { type FloodTimeline, floodStateAt, floodTimeline } from "./floodTimeline";
 
@@ -26,7 +27,8 @@ export const useFloodStory = create<FloodStore>((set, get) => ({
   error: null,
   t: 0,
   playing: false,
-  load: (story) =>
+  load: (story) => {
+    useScene.getState().setAmbientTraffic(false);
     set({
       status: "ready",
       story,
@@ -34,7 +36,8 @@ export const useFloodStory = create<FloodStore>((set, get) => ({
       error: null,
       t: 0,
       playing: false,
-    }),
+    });
+  },
   play: () => {
     const s = get();
     if (s.timeline) set({ playing: true, t: s.t >= s.timeline.total ? 0 : s.t });
@@ -53,6 +56,9 @@ export const useFloodStory = create<FloodStore>((set, get) => ({
   close: () => {
     request?.abort();
     request = null;
+    // only a story that turned the cars off turns them back on (a marathon start closes this
+    // story while its own playback keeps them off)
+    if (get().status === "ready") useScene.getState().setAmbientTraffic(true);
     set({ status: "idle", story: null, timeline: null, error: null, t: 0, playing: false });
   },
 }));
