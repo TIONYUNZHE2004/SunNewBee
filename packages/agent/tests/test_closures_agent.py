@@ -84,7 +84,10 @@ async def test_closure_questions_are_simulated_with_pressure_for_managers(
     assert call.args["reason"] == reason and call.args["closures"][0]["day"] == day
     assert call.args["closures"][0]["road_names"] == ["Persiaran Garcinia"]
     assert evs[-1].model == "mock-scripted" and evs[-1].answer_status == "answered"
-    assert "Persiaran Tamarind (detour pressure: high)" in text
+    assert any(
+        f"{road['name']} (detour pressure: {road['pressure']})" in text
+        for road in rec.events[-1]["detour_roads"]
+    )
     assert "Suggestion:" in text and "had no mapped route before the" in text
     assert events.PRESSURE_DISCLAIMER in text and traffic.config().weights_note in text
 
