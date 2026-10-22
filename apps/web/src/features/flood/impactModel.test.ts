@@ -3,6 +3,7 @@ import {
   formatPathLength,
   IMPACT_STYLE,
   impactSummary,
+  listRows,
   placesWord,
   possibleOnly,
 } from "./impactModel";
@@ -70,5 +71,30 @@ describe("low-lying terrain only (T-029)", () => {
     expect(s && possibleOnly(s)).toBe(true);
     expect(s?.possiblePlaces).toBe(6);
     expect(s?.possiblePaths).toBe(515);
+  });
+});
+
+describe("flood place lists on the card (22 Oct demo fix)", () => {
+  const m = (id: string, name: string, type: string) => ({
+    id,
+    name,
+    type,
+    coord: [101.5, 3.1] as [number, number],
+    kind: "flooded" as const,
+  });
+  it("lists places first, named before unnamed, and counts street furniture in one row", () => {
+    const { places, small } = listRows([
+      m("s1", "Seating (unnamed, OSM)", "seating"),
+      m("w1", "Waste Basket (unnamed, OSM)", "waste_basket"),
+      m("p1", "Park (unnamed, OSM)", "park"),
+      m("p2", "Elmina Urban Park", "park"),
+      m("t1", "Shelter (unnamed, OSM)", "shelter"),
+    ]);
+    expect(places.map((p) => p.id)).toEqual(["p2", "p1"]);
+    expect(small).toBe(3);
+  });
+  it("only furniture: listed as is, nothing hidden", () => {
+    const rows = [m("s1", "Seating (unnamed, OSM)", "seating")];
+    expect(listRows(rows)).toEqual({ places: rows, small: 0 });
   });
 });
