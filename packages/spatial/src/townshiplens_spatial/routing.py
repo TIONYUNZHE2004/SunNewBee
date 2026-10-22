@@ -20,7 +20,7 @@ from .evaluate import (
     evaluate_flood,
     rest_point_state,
 )
-from .geo import haversine_m
+from .geo import R, haversine_m
 from .maneuvers import build_maneuvers
 from .models import Evidence, Place, RoadSection, Route, RouteResult, RouteSegment, photo_url
 from .scenario_meta import scenario_source, selection_error
@@ -38,6 +38,19 @@ MAX_REST_LABELS = 200_000
 ROAD_TYPES = frozenset({"street", "major_road"})
 # A preference within each strict/lenient search, never a change to passability or distance.
 WALK_ROAD_MULTIPLIER = 1.25
+
+
+_ROUTE_PRESENTATION = contextvars.ContextVar("route_presentation", default=True)
+
+
+@contextlib.contextmanager
+def _route_summaries():
+    """Internal RouteState callers retain facts but do not build unused UI details."""
+    token = _ROUTE_PRESENTATION.set(False)
+    try:
+        yield
+    finally:
+        _ROUTE_PRESENTATION.reset(token)
 
 
 def _pace_m_per_min(profile) -> float:
@@ -107,13 +120,37 @@ def _snap_to_road(world: World, roads: set[str], node: str, coord) -> str | None
     cached = snaps.get(key)
     if cached is not None:
         return cached[1]
+    # A spherical 3D grid narrows the exact haversine search. Any point within
+    # the cap differs by at most one cell per axis (chord length <= cell width),
+    # including at the dateline or poles. Distances and id tie-breaks stay exact.
+    cell_magnitude = 2 * math.sin(SNAP_CAP_M / (2 * R)) * (1 + 1e-9)
+
+    def cell(point):
+        lon, lat = map(math.radians, point[:2])
+        xyz = (math.cos(lat) * math.cos(lon), math.cos(lat) * math.sin(lon), math.sin(lat))
+        return tuple(math.floor(value / cell_magnitude) for value in xyz)
+
+    cached_grid = world.graph.graph.get("_road_snap_grid")
+    if cached_grid is not None and cached_grid[0] is roads:
+        grid = cached_grid[1]
+    else:
+        grid = {}
+        for road_node in roads:
+            if road_node in world.node_coords:
+                grid.setdefault(cell(world.node_coords[road_node]), []).append(road_node)
+        world.graph.graph["_road_snap_grid"] = (roads, grid)
+    x, y, z = cell(coord)
+    candidates = (
+        n
+        for dx in (-1, 0, 1)
+        for dy in (-1, 0, 1)
+        for dz in (-1, 0, 1)
+        for n in grid.get((x + dx, y + dy, z + dz), ())
+    )
     best: tuple[float, str] | None = None
-    for n in sorted(roads):
-        xy = world.node_coords.get(n)
-        if xy is None:
-            continue
-        d = haversine_m(coord, xy)
-        if d <= SNAP_CAP_M and (best is None or d < best[0]):
+    for n in candidates:
+        d = haversine_m(coord, world.node_coords[n])
+        if d <= SNAP_CAP_M and (best is None or (d, n) < best):
             best = (d, n)
     result = best[1] if best else None
     if len(snaps) >= 512:
@@ -156,10 +193,21 @@ def _road_components(world: World, profile) -> dict[str, int]:
     key = ("road_components", id(world), profile.id)
     if batch is not None and key in batch:
         return batch[key]
-    g = nx.Graph()
     allowed = set(profile.allowed_types or [])
-    g.add_edges_from((e.from_node, e.to_node) for e in world.edges.values() if e.type in allowed)
+    signature = tuple(
+        (e.id, e.from_node, e.to_node) for e in world.edges.values() if e.type in allowed
+    )
+    static = world.graph.graph.setdefault("_road_components", {})
+    static_key = tuple(sorted(allowed))
+    cached = static.get(static_key)
+    if cached is not None and cached[0] == signature:
+        if batch is not None:
+            batch[key] = cached[1]
+        return cached[1]
+    g = nx.Graph()
+    g.add_edges_from((a, b) for _, a, b in signature)
     result = {n: i for i, comp in enumerate(nx.connected_components(g)) for n in comp}
+    static[static_key] = signature, result
     if batch is not None:
         batch[key] = result
     return result
@@ -383,17 +431,20 @@ def _edge_cost(world, profile, scenario_id, allow_unknown, key, evals=None) -> f
     res, why = _evaluate(world, profile, scenario_id, key)
     if evals is not None:
         evals[key] = (res, why)
-    assessment = _assessment(world, profile, scenario_id, key, (res, why))
-    unknown = assessment.level == "unknown" and (res == "UNKNOWN" or bool(e.osm_tags))
     w = None
-    if res != "FAIL" and not (unknown and not allow_unknown):
-        w = e.length_m * (
-            UNKNOWN_WEIGHT if unknown else 1.4 if assessment.level == "likely_ok" else 1.0
-        )
-        if e.type == "steps":
-            w *= profile.soft.get("steps_multiplier", 1.0)
-        if profile.allowed_types is None and e.type in ROAD_TYPES:
-            w *= WALK_ROAD_MULTIPLIER
+    if res != "FAIL":
+        # A factual barrier is already excluded. An access estimate cannot change
+        # that result, so build it only for edges the search can actually use.
+        assessment = _assessment(world, profile, scenario_id, key, (res, why))
+        unknown = assessment.level == "unknown" and (res == "UNKNOWN" or bool(e.osm_tags))
+        if not (unknown and not allow_unknown):
+            w = e.length_m * (
+                UNKNOWN_WEIGHT if unknown else 1.4 if assessment.level == "likely_ok" else 1.0
+            )
+            if e.type == "steps":
+                w *= profile.soft.get("steps_multiplier", 1.0)
+            if profile.allowed_types is None and e.type in ROAD_TYPES:
+                w *= WALK_ROAD_MULTIPLIER
     if memo is not None:
         memo[cache_key] = w, (res, why)
     return w
@@ -475,17 +526,14 @@ def make_weight(world, profile, scenario_id, allow_unknown, evals=None, chosen=N
 
 
 def _search(world, sources, targets, profile, scenario_id, allow_unknown):
-    """Cheapest path from any source to any target: Dijkstra straight over `world.graph`.
+    """Dijkstra with the same insertion-order ties, resumed lazily inside a batch.
 
-    Same result as `nx.dijkstra_path` between a temporary super-source and super-target (equal
-    costs resolve by insertion order, the first source/target reached wins), without copying the
-    whole graph for those two nodes on every call (about half of a seed route's time)."""
+    A nearby destination does not require settling the whole township. The frontier
+    is retained for the next destination, so pausing changes work, never route choice.
+    """
     batch = _ROUTE_BATCH.get()
     tree_key = ("tree", id(world), profile.id, scenario_id, allow_unknown, tuple(sources))
-    if batch is not None and tree_key in batch:
-        return _tree_path(*batch[tree_key], targets)
-    evals: dict[str, tuple] = {}
-    chosen: dict[tuple[str, str], str] = {}  # ordered node pair -> chosen edge key
+    evals, chosen = {}, {}
     weight = make_weight(world, profile, scenario_id, allow_unknown, evals, chosen)
     adjacency = None
     if batch is not None:
@@ -493,27 +541,25 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
         if weight_key not in batch:
             batch[weight_key] = evals, chosen, weight, {}
         evals, chosen, weight, adjacency = batch[weight_key]
+    if batch is not None and tree_key in batch:
+        done, pred, seen, heap, tick = batch[tree_key]
+        if any(t in done for t in targets) or not heap:
+            return _tree_path(done, pred, chosen, evals, targets)
+    else:
+        done, pred, seen, heap, tick = {}, {}, {}, [], itertools.count()
+        for node in dict.fromkeys(sources):
+            seen[node] = 0.0
+            heapq.heappush(heap, (0.0, next(tick), node))
+        if batch is not None:
+            batch[tree_key] = done, pred, seen, heap, tick
     g, goal = world.graph, set(targets)
-    seen: dict[str, float] = {}
-    done: dict[str, int] = {}
-    pred: dict[str, str] = {}
-    tick = itertools.count()
-    heap: list[tuple[float, int, str]] = []
-    for s in dict.fromkeys(sources):
-        seen[s] = 0.0
-        heapq.heappush(heap, (0.0, next(tick), s))
     while heap:
         dist, _, v = heapq.heappop(heap)
         if v in done:
             continue
         done[v] = len(done)
         if v in goal and batch is None:
-            nodes = [v]
-            while nodes[-1] in pred:
-                nodes.append(pred[nodes[-1]])
-            nodes.reverse()
-            keys = [chosen[(u, w)] for u, w in zip(nodes, nodes[1:], strict=False)]
-            return nodes, keys, evals
+            return _tree_path(done, pred, chosen, evals, targets)
         if adjacency is None:
             neighbors = ((u, weight(v, u, data)) for u, data in g[v].items())
         else:
@@ -527,10 +573,9 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
                 seen[u] = dist + cost
                 pred[u] = v
                 heapq.heappush(heap, (seen[u], next(tick), u))
-    if batch is not None:
-        batch[tree_key] = done, pred, chosen, evals
-        return _tree_path(done, pred, chosen, evals, targets)
-    return None, [], evals
+        if v in goal:
+            return _tree_path(done, pred, chosen, evals, targets)
+    return _tree_path(done, pred, chosen, evals, targets)
 
 
 def _tree_path(done, pred, chosen, evals, targets):
@@ -785,8 +830,9 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
             f"{from_id}|{to_id}|{profile.id}|{scenario_id}|{nodes}|{keys}".encode()
         ).hexdigest()[:8]
     )
+    presentation = _ROUTE_PRESENTATION.get()
     rest, seen = [], set()
-    for n in nodes:
+    for n in nodes if presentation or profile.max_rest_free_run_m is not None else []:
         for st, p in _rest_places(world, n, profile, scenario_id):
             if p.id not in seen:
                 seen.add(p.id)
@@ -803,28 +849,32 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         distance_m=round(dist, 1),
         est_minutes=round(dist / _pace_m_per_min(profile), 1),
         segments=segs,
-        maneuvers=build_maneuvers(world, nodes, segs),
+        maneuvers=build_maneuvers(world, nodes, segs) if presentation else [],
         access_metres={level: round(length, 1) for level, length in metres.items()},
         unknowns=unknowns,
         rest_points=rest,
         geometry={"type": "LineString", "coordinates": coords},
     )
-    route.max_gap_between_rest_m = _max_rest_gap(world, nodes, keys, {r["node_id"] for r in rest})
-    route.crossings = route_crossings(world, segs)
-    route.sidewalk_m = round(
-        sum(world.edges[k].length_m for k in keys if world.edges[k].type == "sidewalk"), 1
-    )
-    route.road_sections = route_road_sections(world, keys)
-    route.road_m = round(sum(s.length_m for s in route.road_sections), 1)
-    route.road_without_mapped_sidewalk_m = round(
-        sum(
-            s.length_m
-            for s in route.road_sections
-            if s.sidewalk not in SIDEWALK_PRESENT
-            or s.sidewalk_status not in ("reported", "verified")
-        ),
-        1,
-    )
+    if presentation or profile.max_rest_free_run_m is not None:
+        route.max_gap_between_rest_m = _max_rest_gap(
+            world, nodes, keys, {r["node_id"] for r in rest}
+        )
+    if presentation:
+        route.crossings = route_crossings(world, segs)
+        route.sidewalk_m = round(
+            sum(world.edges[k].length_m for k in keys if world.edges[k].type == "sidewalk"), 1
+        )
+        route.road_sections = route_road_sections(world, keys)
+        route.road_m = round(sum(s.length_m for s in route.road_sections), 1)
+        route.road_without_mapped_sidewalk_m = round(
+            sum(
+                s.length_m
+                for s in route.road_sections
+                if s.sidewalk not in SIDEWALK_PRESENT
+                or s.sidewalk_status not in ("reported", "verified")
+            ),
+            1,
+        )
     limit = profile.max_rest_free_run_m
     if limit is not None:
         verified = {r["node_id"] for r in rest if r["status"] == "verified"}

@@ -107,3 +107,67 @@ def test_terrain_is_unknown_for_edges_and_endpoints_but_river_rules_stay(world, 
         )
     ]
     assert _evaluate(world, prof, "lowlying", edge.id)[0] == "FAIL"
+
+
+@pytest.mark.parametrize("profile", ["default", "wheelchair", "drive"])
+@pytest.mark.parametrize("scenario", [None, "stage_p1m", "lowlying", "stage_p2m+lowlying"])
+def test_cutoff_reachability_matches_weighted_reference(world, profile, scenario):
+    import networkx as nx
+    from townshiplens_spatial.routing import (
+        CENTRE_PREFIX,
+        _road_nodes,
+        _targets,
+        endpoint_flood,
+        make_weight,
+    )
+
+    for edge in world.edges.values():
+        edge.type = "street"
+    world.edges["seg-bc"].osm_tags = {"oneway": "yes"}
+    add_low(world)
+    prof = world.profiles[profile]
+    roads = _road_nodes(world, prof) if prof.allowed_types is not None else None
+    centres = {
+        n
+        for c in world.centres.values()
+        if flood.centre_closure(world, c) is None
+        and endpoint_flood(world, f"{CENTRE_PREFIX}{c.id}", prof, scenario)[0] != "FAIL"
+        for n in _targets(world, f"{CENTRE_PREFIX}{c.id}", prof, road_nodes=roads)
+    }
+    weight = make_weight(world, prof, scenario, True)
+    connected = (
+        nx.multi_source_dijkstra_path_length(
+            world.graph, centres, weight=lambda u, v, data: weight(v, u, data)
+        )
+        if centres
+        else {}
+    )
+    classes = world.flood.place_classes.get(scenario, {})
+    expected = {
+        p.id
+        for p in world.places.values()
+        if not p.id.startswith("__")
+        and classes.get(p.id) != "likely_flooded"
+        and (targets := _targets(world, p.id, prof, road_nodes=roads))
+        and not any(n in connected for n in targets)
+    }
+    assert {p.id for p in flood.cut_off_places(world, profile, scenario)} == expected
+
+
+@pytest.mark.parametrize("profile", ["default", "wheelchair", "drive"])
+@pytest.mark.parametrize(
+    "segments", [("seg-ab",), ("seg-bc", "seg-cd"), ("seg-ab", "seg-ef", "seg-fd")]
+)
+def test_closure_delta_cutoffs_match_two_independent_full_traversals(world, profile, segments):
+    from townshiplens_spatial import twm
+
+    for edge in world.edges.values():
+        edge.type = "street"
+    world.edges["seg-bc"].osm_tags = {"oneway": "yes"}
+    after = twm.apply(world, [twm.ClosePath(element_id=eid) for eid in segments]).world
+    expected = {p.id for p in flood.cut_off_places(after, profile)} - {
+        p.id for p in flood.cut_off_places(world, profile)
+    }
+    assert {
+        p.id for p in flood.newly_cut_off_by_closure(world, after, profile, set(segments))
+    } == expected

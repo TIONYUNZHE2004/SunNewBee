@@ -468,9 +468,10 @@ apply. Other staff closures are also frozen at `at`. This is one instant, not a 
 or a worst case across the windows. Neither live state nor the closure store changes.
 Default profiles are `default`, `wheelchair`, `drive`; up to five known profiles are
 supported. Total samples are capped at 300, split evenly between profiles, exposed by
-`sample_limit_per_profile`. Sample origins are mapped parking/drop-offs/stops; destinations
-are facilities/toilets and the destination types in the peak table, sorted by id with
-origins interleaved. These are sample journeys, never measured demand.
+`sample_limit_per_profile`. Sample origins rotate across up to ten mapped transport and resident-destination
+categories. Origins and destinations favour places near the site centre; outlying
+journeys are not represented. Each endpoint is capped at 10% when enough pairs exist.
+These are deterministic sample journeys, never measured demand.
 
 `trips_affected` counts rerouted or newly disconnected trips. `trips_no_route` includes
 existing gaps; `trips_no_route_before` and `trips_newly_no_route` distinguish them.
@@ -493,9 +494,9 @@ Detour roads group newly used segments by mapped name, counting each rerouted sa
 trip once per road. For a mixed-class road, `road_class` is the newly used segment class
 with the lowest capacity, a conservative bottleneck assumption. `weighted_trips` sums
 the destination/time weights;
-`trips` is the unweighted count. Unnamed segments group into connected stretches,
-each labelled “unnamed path near <nearest named road> (stretch N)”. Each stretch
-has its own pressure; absent classes are `unknown` and use the `others` capacity.
+`trips` is the unweighted count. Unnamed segments group into maximal degree-two chains, split at junctions and named
+roads. Labels use a nearby mapped road, direction and measured chain length, with
+coordinates when those words coincide. Each chain has its own pressure; absent classes are `unknown` and use the `others` capacity.
 Rows sort by weighted trips, name, class. Duplicate warnings are removed.
 Pressure = weighted trips / class capacity: secondary 4, tertiary 3, unclassified 2,
 residential 1, service 0.5, others 1. Bands are low <1, medium 1–3, high >3.
@@ -514,7 +515,12 @@ active. Suggestions disclose unassessed alternatives; they do not change routing
 snaps within an immutable snapshot, preserving route selection, direction and endpoint
 checks. Static road nodes and up to 512 road snaps are shared across snapshots, keyed
 by road membership and endpoint coordinates; closures never change the geometry snap.
-Rest-constrained searches keep their normal solver. A bounded baseline cache
+Search frontiers pause after requested targets and resume for later destinations,
+preserving insertion-order ties. Road snaps use an exact spherical candidate grid
+followed by the same distance and tie checks. Aggregate RouteState calculations omit
+only unused presentation fields; resident routes and rest-limit checks retain them.
+One frozen snapshot serves course planning, impacts and animation. Rest-constrained
+searches keep their normal solver. A bounded baseline cache
 (12 profile/sample entries) keys by graph, world version, date, frozen closure set, profile
 and sample. Only baseline routes intersecting active proposed segments are recalculated.
 The API warms the default three-profile closure baselines first on startup, and again
@@ -537,18 +543,22 @@ unless explicitly named in `prefer_roads`. Active closures and steps are exclude
 This is a proposed road-closure layout, not a running or profile access assessment.
 Road direction, crossing provision and event approval still need review.
 
-The deterministic search uses weighted shortest-path trees and one connecting edge.
-Named roads precede unnamed paths; preferences reduce their search cost. It compares
-up to 24 distance/repetition/name candidates by newly lost mapped centre access for
-the existing default profile, retaining direction and parallel-edge rules. This is a
-bounded heuristic, not a global minimum. Repeated segments/roads and distances
-outside ±10% get explicit warnings. Proposals have at most 400 ordered segments;
+The deterministic search samples eight directions at three radii and preferred-road
+anchors. It joins each outward shortest path to a return path that excludes its edges;
+bounded repeated-path fallbacks remain. Named roads have lower search cost than
+unnamed paths; preferences reduce cost further. An in-band repeat-free candidate
+precedes repeated candidates. Up to 24 candidates are ranked by preference and newly
+lost mapped centre access across default, wheelchair and driving profiles. Direction
+and parallel-edge rules are retained. This is a bounded heuristic, not a global minimum.
+If no in-band single loop is found, a bounded multi-lap proposal may meet a long
+request; repeated metres and lap counts remain explicit. Repeated roads and distances
+outside ±10% get warnings. Proposals have at most 400 ordered segments;
 ad-hoc closure requests still have a 40-segment limit. The bounded proposal cache
 invalidates on world/version/date/active-closure changes.
 
 `marathon.simulate_marathon(world, MarathonRequest(...))` proposes the course and
 runs the unchanged closure engine at `starts_at`. It accepts one ISO datetime window,
-up to five profiles and the same road edits. It returns `{course, impact}`. The public,
+up to five profiles and the same road edits. It returns `{course, impact, animation}`. The public,
 read-only `POST /marathon/plan` takes that request; no event is stored. The spatial
 `tools.simulate_marathon` wrapper is for management only. Label all proposals:
 “Proposed course on mapped roads, not an approved route.”

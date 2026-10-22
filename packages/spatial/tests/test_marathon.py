@@ -117,3 +117,100 @@ def test_animation_uses_ordered_course_geometry(world):
     assert animation.course_coordinates[-1] == world.node_coords[result.course.finish_node]
     assert len(animation.rerouted_trips) <= 5
     assert marathon._coordinates(world, ["seg-ab", "seg-gh"], "n-a") == []
+
+
+def test_alternate_return_finds_repeat_free_distance_that_one_tree_misses(world):
+    import networkx as nx
+    from townshiplens_spatial.models import Edge
+
+    # The diagonal makes every one-tree cycle too short. The outer square is a
+    # valid 400 m loop and must be considered through an alternative return path.
+    coords = {
+        "n-a": [101.509, 3.181],
+        "n-b": [101.510, 3.181],
+        "n-c": [101.510, 3.182],
+        "n-d": [101.509, 3.182],
+    }
+    world.graph = nx.MultiGraph()
+    world.edges = {}
+    world.node_coords = coords
+    world.places = {"park-b": world.places["park-b"]}
+    world.centres = {}
+    for eid, a, b, length in [
+        ("ab", "n-a", "n-b", 100),
+        ("bc", "n-b", "n-c", 100),
+        ("cd", "n-c", "n-d", 100),
+        ("da", "n-d", "n-a", 100),
+        ("diagonal", "n-a", "n-c", 140),
+    ]:
+        world.edges[eid] = Edge(
+            id=eid,
+            type="street",
+            name=eid,
+            from_node=a,
+            to_node=b,
+            coords=[coords[a], coords[b]],
+            length_m=length,
+        )
+        world.graph.add_edge(a, b, key=eid, edge_id=eid)
+    graph, _ = marathon._graph(world, [], [])
+    paths = nx.single_source_dijkstra(graph, "n-a")[1]
+    old = []
+    for a, b in graph.edges:
+        for u, v in ((a, b), (b, a)):
+            ids = marathon._ids(graph, paths[u] + list(reversed(paths[v])))
+            old.append(sum(world.edges[e].length_m for e in ids))
+    assert not any(360 <= length <= 440 for length in old)
+    course = marathon.plan_course(world, "park-b", 0.4)
+    assert course.length_m == 400 and len(course.segment_ids) == len(set(course.segment_ids)) == 4
+    assert_continuous(world, course)
+
+
+def test_marathon_uses_one_frozen_snapshot_for_plan_impact_and_animation(world, monkeypatch):
+    calls = []
+    original = events._frozen_baseline
+
+    def freeze(*args, **kwargs):
+        calls.append(True)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(events, "_frozen_baseline", freeze)
+    request = marathon.MarathonRequest(
+        start="park-b",
+        distance_km=0.3,
+        starts_at="2030-01-01T06:00:00+08:00",
+        ends_at="2030-01-01T10:00:00+08:00",
+        profiles=["default"],
+    )
+    result = marathon.simulate_marathon(world, request)
+    assert result.course.segment_ids and len(calls) == 1
+
+
+def test_long_loop_explicitly_reports_laps_and_honours_ordered_segment_cap(world):
+    course = marathon.plan_course(world, "park-b", 1.5)
+    assert_continuous(world, course)
+    if (
+        len(course.segment_ids) != len(set(course.segment_ids))
+        and abs(course.length_m - 1500) <= 150
+    ):
+        assert any("Multi-lap proposal" in w for w in course.warnings)
+
+
+@pytest.mark.parametrize("profile", ["default", "wheelchair", "drive", "older_adult_rest"])
+@pytest.mark.parametrize("scenario", [None, "stage_p1m"])
+def test_aggregate_route_projection_keeps_all_route_state_facts(world, profile, scenario):
+    from townshiplens_spatial import twm
+    from townshiplens_spatial.routing import plan_route, route_batch
+
+    for edge in world.edges.values():
+        if edge.type == "footway":
+            edge.type = "street"
+    for source, target in [("park-b", "playground"), ("park-b", "kiosk"), ("park-b", "moon-base")]:
+        journey = twm.Journey(from_id=source, to_id=target, profile=profile)
+        full = twm._state(world, journey, scenario, False)
+        with route_batch():
+            summary = twm._state(world, journey, scenario, False, summary=True)
+        assert summary.model_dump() == full.model_dump()
+    # The internal mode cannot leak to a later resident-facing route.
+    public = plan_route(world, "park-b", "playground", "default", scenario)
+    assert public.routes and public.routes[0].maneuvers

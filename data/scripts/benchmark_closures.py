@@ -55,7 +55,7 @@ def main():
     with route_batch():
         for profile in events.DEFAULT_PROFILES:
             journeys = events._journeys(baseline, profile, 100, expanded=True)
-            states, _ = events._baseline(baseline, digest, profile, journeys)
+            states = events._baseline(baseline, digest, profile, journeys)
             for state in states:
                 usage.update(set(state.segment_ids))
     names = defaultdict(list)
