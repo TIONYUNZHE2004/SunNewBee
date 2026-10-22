@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { useDevsimAnchors } from "../../../devsim/anchors";
+import { BUILD_CAM_KEYS, type CamKey } from "../../../devsim/timeline";
 import type { DevelopmentPlan, Probe, Rect, StateAt } from "../../../devsim/types";
 import { setTreeCut } from "../assets/treeCut";
 import type { Clearance } from "../clearance";
@@ -11,6 +12,46 @@ import { inRing, type SiteGeom, siteGeom, TOWER_STOREY_M } from "./geom";
 import { onStage, screenRect, toScreen } from "./project";
 import { craneAt, moveInAoKeep, type SetPiecesAt, setPiecesAt, setPieceTiming } from "./setPieces";
 import { stateAt } from "./state";
+
+/** The subject of a 45 s plan camera beat (`buildSubject`). */
+export type BuildSubject = "site" | "halim" | "tower" | "farid" | "door";
+
+/**
+ * Pure: the 45 s plan's beat subjects from its camera keys (`BUILD_CAM_KEYS`), as the times each
+ * subject starts: the opening key frames the site's ground, a key aimed at Halim's mid point is
+ * Halim, Farid's is Farid, a key `path` metres out from the door is the door, any other is the
+ * tower. One source with the camera, so a key moved in `timeline.ts` moves the subject too.
+ */
+export function buildSubjectBreaks(
+  keys: readonly CamKey[] = BUILD_CAM_KEYS,
+): { t: number; subject: BuildSubject }[] {
+  const kind = (k: CamKey, i: number): BuildSubject => {
+    if (i === 0) return "site";
+    const a = k.targetAnchor;
+    if (typeof a === "string")
+      return a === "farid" ? "farid" : a === "halimMid" ? "halim" : "tower";
+    if ("path" in a) return "door";
+    return a.lerp.includes("halimMid") ? "halim" : a.lerp.includes("farid") ? "farid" : "tower";
+  };
+  const out: { t: number; subject: BuildSubject }[] = [];
+  keys.forEach((k, i) => {
+    const subject = kind(k, i);
+    if (out.at(-1)?.subject !== subject) out.push({ t: k.t, subject });
+  });
+  return out;
+}
+
+/** Pure: the subject at screen time t (the last break at or before t). */
+export function buildSubjectAt(
+  t: number,
+  breaks: readonly { t: number; subject: BuildSubject }[] = BUILD_SUBJECT_BREAKS,
+): BuildSubject {
+  let sub: BuildSubject = breaks[0]?.subject ?? "site";
+  for (const b of breaks) if (t >= b.t) sub = b.subject;
+  return sub;
+}
+
+const BUILD_SUBJECT_BREAKS = buildSubjectBreaks();
 
 /** Everything a part needs for one frame. */
 export interface DevsimFrame {
@@ -240,14 +281,22 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
    * the tower (lorry route, Raya hold), Farid, the tower again (monsoon, the worker beside it,
    * topping out), the door for the move-in, and the tower in the Daily Life wide shot.
    */
-  const buildSubject = (tt: number, towerMid: [number, number, number]) => {
-    if (tt < 3.4) return [geom.centre[0], 0, geom.centre[1]] as [number, number, number];
-    if (tt < 10.4) return personAt("halim") ?? towerMid;
-    if (tt < 13.6) return towerMid;
-    if (tt < 17) return personAt("farid") ?? [geom.farid[0], 1, geom.farid[1]];
-    if (tt < 28.2) return towerMid;
-    if (tt < 33) return door;
-    return towerMid;
+  const buildSubject = (
+    tt: number,
+    towerMid: [number, number, number],
+  ): [number, number, number] => {
+    switch (buildSubjectAt(tt)) {
+      case "site":
+        return [geom.centre[0], 0, geom.centre[1]];
+      case "halim":
+        return personAt("halim") ?? towerMid;
+      case "farid":
+        return personAt("farid") ?? [geom.farid[0], 1, geom.farid[1]];
+      case "door":
+        return door;
+      default:
+        return towerMid;
+    }
   };
   /**
    * The world centre of the spec §4.4 subject of the camera beat at t (QA lane request: probe
@@ -324,6 +373,9 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       let head: [number, number] | null = null;
       let chest: [number, number, number] | null = null;
       const others: { id: string; rect: Rect; head: [number, number] }[] = [];
+      // every speaker of a bubble shown now, so each bubble anchors at its own speaker
+      const speaking = new Set(s.bubbles.map((x) => x.who));
+      const speakers: { id: string; rect: Rect; head: [number, number] | null }[] = [];
       for (const c of o.plan.cast) {
         for (const p of parts) {
           const b = p.personBox?.(c.id);
@@ -339,6 +391,9 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
             speaker = rect;
             head = hp;
             chest = [b.x, b.h * 0.6, b.z];
+          }
+          if (speaking.has(c.id)) {
+            if (rect) speakers.push({ id: c.id, rect, head: hp });
           } else if (rect && hp && onStage(hp, size)) others.push({ id: c.id, rect, head: hp });
           break;
         }
@@ -353,6 +408,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
           towerTop: shownTop,
           speaker,
           speakerHead: speaker ? head : null,
+          speakers,
           labelPoint: labelFits(topPt, size) ? topPt : null,
           siteLabel: t < SITE_LABEL_UNTIL ? onStageOrNull(siteCentre(camera, size), size) : null,
           others,
