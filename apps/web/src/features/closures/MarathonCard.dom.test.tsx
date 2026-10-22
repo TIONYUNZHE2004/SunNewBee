@@ -29,6 +29,7 @@ describe("MarathonCard (T-028)", () => {
     expect(reduceIntent(emptyAssistant("a"), intent).marathon).toBe(MARATHON);
     useScene.getState().applyIntent(intent);
     expect(useScene.getState().closureSim?.result).toBe(MARATHON.impact);
+    expect(useScene.getState().closureSim?.marathon).toBe(MARATHON); // T-031 dressing
     expect(useScene.getState().closureSim?.roads).toEqual([
       "Persiaran Tamarind",
       "Persiaran Dillenia",

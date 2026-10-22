@@ -8,6 +8,7 @@ import {
   useScenarioWater,
 } from "../../../../lib/api";
 import { closureFeatures } from "../../../closures/closureSimModel";
+import { courseDressing } from "../../../closures/courseDressing";
 import { useMarathonPlay } from "../../../closures/marathonPlayStore";
 import { useDevsim } from "../../../devsim/devsimStore";
 import { impactSummary } from "../../../flood/impactModel";
@@ -23,6 +24,7 @@ import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import type { Boundary } from "../ground/boundary";
 import { createOverlayLayer, type OverlayLayer } from "../overlays/accessLayers";
+import { createMarathonCourse } from "../overlays/marathonCourse";
 import { createMarathonRunners } from "../overlays/marathonRunners";
 import { createRoadLabels } from "../overlays/roadLabels";
 import { useResidents } from "../overlays/useResidents";
@@ -149,6 +151,24 @@ export function useOverlays({
     engine.requestRender();
     return detach;
   }, [engine, overlay, frame, roadNames, roadLabels.data, highlightKey]);
+  // T-031 course dressing: arches, km markers, cones at the closure boundary, the closed window
+  const courseMarathon = closureResult?.marathon ?? null;
+  const dressing = useMemo(
+    () =>
+      courseMarathon && accessData
+        ? courseDressing(courseMarathon, parseLayer(accessData).edges)
+        : null,
+    [courseMarathon, accessData],
+  );
+  useEffect(() => {
+    if (!engine || !overlay || !frame || !dressing) return;
+    const detach = overlay.attach(createMarathonCourse(dressing, frame));
+    engine.requestRender();
+    return () => {
+      detach();
+      engine.requestRender();
+    };
+  }, [engine, overlay, frame, dressing]);
   // "Watch the marathon" (T-028): runners and sample cars ride the overlay pass while it plays
   const marathon = useMarathonPlay((s) => s.result);
   useEffect(() => {

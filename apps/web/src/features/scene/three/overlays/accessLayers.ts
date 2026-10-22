@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { COURSE_STYLE, PRESSURE_STYLE, type Pressure } from "../../../closures/closureSimModel";
+import { DRESSING_STYLE } from "../../../closures/courseDressing";
 import type { ImpactMarker } from "../../../flood/impactModel";
 import { GAP_BANDS, GAP_CESIUM_DASH, type GapBand, parseGaps } from "../../../gaps/gapModel";
 import { diffLines, WHATIF_STYLE } from "../../../whatif/whatifModel";
@@ -395,13 +396,30 @@ function closureBatches(c: WhatIf, f: LocalFrame): THREE.Object3D[] {
       .map((x) => local((x.geometry as GeoJSON.LineString).coordinates as Coords, f));
   const out: THREE.Object3D[] = [];
   const course = coords((p) => p?.closure === "course");
+  // T-031: the closed course as a soft glow under a red-white barrier-stripe band
   if (course.length)
     out.push(
       createLineBatch(
         course,
-        { color: COURSE_STYLE.color, widthPx: COURSE_STYLE.width },
+        { color: DRESSING_STYLE.glow, widthPx: COURSE_STYLE.width * 2.4, opacity: 0.3 },
         LIFT.whatIf,
         ORDER.whatIf,
+      ),
+      createLineBatch(
+        course,
+        { color: DRESSING_STYLE.stripeWhite, widthPx: COURSE_STYLE.width },
+        LIFT.whatIf,
+        ORDER.whatIf + 0.1,
+      ),
+      createLineBatch(
+        course,
+        {
+          color: DRESSING_STYLE.stripeRed,
+          widthPx: COURSE_STYLE.width,
+          dash: { sizePx: 18, pattern: 0xff00 },
+        },
+        LIFT.whatIf,
+        ORDER.whatIf + 0.2,
       ),
     );
   for (const band of ["low", "medium", "high"] as const) {

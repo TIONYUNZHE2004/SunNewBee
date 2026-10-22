@@ -513,7 +513,7 @@ describe("place markers vs the outline (A-T5 fix round 2)", () => {
 });
 
 describe("closure simulation lines (T-026/T-027)", () => {
-  it("draws the course in red and each detour in its pressure colour", () => {
+  it("draws the course as a glow under red-white barrier stripes, each detour by pressure", () => {
     const l = createOverlayLayer(frame);
     const closureSim = {
       geojson: {
@@ -527,7 +527,8 @@ describe("closure simulation lines (T-026/T-027)", () => {
     } as never;
     l.update({ ...base, closureSim });
     const cols = visibleBatches(l.lineGroup).map(colour).map(lower).sort();
-    expect(cols).toEqual(["#2f855a", "#c53030", "#dd6b20"]);
+    // detours low / high; the course: stripe red (dashed) over white, on a soft glow (T-031)
+    expect(cols).toEqual(["#2f855a", "#d62828", "#dd6b20", "#ff5a3c", "#ffffff"]);
     l.update({ ...base, closureSim: null });
     expect(visibleBatches(l.lineGroup)).toHaveLength(0);
   });
