@@ -566,7 +566,10 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
         }
     if name in ("rising_river_rollout", "river_tipping_point") and res.ok:
         # every stage was simulated: the flood disclaimer and scenario rules apply
-        scs = sorted(deps.ctx.world.flood.scenarios, key=lambda sc: sc.stage_m)
+        scs = sorted(
+            (sc for sc in deps.ctx.world.flood.scenarios if sc.kind == "river_stage"),
+            key=lambda sc: sc.stage_m,
+        )
         rec.scenarios_used |= {sc.id for sc in scs[-1:] if sc.id != "baseline"}
     if name == "find_fixes" and res.ok and isinstance(res.data, dict):
         # The best set is a what-if: every what-if rule (label, numbers, conditional) applies.

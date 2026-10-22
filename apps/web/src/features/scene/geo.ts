@@ -54,18 +54,23 @@ export function pointFeatures(d: unknown): PointFeature[] {
   return out;
 }
 
-/** Outer ring + holes of each Polygon/MultiPolygon, with the feature's surface height. */
-export function waterPolygons(d: unknown): { key: string; rings: LonLat[][]; height: number }[] {
-  const out: { key: string; rings: LonLat[][]; height: number }[] = [];
+/** Outer ring + holes of each Polygon/MultiPolygon, with the feature's surface height.
+ * `possible` marks a low-lying terrain area (T-029: class "possible", no surface height). */
+export function waterPolygons(
+  d: unknown,
+): { key: string; rings: LonLat[][]; height: number; possible: boolean }[] {
+  const out: { key: string; rings: LonLat[][]; height: number; possible: boolean }[] = [];
   for (const f of features(d)) {
     const h = Number(f.properties?.surface_height_m);
     const height = Number.isFinite(h) ? h : 0;
+    const possible = f.properties?.class === "possible";
     const t = f.geometry?.type;
     const c = f.geometry?.coordinates;
-    if (t === "Polygon") out.push({ key: `p${out.length}`, rings: c as LonLat[][], height });
+    if (t === "Polygon")
+      out.push({ key: `p${out.length}`, rings: c as LonLat[][], height, possible });
     else if (t === "MultiPolygon")
       for (const poly of c as LonLat[][][])
-        out.push({ key: `p${out.length}`, rings: poly, height });
+        out.push({ key: `p${out.length}`, rings: poly, height, possible });
   }
   return out;
 }

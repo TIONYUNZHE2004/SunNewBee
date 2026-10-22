@@ -194,3 +194,29 @@ describe("flood layer", () => {
     expect(layer.group.children).toHaveLength(0);
   });
 });
+
+describe("low-lying terrain areas (T-029)", () => {
+  it("are drawn apart in the 'possibly flooded' colour, never as river water", () => {
+    const mixed = {
+      type: "FeatureCollection",
+      features: [
+        water.features[0],
+        {
+          type: "Feature",
+          properties: { class: "possible", area_m2: 3600 },
+          geometry: { type: "Polygon", coordinates: [ring(101.52, 3.02)] },
+        },
+      ],
+    };
+    const layer = createFloodLayer(mixed, null, frame);
+    const byName = Object.fromEntries(layer.ground.children.map((m) => [m.name, m as THREE.Mesh]));
+    expect(Object.keys(byName).sort()).toEqual(["flood-fill", "flood-fill-possible"]);
+    const color = (n: string) =>
+      `#${((byName[n]?.material as THREE.MeshBasicMaterial).color as THREE.Color).getHexString()}`;
+    expect(color("flood-fill-possible").toLowerCase()).toBe(
+      statusStyle("flooded_possible").color.toLowerCase(),
+    );
+    expect(color("flood-fill").toLowerCase()).not.toBe(color("flood-fill-possible").toLowerCase());
+    layer.dispose();
+  });
+});
