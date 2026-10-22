@@ -1,0 +1,265 @@
+[
+  {
+    "name": "unnamed path near Jalan Metafasa U16/166 (north, 26 m path)",
+    "length_m": 26.4,
+    "order": 1
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/166 (north, 38 m path)",
+    "length_m": 38.0,
+    "order": 2
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/174 (north-west, 67 m path)",
+    "length_m": 67.0,
+    "order": 3
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/174 (north-west, 4 m path)",
+    "length_m": 3.9,
+    "order": 4
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/174 (north-west, 3 m path)",
+    "length_m": 3.4,
+    "order": 5
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/174 (west, 25 m path)",
+    "length_m": 25.2,
+    "order": 6
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/174 (west, 23 m path)",
+    "length_m": 22.9,
+    "order": 7
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/174 (west, 28 m path)",
+    "length_m": 27.7,
+    "order": 8
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/165 (north-east, 102 m path)",
+    "length_m": 102.5,
+    "order": 9
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/157 (north, 36 m path)",
+    "length_m": 35.9,
+    "order": 10
+  },
+  {
+    "name": "unnamed path near Persiaran Elmina (north-east, 93 m path)",
+    "length_m": 93.1,
+    "order": 11
+  },
+  {
+    "name": "unnamed path near Persiaran Elmina (north-east, 12 m path) near 3.1778080\u00b0 N, 101.5106585\u00b0 E",
+    "length_m": 11.8,
+    "order": 12
+  },
+  {
+    "name": "unnamed path near Persiaran Elmina (north-east, 18 m path) near 3.1778125\u00b0 N, 101.5105320\u00b0 E",
+    "length_m": 18.1,
+    "order": 13
+  },
+  {
+    "name": "unnamed path near Persiaran Elmina (north-east, 16 m path) near 3.1778557\u00b0 N, 101.5104160\u00b0 E",
+    "length_m": 15.9,
+    "order": 14
+  },
+  {
+    "name": "unnamed path near Persiaran Elmina (north-east, 17 m path) near 3.1779820\u00b0 N, 101.5103405\u00b0 E",
+    "length_m": 17.1,
+    "order": 15
+  },
+  {
+    "name": "unnamed path near Persiaran Elmina (north-east, 17 m path) near 3.1781100\u00b0 N, 101.5102623\u00b0 E",
+    "length_m": 17.4,
+    "order": 16
+  },
+  {
+    "name": "unnamed path near Persiaran Alstonia (south-east, 219 m path)",
+    "length_m": 219.5,
+    "order": 17
+  },
+  {
+    "name": "unnamed path near Persiaran Alstonia (south-east, 45 m path)",
+    "length_m": 45.0,
+    "order": 18
+  },
+  {
+    "name": "unnamed path near Persiaran Alstonia (east, 25 m path)",
+    "length_m": 25.4,
+    "order": 19
+  },
+  { "name": "Persiaran Alstonia", "length_m": 197.9, "order": 20 },
+  { "name": "Persiaran Garcinia", "length_m": 9.4, "order": 21 },
+  { "name": "Persiaran Alstonia", "length_m": 7.1, "order": 22 },
+  { "name": "Persiaran Garcinia", "length_m": 386.9, "order": 23 },
+  {
+    "name": "unnamed path near Persiaran Garcinia (south-west, 248 m path)",
+    "length_m": 247.5,
+    "order": 24
+  },
+  {
+    "name": "unnamed path near Persiaran Dillenia (south, 7 m path) near 3.1790600\u00b0 N, 101.5026697\u00b0 E",
+    "length_m": 7.0,
+    "order": 25
+  },
+  {
+    "name": "unnamed path near Persiaran Dillenia (south, 8 m path) near 3.1791003\u00b0 N, 101.5026153\u00b0 E",
+    "length_m": 8.2,
+    "order": 26
+  },
+  {
+    "name": "unnamed path near Persiaran Dillenia (south, 10 m path) near 3.1791625\u00b0 N, 101.5025710\u00b0 E",
+    "length_m": 9.7,
+    "order": 27
+  },
+  {
+    "name": "unnamed path near Persiaran Dillenia (south, 10 m path) near 3.1792297\u00b0 N, 101.5025230\u00b0 E",
+    "length_m": 10.3,
+    "order": 28
+  },
+  {
+    "name": "unnamed path near Persiaran Dillenia (south, 10 m path) near 3.1792460\u00b0 N, 101.5024470\u00b0 E",
+    "length_m": 10.2,
+    "order": 29
+  },
+  {
+    "name": "unnamed path near Persiaran Dillenia (south, 12 m path) near 3.1791975\u00b0 N, 101.5023675\u00b0 E",
+    "length_m": 12.1,
+    "order": 30
+  },
+  {
+    "name": "unnamed path near Persiaran Dillenia (south, 11 m path) near 3.1791440\u00b0 N, 101.5022800\u00b0 E",
+    "length_m": 10.7,
+    "order": 31
+  },
+  {
+    "name": "unnamed path near Persiaran Dillenia (south, 8 m path) near 3.1791333\u00b0 N, 101.5022063\u00b0 E",
+    "length_m": 8.2,
+    "order": 32
+  },
+  {
+    "name": "unnamed path near Jalan Tristania U15/32 (south-west, 728 m path)",
+    "length_m": 728.3,
+    "order": 33
+  },
+  {
+    "name": "unnamed path near Persiaran Shorea (south-east, 13 m path) near 3.1843170\u00b0 N, 101.5022100\u00b0 E",
+    "length_m": 13.4,
+    "order": 34
+  },
+  {
+    "name": "unnamed path near Persiaran Shorea (south-east, 10 m path) near 3.1843230\u00b0 N, 101.5023170\u00b0 E",
+    "length_m": 10.4,
+    "order": 35
+  },
+  {
+    "name": "unnamed path near Persiaran Shorea (south-east, 9 m path) near 3.1843557\u00b0 N, 101.5023967\u00b0 E",
+    "length_m": 9.0,
+    "order": 36
+  },
+  {
+    "name": "unnamed path near Persiaran Shorea (south-east, 12 m path) near 3.1844180\u00b0 N, 101.5024580\u00b0 E",
+    "length_m": 11.6,
+    "order": 37
+  },
+  {
+    "name": "unnamed path near Persiaran Shorea (south-east, 11 m path)",
+    "length_m": 11.0,
+    "order": 38
+  },
+  {
+    "name": "unnamed path near Persiaran Dillenia (south, 16 m path) near 3.1844767\u00b0 N, 101.5026153\u00b0 E",
+    "length_m": 16.5,
+    "order": 39
+  },
+  { "name": "Persiaran Dillenia", "length_m": 477.6, "order": 40 },
+  { "name": "Persiaran Tamarind", "length_m": 782.0, "order": 41 },
+  {
+    "name": "unnamed path near Persiaran Garcinia (north-east, 3 m path)",
+    "length_m": 2.6,
+    "order": 42
+  },
+  {
+    "name": "unnamed path near Persiaran Garcinia (north-east, 10 m path)",
+    "length_m": 10.1,
+    "order": 43
+  },
+  {
+    "name": "unnamed path near Persiaran Garcinia (north-east, 6 m path)",
+    "length_m": 6.5,
+    "order": 44
+  },
+  { "name": "Persiaran Tamarind", "length_m": 376.9, "order": 45 },
+  {
+    "name": "unnamed path near Persiaran Tamarind (south-east, 42 m path)",
+    "length_m": 41.9,
+    "order": 46
+  },
+  {
+    "name": "unnamed path near Iconic Bridge of Elmina City (north, 25 m path)",
+    "length_m": 25.0,
+    "order": 47
+  },
+  {
+    "name": "unnamed path near Iconic Bridge of Elmina City (north-west, 39 m path)",
+    "length_m": 39.1,
+    "order": 48
+  },
+  { "name": "Iconic Bridge of Elmina City", "length_m": 273.8, "order": 49 },
+  {
+    "name": "unnamed path near Iconic Bridge of Elmina City (south-east, 7 m path)",
+    "length_m": 6.6,
+    "order": 50
+  },
+  {
+    "name": "unnamed path near Iconic Bridge of Elmina City (south-east, 29 m path)",
+    "length_m": 28.9,
+    "order": 51
+  },
+  {
+    "name": "unnamed path near Iconic Bridge of Elmina City (south-east, 81 m path)",
+    "length_m": 81.3,
+    "order": 52
+  },
+  {
+    "name": "unnamed path near Iconic Bridge of Elmina City (south-east, 112 m path)",
+    "length_m": 112.3,
+    "order": 53
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/166 (north, 79 m path)",
+    "length_m": 78.6,
+    "order": 54
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/166 (north, 33 m path)",
+    "length_m": 32.8,
+    "order": 55
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/176 (north-west, 118 m path)",
+    "length_m": 118.5,
+    "order": 56
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/176 (north-west, 15 m path)",
+    "length_m": 14.9,
+    "order": 57
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/176 (north-west, 121 m path)",
+    "length_m": 121.4,
+    "order": 58
+  },
+  {
+    "name": "unnamed path near Jalan Metafasa U16/166 (north, 41 m path)",
+    "length_m": 40.9,
+    "order": 59
+  }
+]
