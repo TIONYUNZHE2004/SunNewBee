@@ -289,6 +289,7 @@ export function FloodLayer() {
       waterPolygons(water.data).map((p) => ({
         key: p.key,
         height: p.height,
+        possible: p.possible,
         hierarchy: new Cesium.PolygonHierarchy(
           Cesium.Cartesian3.fromDegreesArray(flat(p.rings[0] ?? [])),
           p.rings
@@ -308,6 +309,12 @@ export function FloodLayer() {
     () => Cesium.Color.fromCssColorString(WATER_COLOR).withAlpha(0.55),
     [],
   );
+  // T-029 low-lying terrain (class "possible"): a flat, ground-draped area in the "possibly
+  // flooded" colour, never an extruded water body
+  const possibleColor = useMemo(
+    () => Cesium.Color.fromCssColorString(statusStyle("flooded_possible").color).withAlpha(0.35),
+    [],
+  );
   useRenderOn(polys, groups, evac.data, on);
   if (!on) return null;
   return (
@@ -315,13 +322,21 @@ export function FloodLayer() {
       <StatusLines groups={groups} extraWidth={2} />
       {polys.map((p) => (
         <Entity key={p.key}>
-          <PolygonGraphics
-            hierarchy={p.hierarchy}
-            height={p.height}
-            extrudedHeight={p.height - 40}
-            perPositionHeight={false}
-            material={waterColor}
-          />
+          {p.possible ? (
+            <PolygonGraphics
+              hierarchy={p.hierarchy}
+              classificationType={Cesium.ClassificationType.BOTH}
+              material={possibleColor}
+            />
+          ) : (
+            <PolygonGraphics
+              hierarchy={p.hierarchy}
+              height={p.height}
+              extrudedHeight={p.height - 40}
+              perPositionHeight={false}
+              material={waterColor}
+            />
+          )}
         </Entity>
       ))}
       {(evac.data ?? []).map((r) => (

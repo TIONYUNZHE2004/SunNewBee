@@ -1,4 +1,4 @@
-{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "6d398a6cd4623236e419aa0298ca2f7c9685a41c89b119b0bfe793f55ab1079d", "model": "mock-scripted", "recorded_at": "2026-10-22T01:45:08+00:00"}}
+{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "568c8617f4cc63645ec48a11fa23bb701ac806fb6ef0041f7d7e59e4e4470247", "model": "mock-scripted", "recorded_at": "2026-10-22T03:06:28+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "urban park", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5, "near_place": null}}

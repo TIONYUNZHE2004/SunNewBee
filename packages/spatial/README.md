@@ -570,8 +570,8 @@ omitted, never joined with a fabricated connector.
 Generated terrain uses scenario id `lowlying`, `kind: lowlying`, and possible-only
 edge/place classes. `stage_m: 0` means baseline river rise; it is not a terrain value
 or a water depth. The label is “Low-lying areas that may collect water (indicative)”.
-The loader requires its GeoJSON before it lists the scenario. Until real DEM generation
-succeeds, the seed does not advertise a low-lying layer; it returns an unknown scenario.
+The loader requires its GeoJSON before it lists the scenario. The Elmina seed has it since
+22 Oct 2026 (`data/README.md`, T-029); the tiny fixture does not.
 
 With generated data, the loader also derives `stage_p1m+lowlying` (and each other
 positive river stage). These have `kind: combined` and `components` listing their

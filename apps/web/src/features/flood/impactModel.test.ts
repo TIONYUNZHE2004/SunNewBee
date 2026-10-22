@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatPathLength, IMPACT_STYLE, impactSummary, placesWord } from "./impactModel";
+import {
+  formatPathLength,
+  IMPACT_STYLE,
+  impactSummary,
+  placesWord,
+  possibleOnly,
+} from "./impactModel";
 
 const affected = {
   scenario_id: "stage_p3m",
@@ -49,5 +55,20 @@ describe("flood impact (T-024 markers)", () => {
     expect(IMPACT_STYLE.cut_off.label).toBe("Cut off: no mapped way in or out (indicative)");
     expect(IMPACT_STYLE.cut_off.glyph).toBe("⚠");
     expect(placesWord(1)).toBe("1 place");
+  });
+});
+
+describe("low-lying terrain only (T-029)", () => {
+  it("says the possible counts, never '0 places likely flooded'", () => {
+    const s = impactSummary({
+      flooded_places: [],
+      cut_off_places: [],
+      flooded_path_m: 0,
+      possible_place_count: 6,
+      possible_path_count: 515,
+    } as never);
+    expect(s && possibleOnly(s)).toBe(true);
+    expect(s?.possiblePlaces).toBe(6);
+    expect(s?.possiblePaths).toBe(515);
   });
 });

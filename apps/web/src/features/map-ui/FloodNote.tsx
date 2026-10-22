@@ -12,13 +12,16 @@ export function FloodNote() {
   const { data } = useScenarios();
   if (!scenarioId || scenarioId === "baseline") return null;
   const sc = data?.find((s) => s.id === scenarioId);
-  const label = typeof sc?.stage_m === "number" ? `+${sc.stage_m} m` : (sc?.label ?? scenarioId);
+  // T-029: low-lying terrain (stage 0) and river + terrain read by their own label
+  const river = (sc?.kind ?? "river_stage") === "river_stage";
+  const label =
+    river && typeof sc?.stage_m === "number" ? `River +${sc.stage_m} m` : (sc?.label ?? scenarioId);
   return (
     <InSlot name="flood">
       <div role="note" className="glass rounded-2xl px-4 py-2 text-sm text-fg sm:rounded-full">
         <p className="m-0">
           <span className="font-medium">
-            River {label} · Indicative scenario, not a forecast · Official guidance:
+            {label} · Indicative scenario, not a forecast · Official guidance:
           </span>{" "}
           <a
             className={LINK}
@@ -49,7 +52,9 @@ export function FloodNote() {
         </p>
         {sc?.disclaimer && <p className="m-0 mt-1 text-xs text-fg-soft">{sc.disclaimer}</p>}
         {/* the scenario disclaimer above may already carry both notes (T-024 data) */}
-        <FloodImpactCard notes={!sc?.disclaimer?.includes(FLASH_FLOOD_NOTE)} />
+        {/* the flash-flood note is about river stages; a terrain-only screen states its own
+            limits (rainfall not modelled) in its disclaimer */}
+        <FloodImpactCard notes={river && !sc?.disclaimer?.includes(FLASH_FLOOD_NOTE)} />
       </div>
     </InSlot>
   );
