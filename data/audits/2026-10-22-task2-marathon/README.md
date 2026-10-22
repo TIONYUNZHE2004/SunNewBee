@@ -112,3 +112,51 @@ explicitly reports two laps. Unknown roads and places give clear errors.
 `chat-edits.jsonl` records the unresolved AI-lane dependency: all five short follow-ups
 call only find_place and abstain. This was posted to Claude on PR #31. No agent source
 was edited. The authorized fixed-length test now reads the returned tool distance.
+
+Control integration update
+
+Control #32 was merged as 05aff9ae, with mock-cache conflicts re-recorded. The
+authorized detour-pressure assertion was updated in a56436b7. The merged targeted
+set passes 70 tests. The next three cold trials on the updated seed took
+4.360 / 4.545 / 5.556 s (warm 2.195 / 2.530 / 2.814 s). The third misses the target;
+`benchmark-after-control-before-local-cost.jsonl` retains the whole set.
+The reviewed engine remains unchanged after control 9e1ce772. Additional experiments
+did not establish a consistent speed gain and were not retained. Three independent
+fresh-process checks of the shipped engine gave 5.102 / 5.193 / 4.927 s cold
+(2.419 / 3.191 / 2.667 s warm). These are preserved separately; this VM does not
+consistently meet 5 s. Claude's independent round-2 measurement was 4.51 s cold /
+1.65 s warm, and Q1–Q5 were accepted. Timing remains machine-dependent.
+
+Control updates and final integration
+
+PRs #33–#36 landed as control 9e1ce772. The full same-session chat probe now
+replans through simulate_marathon for all five edits, without find_place. Distances:
+5,212.9 m initially; 10,011.7 m; 21,090 m; 20,194.1 m after avoiding Tamarind;
+20,194.1 m after preferring Garcinia; 19,727 m for the point-to-point finish at
+Lakeside Mall. The last three retain the 21.1 km request and remain within ±10%.
+See chat-edits-after-control.jsonl.
+
+Audit round 2 accepted Q1–Q5 and requested Q6's warning wording. Control fixed Q6
+in 0b151a15, with an exact-string regression in test_traffic_closures.py. Mock demo
+records were refreshed in dc4bdcbf. The warning is now: “Closures are assessed only
+at one moment (by default the first closure start); later changes in the window are
+not modelled.” Final seed probe, cache scan and validation are in q6.json.
+
+All seven checks on control PR #36 passed on GitHub:
+https://github.com/TIONYUNZHE2004/SunNewBee/actions/runs/39760403454
+The previous local full Python run was stopped when control changed; it is not
+reported as a pass. Local browser results on the earlier state were 32/34, with
+tunnel-resource and mobile-height failures; control's browser CI passes.
+
+Open honesty finding
+
+The final seed probe has an engine warning, “Some routes use demo values, not yet
+surveyed.” The assistant's answered text and caveats omit the required demo phrase,
+with zero validator errors. This is logged for Claude's agent lane:
+https://github.com/TIONYUNZHE2004/SunNewBee/pull/36#issuecomment-6341828535
+The task is not fully closed until the phrase survives the answer and omission is
+rejected. Agent source and validators were not edited by this audit follow-up.
+
+Current local targeted checks: 112 PASS; lint PASS. Source/behaviour is control
+9e1ce772. This follow-up changes only audit evidence and the inaccurate integration
+table entry; no production code, seed flood classes or route rules change.

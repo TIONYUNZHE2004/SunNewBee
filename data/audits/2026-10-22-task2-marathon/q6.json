@@ -1,0 +1,58 @@
+{
+  "model": "mock-scripted",
+  "answer_status": "answered",
+  "tool_calls": ["simulate_marathon"],
+  "engine_warning": "Closures are assessed only at one moment (by default the first closure start); later changes in the window are not modelled.",
+  "engine_warnings": [
+    "Sample trips use up to ten origins across resident categories and destinations near the site centre. Outlying journeys are not represented; this is not measured demand.",
+    "Closures are assessed only at one moment (by default the first closure start); later changes in the window are not modelled.",
+    "Extra minutes are travel-distance/pace estimates, not congestion or crowd predictions.",
+    "32 sample trips start or end on the course: access during the event needs a separate plan; excluded from detour and new route-loss counts.",
+    "Some routes use demo values, not yet surveyed.",
+    "Drive routes: mapped one-way tags applied; legal turn restrictions and changing directions not modelled; indicative only, never confirmed."
+  ],
+  "has_demo_phrase": false,
+  "text": "Proposed 5.2 km loop course from Elmina Valley Central Park on mapped roads (a proposal, not an approved route): unnamed paths near Jalan Metafasa U16/166, unnamed paths near Jalan Metafasa U16/174, unnamed paths near Jalan Metafasa U16/165, unnamed paths near Persiaran Elmina, unnamed paths near Persiaran Alstonia, Persiaran Alstonia, Persiaran Garcinia, Persiaran Alstonia, and 12 more roads, plus 7 short connecting stretches. With the course closed, 176 of 300 sample trips (walking, wheelchair and driving) change route, and 34 newly have no mapped route. Rerouted trips go about 283.8 m further (median).\n1. 86 sample trips reroute onto unnamed path near Jalan Metafasa U16/1T (north-east, 104 m path) (detour pressure: high).\n2. 86 sample trips reroute onto unnamed path near Persiaran Alstonia (north-west, 12 m path) (detour pressure: high).\n3. 86 sample trips reroute onto unnamed path near Persiaran Alstonia (north-west, 17 m path) near 3.1805915° N, 101.5075750° E (detour pressure: high).\n4. Cut off during the event (no mapped route to a centre): Elmina Lakeside Mall, Park (unnamed, OSM), NakNak Elmina and 3 more.\n5. Suggestion: Consider a marshal at unnamed path near Jalan Metafasa U16/1T (north-east, 104 m path): 86 sample trips reroute onto it (86 weighted trips).\n6. Suggestion: Consider a marshal at unnamed path near Persiaran Alstonia (north-west, 12 m path): 86 sample trips reroute onto it (86 weighted trips).\n7. Suggestion: Review temporary two-way operation on unnamed path near Persiaran Alstonia (north, 62 m path) near 3.1807875° N, 101.5078740° E: 1 mapped one-way detour segments; staff approval is needed.\n8. Suggestion: Review temporary two-way operation on unnamed path near Persiaran Alstonia (north, 13 m path) near 3.1806593° N, 101.5084580° E: 2 mapped one-way detour segments; staff approval is needed.\n9. Suggestion: Review keeping one crossing point open at the mapped closure-boundary junction: 6 mapped places lose centre access. Access is not established until the alternative is assessed.\n10. Suggestion: Consider splitting the closure into stretches: 95 active segments affect 176 of 300 sample trips. Separate stretches have not been simulated.\n11. Suggestion: Consider shifting the time: 176 of 300 sample trips are affected at this instant. Other times have not been simulated.\nWorth knowing:\n• 32 sample trips start or end on the closed course: plan access for them during the event.\n• 35 more suggestions of the same kinds are not listed.\n• 21 of the 300 sample trips had no mapped route before the event (data gaps, not the event).\n• Proposed course on mapped roads, not an approved route.\n• Detour pressure, estimated from mapped road class and sample trips, not traffic counts.\n• Peak weights are an assumed travel pattern, not measured.",
+  "warning_events": [
+    {
+      "type": "uncertainty",
+      "level": "partial",
+      "items": [
+        {
+          "element_id": "answer",
+          "attribute": "caveat",
+          "note": "32 sample trips start or end on the closed course: plan access for them during the event"
+        },
+        {
+          "element_id": "answer",
+          "attribute": "caveat",
+          "note": "35 more suggestions of the same kinds are not listed"
+        },
+        {
+          "element_id": "answer",
+          "attribute": "caveat",
+          "note": "21 of the 300 sample trips had no mapped route before the event (data gaps, not the event)"
+        },
+        {
+          "element_id": "answer",
+          "attribute": "caveat",
+          "note": "Proposed course on mapped roads, not an approved route"
+        },
+        {
+          "element_id": "answer",
+          "attribute": "caveat",
+          "note": "Detour pressure, estimated from mapped road class and sample trips, not traffic counts"
+        },
+        {
+          "element_id": "answer",
+          "attribute": "caveat",
+          "note": "Peak weights are an assumed travel pattern, not measured"
+        }
+      ]
+    }
+  ],
+  "demo_files": 27,
+  "old_warning_files": [],
+  "demo_models": ["mock-scripted"],
+  "validator_errors": []
+}
