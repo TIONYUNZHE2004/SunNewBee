@@ -1,5 +1,6 @@
 import { useScenarios } from "../../lib/api";
 import { FloodImpactCard } from "../flood/FloodImpact";
+import { WATER_LOOK_NOTE } from "../flood/floodPresentation";
 import { FLASH_FLOOD_NOTE } from "../flood/impactModel";
 import { useScene } from "../scene/sceneStore";
 import { InSlot } from "./mapSlots";
@@ -54,6 +55,7 @@ export function FloodNote() {
         {/* the scenario disclaimer above may already carry both notes (T-024 data) */}
         {/* the flash-flood note is about river stages; a terrain-only screen states its own
             limits (rainfall not modelled) in its disclaimer */}
+        {river && <p className="m-0 mt-1 text-xs text-fg-soft">{WATER_LOOK_NOTE}</p>}
         <FloodImpactCard notes={river && !sc?.disclaimer?.includes(FLASH_FLOOD_NOTE)} />
       </div>
     </InSlot>

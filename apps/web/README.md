@@ -894,3 +894,18 @@ grey. `styles.ts` and `mapStatus` carry the same statuses across all renderers. 
 legend exposes the estimate label. Legacy `ok` remains “No known barrier”.
 
 Resident route starters state the starting place explicitly. Free-text route questions with a missing or ambiguous start ask for clarification; the assistant must not silently assume a demo starting point.
+
+## Flood presentation (T-032)
+
+Stylised river scenarios use one batched planar reflection surface with procedural travelling
+waves (`features/flood/riverSurface.ts`). The height and ripples are illustrative; source
+`surface_height_m` never drives display height. The visible notice says "Water look is
+illustrative; depth not modelled." The Motion setting stops automatic ripple rendering.
+Only explicit `likely_flooded` polygons, or the legacy river-only scenario-water contract
+(`scenario_id` plus `surface_height_m`, no class), enter that renderer. Base water and unknown
+classes cannot enter it.
+
+Low-lying `possible` polygons stay terrain: two corner-cutting passes, intersected with their
+original footprint and the township boundary, a thin outline and translucent fill below roads
+and buildings. Holes are retained. This is display-only smoothing: no seed data, evaluation,
+route or API counter changes. Invalid polygons are omitted rather than drawn outside evidence.

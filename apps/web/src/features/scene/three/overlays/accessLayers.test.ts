@@ -275,7 +275,7 @@ describe("createOverlayLayer", () => {
       features: [
         {
           type: "Feature",
-          properties: {},
+          properties: { class: "likely_flooded" },
           geometry: { type: "Polygon", coordinates: [sq(101.5)] },
         },
       ],
@@ -321,9 +321,10 @@ describe("createOverlayLayer", () => {
       const l = createOverlayLayer(frame);
       l.update({ ...base, water, floodEdges, floodOn: true });
       const fill = names(l).length;
-      const before = l.group.getObjectByName("flood-fill");
+      const before = l.groundGroup.getObjectByName("flood-fill");
+      expect(before).toBeTruthy();
       l.update({ ...base, water, floodEdges, floodOn: true, route });
-      expect(l.group.getObjectByName("flood-fill")).toBe(before);
+      expect(l.groundGroup.getObjectByName("flood-fill")).toBe(before);
       expect(fill).toBeGreaterThan(0);
     });
 

@@ -63,6 +63,7 @@ export function useOverlays({
   const scenarioId = useScene((s) => s.scenarioId);
   const accessVisible = useScene((s) => s.lensVisible.access);
   const pathStatus = useSceneSettings((s) => s.pathStatus);
+  const waterMotion = useSceneSettings((s) => s.motion);
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const whatIf = useScene((s) => s.whatIf);
   const closureResult = useScene((s) => s.closureSim);
@@ -218,6 +219,17 @@ export function useOverlays({
     keepPlaceIds,
     keepNear,
   ]);
+  // Water ripples need frames even when decorative motion is paused.
+  useEffect(() => {
+    if (!engine || !floodOn || !waterQ.data || !waterMotion) return;
+    let id = 0;
+    const draw = () => {
+      engine.requestRender();
+      id = requestAnimationFrame(draw);
+    };
+    id = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(id);
+  }, [engine, floodOn, waterQ.data, waterMotion]);
   // Elmina Day and rollout residents ride the same overlay layer.
   useResidents(engine, overlay, frame, { onScreen, clockRunning: running });
 
