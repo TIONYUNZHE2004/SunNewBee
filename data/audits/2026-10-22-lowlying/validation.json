@@ -1,0 +1,23 @@
+{
+ "task": "T-029",
+ "checked_at": "2026-10-22T02:05:00Z",
+ "outputs": "data/seed/elmina/flood/lowlying.geojson (235 polygons, 2.84 km2), scenarios.json (lowlying + 3 combined)",
+ "searches": [
+  {"query": "banjir Disember 2021 Denai Alam Elmina Shah Alam kawasan terjejas", "outcome": "no report names Denai Alam, Elmina or Bukit Subang; Shah Alam-wide coverage only"},
+  {"query": "\"Denai Alam\" OR \"Elmina\" OR \"Bukit Subang\" OR \"Kampung Melayu Subang\" banjir 2021", "outcome": "no flood report for these townships; property listings and background pages"},
+  {"query": "Setia Alam U13 Kampung Melayu Subang flood December 2021 Sungai Buloh", "outcome": "reports for neighbouring localities, listed below"}
+ ],
+ "reports_found": [
+  {"locality": "Shah Alam (city-wide), Taman Sri Muda (Seksyen 25)", "date": "2021-12-18", "source": "https://www.utusan.com.my/terkini/2021/12/shah-alam-lumpuh-majoriti-kawasan-dinaiki-air-jalan-utama-putus/", "in_township": false, "note": "outside the DEM window (Sri Muda is south of 3.15 N)"},
+  {"locality": "Kampung Melayu Subang (Sg Pelumut, Sg Pelempas)", "date": "2022-03-16", "source": "https://www.mdpi.com/2073-4441/17/4/513", "in_township": false, "note": "peer-reviewed study; 0.3 m reported there (a report, never shown as a depth on our map)"},
+  {"locality": "Kampung Melayu Subang; Paya Jaras", "date": "2024-10-03", "source": "https://www.thestar.com.my/news/nation/2024/10/03/selangor-flash-floods-70-houses-affected-in-shah-alam-kampung-melayu-subang-inundated", "in_township": false},
+  {"locality": "Setia Alam, Kampung Melayu Subang (social-media list)", "date": "2022-11-10", "source": "https://www.freemalaysiatoday.com/category/nation/2022/11/10/klang-shah-alam-hit-by-flash-floods", "in_township": false, "note": "secondary: social media posts quoted by the outlet"},
+  {"locality": "Subang (Kampung Melayu)", "date": "2026-02-16", "source": "https://www.thestar.com.my/news/nation/2026/02/16/flash-floods-hit-parts-of-subang-following-heavy-rain", "in_township": false}
+ ],
+ "verified_hits": [],
+ "verified_misses": [],
+ "usable_reports_inside_township": 0,
+ "geocoding": "blocked: Overpass (proxy 403) and the article pages (fetch tool cannot resolve the hosts) were not reachable from this environment; only search-result summaries were read. Report localities were not placed on the map, so no hit or miss is scored.",
+ "interpretation": "No public report found names a flooded place inside City of Elmina / Denai Alam / Bukit Subang. Neighbouring Kampung Melayu Subang and Paya Jaras report repeated flash floods (2022, 2024, 2026). This is context, not validation of the layer, and not evidence that the township never floods.",
+ "not_tuned_to": "No threshold was chosen or changed from these reports; thresholds follow the DEM's stated accuracy (sensitivity.json)."
+}
