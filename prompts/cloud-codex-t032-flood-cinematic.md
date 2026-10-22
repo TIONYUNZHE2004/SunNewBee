@@ -1,0 +1,7 @@
+You are a front-end + data engineer for TownshipLens (repo TIONYUNZHE2004/SunNewBee; demo video recorded 23 Oct 2026). Core promise: answers come only from checked data; every gap is shown as a gap.
+
+Read and carry out the T-032 part (no checkout needed):
+  git fetch origin yunzhe/agent-board && git show origin/yunzhe/agent-board:tasks/T-031-032-cinematics.md
+Also read AGENTS.md, apps/web/README.md, and study shaoxian04's journey code before writing UI (apps/web/src/features/journey/, features/scene/three/journey/followRig.ts, features/scene/three/compare/ for anchored tags; single camera only).
+
+Work on a new branch `codex/t032-flood-cinematic` from `origin/claude/sweet-davinci-29v7ne`. Setup: `pnpm install && uv sync --all-packages --all-groups`. Order: (1) smooth low-lying shapes + translucent fill under roads/buildings, (2) "Watch the river rise" playback with HUD counters and "!" markers, (3) follow one wheelchair resident to the nearest evacuation centre at +3 m, (4) end card. Push each tested step and open ONE PR into `claude/sweet-davinci-29v7ne` after the first push; update it with each step. Every PR update includes light + dark screenshots (Stylised 3D, 1440×900) and a 3–4 frame strip of the animation. Do not touch the marathon files (cloud Claude owns them). No live model calls. Keep going until all four steps are done or 07:00 MYT (22:59 UTC); end with a Status comment on your PR.

@@ -40,6 +40,8 @@ The resident assistant covers **access** (routes, places, amenities, closures, t
 | [T-028](tasks/T-028-marathon-engine.md) | Marathon engine: AI proposes a course, manager edits; road names on map; playback | done (PRs #29–#36; main via #37, 22 Oct) | P1 | Cloud Codex (backend) + cloud Claude (agent, web) |
 | [T-029](tasks/T-029-flood-low-lying.md) | Flood: river rise + low-lying areas, judge loop | done (PRs #29, #32, #34, #36; main via #37, 22 Oct) | P1 | Cloud Codex (builds) + cloud Claude (judge) |
 | [T-030](tasks/T-030-demo-qa.md) | Demo QA: golden cases, demo_check.py, e2e for the 3 demo stories | assigned | P1 | Cloud Codex #2 |
+| [T-031](tasks/T-031-032-cinematics.md) | Marathon cinematic, one camera, shaoxian's style | assigned | P0 | Cloud Claude |
+| [T-032](tasks/T-031-032-cinematics.md) | Flood cinematic (river rise, low-lying smoothing, follow a resident) | assigned | P0 | Codex |
 
 
 ## Audit P1 fixes (control, 19 Oct 16:30 UTC)
