@@ -27,7 +27,9 @@ describe("T-031 marathon HUD, mini-map and end card", () => {
     const card = screen.getByTestId("marathon-end-card");
     expect(card).toHaveTextContent("Proposed 5.1 km loop course · Closed 06:00–10:00");
     expect(card).toHaveTextContent("2 named roads closed; 7 of 63 sample trips change route");
-    expect(card).toHaveTextContent("Detour (median of rerouted trips): +82.5 m · +0.2 min");
+    expect(card).toHaveTextContent(
+      "Detour (median of rerouted trips): +82.5 m · +0.2 min at walking pace",
+    );
     expect(card).toHaveTextContent("Review signposting the detour via Jalan Dillenia");
     expect(card).toHaveTextContent("not crowd sizes, vehicle counts or delays");
     expect(card).toHaveTextContent("not an approved route");
