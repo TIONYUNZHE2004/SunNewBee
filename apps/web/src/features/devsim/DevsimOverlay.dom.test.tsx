@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TopStack } from "../map-ui/mapSlots";
 import { collectProbe, useDevsimAnchors } from "./anchors";
 import { hoardingCardOn, hoardingCardWindow } from "./buildModel";
-import { briefViewShift, bubbleViews, DevsimOverlay } from "./DevsimOverlay";
+import { bubbleViews, DevsimOverlay } from "./DevsimOverlay";
 import { useDevsim } from "./devsimStore";
 import elmina from "./fixtures/plan.elmina.json";
 import { NOT_AVAILABLE } from "./intent";
@@ -315,21 +316,57 @@ describe("DevsimOverlay (45 s building plan)", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Mei Ling");
   });
 
-  it("the view shift eases from 0 at 33 s to the brief width by 34.5 s and is published to the store", () => {
-    expect(briefViewShift(32.9, 400)).toBe(0);
-    expect(briefViewShift(33, 400)).toBe(0);
-    expect(briefViewShift(33.75, 400)).toBeCloseTo(200, 5);
-    expect(briefViewShift(34.5, 400)).toBe(400);
-    expect(briefViewShift(45, 400)).toBe(400);
-    d().start(plan, "b");
-    render(<DevsimOverlay viewport={vp} />);
-    at(20);
-    expect(d().viewShiftPx).toBe(0);
-    at(40);
-    // jsdom has no layout: the estimated brief width is used
-    expect(d().viewShiftPx).toBe(416);
-    at(10);
-    expect(d().viewShiftPx).toBe(0);
+  it("publishes the map area its overlays leave clear: left of the brief from 33 s, right of the left stack (V2 B-a)", () => {
+    // jsdom has no layout: the stage, the left stack and the brief get boxes by their markers
+    const boxes: [string, { x: number; y: number; w: number; h: number }][] = [
+      ['[data-testid="stage"]', { x: 0, y: 0, w: 1000, h: 800 }],
+      ['[data-testid="devsim-overlay"]', { x: 16, y: 16, w: 440, h: 480 }],
+      ['[data-devsim="brief"]', { x: 584, y: 0, w: 416, h: 800 }],
+      ['[data-devsim="bars"]', { x: 120, y: 600, w: 672, h: 150 }],
+    ];
+    const spy = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      const b = boxes.find(([sel]) => this.matches(sel))?.[1] ?? { x: 0, y: 0, w: 0, h: 0 };
+      return {
+        x: b.x,
+        y: b.y,
+        left: b.x,
+        top: b.y,
+        width: b.w,
+        height: b.h,
+        right: b.x + b.w,
+        bottom: b.y + b.h,
+        toJSON: () => b,
+      } as DOMRect;
+    });
+    try {
+      d().start(plan, "b");
+      const stage = { current: null as HTMLDivElement | null };
+      render(
+        <>
+          <div
+            data-testid="stage"
+            ref={(el) => {
+              stage.current = el;
+            }}
+          />
+          <TopStack />
+        </>,
+      );
+      const { unmount } = render(<DevsimOverlay viewport={vp} stageRef={stage} />);
+      at(7);
+      // before the brief: right of the left stack, above the bars
+      expect(d().clear).toEqual({ x: 456, y: 0, w: 544, h: 600 });
+      at(40);
+      // the brief (jsdom: its marker box) takes the right; the clear area is left of it
+      const c = d().clear as { x: number; y: number; w: number; h: number };
+      expect(c.x + c.w).toBeLessThanOrEqual(584);
+      unmount();
+      expect(d().clear).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("playback bar: pause, play, restart, scrub, close", () => {

@@ -354,6 +354,11 @@ export interface SplitCam {
 export interface SplitView {
   left: SplitCam;
   right: SplitCam;
+  /**
+   * Called before each half is drawn ("left", "right") and with null once both are: a layer can
+   * draw differently per half (the compare draws each half's own route on top, V2 fix N-a).
+   */
+  beforeSide?(side: "left" | "right" | null): void;
 }
 
 /**
@@ -374,6 +379,13 @@ export interface DrivenCamera {
    * clock (the Development Simulation's seek) pins it.
    */
   fovDeg?: number;
+  /**
+   * The projection window's offset (CSS px, `camera.setViewOffset` x and y) to render with, in
+   * place of the side panel's: a point the driver projects at (x, y) without it is drawn at
+   * (x - dx, y - dy). The Development Simulation frames its subject in the map area its overlays
+   * leave clear (V2 fix B-a). Without it the panel's offset applies.
+   */
+  viewOffset?: readonly [number, number];
 }
 export type CameraDriver = (
   now: number,
@@ -1604,6 +1616,8 @@ function build(
   let driving = false;
   /** The driver's pinned fov (DrivenCamera.fovDeg), or null: the rig's. */
   let drivenFov: number | null = null;
+  /** The driver's view offset (DrivenCamera.viewOffset), or null: the panel's. */
+  let drivenOffset: [number, number] | null = null;
   const _cur = {
     position: [0, 0, 0] as [number, number, number],
     look: [0, 0, 0] as [number, number, number],
@@ -1621,6 +1635,14 @@ function build(
       pose = driver(now, _cur);
     }
     drivenFov = pose?.fovDeg ?? null;
+    const off = pose?.viewOffset ?? null;
+    if (
+      (off === null) !== (drivenOffset === null) ||
+      (off && drivenOffset && (off[0] !== drivenOffset[0] || off[1] !== drivenOffset[1]))
+    ) {
+      drivenOffset = off ? [off[0], off[1]] : null;
+      applyViewOffset();
+    }
     if (!pose) {
       if (driving) {
         driving = false;
@@ -1736,6 +1758,7 @@ function build(
     renderer.setScissorTest(true);
     try {
       for (const side of ["left", "right"] as const) {
+        sv.beforeSide?.(side);
         const c = sv[side];
         const s = l[side];
         camera.position.copy(c.camera.position);
@@ -1755,6 +1778,7 @@ function build(
         renderComposer();
       }
     } finally {
+      sv.beforeSide?.(null);
       if (aoPass) aoPass.enabled = aoOn;
       if (bokehPass) bokehPass.enabled = dofOn;
       renderer.setScissorTest(false);
@@ -1957,7 +1981,8 @@ function build(
   const applyViewOffset = () => {
     const [w, h] = size;
     camera.aspect = w / h;
-    if (panelPx > 0) camera.setViewOffset(...viewOffsetFor(w, h, panelPx));
+    if (drivenOffset) camera.setViewOffset(w, h, drivenOffset[0], drivenOffset[1], w, h);
+    else if (panelPx > 0) camera.setViewOffset(...viewOffsetFor(w, h, panelPx));
     else camera.clearViewOffset();
     camera.updateProjectionMatrix();
   };

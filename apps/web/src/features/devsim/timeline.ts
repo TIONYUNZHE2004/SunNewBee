@@ -401,6 +401,34 @@ export function cameraAt(
   };
 }
 
+/** 1 for a key that frames the site (the site, or a blend with it), else 0 (a person, the door). */
+const siteKey = (k: CamKey): number => {
+  const a = k.targetAnchor;
+  if (a === "site") return 1;
+  if (typeof a === "object" && "lerp" in a)
+    return a.lerp[0] === "site" || a.lerp[1] === "site" ? 1 : 0;
+  return 0;
+};
+
+/**
+ * How much the camera at t frames the site (0..1, V2 fix B-a): 1 on keys aimed at the site or a
+ * blend with it (the hoarding and Halim's detour, the tower, the Daily Life wide shot), 0 on keys
+ * aimed at a person or the door (Farid, the move-in), eased between keys exactly as `cameraAt`
+ * moves the camera, so the framing never jumps.
+ */
+export function cameraSiteWeight(
+  t: number,
+  plan: DevelopmentPlan,
+  keys: readonly CamKey[] = isBuildPlan(plan) ? BUILD_CAM_KEYS : CAM_KEYS,
+): number {
+  let i = 0;
+  while (i < keys.length - 2 && t > (keys[i + 1] as CamKey).t) i++;
+  const a = keys[i] as CamKey;
+  const b = keys[i + 1] as CamKey;
+  const u = b.cut ? (t >= b.t ? 1 : 0) : ease(span(t, a.t, b.t));
+  return siteKey(a) + (siteKey(b) - siteKey(a)) * u;
+}
+
 // ---------- the 45 s building timeline (demo polish §6.3) ----------
 
 /** True for the 45 s building plan (C7): it carries the schedule and its month keys. */
@@ -428,16 +456,14 @@ export const BUILD_T = {
   litDaily: 0.95,
   /** The Impact Brief slides in (and the residents button appears). */
   brief: 33,
-  /** The camera's view shifts left of the brief over this long. */
-  briefShiftS: 1.5,
 } as const;
 
 /**
  * Camera keyframes for the 45 s plan (the 66 s cut's subjects, retimed to §6.3): the Brief
  * overview, the hoarding and Halim's detour, the lorry route and the Raya hold from the south-west,
  * Farid beside the tower (waypoint in, cut out, F3), the monsoon stretch, the topped-out tower, the
- * move-in at the door, and the Daily Life wide shot the Impact Brief sits beside (the engine's view
- * offset moves the tower left of the panel from `BUILD_T.brief`).
+ * move-in at the door, and the Daily Life wide shot the Impact Brief sits beside (the renderer
+ * frames each beat's subject in the map area the overlays leave clear: `cameraSiteWeight`).
  */
 export const BUILD_CAM_KEYS: readonly CamKey[] = [
   { t: 0, targetAnchor: "site", h: 0, offset: [-200, -520, 520] },

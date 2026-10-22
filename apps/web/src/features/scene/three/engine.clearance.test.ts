@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import * as THREE from "three";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Pose } from "./cameraRig";
 import { poseToCamera } from "./cameraRig";
@@ -322,6 +323,33 @@ describe("camera driver (D-T5 follow camera)", () => {
     for (let i = 0; i < 60; i++) frame();
     expect(e.cameraDriven?.()).toBe(false);
     expect(cam.position.y).toBeGreaterThanOrEqual(102 - 1e-6);
+    e.setCameraDriver?.(null);
+    e.dispose();
+  });
+
+  it("a driven view offset replaces the panel's while it drives, and the panel's comes back after (V2 B-a)", async () => {
+    const { e, frame } = await setup();
+    e.setViewOffset(200);
+    let pose: {
+      position: [number, number, number];
+      look: [number, number, number];
+      viewOffset?: readonly [number, number];
+    } | null = { position: [10, 50, 30], look: [0, 1, 0], viewOffset: [-120, 40] };
+    e.setCameraDriver?.(() => pose);
+    frame();
+    const cam = e.pickView().camera as THREE.PerspectiveCamera;
+    const [w, h] = e.pickView().size;
+    expect(cam.view?.enabled).toBe(true);
+    expect([cam.view?.offsetX, cam.view?.offsetY]).toEqual([-120, 40]);
+    expect([cam.view?.fullWidth, cam.view?.fullHeight]).toEqual([w, h]);
+    // the look point is drawn shifted by the offset: right by 120 px and up by 40 px
+    const p = new THREE.Vector3(0, 1, 0).project(cam);
+    expect(((p.x + 1) / 2) * w).toBeCloseTo(w / 2 + 120, 3);
+    expect(((1 - p.y) / 2) * h).toBeCloseTo(h / 2 - 40, 3);
+    pose = null;
+    e.requestRender();
+    frame();
+    expect([cam.view?.offsetX, cam.view?.offsetY]).toEqual([100, 0]);
     e.setCameraDriver?.(null);
     e.dispose();
   });

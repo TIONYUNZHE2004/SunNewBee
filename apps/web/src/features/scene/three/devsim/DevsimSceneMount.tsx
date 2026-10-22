@@ -2,7 +2,9 @@ import { type RefObject, useEffect, useState } from "react";
 import { registerDemoState } from "../../../demo/demoHook";
 import { registerProbe } from "../../../devsim/anchors";
 import { useDevsim } from "../../../devsim/devsimStore";
+import { cameraSiteWeight } from "../../../devsim/timeline";
 import type { DevelopmentPlan } from "../../../devsim/types";
+import { projectToScreen } from "../../../journey/three/project";
 import type { Tier } from "../../shared/quality";
 import { type Road, roadsFromWalk } from "../../shared/roads";
 import type { RoleUniforms } from "../assets/roleMaterial";
@@ -17,7 +19,13 @@ import type { LoadedAssets } from "../scene/useCityAssets";
 import { type Cast, createCast } from "./cast";
 import { devDemoRequested, startDevDemo } from "./devDemo";
 import { createDevsimLayer, type DevsimLayer } from "./devsimLayer";
-import { devsimCamera, devsimCameraDriver } from "./devsimView";
+import {
+  devsimCamera,
+  devsimCameraDriver,
+  framingOffset,
+  glideRect,
+  type ScreenRect,
+} from "./devsimView";
 import { createMoveIn } from "./moveIn";
 import { createPilingRig } from "./pilingRig";
 import { createRain } from "./rain";
@@ -195,11 +203,42 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
       });
     };
     applyFlow();
-    // The devsim camera (§4.4 beats from StateAt.camera), clamped out of every building (Q2).
+    // The devsim camera (§4.4 beats from StateAt.camera), clamped out of every building (Q2),
+    // and framed in the map area the overlays leave clear (V2 fix B-a): the site (hoarding, tower)
+    // or the beat's person sits in the clear area, never under the left stack, the brief or bars.
+    const siteAt = (): [number, number, number] => [
+      l.geom.centre[0],
+      Math.max(4, l.towerTopM() / 2),
+      l.geom.centre[1],
+    ];
+    let clear: ScreenRect | null = null;
+    let clearAt = 0;
     const driver: CameraDriver = devsimCameraDriver({
       state: () => l.state(),
       pose: (st) => devsimCamera(st, frame, l.geom, l.towerTopM(), engine.clearance?.() ?? null),
       playing: () => useDevsim.getState().playing,
+      frame: (_st, pose, now) => {
+        const d = useDevsim.getState();
+        clear = glideRect(clear, d.clear, now - clearAt, d.playing);
+        clearAt = now;
+        const off = framingOffset({
+          pose,
+          size: engine.pickView().size,
+          clear,
+          site: siteAt(),
+          siteWeight: cameraSiteWeight(d.t, plan),
+        });
+        const x = off ? Math.round(off[0]) : 0;
+        if (x !== d.viewShiftPx) d.setViewShift(x);
+        return off;
+      },
+    });
+    // where the site is drawn now (CSS px of the map stage), for the demo hook (V2 fix B-a)
+    let siteScreen: { x: number; y: number } | null = null;
+    const offSite = engine.onFrame(() => {
+      const v = engine.pickView();
+      v.camera.updateMatrixWorld();
+      siteScreen = projectToScreen(v.camera, siteAt(), v.size);
     });
     const clock = () => flowSeconds(useDevsim.getState().t, plan);
     engine.setCameraDriver?.(driver);
@@ -213,12 +252,17 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
     });
     const unprobe = registerProbe("scene", () => l.probe());
     // `window.__tl.demo.state()` ("bld"): crane, rain, rig, lorries, scaffold (AC-W3/W4)
-    const undemo = registerDemoState("bld", () => l.demoState());
+    const undemo = registerDemoState("bld", () => ({
+      ...l.demoState(),
+      siteScreen,
+      clearRect: useDevsim.getState().clear,
+    }));
     // dev builds: the layer for console inspection (QA and lane debugging)
     const w = window as unknown as { __devsimLayer?: DevsimLayer };
     if (import.meta.env.DEV) w.__devsimLayer = l;
     return () => {
       unsub();
+      offSite();
       unprobe();
       undemo();
       if (w.__devsimLayer === l) delete w.__devsimLayer;
