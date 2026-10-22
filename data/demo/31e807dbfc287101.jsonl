@@ -1,4 +1,4 @@
-{"meta": {"message": "In the storm rehearsal, what happens to my trip from Car Park B to SK Denai Alam by car leaving at 7:30?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "0a3f0af6cb4dc96ba512a32836d67d05da5ec44c88a10af9dcb95c279ce73f6d", "model": "mock-scripted", "recorded_at": "2026-10-22T03:55:02+00:00"}}
+{"meta": {"message": "In the storm rehearsal, what happens to my trip from Car Park B to SK Denai Alam by car leaving at 7:30?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "b673b1615b4d98e72e9a86b8e253a82822fb444cb16fe33aea948fff4081f69f", "model": "mock-scripted", "recorded_at": "2026-10-22T06:48:03+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "sk denai alam", "types": null, "limit": 5, "near_place": null}}
