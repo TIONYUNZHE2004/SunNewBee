@@ -1,0 +1,22 @@
+{
+  "head": "6a335a86",
+  "terrain_edge_classes": {
+    "possible": 515
+  },
+  "terrain_place_classes": {
+    "possible": 6
+  },
+  "polygon_classes": {
+    "possible": 235
+  },
+  "polygon_count": 235,
+  "coverage_gaps": 1123,
+  "public_numeric_depth_fields": [],
+  "combined_river_likely_preserved": true,
+  "ignored_border_probe": {
+    "place_id": "park-b",
+    "coord": [101.509, 3.181],
+    "gap": null,
+    "endpoint_flood_default": "PASS"
+  }
+}
