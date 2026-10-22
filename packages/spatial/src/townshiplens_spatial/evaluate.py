@@ -133,10 +133,14 @@ def evaluate_flood(
     profile: Profile,
     flood_class: FloodClass | None,
     coverage: str | None = None,
+    *,
+    terrain_only: bool = False,
 ) -> tuple[EvalResult, list[dict]]:
     """The same scenario rules for paths and endpoints. Coverage gaps never imply flooding."""
     if flood_class == "likely_flooded" or (
-        flood_class == "possible" and profile.flood.get("possible_is") == "FAIL"
+        flood_class == "possible"
+        and not terrain_only
+        and profile.flood.get("possible_is") == "FAIL"
     ):
         return "FAIL", [
             {
@@ -154,7 +158,9 @@ def evaluate_flood(
             {
                 "element_id": element_id,
                 "attribute": "flood",
-                "why": "possibly flooded in this scenario",
+                "why": "low-lying terrain may collect water (indicative)"
+                if terrain_only
+                else "possibly flooded in this scenario",
             }
         )
     if coverage:
@@ -176,6 +182,8 @@ def evaluate_edge(
     today: date | None = None,
     now: datetime | None = None,
     flood_coverage: str | None = None,
+    *,
+    terrain_only: bool = False,
 ) -> tuple[EvalResult, list[dict]]:
     today = today or date.today()
     why: list[dict] = []
@@ -237,7 +245,9 @@ def evaluate_edge(
                 "why": "OSM smoothness=impassable; no positive access estimate is permitted",
             }
         ]
-    flood_result, flood_why = evaluate_flood(edge.id, profile, flood_class, flood_coverage)
+    flood_result, flood_why = evaluate_flood(
+        edge.id, profile, flood_class, flood_coverage, terrain_only=terrain_only
+    )
     if flood_result == "FAIL":
         return flood_result, flood_why
     # profile.max_rest_free_run_m is a path property, enforced by routing._rest_search.

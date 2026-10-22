@@ -1,0 +1,52 @@
+         38440186 function calls (36359324 primitive calls) in 15.600 seconds
+
+   Ordered by: cumulative time
+   List reduced from 625 to 14 due to restriction <14>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.027    0.027   15.600   15.600 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/marathon.py:353(simulate_marathon)
+        1    0.012    0.012    8.875    8.875 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/events.py:453(_simulate)
+      407    0.001    0.000    6.014    0.015 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/twm.py:367(_state)
+      407    0.051    0.000    6.007    0.015 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/routing.py:1026(plan_route)
+      407    0.003    0.000    5.918    0.015 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/routing.py:1093(_plan)
+        4    0.001    0.000    5.505    1.376 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/events.py:239(_baseline)
+      407    0.178    0.000    5.084    0.012 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/routing.py:1168(_passes)
+      814    1.161    0.001    4.906    0.006 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/routing.py:477(_search)
+   433502    0.421    0.000    4.434    0.000 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/routing.py:449(weight)
+        3    0.008    0.003    4.404    1.468 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/twm.py:393(rollout)
+        1    0.011    0.011    4.373    4.373 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/marathon.py:169(plan_course)
+        1    0.032    0.032    4.347    4.347 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/marathon.py:207(_plan_course)
+        3    0.017    0.006    3.558    1.186 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/events.py:432(_frozen_baseline)
+   424374    0.463    0.000    3.550    0.000 /workspace/SunNewBee/packages/spatial/src/townshiplens_spatial/routing.py:373(_edge_cost)
+
+
+{
+  "course_m": 5102.7,
+  "repeated_m": 1429.3,
+  "repeated_share": 0.2801085699727595,
+  "root": "n-31790093_1015143248",
+  "degree": 3,
+  "root_bridges": [],
+  "cutoff": [
+    [
+      "Waste Basket (unnamed, OSM)",
+      "waste_basket"
+    ],
+    [
+      "Seating (unnamed, OSM)",
+      "seating"
+    ],
+    [
+      "Park (unnamed, OSM)",
+      "park"
+    ],
+    [
+      "Shelter (unnamed, OSM)",
+      "shelter"
+    ],
+    [
+      "Shelter (unnamed, OSM)",
+      "shelter"
+    ]
+  ]
+}

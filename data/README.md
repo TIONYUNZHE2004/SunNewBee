@@ -511,3 +511,14 @@ Rainfall amounts are not modelled. Enclosed surface-model depressions are only p
 collection areas, not predicted inundation. Unmarked areas are not proof of absence.
 Public-report validation and blocked searches belong in `data/audits/`; do not tune to
 one report or describe inaccessible sources as checked.
+
+### Static closure labels (Task 2)
+
+After changing seed walk geometry or road names, run
+`uv run python data/scripts/build_closure_labels.py`. This offline command writes
+`data/seed/elmina/base/closure_labels.json`; commit generated data separately. Labels
+are derived from mapped names, direction and measured path length, not surveyed road
+names. The optional index carries a rules version and a source fingerprint covering
+edge ids, names, lengths, endpoints and coordinates. Runtime rejects a stale index
+and recomputes it. Cold marathon benchmarks include index loading and validation,
+with seed loading reported separately; no warmed route/course cache is required.

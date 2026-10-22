@@ -21,6 +21,7 @@ Honesty rules:
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import hashlib
 import json
@@ -364,11 +365,16 @@ def _evac_state(world: World, j: Journey, scenario_id: str | None, imagined: boo
     return RouteState(status=status, whatif=imagined)
 
 
-def _state(world: World, j: Journey, scenario_id: str | None, imagined: bool) -> RouteState:
+def _state(
+    world: World, j: Journey, scenario_id: str | None, imagined: bool, *, summary=False
+) -> RouteState:
     if j.to_id == NEAREST_CENTRE:
         return _evac_state(world, j, scenario_id, imagined)
-    rr = plan_route(world, j.from_id, j.to_id, j.profile, scenario_id)
-    return _route_state(world, rr, j.to_id, imagined)
+    from .routing import _route_summaries
+
+    with _route_summaries() if summary else contextlib.nullcontext():
+        rr = plan_route(world, j.from_id, j.to_id, j.profile, scenario_id)
+        return _route_state(world, rr, j.to_id, imagined)
 
 
 def suite_journeys(world: World, profile: str) -> list[Journey]:
@@ -391,9 +397,16 @@ def evacuation_journeys(world: World, profile: str, n: int | None = None) -> lis
 
 
 def rollout(
-    world: World, scenario_id: str | None, journeys: list[Journey], imagined: bool = False
+    world: World,
+    scenario_id: str | None,
+    journeys: list[Journey],
+    imagined: bool = False,
+    *,
+    summaries=False,
 ) -> list[RouteState]:
-    return [_state(world, j, scenario_id, imagined) for j in journeys[:MAX_JOURNEYS]]
+    return [
+        _state(world, j, scenario_id, imagined, summary=summaries) for j in journeys[:MAX_JOURNEYS]
+    ]
 
 
 def _counts(states: list[tuple[Journey, RouteState]]) -> dict[str, dict[str, int]]:

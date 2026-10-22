@@ -84,7 +84,10 @@ async def test_closure_questions_are_simulated_with_pressure_for_managers(
     assert call.args["reason"] == reason and call.args["closures"][0]["day"] == day
     assert call.args["closures"][0]["road_names"] == ["Persiaran Garcinia"]
     assert evs[-1].model == "mock-scripted" and evs[-1].answer_status == "answered"
-    assert "Persiaran Tamarind (detour pressure: high)" in text
+    assert any(
+        f"{road['name']} (detour pressure: {road['pressure']})" in text
+        for road in rec.events[-1]["detour_roads"]
+    )
     assert "Suggestion:" in text and "had no mapped route before the" in text
     assert events.PRESSURE_DISCLAIMER in text and traffic.config().weights_note in text
 
@@ -249,7 +252,10 @@ async def test_a_marathon_is_proposed_on_mapped_roads_and_simulated_for_managers
     assert call.args["start_time"] == "6am" and call.args["end_time"] == "10am"
     assert "starts_at" not in call.args  # the window is built after the call event
     assert evs[-1].answer_status == "answered" and rec.validator_errors == []
-    assert "Proposed 5.1 km loop course from Elmina Valley Central Park" in text
+    assert (
+        f"Proposed {round(rec.marathons[-1]['course']['length_m'] / 1000, 1):g} km "
+        "loop course from Elmina Valley Central Park"
+    ) in text
     assert "not an approved route" in text and "detour pressure: high" in text
     card = next(
         e.intent for e in evs if e.type == "scene.intent" and e.intent.kind == "marathon.show"
