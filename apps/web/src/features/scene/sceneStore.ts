@@ -68,6 +68,13 @@ export interface SceneState {
   /** A closure answer's map lines; `marathon` (T-031) adds the proposed course's dressing. */
   closureSim: { result: ClosureImpact; roads?: string[]; marathon?: MarathonResult } | null;
   setClosureSim: (c: SceneState["closureSim"]) => void;
+  /**
+   * The Stylised city's decorative moving cars (T-031). A scenario playback that plays its own cars
+   * (the marathon, the flood) sets it false on start and true on close: the ambient cars fade out
+   * and stay hidden meanwhile. Shared: every playback uses this one switch.
+   */
+  ambientTraffic: boolean;
+  setAmbientTraffic: (on: boolean) => void;
   /** Rising-river rollout playback: synthetic residents on the map (simulation, not a forecast). */
   rollout: { on: boolean; stage: number; playing: boolean };
   setRollout: (r: Partial<SceneState["rollout"]>) => void;
@@ -150,6 +157,7 @@ const initial = {
   route: null as SceneState["route"],
   whatIf: null as SceneState["whatIf"],
   closureSim: null as SceneState["closureSim"],
+  ambientTraffic: true,
   myTrip: null as SceneState["myTrip"],
   rollout: { on: false, stage: 0, playing: false } as SceneState["rollout"],
   day: {
@@ -480,6 +488,7 @@ export const useScene = create<SceneState>((set) => ({
   },
   clearWhatIf: () => set({ whatIf: null }),
   setClosureSim: (closureSim) => set({ closureSim }),
+  setAmbientTraffic: (ambientTraffic) => set({ ambientTraffic }),
   setRollout: (r) => set((s) => ({ rollout: { ...s.rollout, ...r } })),
   setDay: (d) => set((s) => ({ day: { ...s.day, ...d } })),
   setMyTrip: (geojson) => set({ myTrip: geojson ? { geojson } : null }),
