@@ -1,6 +1,6 @@
-{"meta": {"message": "Which routes to the lakeside mall are cut off if the water rises 3 m?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "world_fingerprint": "6d398a6cd4623236e419aa0298ca2f7c9685a41c89b119b0bfe793f55ab1079d", "model": "mock-scripted", "recorded_at": "2026-10-22T01:46:01+00:00"}}
+{"meta": {"message": "Which routes to the lakeside mall are cut off if the water rises 3 m?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "world_fingerprint": "2c927b026fe49668b70a67bfe02f2630e6f5d848f03be03103df4d4e11f4c8c1", "model": "mock-scripted", "recorded_at": "2026-10-22T02:14:06+00:00"}}
 {"type": "tool.call", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "args": {}}
-{"type": "tool.result", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "summary": "4 result(s)"}
+{"type": "tool.result", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "summary": "8 result(s)"}
 {"type": "tool.call", "id": "affected_places-1", "name": "affected_places", "args": {"scenario_id": "stage_p3m", "kind": "all", "profile": "default"}}
 {"type": "tool.result", "id": "affected_places-1", "name": "affected_places", "summary": "19 places and 1360 paths likely, 6 places and 464 paths possible"}
 {"type": "answer.draft", "attempt": 1, "delta": "In the River +3 m indicative scenario, 19 places and 1360 path segments are likely flooded, and 6 places and 464 path segments possibly."}
