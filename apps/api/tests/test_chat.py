@@ -56,6 +56,16 @@ def test_chat_rejects_bad_scenario_id():
     assert c.post("/chat", json=bad).status_code == 422
 
 
+def test_chat_accepts_low_lying_scenario_ids():
+    c = TestClient(app)
+    for sid in ("lowlying", "stage_p3m+lowlying"):
+        body = {"message": "Which places are cut off?", "scenario_id": sid}
+        with c.stream("POST", "/chat", json=body) as r:
+            assert r.status_code == 200
+            names = [ln[7:] for ln in r.iter_lines() if ln.startswith("event: ")]
+        assert names[-1] == "done"
+
+
 def test_assistant_scope_defaults_to_access_and_flood(monkeypatch):
     monkeypatch.setenv("ASSISTANT_SCOPE", "access_flood")
     assert TestClient(app).get("/assistant/scope").json() == {"scope": "access_flood"}
