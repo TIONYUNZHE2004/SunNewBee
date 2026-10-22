@@ -1,6 +1,6 @@
 # T-028 Marathon engine: AI proposes a course, manager edits, simulation on the map
 
-- **Status:** assigned · **Owner:** cloud Codex (backend: packages/spatial, apps/api, data) + cloud Claude (agent + web) · **Priority:** P1 (demo 23 Oct)
+- **Status:** done · **Owner:** cloud Codex (backend: packages/spatial, apps/api, data) + cloud Claude (agent + web) · **Priority:** P1 (demo 23 Oct)
 - **Source:** Yunzhe, 22 Oct 00:50 MYT: "focus on the marathon engine … management asks: I want to host a marathon, on which road? which part is affected? … see the simulation … show the road names on the map … frontend like shaoxian's". Decisions: AI proposes the course and the manager edits it; no form card to fill in.
 
 ## Demo story
@@ -38,3 +38,4 @@ Course is a proposal, not approved. Pressure is from mapped road class and sampl
 ## Log
 - 2026-10-21 17:10 UTC · control · Created from Yunzhe's decisions (AI proposes + manager edits; @codex PR comments wake Codex; Codex builds, Claude judges).
 - 2026-10-22 01:40 UTC · control · Roles swapped (Yunzhe): Codex builds the marathon engine, cloud Claude audits it; cloud Claude builds the flood low-lying layer (its container reaches the Copernicus DEM; Codex got proxy 403), Codex audits it. Decision: low-lying terrain is UNKNOWN for every profile, driving included (option A). Overnight 21→22 Oct: Codex delivered T-028 backend 1–6 and the T-029 method on PR #29; cloud Claude hit its usage limit at 17:50 UTC and did nothing until 01:35 UTC.
+- 2026-10-22 13:40 UTC · control · Done. Squash-merged to main as #37 (a66f32f), CI green; main (shaoxian demo polish) merged into davinci first, both sides kept. Integration run on the seed (mock) passed. Open: live-AI smoke and a browser click-through by Yunzhe; closure_labels.json has 4 labels 'near .'; compact JSON after the demo.

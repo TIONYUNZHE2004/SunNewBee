@@ -1,6 +1,6 @@
 # T-029 Flood: river rise plus low-lying areas that collect water
 
-- **Status:** assigned · **Owner:** cloud Codex (builds) · cloud Claude (judge) · **Priority:** P1
+- **Status:** done · **Owner:** cloud Codex (builds) · cloud Claude (judge) · **Priority:** P1
 - **Source:** Yunzhe, 22 Oct: "estimate … not only the river, which part of the area with lower geography will be flooded … one engineer judges and asks questions, the other solves; keep them interacting". Decision: river +1/+2/+3 m stays; add low-lying areas from the same DEM, labelled indicative.
 
 ## Build (Codex)
@@ -18,3 +18,4 @@
 ## Log
 - 2026-10-21 17:10 UTC · control · Created from Yunzhe's decisions.
 - 2026-10-22 01:40 UTC · control · Roles swapped (Yunzhe): Codex builds the marathon engine, cloud Claude audits it; cloud Claude builds the flood low-lying layer (its container reaches the Copernicus DEM; Codex got proxy 403), Codex audits it. Decision: low-lying terrain is UNKNOWN for every profile, driving included (option A). Overnight 21→22 Oct: Codex delivered T-028 backend 1–6 and the T-029 method on PR #29; cloud Claude hit its usage limit at 17:50 UTC and did nothing until 01:35 UTC.
+- 2026-10-22 13:40 UTC · control · Done. Squash-merged to main as #37 (a66f32f), CI green; main (shaoxian demo polish) merged into davinci first, both sides kept. Integration run on the seed (mock) passed. Open: live-AI smoke and a browser click-through by Yunzhe; closure_labels.json has 4 labels 'near .'; compact JSON after the demo.
