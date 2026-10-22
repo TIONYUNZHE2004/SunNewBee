@@ -12,11 +12,13 @@ import { CompareOverlay } from "./CompareOverlay";
 import {
   GREETINGS,
   greetingFor,
+  poiTag,
   reasonRows,
   SIMULATED_RESIDENT,
   toastText,
   uncheckedTagText,
 } from "./copy";
+import { stackTags, tagSizeEstimate } from "./PoiTag";
 
 vi.mock("../../scene/useMapStyle", async (orig) => ({
   ...(await orig<typeof import("../../scene/useMapStyle")>()),
@@ -120,6 +122,37 @@ describe("tags from pois (AC-N4)", () => {
     );
     expect(beat("tag-kerb")?.style.left).toBe("410px");
     expect(beat("tag-kerb")?.style.top).toBe("220px");
+  });
+
+  it("two anchored tags on top of each other stack, neither covers the other (R28 kerb + covered)", () => {
+    const c = handCompare();
+    show(c);
+    const w = (id: string) => compareTimelineOf(c).beats.find((b) => b.id === id);
+    const k = w("tag-kerb");
+    const v = w("tag-covered");
+    expect(k && v).toBeTruthy();
+    const t = Math.max(k?.t0 ?? 0, v?.t0 ?? 0) + 0.1;
+    expect(t).toBeLessThan(Math.min(k?.t1 ?? 0, v?.t1 ?? 0));
+    at(t);
+    act(() =>
+      useCompare.getState().setScreen({
+        ...EMPTY_SCREEN,
+        pois: { "tag-kerb": { x: 410, y: 300 }, "tag-covered": { x: 430, y: 305 } },
+      }),
+    );
+    const kerb = beat("tag-kerb") as HTMLElement;
+    const cov = beat("tag-covered") as HTMLElement;
+    expect(kerb.style.top).toBe("300px"); // the first stays on its point
+    expect(kerb.dataset.lift).toBeUndefined();
+    const lift = Number(cov.dataset.lift);
+    expect(lift).toBeGreaterThan(0);
+    expect(cov.style.top).toBe(`${305 - lift}px`);
+    // the covered tag's box (lifted) ends above the kerb tag's box top
+    const kerbSize = tagSizeEstimate(poiCopy(c, "tag-kerb"));
+    const covSize = tagSizeEstimate(poiCopy(c, "tag-covered"));
+    const kerbTop = 300 - 12 - kerbSize.h;
+    expect(305 - lift - 12).toBeLessThanOrEqual(kerbTop);
+    expect(covSize.h).toBeGreaterThan(0);
   });
 
   it("every beat with an element shows at its midpoint and is gone 0.5 s outside (AC-N3 ids)", () => {
@@ -354,5 +387,41 @@ describe("frame driver lives with the overlay (review minor 5)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+/** The copy a beat's POI tag shows (`poiTag` on the beat's poi index). */
+function poiCopy(c: CompareIntent, id: string) {
+  const b = compareTimelineOf(c).beats.find((x) => x.id === id);
+  return poiTag(c, b?.poi as number) ?? { key: "", text: "", tone: "ok" as const };
+}
+
+describe("stackTags (pure)", () => {
+  const size = { w: 200, h: 30 };
+  it("leaves apart tags alone and lifts a later overlapping one above the first", () => {
+    expect(
+      stackTags([
+        { id: "a", at: { x: 100, y: 300 }, size },
+        { id: "b", at: { x: 600, y: 300 }, size },
+      ]),
+    ).toEqual({ a: 0, b: 0 });
+    const l = stackTags([
+      { id: "a", at: { x: 100, y: 300 }, size },
+      { id: "b", at: { x: 120, y: 300 }, size },
+      { id: "c", at: { x: 110, y: 302 }, size },
+    ]);
+    expect(l.a).toBe(0);
+    expect(l.b).toBe(36); // 30 high + 6 gap
+    expect(l.c).toBe(74); // above b: 300-42-6-30 = 222 top; base 302-42 = 260
+  });
+  it("stacks below when there is no room above", () => {
+    const l = stackTags(
+      [
+        { id: "a", at: { x: 100, y: 50 }, size },
+        { id: "b", at: { x: 120, y: 50 }, size },
+      ],
+      0,
+    );
+    expect(l.b).toBe(-36); // under the first (8 + 30 + 6 = 44 top) instead of off the top
   });
 });

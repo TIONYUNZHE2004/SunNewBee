@@ -35,11 +35,15 @@ const BELOW = BUBBLE_BELOW;
  */
 function AnchoredBubble({
   b,
+  anchor,
   keepClear,
   viewport,
   onPlaced,
 }: {
   b: BubbleView;
+  /** The bubble's own speaker and name tag (it points at these). */
+  anchor: Rect[];
+  /** Everything it keeps off: its speaker, the other speakers and listeners. */
   keepClear: Rect[];
   viewport: CardViewport;
   /** The bubble's centre once placed (the envelope leaves from there). */
@@ -61,7 +65,7 @@ function AnchoredBubble({
       setSize({ w, h });
   });
   const prev = last.current;
-  const target = placeBubbleBox(keepClear, size, viewport, playing ? prev?.box.side : null);
+  const target = placeBubbleBox(keepClear, size, viewport, playing ? prev?.box.side : null, anchor);
   const box =
     prev && prev.t === t && playing
       ? prev.box // a re-render within the same frame (new anchors): the next frame glides
@@ -86,11 +90,52 @@ export function bubbleViews(plan: DevelopmentPlan, t: number): BubbleView[] {
     const tone = plan.bubbles.find((x) => x.n === b.n)?.tone ?? "pos";
     return {
       n: b.n,
+      who: b.who,
       text: b.text,
       tag: b.tag,
       tone,
       speaker: { name: c?.name ?? b.who, role: c?.role, colour: c?.colour ?? "#888888" },
     };
+  });
+}
+
+/** A speaker's screen anchor from the 3D view. */
+export interface SpeakerAnchor {
+  id: string;
+  rect: Rect;
+  head: readonly [number, number] | null;
+}
+
+/**
+ * Pure: each bubble with its own speaker's anchor (`speakers`, else the first bubble's `speaker`
+ * rect for its speaker), and the boxes it keeps clear: its speaker, every other speaker and the
+ * listeners (`others`). A bubble whose speaker is not drawn has no anchor (it goes to the stack).
+ */
+export function anchorBubbles(
+  views: readonly BubbleView[],
+  a: {
+    speaker: Rect | null;
+    speakerHead: readonly [number, number] | null;
+    speakers?: readonly SpeakerAnchor[];
+    others: readonly SpeakerAnchor[];
+  },
+  nameOf: (id: string) => string,
+): { b: BubbleView; anchor: Rect[] | null; keepClear: Rect[] }[] {
+  const own = new Map<string, SpeakerAnchor>();
+  for (const s of a.speakers ?? []) own.set(s.id, s);
+  const first = views[0];
+  if (first && a.speaker && !own.has(first.who))
+    own.set(first.who, { id: first.who, rect: a.speaker, head: a.speakerHead });
+  const boxes = (s: SpeakerAnchor, name: string) => speakerKeepClear(s.rect, s.head, name);
+  const listeners = a.others.filter((o) => !own.has(o.id)).flatMap((o) => boxes(o, nameOf(o.id)));
+  return views.map((b) => {
+    const mine = own.get(b.who);
+    if (!mine) return { b, anchor: null, keepClear: [] };
+    const anchor = boxes(mine, b.speaker.name);
+    const rest = [...own.values()]
+      .filter((s) => s.id !== b.who)
+      .flatMap((s) => boxes(s, nameOf(s.id)));
+    return { b, anchor, keepClear: [...anchor, ...rest, ...listeners] };
   });
 }
 
@@ -169,6 +214,7 @@ export function DevsimOverlay({
   const status = useDevsim((s) => s.status);
   const speakerHead = useDevsimAnchors((s) => s.speakerHead);
   const speakerRect = useDevsimAnchors((s) => s.speaker);
+  const speakers = useDevsimAnchors((s) => s.speakers);
   const others = useDevsimAnchors((s) => s.others);
   const siteLabel = useDevsimAnchors((s) => s.siteLabel);
   const tagPoints = useDevsimAnchors((s) => s.tagPoints);
@@ -205,6 +251,12 @@ export function DevsimOverlay({
       </InSlot>
     );
   const views = bubbleViews(plan, t);
+  const placed = anchorBubbles(
+    views,
+    { speaker: speakerRect, speakerHead, speakers, others },
+    (id) => plan.cast.find((x) => x.id === id)?.name ?? id,
+  );
+  const stacked = placed.filter((p) => !p.anchor).map((p) => p.b);
   const latest = views.at(-1);
   const hud = build ? hudAt(plan, t) : null;
   const banners = build ? bannersAt(plan, t) : [];
@@ -286,35 +338,28 @@ export function DevsimOverlay({
           ))}
         </div>
       )}
-      {speakerRect
-        ? views.map((b) => (
-            <AnchoredBubble
-              key={b.n}
-              b={b}
-              keepClear={[
-                ...speakerKeepClear(speakerRect, speakerHead, b.speaker.name),
-                ...others.flatMap((c) =>
-                  speakerKeepClear(
-                    c.rect,
-                    c.head,
-                    plan.cast.find((x) => x.id === c.id)?.name ?? c.id,
-                  ),
-                ),
-              ]}
-              viewport={viewport}
-            />
-          ))
-        : views.length > 0 && (
-            <div
-              data-testid="devsim-bubble-stack"
-              className="pointer-events-none absolute z-20 flex flex-col items-end gap-2"
-              style={{ top: `${(viewport.top ?? 0) + 12}px`, right: rightOfBars }}
-            >
-              {views.map((b) => (
-                <Bubble key={b.n} b={b} />
-              ))}
-            </div>
-          )}
+      {placed
+        .filter((p) => p.anchor)
+        .map((p) => (
+          <AnchoredBubble
+            key={p.b.n}
+            b={p.b}
+            anchor={p.anchor as Rect[]}
+            keepClear={p.keepClear}
+            viewport={viewport}
+          />
+        ))}
+      {stacked.length > 0 && (
+        <div
+          data-testid="devsim-bubble-stack"
+          className="pointer-events-none absolute z-20 flex flex-col items-end gap-2"
+          style={{ top: `${(viewport.top ?? 0) + 12}px`, right: rightOfBars }}
+        >
+          {stacked.map((b) => (
+            <Bubble key={b.n} b={b} />
+          ))}
+        </div>
+      )}
       {briefOn && (
         <div
           className="pointer-events-none absolute left-4 z-30 flex flex-col justify-end *:pointer-events-auto"

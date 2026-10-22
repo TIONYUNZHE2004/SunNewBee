@@ -242,6 +242,49 @@ describe("DevsimOverlay (45 s building plan)", () => {
     expect(Number.parseFloat(b.style.top)).toBeGreaterThanOrEqual(120);
   });
 
+  it("two bubbles at once each anchor at their own speaker (Zainab and Arjun, 36.5–37 s)", () => {
+    d().start(plan, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    at(36.7);
+    const zainab = { x: 250, y: 420, w: 30, h: 90 };
+    const arjun = { x: 700, y: 420, w: 30, h: 90 };
+    act(() =>
+      useDevsimAnchors.getState().set({
+        speaker: zainab,
+        speakerHead: [265, 420],
+        speakers: [
+          { id: "zainab", rect: zainab, head: [265, 420] },
+          { id: "arjun", rect: arjun, head: [715, 420] },
+        ],
+      }),
+    );
+    const bs = screen.getAllByTestId("devsim-bubble");
+    expect(bs).toHaveLength(2);
+    expect(screen.queryByTestId("devsim-bubble-stack")).toBeNull();
+    const centre = (el: HTMLElement) => Number.parseFloat(el.style.left) + 120;
+    const byName = (name: string) => bs.find((b) => b.textContent?.includes(name)) as HTMLElement;
+    // each bubble is centred over its own speaker, not both at the first speaker
+    expect(Math.abs(centre(byName("Zainab")) - 265)).toBeLessThan(2);
+    expect(Math.abs(centre(byName("Arjun")) - 715)).toBeLessThan(2);
+  });
+
+  it("a second bubble whose speaker is not drawn goes to the stack, not onto the first speaker", () => {
+    d().start(plan, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    at(36.7);
+    const zainab = { x: 250, y: 420, w: 30, h: 90 };
+    act(() =>
+      useDevsimAnchors.getState().set({
+        speaker: zainab,
+        speakerHead: [265, 420],
+        speakers: [{ id: "zainab", rect: zainab, head: [265, 420] }],
+      }),
+    );
+    const stack = screen.getByTestId("devsim-bubble-stack");
+    expect(within(stack).getAllByTestId("devsim-bubble")).toHaveLength(1);
+    expect(stack).toHaveTextContent("Arjun");
+  });
+
   it("from 33 s: the Impact Brief and the residents button (AC-W6, AC-W7); no end card, no feedback envelope", () => {
     d().start(plan, "b");
     render(<DevsimOverlay viewport={vp} />);

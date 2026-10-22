@@ -5,7 +5,7 @@ import type { Manifest } from "../assets/manifest";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import { DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
-import { smallShadows } from "./devsimView";
+import { createShadowFade } from "./devsimView";
 import { ease, span } from "./ease";
 import { along, distToLine, laneAt, lengthOf, type SiteGeom, type XZ } from "./geom";
 import { kitMesh, kitPalettes, place } from "./kit";
@@ -281,7 +281,7 @@ export function createSite(o: SiteOpts): DevsimPart {
   beacon.position.y = CRANE_TOP_M + 0.8;
   craneHead.add(beacon);
   // the swinging load: a sling and a timber bundle under the kit hook (pivot at the hook)
-  let loadBundle: THREE.Mesh | null = null;
+  const loadFade = own(createShadowFade());
   const loadPivot = new THREE.Group();
   loadPivot.name = "devsim-crane-load";
   loadPivot.position.set(HOOK_X, HOOK_Y, 0);
@@ -298,10 +298,10 @@ export function createSite(o: SiteOpts): DevsimPart {
       own(new THREE.BoxGeometry(3.4, 0.9, 1.4).translate(0, -SLING_M - 0.45, 0)),
       own(new THREE.MeshStandardMaterial({ color: DEVSIM_COLOURS.loadTimber, roughness: 0.85 })),
     );
-    // shadows in the close beats only (`smallShadows`, set per frame)
+    // shadows in the close beats only, faded with the camera range (set per frame)
     bundle.castShadow = false;
+    loadFade.attach(bundle);
     loadPivot.add(sling, bundle);
-    loadBundle = bundle;
   }
 
   // cement mixer: the construction kit's model (one LOD node, no separable drum, so it stays
@@ -538,7 +538,7 @@ export function createSite(o: SiteOpts): DevsimPart {
       beacon.visible = s.crane.beaconOn;
       // the load trails the slew (lag) and sways a little along the jib; parked in the Raya hold
       loadPivot.visible = !sp.hold;
-      if (loadBundle) loadBundle.castShadow = smallShadows(s);
+      loadFade.set(s);
       loadPivot.rotation.x = Math.max(-0.4, Math.min(0.4, -sp.crane.vel * 0.35));
       loadPivot.rotation.z = 0.06 * (sp.crane.stopped ? 0.25 : 1) * Math.sin(t * 2.1);
       // the crane sinks by its own height over the same 0.8 s, so it reads as a quick fade

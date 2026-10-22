@@ -22,7 +22,7 @@ import {
   uncheckedTagParts,
 } from "./copy";
 import { GreetingBubble } from "./GreetingBubble";
-import { PoiTag } from "./PoiTag";
+import { PoiTag, stackTags, tagSizeEstimate } from "./PoiTag";
 import { ReasonsCard } from "./ReasonsCard";
 import { TicketFlight } from "./TicketFlight";
 import { TicketsChip } from "./TicketsChip";
@@ -164,6 +164,15 @@ export function CompareOverlay() {
       </div>
     );
   };
+  // anchored tags never cover each other (R28: kerb and covered walkway at 4.5–7 s)
+  const anchored = tags.filter(([id]) => point(id));
+  const lifts = stackTags(
+    anchored.map(([id, , copy]) => ({
+      id,
+      at: point(id) as ScreenPoint,
+      size: tagSizeEstimate(copy),
+    })),
+  );
   const fc = flightCard(c);
   const from = screen?.unchecked ?? point("tag-unchecked") ?? halfCentre("R");
   // fallback before the chip has been measured (first frame, or no layout): its usual place
@@ -198,11 +207,9 @@ export function CompareOverlay() {
         {split && on.has("split") && (
           <ComparePills left={fastestPill(c)} right={recommendedPill(c)} viewports={vp} />
         )}
-        {tags
-          .filter(([id]) => point(id))
-          .map(([id, , copy]) => (
-            <PoiTag key={id} beat={id} copy={copy} at={point(id)} />
-          ))}
+        {anchored.map(([id, , copy]) => (
+          <PoiTag key={id} beat={id} copy={copy} at={point(id)} lift={lifts[id] ?? 0} />
+        ))}
         {greeting && point("greeting") && <GreetingBubble text={greeting} at={point("greeting")} />}
         {column("L")}
         {column("R")}

@@ -159,6 +159,77 @@ export const DEVSIM_SMALL_SHADOW_M = DEVSIM_AO_FADE_M[1];
 export const smallShadows = (s: StateAt): boolean => cameraRangeM(s) < DEVSIM_SMALL_SHADOW_M;
 
 /**
+ * How strong the small props' shadows are in this frame state: 1 up to 170 m, 0 from 220 m (the
+ * AO fade band), so a fly in or out (the 66 s plan's 32 -> 34.6 s fly to the door) fades them in
+ * instead of popping them on at 220 m. They cast (`smallShadows`) exactly while this is above 0.
+ */
+export const smallShadowWeight = (s: StateAt): number => devsimAoWeight(cameraRangeM(s));
+
+/** A small-prop shadow fader: the casters' shadow-map depth material, thinned by alpha hash. */
+export interface ShadowFade {
+  /** Gives the mesh the fading shadow depth material (the sun's shadow map draws it with this). */
+  attach(mesh: THREE.Mesh): void;
+  /** Sets every attached caster's shadow for the frame state: cast while > 0, density = weight. */
+  set(s: StateAt): void;
+  /** The weight last set (tests, demo hook). */
+  weight(): number;
+  dispose(): void;
+}
+
+/**
+ * Pure-ish (three objects only): the small-prop shadow fade (V2 polish). Shadows are on or off per
+ * caster, so the fade thins the caster in the shadow pass instead: a basic-packed depth material
+ * (the one three's shadow map uses) with `alphaHash` at opacity = weight discards a weight-sized
+ * share of its fragments, and the soft shadow filter turns that into a lighter shadow. One program
+ * (uniform opacity, no recompile while it fades); the engine's shadow warm-up compiles it with the
+ * casters (`customDepthMaterial`).
+ */
+export function createShadowFade(): ShadowFade {
+  const flip: Record<number, THREE.Side> = {
+    [THREE.FrontSide]: THREE.BackSide,
+    [THREE.BackSide]: THREE.FrontSide,
+    [THREE.DoubleSide]: THREE.DoubleSide,
+  };
+  const bySide = new Map<THREE.Side, THREE.MeshDepthMaterial>();
+  const meshes: THREE.Mesh[] = [];
+  let w = 1;
+  const forSide = (side: THREE.Side) => {
+    let d = bySide.get(side);
+    if (!d) {
+      d = new THREE.MeshDepthMaterial({
+        depthPacking: THREE.BasicDepthPacking,
+        side,
+        alphaHash: true,
+        opacity: w,
+      });
+      d.name = "devsim-shadow-fade";
+      bySide.set(side, d);
+    }
+    return d;
+  };
+  return {
+    attach(mesh) {
+      const m = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+      const side = m?.shadowSide ?? flip[m?.side ?? THREE.FrontSide] ?? THREE.BackSide;
+      mesh.customDepthMaterial = forSide(side);
+      meshes.push(mesh);
+    },
+    set(s) {
+      w = smallShadowWeight(s);
+      const on = w > 0;
+      for (const d of bySide.values()) d.opacity = w;
+      for (const m of meshes) m.castShadow = on;
+    },
+    weight: () => w,
+    dispose() {
+      for (const d of bySide.values()) d.dispose();
+      bySide.clear();
+      meshes.length = 0;
+    },
+  };
+}
+
+/**
  * The devsim camera driver (C10p): the beat pose at the layer's frame state, flagged `animating`
  * only while the playback plays, so the engine schedules its own next frame then (without it every
  * playback frame was a one-off request the engine counted as idle) and goes idle again at a pause

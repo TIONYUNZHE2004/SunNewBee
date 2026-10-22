@@ -4,6 +4,8 @@ import type { BubbleTone } from "./types";
 
 export interface BubbleView {
   n: number;
+  /** The speaker's cast id (the 3D anchor this bubble follows). */
+  who: string;
   text: string;
   tag?: string | null;
   tone: BubbleTone;

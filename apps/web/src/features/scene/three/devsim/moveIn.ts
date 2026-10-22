@@ -4,7 +4,7 @@ import type { Manifest } from "../assets/manifest";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import { DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
-import { smallShadows } from "./devsimView";
+import { createShadowFade } from "./devsimView";
 import { ease, span } from "./ease";
 import { along, lengthOf, onPath, type SiteGeom, type XZ, yawOf } from "./geom";
 import { kitMesh, kitPalettes, place } from "./kit";
@@ -221,10 +221,14 @@ export function createMoveIn(o: {
   boxes.frustumCulled = false;
   boxes.raycast = () => {};
   boxes.count = 0;
+  // the small props' shadows fade in and out with the camera range (no pop at 220 m)
+  const fade = createShadowFade();
+  fade.attach(boxes);
   disposers.push(
     () => boxGeo.dispose(),
     () => boxMat.dispose(),
     () => boxes.dispose(),
+    () => fade.dispose(),
   );
   const _m = new THREE.Matrix4();
   boxSlots(g).forEach((b, k) => {
@@ -256,6 +260,7 @@ export function createMoveIn(o: {
       castShadow: false,
     });
     k.mesh.name = `devsim-move-in-${v}`;
+    fade.attach(k.mesh);
     disposers.push(k.dispose);
     group.add(k.mesh);
     return k;
@@ -276,9 +281,7 @@ export function createMoveIn(o: {
     vehicles: () => carPts,
     demoState: () => ({ boxes: nBoxes, parkedCars: nParked, cars: nCars }),
     update({ s, t }: DevsimFrame) {
-      const shadows = smallShadows(s);
-      boxes.castShadow = shadows;
-      for (const c of cars) c.mesh.castShadow = shadows;
+      fade.set(s);
       nBoxes = boxesShown(m, t);
       boxes.count = nBoxes;
       const counts = CAR_VARIANTS.map(() => 0);
