@@ -1,4 +1,4 @@
-{"meta": {"message": "Simulate a 30-storey, 500-home tower near Lakeside Mall, from construction to daily life", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "2c927b026fe49668b70a67bfe02f2630e6f5d848f03be03103df4d4e11f4c8c1", "model": "mock-scripted", "recorded_at": "2026-10-22T02:14:09+00:00"}}
+{"meta": {"message": "Simulate a 30-storey, 500-home tower near Lakeside Mall, from construction to daily life", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "8897701b61a788e01a12f9b427c81f7ab8cb7a5c0e7f01d641a2698818a30f53", "model": "mock-scripted", "recorded_at": "2026-10-22T02:38:56+00:00"}}
 {"type": "tool.call", "id": "simulate_development-0", "name": "simulate_development", "args": {}}
 {"type": "tool.result", "id": "simulate_development-0", "name": "simulate_development", "summary": "ok"}
 {"type": "answer.draft", "attempt": 1, "delta": "Brief: 30 storeys · ~500 homes · parcel near Lakeside Mall."}
