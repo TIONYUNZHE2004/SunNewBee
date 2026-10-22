@@ -2,7 +2,7 @@ import type { SceneIntent } from "@tl/api-client";
 import { create } from "zustand";
 import { useMode } from "../../app/modeStore";
 import { loadProfile, saveProfile } from "../../lib/profileStore";
-import type { ClosureImpact } from "../closures/closureSimModel";
+import type { ClosureImpact, MarathonResult } from "../closures/closureSimModel";
 import { isDemoPreset } from "../demo/demoFlag";
 import { installDevsimHook } from "../devsim/devsimHook";
 import { useDevsim } from "../devsim/devsimStore";
@@ -65,7 +65,8 @@ export interface SceneState {
   whatIf: { geojson: { type: string; features: unknown[] } } | null;
   /** T-026 closure simulation on the map (Management): course and detour lines, by pressure. */
   /** The closure result a management answer showed (closure.show): map lines by pressure. */
-  closureSim: { result: ClosureImpact; roads?: string[] } | null;
+  /** A closure answer's map lines; `marathon` (T-031) adds the proposed course's dressing. */
+  closureSim: { result: ClosureImpact; roads?: string[]; marathon?: MarathonResult } | null;
   setClosureSim: (c: SceneState["closureSim"]) => void;
   /** Rising-river rollout playback: synthetic residents on the map (simulation, not a forecast). */
   rollout: { on: boolean; stage: number; playing: boolean };
@@ -244,7 +245,8 @@ export function frameCoords(
   const [w, e, s, n] = [Math.min(...lons), Math.max(...lons), Math.min(...lats), Math.max(...lats)];
   const lat = (s + n) / 2;
   const spanM = Math.max((e - w) * 111_320 * Math.cos((lat * Math.PI) / 180), (n - s) * 110_540);
-  return { center: [(w + e) / 2, lat], rangeM: Math.max(600, Math.round(spanM * 1.6)) };
+  // 2.2x the span: the assistant panel covers the map's right side, so leave room beside it
+  return { center: [(w + e) / 2, lat], rangeM: Math.max(600, Math.round(spanM * 2.2)) };
 }
 
 /** True when the compare playback holds a compare whose routes do not include `routeId`. */
@@ -317,7 +319,11 @@ export const useScene = create<SceneState>((set) => ({
         case "marathon.show":
           // the proposed course in red, its detours by pressure (the same map lines)
           next.closureSim = i.marathon
-            ? { result: i.marathon.impact, roads: i.marathon.course.roads.map((r) => r.name) }
+            ? {
+                result: i.marathon.impact,
+                roads: i.marathon.course.roads.map((r) => r.name),
+                marathon: i.marathon,
+              }
             : null;
           // frame the proposed course (its own coordinates), so its road names are in view
           if (i.marathon) {

@@ -246,6 +246,7 @@ export default function ThreeScene({
     onScreen,
     running,
     boundary: showroom ? null : boundary,
+    vehicleKit: { lib: loaded?.lib, manifest: loaded?.manifest, roleUniforms },
   });
   const home = homeView(site);
   const { initialBackground } = useMood({ engine, roleUniforms, sectionRef, home, bus });

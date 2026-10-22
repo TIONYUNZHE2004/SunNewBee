@@ -8,7 +8,7 @@ import {
   useScenarioWater,
 } from "../../../../lib/api";
 import { closureFeatures } from "../../../closures/closureSimModel";
-import { useMarathonPlay } from "../../../closures/marathonPlayStore";
+import { courseDressing } from "../../../closures/courseDressing";
 import { useDevsim } from "../../../devsim/devsimStore";
 import { floodWaterFrame, useFloodStory } from "../../../flood/floodStoryStore";
 import { floodStateAt } from "../../../flood/floodTimeline";
@@ -24,8 +24,9 @@ import { useScene } from "../../sceneStore";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import type { Boundary } from "../ground/boundary";
+import { useMarathonCinematic, type VehicleKit } from "../marathon/useMarathonCinematic";
 import { createOverlayLayer, type OverlayLayer } from "../overlays/accessLayers";
-import { createMarathonRunners } from "../overlays/marathonRunners";
+import { createMarathonCourse } from "../overlays/marathonCourse";
 import { createRoadLabels } from "../overlays/roadLabels";
 import { useResidents } from "../overlays/useResidents";
 import { lineToLocal } from "../routeLine";
@@ -43,6 +44,7 @@ export function useOverlays({
   onScreen,
   running,
   boundary = null,
+  vehicleKit = null,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
@@ -51,6 +53,8 @@ export function useOverlays({
   running: boolean;
   /** The Elmina outline: place markers outside it are hidden (display only). */
   boundary?: Boundary | null;
+  /** The city's asset kit (T-031: the marathon's sample cars), when loaded. */
+  vehicleKit?: VehicleKit | null;
 }) {
   const route = useScene((s) => s.route);
   // While a journey plays, its own ribbon (features/journey) draws the trip's route by status; the
@@ -159,22 +163,26 @@ export function useOverlays({
     engine.requestRender();
     return detach;
   }, [engine, overlay, frame, roadNames, roadLabels.data, highlightKey]);
-  // "Watch the marathon" (T-028): runners and sample cars ride the overlay pass while it plays
-  const marathon = useMarathonPlay((s) => s.result);
+  // T-031 course dressing: arches, km markers, cones at the closure boundary, the closed window
+  const courseMarathon = closureResult?.marathon ?? null;
+  const dressing = useMemo(
+    () =>
+      courseMarathon && accessData
+        ? courseDressing(courseMarathon, parseLayer(accessData).edges)
+        : null,
+    [courseMarathon, accessData],
+  );
   useEffect(() => {
-    if (!engine || !overlay || !frame || !marathon) return;
-    const detach = overlay.attach(
-      createMarathonRunners(marathon, frame, () => useMarathonPlay.getState().t),
-    );
-    // a frame per playback tick (the engine renders on request)
-    const unsub = useMarathonPlay.subscribe(() => engine.requestRender());
+    if (!engine || !overlay || !frame || !dressing) return;
+    const detach = overlay.attach(createMarathonCourse(dressing, frame));
     engine.requestRender();
     return () => {
-      unsub();
       detach();
       engine.requestRender();
     };
-  }, [engine, overlay, frame, marathon]);
+  }, [engine, overlay, frame, dressing]);
+  // "Watch the marathon" (T-028 / T-031): its layer and its one cinematic camera
+  useMarathonCinematic(engine, overlay, frame, accessData, vehicleKit);
   useEffect(() => {
     if (!engine || !overlay) return;
     overlay.update({
