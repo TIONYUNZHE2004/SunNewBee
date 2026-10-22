@@ -1660,7 +1660,7 @@ function build(
     placeLight();
     renderer.info.reset();
     syncDashes();
-    overlays?.setView(camera.position, camera.fov);
+    overlays?.setView(camera.position, camera.fov, controls.target);
     if (overlayPass) overlayPass.enabled = !!overlays?.hasVisible();
     if (journey) {
       const dist = camera.position.distanceTo(controls.target);

@@ -9,6 +9,7 @@ import { BuildingCard } from "../map-ui/BuildingCard";
 import { DayTag } from "../map-ui/DayTag";
 import { FloodNote } from "../map-ui/FloodNote";
 import { MapStage } from "../map-ui/MapStage";
+import { MarathonTag } from "../map-ui/MarathonTag";
 import { InSlot } from "../map-ui/mapSlots";
 import { PathOverlay } from "../map-ui/PathOverlay";
 import { PlaceOverlay } from "../map-ui/PlaceOverlay";
@@ -102,6 +103,7 @@ export function MainPage() {
             )}
             <RouteTag />
             <WhatIfTag />
+            <MarathonTag />
             <RolloutTag />
             <DayTag />
             <FloodNote />

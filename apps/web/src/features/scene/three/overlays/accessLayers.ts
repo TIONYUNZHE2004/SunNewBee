@@ -79,7 +79,12 @@ export interface OverlayLayer {
   /** The renderer's pixel ratio (point markers are sized in device pixels). */
   setPixelRatio(pr: number): void;
   /** Camera position and vertical fov (degrees): marker labels show near the camera only. */
-  setView(cam: { x: number; y: number; z: number }, fovDeg: number): void;
+  /** `target`: the point the camera looks at (road names rank by distance to it). */
+  setView(
+    cam: { x: number; y: number; z: number },
+    fovDeg: number,
+    target?: { x: number; y: number; z: number },
+  ): void;
   /**
    * Adds a batch of its own to the overlay pass (e.g. the Day residents). The layer forwards the
    * camera and clock each frame, counts it in hasVisible and disposes it. Returns the detach.
@@ -92,7 +97,12 @@ export interface OverlayLayer {
 export interface OverlayChild {
   group: THREE.Group;
   /** Camera position, clock, and the camera's live vertical fov (deg; it widens at long range, A-T5). */
-  setView?(cam: { x: number; y: number; z: number }, nowMs: number, fovDeg?: number): void;
+  setView?(
+    cam: { x: number; y: number; z: number },
+    nowMs: number,
+    fovDeg?: number,
+    target?: { x: number; y: number; z: number },
+  ): void;
   /** Canvas size in the same (CSS) pixels as the layer's `setResolution`. */
   setResolution?(w: number, h: number): void;
   dispose(): void;
@@ -274,9 +284,9 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
         child.dispose();
       };
     },
-    setView(c, fovDeg) {
+    setView(c, fovDeg, target) {
       // Attached batches also follow the clock, so they are fed before the camera-moved early return.
-      for (const ch of children) ch.setView?.(c, performance.now(), fovDeg);
+      for (const ch of children) ch.setView?.(c, performance.now(), fovDeg, target);
       // The engine calls this every frame: relabel only when the camera moved.
       if (cam && cam.x === c.x && cam.y === c.y && cam.z === c.z && fov === fovDeg) return;
       cam = { x: c.x, y: c.y, z: c.z };

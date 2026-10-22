@@ -12,7 +12,7 @@
    "scrub"
   ]
  },
- "not_screened_cells": 15304,
+ "not_screened_cells": 17818,
  "dem_shape": [
   325,
   361
@@ -23,6 +23,6 @@
  "area_m2": 2844895.3,
  "possible_edges": 515,
  "possible_places": 6,
- "coverage_gaps": 1123,
+ "coverage_gaps": 1421,
  "disclaimer": "Indicative terrain screening from Copernicus GLO-30, not a forecast. The 30 m surface model includes buildings and trees. Drains and culverts are not modelled; rainfall amounts are not modelled. Marked areas are possible collection areas, not predicted inundation or water depth. Mapped water and forest or scrub are not screened. Unmarked areas are not proof of absence. Follow official MBSA / JPS / NADMA guidance."
 }

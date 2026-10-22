@@ -141,3 +141,20 @@ def test_a_basin_under_forest_canopy_is_not_screened(tmp_path):
     ]
     assert inside and all(gaps.get(eid) == "uncovered" for eid in inside)
     assert write_outputs(dest, dem, transform, CFG)["lowlying_cells"] == 16  # no exclusion
+
+
+def test_the_ignored_border_is_a_coverage_gap_too(tmp_path):
+    """Codex audit Q1 (#32): a place in an ignored border row was evaluated PASS."""
+    from townshiplens_spatial.routing import endpoint_flood
+
+    dest = tmp_path / "tiny"
+    shutil.copytree(TINY, dest)
+    dem = np.full((8, 8), 10.0)
+    cfg = Config(
+        min_fill_m=2, min_cells=4, boundary_cells=2, connectivity=8, exclude_mapped_water=False
+    )
+    write_outputs(dest, dem, from_origin(101.5085, 3.18125, 0.0005, 0.0005), cfg)
+    gaps = json.loads((dest / "flood/scenarios.json").read_text())["scenario_coverage"]["lowlying"]
+    assert gaps.get("park-b") in ("uncovered", "partial")
+    world = load_world(dest)
+    assert endpoint_flood(world, "park-b", "default", "lowlying") != "PASS"

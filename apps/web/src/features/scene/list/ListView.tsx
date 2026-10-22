@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { useClosures, useLayer, useScenarios } from "../../../lib/api";
+import { useClosures, useLayer, useRoadLabels, useScenarios } from "../../../lib/api";
 import { FloodImpactList } from "../../flood/FloodImpact";
 import { GapsLensSection } from "../../gaps/GapsSection";
 import { gapsApplicable } from "../../gaps/gapModel";
 import { useJourney } from "../../journey/journeyStore";
+import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
 import { CLOSURE_SOURCE, closureLine } from "./closureModel";
@@ -197,6 +198,8 @@ export function ListView() {
 
       {gapsVisible && gapsApplicable(profile) && <GapsLensSection />}
 
+      <RoadNamesSection />
+
       <section aria-labelledby="places-h">
         <h2 id="places-h" className="text-xl font-semibold">
           Places
@@ -240,5 +243,42 @@ export function ListView() {
 
       <ListLensSections flood={lensVisible.flood} waste={lensVisible.waste} />
     </div>
+  );
+}
+
+/** T-028: the named roads inside the township, A–Z, with their mapped length (display only).
+ * Roads an answer closes or a proposed course uses are listed first. */
+function RoadNamesSection() {
+  const roadNames = useSceneSettings((s) => s.roadNames);
+  const closed = useScene((s) => s.closureSim?.roads);
+  const q = useRoadLabels(roadNames);
+  if (!roadNames || !q.data?.length) return null;
+  const hot = new Set(closed ?? []);
+  const rows = [...q.data].sort(
+    (a, b) => Number(hot.has(b.name)) - Number(hot.has(a.name)) || a.name.localeCompare(b.name),
+  );
+  return (
+    <section aria-labelledby="roads-h">
+      <details>
+        <summary className="cursor-pointer">
+          <h2 id="roads-h" className="inline text-xl font-semibold">
+            Road names ({rows.length})
+          </h2>
+        </summary>
+        <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+          {rows.map((r) => (
+            <li key={r.name} className="flex justify-between gap-2">
+              <span className={hot.has(r.name) ? "font-semibold text-rose" : undefined}>
+                {r.name}
+                {hot.has(r.name) && <span className="sr-only"> (closed in this answer)</span>}
+              </span>
+              <span className="tabular-nums text-ink-soft">
+                {(r.length_m / 1000).toFixed(1)} km
+              </span>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </section>
   );
 }

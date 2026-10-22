@@ -1,0 +1,38 @@
+{
+  "task": "T-029",
+  "what": "Codex audit Q3 (#32): seed evaluation after Codex b2ebd171 (terrain UNKNOWN rule, merged via #31)",
+  "elements": {
+    "terrain_only_edge": {
+      "id": "seg-1032895293-0",
+      "name": "Jalan Anggerik 3/5",
+      "default": "UNKNOWN",
+      "wheelchair": "UNKNOWN",
+      "drive": "UNKNOWN"
+    },
+    "terrain_only_place": {
+      "id": "osm-node-11280647693",
+      "name": "Elmina Green One Park",
+      "default": "UNKNOWN",
+      "wheelchair": "UNKNOWN",
+      "drive": "UNKNOWN"
+    },
+    "combined_river_possible_edge": {
+      "id": "seg-1009483758-0",
+      "default": "UNKNOWN",
+      "wheelchair": "UNKNOWN",
+      "drive": "FAIL"
+    },
+    "combined_river_likely_edge": {
+      "id": "seg-102532605-0",
+      "default": "FAIL",
+      "wheelchair": "FAIL",
+      "drive": "FAIL"
+    },
+    "not_screened_edge": {
+      "id": "seg-1079112114-1",
+      "default": "UNKNOWN",
+      "wheelchair": "UNKNOWN",
+      "drive": "UNKNOWN"
+    }
+  }
+}

@@ -493,8 +493,9 @@ in `base/hydrology.geojson` and land-cover water, forest and scrub in `base/land
 (`exclude_landcover`; GLO-30 is a canopy surface, so gaps between trees read as pits).
 
 Generated for the Elmina seed on 22 Oct 2026: 235 polygons, 2.84 km², 515 of 16,120 path
-segments and 6 places `possible`; 15,304 cells not screened, so 1,123 paths and places over
-them carry a coverage gap (UNKNOWN, "not screened"), never "checked and clear". No public report found names a
+segments and 6 places `possible`; 15,304 cells not screened (plus the ignored outer border), so 1,421
+paths and places over them carry a coverage gap (UNKNOWN, "not screened"), never "checked and
+clear". No public report found names a
 flooded place inside the township; reports for neighbouring Kampung Melayu Subang and Paya
 Jaras are recorded, not scored (`data/audits/2026-10-22-lowlying/validation.json`).
 

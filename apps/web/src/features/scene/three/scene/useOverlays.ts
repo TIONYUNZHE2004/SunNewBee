@@ -4,9 +4,11 @@ import {
   useFloodImpact,
   useGaps,
   useLayer,
+  useRoadLabels,
   useScenarioWater,
 } from "../../../../lib/api";
 import { closureFeatures } from "../../../closures/closureSimModel";
+import { useMarathonPlay } from "../../../closures/marathonPlayStore";
 import { useDevsim } from "../../../devsim/devsimStore";
 import { impactSummary } from "../../../flood/impactModel";
 import { gapsActive } from "../../../gaps/gapModel";
@@ -19,6 +21,8 @@ import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import type { Boundary } from "../ground/boundary";
 import { createOverlayLayer, type OverlayLayer } from "../overlays/accessLayers";
+import { createMarathonRunners } from "../overlays/marathonRunners";
+import { createRoadLabels } from "../overlays/roadLabels";
 import { useResidents } from "../overlays/useResidents";
 import { lineToLocal } from "../routeLine";
 import type { LayerData } from "./useGround";
@@ -57,6 +61,8 @@ export function useOverlays({
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const whatIf = useScene((s) => s.whatIf);
   const closureResult = useScene((s) => s.closureSim);
+  const roadNames = useSceneSettings((s) => s.roadNames);
+  const roadLabels = useRoadLabels(roadNames);
   // the closure answer's course and detours, drawn on the access layer's own edge geometry
   const closureSim = useMemo(
     () =>
@@ -124,6 +130,36 @@ export function useOverlays({
       setOverlay(null);
     };
   }, [engine, frame]);
+  // Road names (T-028): their own label child; the roads an answer closes or a course uses are
+  // always shown, highlighted
+  const highlightKey = (closureResult?.roads ?? []).join("|");
+  useEffect(() => {
+    if (!engine || !overlay || !frame || !roadNames || !roadLabels.data?.length) return;
+    const child = createRoadLabels(
+      roadLabels.data,
+      frame,
+      new Set(highlightKey ? highlightKey.split("|") : []),
+    );
+    const detach = overlay.attach(child);
+    engine.requestRender();
+    return detach;
+  }, [engine, overlay, frame, roadNames, roadLabels.data, highlightKey]);
+  // "Watch the marathon" (T-028): runners and sample cars ride the overlay pass while it plays
+  const marathon = useMarathonPlay((s) => s.result);
+  useEffect(() => {
+    if (!engine || !overlay || !frame || !marathon) return;
+    const detach = overlay.attach(
+      createMarathonRunners(marathon, frame, () => useMarathonPlay.getState().t),
+    );
+    // a frame per playback tick (the engine renders on request)
+    const unsub = useMarathonPlay.subscribe(() => engine.requestRender());
+    engine.requestRender();
+    return () => {
+      unsub();
+      detach();
+      engine.requestRender();
+    };
+  }, [engine, overlay, frame, marathon]);
   useEffect(() => {
     if (!engine || !overlay) return;
     overlay.update({
