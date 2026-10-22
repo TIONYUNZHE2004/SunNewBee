@@ -6,6 +6,7 @@ import hashlib
 import threading
 from collections import Counter, OrderedDict
 from datetime import UTC, date, datetime
+from math import atan2, degrees
 from statistics import median
 from time import perf_counter
 from typing import Literal, Self
@@ -369,37 +370,61 @@ def _suggestions(world, detours, cut_off, summary, closed):
 
 
 def _unnamed_stretches(world):
-    """Static connected unnamed stretches, never one township-wide fictitious road."""
-    signature = tuple((e.id, e.name) for e in world.edges.values())
+    """Connected unnamed areas, labelled by a mapped landmark, direction and length."""
+    signature = tuple(
+        (e.id, e.name, e.length_m, e.from_node, e.to_node) for e in world.edges.values()
+    )
     cached = world.graph.graph.get("_closure_unnamed_stretches")
     if cached and cached[0] == signature:
         return cached[1]
-    graph = nx.Graph()
-    named = {}
+    graph, named, anchors = nx.Graph(), {}, {}
     for edge in world.edges.values():
         if edge.name:
             for node in (edge.from_node, edge.to_node):
                 named.setdefault(node, set()).add(edge.name)
+            old = anchors.get(edge.name)
+            if old is None or (edge.length_m, edge.id) > (old.length_m, old.id):
+                anchors[edge.name] = edge
         else:
-            graph.add_edge(edge.from_node, edge.to_node)
-    labels = {}
-    components = sorted(nx.connected_components(graph), key=lambda nodes: min(nodes))
-    for i, nodes in enumerate(components, 1):
+            graph.add_edge(edge.from_node, edge.to_node, length_m=edge.length_m)
+    areas = []
+    for nodes in sorted(nx.connected_components(graph), key=lambda ns: min(ns)):
+        coords = [world.node_coords[n] for n in nodes]
+        centre = [sum(x[k] for x in coords) / len(coords) for k in (0, 1)]
         adjacent = sorted({name for node in nodes for name in named.get(node, ())})
         if adjacent:
             near = adjacent[0]
         elif named:
-            coords = [world.node_coords[n] for n in nodes]
-            centre = [sum(x[k] for x in coords) / len(coords) for k in (0, 1)]
             node = min(named, key=lambda n: (haversine_m(centre, world.node_coords[n]), n))
             near = min(named[node])
         else:
             near = None
-        label = (
-            f"unnamed path near {near} (stretch {i})"
-            if near
-            else f"unnamed path (mapped stretch {i}; no named road nearby)"
-        )
+        length = sum(data["length_m"] for _, _, data in graph.subgraph(nodes).edges(data=True))
+        if near:
+            edge = anchors[near]
+            anchor = [(edge.coords[0][k] + edge.coords[-1][k]) / 2 for k in (0, 1)]
+            bearing = (degrees(atan2(centre[0] - anchor[0], centre[1] - anchor[1])) + 360) % 360
+            direction = (
+                "north",
+                "north-east",
+                "east",
+                "south-east",
+                "south",
+                "south-west",
+                "west",
+                "north-west",
+            )[int((bearing + 22.5) // 45) % 8]
+            label = f"unnamed path near {near} ({direction}, {length:.0f} m path)"
+        else:
+            label = f"unnamed path ({length:.0f} m path; no named road nearby)"
+        areas.append((nodes, centre, label))
+    counts = Counter(label for _, _, label in areas)
+    labels = {}
+    for nodes, centre, label in areas:
+        if counts[label] > 1:
+            # Coordinates identify the mapped location when direction/length coincide;
+            # never expose an arbitrary traversal index as a road name.
+            label += f" near {centre[1]:.7f}° N, {centre[0]:.7f}° E"
         for node in nodes:
             labels[node] = label
     result = {e.id: labels[e.from_node] for e in world.edges.values() if not e.name}

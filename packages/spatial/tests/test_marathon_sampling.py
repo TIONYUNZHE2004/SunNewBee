@@ -64,3 +64,16 @@ def test_api_warmup_uses_the_closure_baseline_cache(world, monkeypatch):
 
     with pytest.raises(AssertionError, match="baseline should be cached"):
         events.warm_baselines(world)
+
+
+def test_public_unnamed_labels_have_landmarks_and_lengths_not_internal_ids(world):
+    import re
+
+    for edge in world.edges.values():
+        edge.name = "Main Road"
+    world.edges["seg-ab"].name = None
+    world.edges["seg-fd"].name = None
+    groups = events._unnamed_stretches(world)
+    assert len(set(groups.values())) == 2
+    assert all("m path" in name and "Main Road" in name for name in groups.values())
+    assert all(not re.search(r"stretch\s+\d|seg-|osm-", name) for name in groups.values())
