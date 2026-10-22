@@ -216,7 +216,9 @@ def write_outputs(data_dir, dem, transform, cfg=None):
     excluded = water | cover
     mask = lowlying_mask(dem, cfg, excluded)
     polygons = features(mask, transform)
-    valid = unary_union(_polygons(np.isfinite(dem), transform))
+    # Coverage is what was screened: unscreened cells (mapped water, forest, scrub) are a gap,
+    # so paths and places over them read UNKNOWN ("not screened"), never as checked and clear.
+    valid = unary_union(_polygons(np.isfinite(dem) & ~excluded, transform))
     edges, places, gaps = classify_world(world, polygons, valid)
     source_path = data_dir / "flood/scenarios.json"
     bundle = json.loads(source_path.read_text(encoding="utf-8"))

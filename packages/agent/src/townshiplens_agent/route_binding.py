@@ -360,7 +360,12 @@ def effective_scenario(question, world, ui_scenario, supplied=None):
     ):
         allowed.add("baseline")
     if not allowed:
-        allowed = {ui_scenario or "baseline"}
+        ui = ui_scenario or "baseline"
+        if not LOWLYING_WORDS.search(question):
+            # a river question with low-lying terrain on screen: the river component only, so
+            # terrain counts never enter a river answer
+            ui = ui.removesuffix("+lowlying") if ui != "lowlying" else "baseline"
+        allowed = {ui}
     chosen = supplied or (next(iter(allowed)) if len(allowed) == 1 else None)
     if chosen not in allowed:
         raise RouteSelectionError(
