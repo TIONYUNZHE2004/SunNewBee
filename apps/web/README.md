@@ -937,3 +937,9 @@ model, drains and flash-flood limits and official guidance links.
 Acceptance: `?acceptance=1` exposes `window.__flood` (`start`, `seek`, `play`, `pause`, `close`,
 `state`, `camera`), following the existing journey hook. It makes no LLM calls. See
 [the T-032 capture index](../../docs/superpowers/screenshots/t032/README.md).
+
+The resident card retains the API's unmapped-entrance and no-sidewalk warnings. `JourneyHud`
+accepts one optional distance label: flood passes `Travelled` for the wheelchair user; other
+callers retain their default. The mini-map sits separately on the right to keep route limits
+readable. A journey API `no_data` response stays "No mapped connection (data gap)"; a known
+barrier stays a barrier. Technical HTTP codes are not used as resident-facing explanations.

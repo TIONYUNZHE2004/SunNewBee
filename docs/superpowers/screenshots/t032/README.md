@@ -78,3 +78,17 @@ questions and production build. Final CI results are recorded on PR #40.
 Python is unchanged: 3,191 passed / 37 skipped. Installed Chromium E2E: 39 passed, two failures
 also reproduced on unchanged DaVinci 449171b9: external-font `ERR_TUNNEL_CONNECTION_FAILED`
 and the phone composer-height assertion (111.1875 px versus >150 px). No unrelated UI fix was made.
+
+## Route-limit review
+
+The current captures show the API's two specific route limits: about 347 m follows road centre
+lines without a mapped sidewalk, and the home entrance is not mapped. The mini-map is separate
+from the warning card. The wheelchair distance label is Travelled; the shared HUD's other
+callers keep their existing label. Five API contract probes also cover a failed place lookup,
+mismatched journey/route ids, a missing connection and a missing river stage, beside an honest
+candidate control. Ten built-app browser probes pass for the four API counters, route labels,
+pause, repeatable camera seeks, honest failure states and Exit.
+
+All twenty cinematic captures and both theme strips were refreshed after this review. The
+cinematic checkpoint at 86006f95 passed all seven GitHub CI gates (run 39803286030). The latest
+checks and the pending shared-traffic requirement are reported on PR #40.

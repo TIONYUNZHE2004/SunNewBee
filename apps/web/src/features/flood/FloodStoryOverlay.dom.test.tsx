@@ -30,6 +30,41 @@ const story = {
 afterEach(() => act(() => useFloodStory.getState().close()));
 
 describe("river playback UI", () => {
+  it("keeps the route's sidewalk and entrance caveats beside the resident", () => {
+    const warnings = ["About 347 m has no mapped sidewalk.", "The home entrance is not mapped."];
+    const residentStory = {
+      ...story,
+      resident: {
+        origin: { id: "home", name: "Home" },
+        centre: { centre: { name: "Candidate hall", source: "osm_candidate" } },
+        plan: {
+          route_id: "r",
+          profile: "wheelchair",
+          start_time: "08:00",
+          pace_m_per_s: 1,
+          polyline: [
+            [101, 3],
+            [101.001, 3],
+          ],
+          spans: [[0, 100, "UNKNOWN"]],
+          events: [],
+        },
+        route: {
+          status: "partly_unverified",
+          warnings,
+          routes: [{ id: "r", distance_m: 100, est_minutes: 2, segments: [] }],
+        },
+        missingCentres: 2,
+      },
+      residentGap: null,
+    } as unknown as FloodStory;
+    useFloodStory.getState().load(residentStory);
+    render(<FloodStoryOverlay />);
+    act(() => useFloodStory.getState().seek(RESIDENT_AT + 1));
+    for (const text of warnings) expect(screen.getByText(text)).toBeVisible();
+    expect(screen.getByText("OSM candidate · not an official relief centre")).toBeVisible();
+    assertHonest(document.body.textContent ?? "");
+  });
   it("uses each stage's actual counters even if they do not increase; native seek updates them", () => {
     useFloodStory.getState().load(story);
     render(<FloodStoryOverlay />);

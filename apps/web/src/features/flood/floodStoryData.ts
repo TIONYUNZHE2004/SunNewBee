@@ -32,7 +32,15 @@ async function json<T>(path: string, signal: AbortSignal, body?: unknown): Promi
         }
       : {}),
   });
-  if (!response.ok) throw new Error(`Township data unavailable (${response.status}).`);
+  if (!response.ok) {
+    if (path === "/journeys" && response.status === 409) {
+      const gap = (await response.json().catch(() => null)) as Schemas["NoJourney"] | null;
+      if (gap?.route_status === "no_data") throw new Error("No mapped connection (data gap).");
+      if (gap?.route_status === "blocked")
+        throw new Error("The mapped route has a known barrier for a wheelchair user.");
+    }
+    throw new Error("Township data is unavailable. Please try again.");
+  }
   return response.json() as Promise<T>;
 }
 

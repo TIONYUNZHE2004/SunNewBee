@@ -44,6 +44,7 @@ export function FloodStoryOverlay() {
     trip && s.story?.stages[3] ? floodRouteEvidence(trip, s.story.stages[3].affected) : null;
   const route =
     trip?.route.routes.find((r) => r.id === trip.plan.route_id) ?? trip?.route.routes[0];
+  const routeLimits = trip?.route.warnings?.filter((w) => /sidewalk|entrance/i.test(w)) ?? [];
   return (
     <div
       data-testid="flood-story"
@@ -121,18 +122,32 @@ export function FloodStoryOverlay() {
             {routeEvidence?.kind === "detour" && (
               <p className="mt-1 font-semibold">Likely flooded (indicative) — route goes around</p>
             )}
+            {routeLimits.map((warning) => (
+              <p key={warning} className="mt-1 text-[11px] font-medium">
+                {warning}
+              </p>
+            ))}
             {journey.event?.kind === "unknown" && (
-              <p className="mt-1 font-semibold">{journey.event.body}</p>
+              <p className="mt-1 font-semibold">
+                {journey.event.title}: {journey.event.body}
+              </p>
             )}
             {trip.route.demo_evidence && <p className="mt-1">Demo value · not surveyed</p>}
             <p className="mt-1 text-fg-soft">
               {trip.missingCentres} centres have no mapped connection (data gap).
             </p>
           </section>
-          <JourneyHud state={journey} covered={s.timeline.journey.covered} profile="wheelchair" />
-          <div className="hidden sm:block">
-            <JourneyMiniMap plan={trip.plan} distanceM={journey.distance_m} />
-          </div>
+          <JourneyHud
+            state={journey}
+            covered={s.timeline.journey.covered}
+            profile="wheelchair"
+            distanceLabel="Travelled"
+          />
+        </div>
+      )}
+      {residentOn && trip && journey && (
+        <div className="absolute top-56 right-6 hidden sm:block">
+          <JourneyMiniMap plan={trip.plan} distanceM={journey.distance_m} />
         </div>
       )}
       {residentOn && !trip && (
@@ -183,7 +198,7 @@ export function FloodStoryOverlay() {
                     : "Watch the river rise"}
             </span>
             <span className="tabular-nums text-fg-soft">
-              {Math.floor(s.t)} / {Math.ceil(s.timeline?.total ?? 0)} s
+              {Math.round(s.t)} / {Math.round(s.timeline?.total ?? 0)} s
             </span>
           </div>
           <input
