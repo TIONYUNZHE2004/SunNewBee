@@ -8,7 +8,7 @@ import { usePanel } from "../main/panelStore";
 import { WATER_LOOK_NOTE } from "./floodPresentation";
 import { floodRouteEvidence } from "./floodRouteEvidence";
 import { useFloodStory } from "./floodStoryStore";
-import { floodStateAt } from "./floodTimeline";
+import { BUILDINGS_AT, floodStateAt, RESIDENT_AT } from "./floodTimeline";
 import { impactSummary } from "./impactModel";
 
 export function FloodStoryOverlay() {
@@ -201,6 +201,28 @@ export function FloodStoryOverlay() {
               {Math.round(s.t)} / {Math.round(s.timeline?.total ?? 0)} s
             </span>
           </div>
+          <nav className="flood-chapters" aria-label="River story viewpoints">
+            {[
+              { phase: "river", label: "River rise", at: 0 },
+              { phase: "buildings", label: "Building edge", at: BUILDINGS_AT + 4 },
+              { phase: "resident", label: "Resident route", at: RESIDENT_AT + 1 },
+              { phase: "end", label: "Model limits", at: s.timeline?.endAt ?? 0 },
+            ].map((chapter, index) => (
+              <button
+                key={chapter.phase}
+                type="button"
+                className="flood-chapter"
+                aria-current={p?.phase === chapter.phase ? "step" : undefined}
+                disabled={!s.timeline}
+                onClick={() => s.seek(chapter.at)}
+              >
+                <span className="flood-chapter-dot" aria-hidden="true">
+                  {index + 1}
+                </span>
+                <span>{chapter.label}</span>
+              </button>
+            ))}
+          </nav>
           <input
             className="block w-full accent-lilac"
             type="range"

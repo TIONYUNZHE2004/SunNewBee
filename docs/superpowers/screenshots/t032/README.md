@@ -67,7 +67,7 @@ The baseline and +3 m routes have exactly these five edges:
 the mapped route is unchanged and does not show the requested flood-detour tag for this seed.
 No route evaluation or data was altered to manufacture a detour.
 
-Dependency still pending: Claude's `setAmbientTraffic` is absent from DaVinci (683210bc) and
+Dependency still pending: Claude's `setAmbientTraffic` is absent from DaVinci (41ce937a) and
 his current worker branch (5b309d06). These captures therefore still contain ambient cars.
 The PR stays draft until his shared switch lands and the flood calls it. No independent switch
 is implemented here.
@@ -92,3 +92,29 @@ pause, repeatable camera seeks, honest failure states and Exit.
 All twenty cinematic captures and both theme strips were refreshed after this review. The
 cinematic checkpoint at 86006f95 passed all seven GitHub CI gates (run 39803286030). The latest
 checks and the pending shared-traffic requirement are reported on PR #40.
+
+## User reference review (23 Oct MYT)
+
+Yunzhe supplied `Doc2.docx`: four AI-generated concept images, with no text instructions. They
+show reflective water between buildings, blue building tags, a resident follow shot and a
+numbered story timeline. The existing river/reflection and building-band implementation covers
+the first two ideas. Four new viewpoint buttons now give direct access to River rise, Building
+edge, Resident route and Model limits, through the same deterministic camera and timeline.
+They preserve pause and expose the current step to screen readers.
+
+The concept labels are visual references, not evidence. Local depths, lower-floor impact, a
+"dry evacuation route", official assembly points and road closures are not asserted from those
+images. The real route remains partly unverified and unchanged at River +3 m. No AI-generated
+geometry, place or route facts were added to the seed.
+
+After merging DaVinci 41ce937a and adding viewpoint navigation: lint, workspace typecheck,
+2,989 web tests, generated-client drift, 26/26 mock golden cases and build pass. Eleven built-app
+probes pass, including all four native viewpoint buttons, unchanged-route/candidate labels and
+honest missing-data controls. The camera-return probe waits for the expected rendered pose,
+rather than a fixed 1.5 s on this software GPU. All twenty shots and both pairs of animation
+strips are refreshed for the viewpoint UI. The ambient-traffic switch remains the dependency
+listed above; no independent switch was added.
+
+Four further built-app control checks pass: Play advances and Pause freezes; Play at the
+completed end restarts; Restart returns to Normal and plays; Exit during Play removes the
+story without a page error. Both theme capture runs also exit cleanly, with no shader errors.

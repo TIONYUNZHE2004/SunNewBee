@@ -949,3 +949,10 @@ barrier stays a barrier. Technical HTTP codes are not used as resident-facing ex
 Flood playback hides cached marathon course dressing through the existing overlay wiring;
 it does not change marathon rendering code. Starting a day or rollout scene closes the flood
 story, just as starting another journey does, so only one playback owns the camera.
+
+The four viewpoint buttons (River rise, Building edge, Resident route, Model limits) seek that
+same timeline without changing play/pause. They adapt Yunzhe's four-image `Doc2.docx` visual
+reference: clear numbered story stages and direct access to each shot. Its illustrative depth,
+"dry route", lower-floor and road-closure claims are not copied into the product. Those claims
+are not supported by this seed's route or flood outputs. The selected viewpoint is exposed with
+`aria-current="step"`; the native slider remains available for exact seeks.

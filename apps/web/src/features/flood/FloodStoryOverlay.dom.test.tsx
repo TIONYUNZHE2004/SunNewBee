@@ -30,6 +30,29 @@ const story = {
 afterEach(() => act(() => useFloodStory.getState().close()));
 
 describe("river playback UI", () => {
+  it("lets each viewpoint seek the same timeline while preserving pause and honest gaps", () => {
+    useFloodStory.getState().load(story);
+    render(<FloodStoryOverlay />);
+    const river = screen.getByRole("button", { name: "River rise" });
+    const buildings = screen.getByRole("button", { name: "Building edge" });
+    const resident = screen.getByRole("button", { name: "Resident route" });
+    const limits = screen.getByRole("button", { name: "Model limits" });
+    expect(river).toHaveAttribute("aria-current", "step");
+    fireEvent.click(buildings);
+    expect(buildings).toHaveAttribute("aria-current", "step");
+    expect(screen.getByTestId("flood-story")).toHaveAttribute("data-phase", "buildings");
+    fireEvent.click(resident);
+    expect(resident).toHaveAttribute("aria-current", "step");
+    expect(screen.getByRole("status")).toHaveTextContent("No mapped connection (data gap).");
+    expect(screen.queryByTestId("journey-hud")).toBeNull();
+    fireEvent.click(limits);
+    expect(limits).toHaveAttribute("aria-current", "step");
+    expect(screen.getByRole("region", { name: "River scenario limits" })).toBeVisible();
+    fireEvent.click(river);
+    expect(useFloodStory.getState().t).toBe(0);
+    expect(useFloodStory.getState().playing).toBe(false);
+    expect(river).toHaveAttribute("aria-current", "step");
+  });
   it("keeps the route's sidewalk and entrance caveats beside the resident", () => {
     const warnings = ["About 347 m has no mapped sidewalk.", "The home entrance is not mapped."];
     const residentStory = {
