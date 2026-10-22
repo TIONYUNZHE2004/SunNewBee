@@ -10,6 +10,12 @@
  *   the reasons card without 3D or a split, the Rail badge goes up by one and `/tickets` lists the
  *   compare's VR (the recorded fixture's VR does not exist in the e2e database).
  *
+ * Building impact (C13; AC-W2…W8): Stylised 3D with stubbed buildings, the mock assistant's
+ * starter, and POST /api/developments/simulate stubbed with `fixtures/devsim-plan.json` (the 45 s
+ * Elmina plan). Every §6.3 row's window is measured through the `bld` hook and checked against the
+ * table and the plan, then shown at its midpoint and gone 0.5 s outside it; HUD, set pieces,
+ * move-in, the brief beside the tower, the residents script and the bubble windows follow.
+ *
  * Coordinator rulings on the corridor: the kerb beat's raw time is ~10.4 s and is clamped into its
  * window (R28); there is no seating POI, so no rest beat (R29); N = 0 keeps only the toast's first
  * sentence (R30). Each beat's raw and clamped times are attached to the test report.
@@ -17,6 +23,8 @@
 
 import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
+import { DEVSIM_BRIEF } from "../src/features/assistant/starters";
+import type { DevelopmentPlan } from "../src/features/devsim/types";
 
 const intent = JSON.parse(
   readFileSync(new URL("./fixtures/compare-intent.json", import.meta.url), "utf8"),
@@ -359,9 +367,10 @@ test.describe("navigation compare, List view, real mock assistant (tiny world)",
       Number((await badge.getAttribute("aria-label"))?.match(/(\d+) open/)?.[1] ?? Number.NaN);
     const n0 = await count();
 
-    const chat = page.waitForResponse((r) => r.url().endsWith("/api/chat"));
+    // read the SSE body as soon as it arrives: later navigation can evict it from the browser
+    const chat = page.waitForResponse((r) => r.url().endsWith("/api/chat")).then((r) => r.text());
     const answer = await ask(page, "Wheelchair route from Car Park B to the toilet?");
-    const body = await (await chat).text();
+    const body = await chat;
     const vr = body
       .split("\n")
       .filter((l) => l.startsWith("data: "))
@@ -406,5 +415,465 @@ test.describe("navigation compare, List view, real mock assistant (tiny world)",
     await expect(
       page.getByRole("region", { name: "Ticket list" }).getByRole("button", { name: /Incline/ }),
     ).toBeVisible(COLD);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Building impact (C13; spec §6.3, §7; AC-W2…W8)
+// ---------------------------------------------------------------------------------------------
+
+const plan = JSON.parse(
+  readFileSync(new URL("./fixtures/devsim-plan.json", import.meta.url), "utf8"),
+) as DevelopmentPlan;
+
+/**
+ * Spec §6.3 rows as `bld` beat ids and windows (s); 45 is the end of the run. Rows the plan also
+ * carries (bubbles, banners, tags) are checked against the plan too.
+ */
+const BLD_END = 45;
+const BLD_TABLE: [string, number, number][] = [
+  ["brief-overview", 0, 3],
+  ["hoarding-card", 4, 9.5],
+  ["detour-tag", 4, 9.5],
+  ["bubble-1", 5.5, 9],
+  ["lorry-tag", 8.5, 12.5],
+  ["construction", 3, 27],
+  ["banner-raya", 11, 13],
+  ["bubble-2", 14, 16.5],
+  ["banner-monsoon", 18.5, 23],
+  ["bubble-3", 19.5, 22.5],
+  ["banner-handover", 27, 30.5],
+  ["move-in", 27, 33],
+  ["bubble-4", 28.5, 31.5],
+  ["bubble-5", 31, 33],
+  ["impact-brief", 33, BLD_END],
+  ["residents-button", 33, BLD_END],
+  ["bubble-6", 34, 37],
+  ["bubble-7", 36.5, 39],
+  ["residents-panel-tap", 39, BLD_END],
+  ["resident-detail-tap", 41, BLD_END],
+];
+/**
+ * "3.5 Hoarding up" starts exactly; it comes down inside the 27–30.5 s handover row ("hoarding,
+ * crane and scaffold go"), so its end is checked against that window, not to ±0.05 s.
+ */
+const HOARDING = { start: 3.5, downIn: [27, 30.5] as const };
+/** Beats with no overlay element: checked through `state().beats` only. */
+const STATE_ONLY = [
+  "construction",
+  "move-in",
+  "hoarding",
+  "residents-panel-tap",
+  "resident-detail-tap",
+];
+const SCAN_STEP = 0.025;
+
+type BldHook = {
+  set: (k: string) => void;
+  seek: (x: number) => void;
+  play: () => void;
+  pause: () => void;
+  state: () => unknown;
+};
+type BldState = {
+  plan: boolean;
+  t: number;
+  total: number;
+  beats: string[];
+  overlays: string[];
+  bubbles: number[];
+  hud: { monthIndex: number; ym: string; floors: number; costRm: number; daysLost: number } | null;
+  floorsBuilt: number;
+  viewShiftPx: number;
+  towerBbox: { x: number; y: number; w: number; h: number } | null;
+  panelLeft: number | null;
+  // 3D lane fields (registerDemoState("bld"))
+  crane?: { yaw: number; yawDeg: number; stopped: boolean; wetBeat: boolean; hold: boolean };
+  rain?: boolean;
+  workers?: number;
+  lorries?: { kind: string; distToRoute: number | null }[];
+  lorryRoute?: { drawn: boolean; points: number; mode: string };
+  rig?: { visible: boolean };
+  scaffoldTop?: number;
+  topFloor?: number;
+  netting?: boolean;
+  movingLorries?: number;
+  boxes?: number;
+  parkedCars?: number;
+  movers?: { walking: number; entered: number };
+  kidsAtPlayground?: number;
+  litShare?: number;
+  speaker?: { who: string; anchored: boolean; headOnStage: boolean } | null;
+};
+
+/** Pause, seek, then let the 3D layer pose and project at t (three frames) and read the state. */
+const bldAt = (page: Page, t: number): Promise<BldState> =>
+  page.evaluate(async (x) => {
+    const d = (window as unknown as { __tl: { demo: BldHook } }).__tl.demo;
+    d.set("bld");
+    d.pause();
+    d.seek(x);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise((r) => requestAnimationFrame(r));
+    return d.state();
+  }, t) as Promise<BldState>;
+
+/**
+ * Every beat id's played windows, measured by seeking 0…45 s in SCAN_STEP steps and reading
+ * `state().beats` (the timeline's own ids; no frame needed). A window is [first on, first off).
+ */
+const scanBeats = (page: Page) =>
+  page.evaluate(
+    ({ step, end }) => {
+      const d = (window as unknown as { __tl: { demo: BldHook } }).__tl.demo;
+      d.set("bld");
+      d.pause();
+      const runs: Record<string, [number, number][]> = {};
+      const close = (id: string, t: number) => {
+        runs[id] = [...(runs[id] ?? []), [open[id] as number, t]];
+      };
+      const open: Record<string, number> = {};
+      const n = Math.round(end / step);
+      let prev = new Set<string>();
+      for (let i = 0; i <= n; i++) {
+        const t = Math.round(i * step * 1000) / 1000;
+        d.seek(t);
+        const now = new Set((d.state() as { beats: string[] }).beats);
+        for (const id of now) if (!prev.has(id)) open[id] = t;
+        for (const id of prev) if (!now.has(id)) close(id, t);
+        prev = now;
+      }
+      for (const id of prev) close(id, end);
+      return runs;
+    },
+    { step: SCAN_STEP, end: BLD_END },
+  );
+
+const bldEl = (page: Page, id: string) => {
+  const m = /^bubble-(\d+)$/.exec(id);
+  return m
+    ? page.locator(`[data-testid="devsim-bubble"][data-n="${m[1]}"]`)
+    : page.locator(`[data-beat="${id}"]`);
+};
+
+const fmtRuns = (r: [number, number][] | undefined) =>
+  r ? r.map(([x, y]) => `${x}–${y}`).join(", ") : "absent";
+
+test.describe("building impact beats, Stylised 3D, 45 s Elmina plan", () => {
+  test.setTimeout(420_000);
+
+  test("§6.3 windows, HUD, set pieces, move-in, brief beside the tower, residents, bubbles (AC-W2…W8)", async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
+    await page.route("**/api/developments/simulate", (r) => r.fulfill({ json: plan }));
+    await page.goto("/");
+    const scene = page.getByTestId("three-scene");
+    await expect(scene).toBeVisible(COLD);
+    await expect
+      .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
+      .toBeGreaterThan(0);
+    await openAssistant(page);
+    await page.getByRole("radio", { name: "Management" }).click();
+    await page.getByRole("button", { name: DEVSIM_BRIEF }).click();
+    const last = page.getByRole("log").getByRole("article").last();
+    await expect(last).toHaveAttribute("data-done", "true", COLD);
+    // the 3D part of the hook is registered (Stylised devsim mount) and the 45 s plan is loaded
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const d = (window as unknown as { __tl?: { demo?: BldHook } }).__tl?.demo;
+            if (!d) return false;
+            d.set("bld");
+            const s = d.state() as { total?: number };
+            return "crane" in s && s.total === 45;
+          }),
+        { timeout: 90_000 },
+      )
+      .toBe(true);
+    await expect(page.getByTestId("devsim-list")).toHaveCount(0); // 3D, not the List view
+    const log: string[] = [];
+    const note = (s: string) => {
+      log.push(s);
+      console.log(s);
+    };
+
+    await test.step("§6.3 windows against the table and the plan (AC-W8 windows ±0.05 s)", async () => {
+      const runs = await scanBeats(page);
+      note("beat | table | played");
+      for (const [id, a, b] of BLD_TABLE) {
+        const r = runs[id];
+        note(`${id} | ${a}–${b} | ${fmtRuns(r)}`);
+        expect(r, `${id} played`).toBeDefined();
+        expect(r?.length, `${id} one window`).toBe(1);
+        const [t0, t1] = r?.[0] ?? [Number.NaN, Number.NaN];
+        expect(Math.abs(t0 - a), `${id} t0 ${t0}`).toBeLessThanOrEqual(FIXED_TOL_S);
+        expect(Math.abs(t1 - b), `${id} t1 ${t1}`).toBeLessThanOrEqual(FIXED_TOL_S);
+      }
+      const h = runs.hoarding;
+      note(`hoarding | 3.5–(27…30.5) | ${fmtRuns(h)}`);
+      expect(h?.length).toBe(1);
+      const [h0, h1] = h?.[0] ?? [Number.NaN, Number.NaN];
+      expect(Math.abs(h0 - HOARDING.start)).toBeLessThanOrEqual(FIXED_TOL_S);
+      expect(h1).toBeGreaterThanOrEqual(HOARDING.downIn[0] - FIXED_TOL_S);
+      expect(h1).toBeLessThanOrEqual(HOARDING.downIn[1] + FIXED_TOL_S);
+      // the plan's own windows (bubbles, banners, tags) are what plays (AC-W8: ±0.05 s)
+      const planned: [string, number, number][] = [
+        ...plan.bubbles.map((x): [string, number, number] => [`bubble-${x.n}`, x.t0, x.t1]),
+        ...plan.banners.map((x): [string, number, number] => [`banner-${x.kind}`, x.t0, x.t1]),
+        ...plan.tags.map((x): [string, number, number] => [`${x.kind}-tag`, x.t0, x.t1]),
+      ];
+      for (const [id, a, b] of planned) {
+        const [t0, t1] = runs[id]?.[0] ?? [Number.NaN, Number.NaN];
+        expect(Math.abs(t0 - a), `plan ${id} t0`).toBeLessThanOrEqual(FIXED_TOL_S);
+        expect(Math.abs(t1 - b), `plan ${id} t1`).toBeLessThanOrEqual(FIXED_TOL_S);
+      }
+      expect((await bldAt(page, 0)).total).toBe(BLD_END);
+    });
+
+    await test.step("each row visible at its midpoint, gone 0.5 s outside", async () => {
+      const rows: [string, number, number][] = [...BLD_TABLE, ["hoarding", HOARDING.start, 28]];
+      for (const [id, a, b] of rows) {
+        const mid = (a + b) / 2;
+        const s = await bldAt(page, mid);
+        expect(s.beats, `${id} @${mid}`).toContain(id);
+        if (!STATE_ONLY.includes(id))
+          await expect(bldEl(page, id).first(), `${id} @${mid}`).toBeVisible(COLD);
+        for (const t of [a - 0.5, b + 0.5]) {
+          if (t < 0 || t > BLD_END) continue;
+          const o = await bldAt(page, t);
+          expect(o.beats, `${id} off @${t}`).not.toContain(id);
+          if (!STATE_ONLY.includes(id))
+            await expect(bldEl(page, id), `${id} hidden @${t}`).toHaveCount(0);
+        }
+      }
+      // AC-W8 on screen: each bubble is shown just inside its plan window and gone just outside
+      for (const b of plan.bubbles) {
+        for (const t of [b.t0 + 0.05, b.t1 - 0.05]) {
+          await bldAt(page, t);
+          await expect(bldEl(page, `bubble-${b.n}`), `bubble ${b.n} @${t}`).toBeVisible(COLD);
+        }
+        for (const t of [b.t0 - 0.05, b.t1 + 0.05]) {
+          if (t < 0 || t > BLD_END) continue;
+          await bldAt(page, t);
+          await expect(bldEl(page, `bubble-${b.n}`), `bubble ${b.n} off @${t}`).toHaveCount(0);
+        }
+      }
+      // 3–27 s: months advance from the first month to the handover month; floors only rise
+      const sch = plan.schedule;
+      expect((await bldAt(page, 3)).hud?.monthIndex).toBe(0);
+      expect((await bldAt(page, 27)).hud?.monthIndex).toBe(sch.months_total - 1);
+      let floors = -1;
+      for (let t = 3; t <= 27; t += 1) {
+        const f = (await bldAt(page, t)).hud?.floors ?? -1;
+        expect(f, `floors @${t}`).toBeGreaterThanOrEqual(floors);
+        floors = f;
+      }
+      expect(floors).toBe(sch.storeys);
+    });
+
+    await test.step("HUD at 8, 21 and 30 s equals the plan (AC-W2)", async () => {
+      const sch = plan.schedule;
+      const hud = page.getByTestId("devsim-estimate-hud");
+      for (const t of [8, 21, 30]) {
+        const s = await bldAt(page, t);
+        const i = s.hud?.monthIndex as number;
+        expect(i, `month @${t}`).toBeGreaterThanOrEqual(0);
+        const ym = sch.months[i] as string;
+        expect(s.hud?.ym).toBe(ym);
+        expect(s.hud?.floors).toBe(sch.floors_by_month[i]);
+        expect(s.hud?.costRm).toBe(sch.cost_by_month[i]);
+        expect(s.hud?.daysLost).toBe(sch.days_lost_by_month[i]);
+        const [y, m] = ym.split("-").map(Number) as [number, number];
+        const mon = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ")[m - 1];
+        await expect(hud.getByTestId("devsim-hud-month")).toHaveText(`${mon} ${y}`);
+        await expect(hud).toContainText(`Month ${i + 1} of ${sch.months_total}`);
+        await expect(hud.getByTestId("devsim-hud-floors")).toHaveText(
+          `${sch.floors_by_month[i]}/${sch.storeys}`,
+        );
+        await expect(hud.getByTestId("devsim-hud-cost")).toHaveText(
+          `RM ${Math.round((sch.cost_by_month[i] as number) / 1_000_000)} M`,
+        );
+        await expect(hud.getByTestId("devsim-hud-lost")).toHaveText(
+          `${Math.round(sch.days_lost_by_month[i] as number)} d`,
+        );
+        await expect(hud.getByTestId("devsim-hud-footnote")).toContainText(
+          "Estimate from published benchmarks",
+        );
+        note(
+          `AC-W2 @${t}s ${ym} (#${i}) floors ${s.hud?.floors} cost ${s.hud?.costRm} lost ${s.hud?.daysLost}`,
+        );
+      }
+    });
+
+    await test.step("Hari Raya hold at 12 s, monsoon at 21 s (AC-W3)", async () => {
+      const s12 = await bldAt(page, 12);
+      expect(s12.overlays).toContain("banner-raya");
+      await expect(bldEl(page, "banner-raya")).toBeVisible();
+      const yaw: number[] = [];
+      for (const t of [11.5, 12, 12.5])
+        yaw.push((await bldAt(page, t)).crane?.yawDeg ?? Number.NaN);
+      const delta = Math.max(...yaw) - Math.min(...yaw);
+      note(
+        `AC-W3 @12s yaw ${yaw.map((x) => x.toFixed(3)).join(" / ")} (Δ ${delta.toFixed(3)}°) workers ${s12.workers} lorries ${s12.lorries?.length} rain ${s12.rain} hold ${s12.crane?.hold}`,
+      );
+      expect(delta, "crane yaw Δ over 11.5–12.5 s").toBeLessThan(0.5);
+      expect(s12.crane?.hold).toBe(true);
+      expect(s12.workers).toBe(0);
+      expect(s12.lorries?.length).toBe(0);
+      expect(s12.rain).toBe(false);
+      const s21 = await bldAt(page, 21);
+      note(`AC-W3 @21s rain ${s21.rain} crane ${JSON.stringify(s21.crane)}`);
+      expect(s21.overlays).toContain("banner-monsoon");
+      await expect(bldEl(page, "banner-monsoon")).toBeVisible();
+      expect(s21.rain).toBe(true);
+      expect(s21.crane?.wetBeat).toBe(true);
+      expect(s21.crane?.stopped).toBe(true);
+    });
+
+    await test.step("rig, lorries on the route, scaffold and netting (AC-W4)", async () => {
+      const rig: Record<string, boolean | undefined> = {};
+      for (const t of [3.4, 3.6, 6, 8.4, 8.6]) rig[String(t)] = (await bldAt(page, t)).rig?.visible;
+      note(`AC-W4 rig ${JSON.stringify(rig)}`);
+      expect(rig).toEqual({ "3.4": false, "3.6": true, "6": true, "8.4": true, "8.6": false });
+      let seen = 0;
+      let maxD = 0;
+      const rows: string[] = [];
+      for (let t = 4; t < 27; t += 1) {
+        const s = await bldAt(page, t);
+        for (const v of s.lorries ?? []) {
+          seen++;
+          maxD = Math.max(maxD, v.distToRoute ?? Number.POSITIVE_INFINITY);
+        }
+        rows.push(`${t}:${s.floorsBuilt}/${s.topFloor}/${s.scaffoldTop}/${s.netting ? "N" : "-"}`);
+        if ((s.topFloor ?? 0) > 0)
+          expect(
+            Math.abs((s.scaffoldTop ?? 0) - ((s.topFloor ?? 0) + 1) * 3.2),
+            `scaffold top @${t} (floor ${s.topFloor}, top ${s.scaffoldTop})`,
+          ).toBeLessThanOrEqual(0.5);
+        if (s.floorsBuilt > 0 && s.floorsBuilt < plan.site.storeys)
+          expect(s.netting, `netting @${t} (${s.floorsBuilt} floors)`).toBe(true);
+      }
+      note(`AC-W4 t:floors/topFloor/scaffoldTop/netting ${rows.join(" ")}`);
+      note(`AC-W4 lorries seen ${seen}, max ${maxD.toFixed(2)} m from lorry_route`);
+      expect(seen).toBeGreaterThan(0);
+      expect(maxD).toBeLessThanOrEqual(3);
+    });
+
+    await test.step("move-in counts at 32.9 s (AC-W5)", async () => {
+      let prev = -1;
+      for (const t of [27, 27.5, 28, 28.5, 29, 29.5, 30, 30.5, 31, 31.5, 32, 32.5, 32.9]) {
+        const lit = (await bldAt(page, t)).litShare ?? -1;
+        expect(lit, `lit share @${t}`).toBeGreaterThanOrEqual(prev - 1e-9);
+        prev = lit;
+      }
+      const s = await bldAt(page, 32.9);
+      note(
+        `AC-W5 @32.9s lorries ${s.movingLorries} boxes ${s.boxes} movers ${JSON.stringify(s.movers)} lit ${s.litShare} cars ${s.parkedCars} kids ${s.kidsAtPlayground}`,
+      );
+      expect(s.movingLorries ?? 0).toBeGreaterThanOrEqual(2);
+      expect(s.boxes ?? 0).toBeGreaterThanOrEqual(8);
+      expect(s.movers?.entered ?? 0).toBeGreaterThanOrEqual(10);
+      expect(s.litShare ?? 0).toBeGreaterThanOrEqual(0.85);
+      expect(s.parkedCars ?? 0).toBeGreaterThanOrEqual(6);
+      expect(s.kidsAtPlayground ?? 0).toBeGreaterThanOrEqual(4);
+    });
+
+    await test.step("Impact Brief from 34 s with the tower left of it (AC-W6)", async () => {
+      const brief = page.getByTestId("devsim-impact-brief");
+      for (const t of [34, 36, 40]) {
+        await bldAt(page, t);
+        await expect(brief).toBeVisible();
+        await expect
+          .poll(async () => {
+            const s = await bldAt(page, t);
+            return s.towerBbox !== null && s.panelLeft !== null;
+          }, COLD)
+          .toBe(true);
+        const s = await bldAt(page, t);
+        note(
+          `AC-W6 @${t}s towerBbox ${JSON.stringify(s.towerBbox)} panelLeft ${s.panelLeft} viewShift ${s.viewShiftPx}`,
+        );
+        const tb = s.towerBbox as { x: number; y: number; w: number; h: number };
+        expect(tb.w, "tower on screen").toBeGreaterThan(0);
+        expect(tb.x, "tower on screen").toBeGreaterThanOrEqual(0);
+        expect(tb.x + tb.w, `tower left of the brief @${t}`).toBeLessThanOrEqual(
+          s.panelLeft as number,
+        );
+      }
+      await bldAt(page, 34);
+      const sections = brief.getByTestId("devsim-brief-section");
+      await expect(sections).toHaveCount(3);
+      await expect(sections.nth(0)).toContainText("During construction");
+      await expect(sections.nth(1)).toContainText("At handover");
+      await expect(sections.nth(2)).toContainText("Daily life");
+      for (const k of ["ROUTE", "FLOOD", "ESTIMATE", "CALENDAR"])
+        await expect(brief.locator(`[data-badge="${k}"]`).first()).toBeVisible();
+    });
+
+    await test.step("residents: button 33 s, panel 39 s, Mei Ling 41 s, Back, Escape, Close (AC-W7)", async () => {
+      const button = page.getByRole("button", { name: /Simulated residents · 40/ });
+      await bldAt(page, 32.95);
+      await expect(button).toHaveCount(0);
+      await bldAt(page, 33.05);
+      await expect(button).toBeVisible();
+      await bldAt(page, 38.9);
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      // while playing, seek just past each scripted tap (deterministic: no real-time wait)
+      const playAndSeek = (x: number) =>
+        page.evaluate((s) => {
+          const d = (window as unknown as { __tl: { demo: BldHook } }).__tl.demo;
+          d.set("bld");
+          d.play();
+          d.seek(s);
+        }, x);
+      await playAndSeek(39.05);
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByTestId("devsim-resident-item")).toHaveCount(40);
+      await expect(dialog.getByTestId("devsim-resident-detail")).toHaveCount(0);
+      const b39 = await dialog.boundingBox();
+      note(`AC-W7 @39.05s dialog ${JSON.stringify(b39)}`);
+      expect(b39?.y ?? -1, "scripted panel top on screen").toBeGreaterThanOrEqual(0);
+      await playAndSeek(41.05);
+      const detail = dialog.getByTestId("devsim-resident-detail");
+      await expect(detail).toBeVisible();
+      await expect(detail.getByRole("heading", { name: "Mei Ling" })).toBeVisible();
+      await expect(detail.getByTestId("devsim-resident-facts")).toBeVisible();
+      await expect(detail.getByTestId("devsim-resident-phase")).toHaveCount(3);
+      await expect(dialog).toContainText(plan.residents.label);
+      await expect(dialog).toContainText(plan.residents.note);
+      await page.evaluate(() =>
+        (window as unknown as { __tl: { demo: BldHook } }).__tl.demo.pause(),
+      );
+      // Back returns to the list of 40
+      await dialog.getByRole("button", { name: "All 40 residents" }).click();
+      await expect(dialog.getByTestId("devsim-resident-detail")).toHaveCount(0);
+      await expect(dialog.getByTestId("devsim-resident-item")).toHaveCount(40);
+      // Escape closes it and focus returns to the button
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(button).toBeFocused();
+      // keyboard: Enter on the focused button opens it; Close closes it and focus returns
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("dialog")).toBeVisible();
+      const close = page.getByTestId("devsim-residents-close");
+      note(
+        `AC-W7 reopened: dialog ${JSON.stringify(await page.getByRole("dialog").boundingBox())} close ${JSON.stringify(await close.boundingBox())}`,
+      );
+      // the whole panel is on screen (it scrolls inside its slot) and Close takes a real click
+      const box = await page.getByRole("dialog").boundingBox();
+      expect(box?.y ?? -1, "dialog top on screen").toBeGreaterThanOrEqual(0);
+      expect((box?.y ?? 0) + (box?.height ?? 1e9), "dialog bottom on screen").toBeLessThanOrEqual(
+        900,
+      );
+      await close.click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(button).toBeFocused();
+    });
+
+    await info.attach("building-beats.txt", { body: log.join("\n"), contentType: "text/plain" });
   });
 });
