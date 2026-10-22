@@ -1,6 +1,6 @@
 import { CompareControls } from "../CompareControls";
 import { useCompare } from "../compareStore";
-import { attributeName } from "./copy";
+import { attributeName, DEMO_VALUE, stopIsDemo } from "./copy";
 import { ReasonsCard } from "./ReasonsCard";
 import { TicketToast } from "./TicketToast";
 
@@ -26,7 +26,7 @@ export function CompareListSection() {
         {c.stop && (
           <li>
             The fastest route has a known barrier ({attributeName(c.stop.attribute).toLowerCase()})
-            at {Math.round(c.stop.at_m)} m.
+            at {Math.round(c.stop.at_m)} m.{stopIsDemo(c) && ` ${DEMO_VALUE}.`}
           </li>
         )}
       </ul>

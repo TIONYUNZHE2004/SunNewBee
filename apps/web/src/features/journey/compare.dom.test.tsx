@@ -155,7 +155,11 @@ describe("List view compare (AC-N9)", () => {
     ])
       expect(within(card).getByRole("rowheader", { name: row })).toBeInTheDocument();
     expect(card).toHaveTextContent("Reasons use checked facts only.");
-    expect(card).toHaveTextContent("Demo values · not surveyed");
+    expect(card).toHaveTextContent("† Demo value · not surveyed");
+    // the stop line carries the stop's own demo flag (R45)
+    expect(sec).toHaveTextContent(
+      "The fastest route has a known barrier (steps) at 274 m. Demo value · not surveyed.",
+    );
     expect(document.querySelector('[data-beat="split"]')).toBeNull();
     expect(document.querySelector("canvas")).toBeNull();
   });

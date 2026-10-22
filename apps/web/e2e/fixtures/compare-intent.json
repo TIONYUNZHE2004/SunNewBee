@@ -577,7 +577,8 @@
       "attribute": "step_count",
       "value": 3,
       "limit": 0.0,
-      "evidence_id": "ev-seg-1346147887-0.step_count"
+      "evidence_id": "ev-seg-1346147887-0.step_count",
+      "demo": true
     },
     "reasons": {
       "fastest": {
@@ -587,7 +588,8 @@
         "covered_share": 0.05,
         "rest_stops": null,
         "distance_m": 2075.6,
-        "minutes": 29.7
+        "minutes": 29.7,
+        "demo_fields": ["steps", "max_incline_pct", "min_width_m", "covered_share"]
       },
       "recommended": {
         "steps": 0,
@@ -596,7 +598,8 @@
         "covered_share": 0.1,
         "rest_stops": null,
         "distance_m": 2168.4,
-        "minutes": 31.0
+        "minutes": 31.0,
+        "demo_fields": ["steps", "max_incline_pct", "min_width_m", "covered_share"]
       }
     },
     "extra_minutes": 1.3,

@@ -34,11 +34,6 @@ export interface CompareRoute {
   segments: CompareSegment[];
   /** [lon, lat] in travel order. */
   coordinates: [number, number][];
-  /**
-   * Not on the wire: the payload has no route-level evidence type. Tests may set it; when absent
-   * the copy falls back to the POIs' demo flags (copy.ts `stopIsDemo`).
-   */
-  demo_evidence?: boolean;
 }
 
 /** The first known FAIL along the fastest route under the requested profile. */
@@ -50,9 +45,24 @@ export interface CompareStop {
   value: unknown;
   limit: number | null;
   evidence_id: string | null;
+  /** The stop fact rests on team_survey_placeholder evidence: "Demo value · not surveyed" (R45). */
+  demo: boolean;
 }
 
-/** Known-fact reasons; a field is null when no edge on the route has a known value for it. */
+/** A reason field that can be flagged as a demo value (`ReasonSet.demo_fields`). */
+export type ReasonField =
+  | "steps"
+  | "max_incline_pct"
+  | "min_width_m"
+  | "covered_share"
+  | "rest_stops"
+  | "distance_m"
+  | "minutes";
+
+/**
+ * Known-fact reasons; a field is null when no edge on the route has a known value for it.
+ * `steps` is null ("Not checked yet") unless every edge's step count is known (R44).
+ */
 export interface ReasonSet {
   steps: number | null;
   max_incline_pct: number | null;
@@ -61,6 +71,8 @@ export interface ReasonSet {
   rest_stops: number | null;
   distance_m: number;
   minutes: number;
+  /** The non-null fields whose value rests on team_survey_placeholder evidence (R45). */
+  demo_fields: ReasonField[];
 }
 
 export interface UncheckedStretch {
@@ -121,6 +133,14 @@ function route(x: unknown): CompareRoute | null {
   };
 }
 
+function reasonSet(x: unknown): ReasonSet | null {
+  if (!isObj(x)) return null;
+  const demo = Array.isArray(x.demo_fields)
+    ? x.demo_fields.filter((f): f is ReasonField => typeof f === "string")
+    : [];
+  return { ...(x as unknown as ReasonSet), demo_fields: demo };
+}
+
 function place(x: unknown): ComparePlace {
   if (!isObj(x)) return { id: "", name: "" };
   return {
@@ -151,13 +171,10 @@ export function asCompareIntent(i: unknown): CompareIntent | null {
     same_path: d.same_path === true,
     fastest,
     recommended,
-    stop: isObj(d.stop) ? (d.stop as unknown as CompareStop) : null,
-    reasons: {
-      fastest: isObj(reasons.fastest) ? (reasons.fastest as unknown as ReasonSet) : null,
-      recommended: isObj(reasons.recommended)
-        ? (reasons.recommended as unknown as ReasonSet)
-        : null,
-    },
+    stop: isObj(d.stop)
+      ? { ...(d.stop as unknown as CompareStop), demo: d.stop.demo === true }
+      : null,
+    reasons: { fastest: reasonSet(reasons.fastest), recommended: reasonSet(reasons.recommended) },
     extra_minutes: num(d.extra_minutes),
     unchecked: list<UncheckedStretch>(d.unchecked),
     pois: list<Poi>(d.pois),
@@ -180,6 +197,8 @@ export function isPlayableCompare(c: CompareIntent | null | undefined): c is Com
     !!c.fastest &&
     !!c.recommended &&
     !c.same_path &&
+    // A compare is a dry-day comparison (R46): a flood stop never plays as a plain barrier.
+    c.stop?.attribute !== "flood" &&
     c.status !== "no_data" &&
     c.status !== "blocked"
   );

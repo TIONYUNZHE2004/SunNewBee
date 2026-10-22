@@ -12,9 +12,12 @@ export function ComparePills({
   right,
   viewports,
   top = 64,
+  rightNote,
 }: {
   left: string;
   right: string;
+  /** Under the right pill: "Demo value · not surveyed" when its "step-free" is a demo value. */
+  rightNote?: string;
   viewports: Viewports | null;
   /** The pills' top edge, CSS px of the stage: below the map's top stack (V2 fix N-a). */
   top?: number;
@@ -42,11 +45,19 @@ export function ComparePills({
           {left}
         </span>
       </div>
-      <div className="absolute flex justify-center" style={{ ...r, top }}>
+      <div className="absolute flex flex-col items-center gap-1" style={{ ...r, top }}>
         <span data-beat="split-pill-recommended" className={pill}>
           <span aria-hidden="true" className="size-2.5 rounded-full bg-cmp-recommended" />
           {right}
         </span>
+        {rightNote && (
+          <span
+            data-beat="split-pill-recommended-note"
+            className="whitespace-nowrap rounded-full bg-surface px-2 py-0.5 text-[11px] font-semibold text-fg-soft"
+          >
+            {rightNote}
+          </span>
+        )}
       </div>
     </div>
   );
