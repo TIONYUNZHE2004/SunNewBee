@@ -192,7 +192,7 @@ def load_world(data_dir: Path, config_dir: Path | None = None) -> World:
     for p in places.values():
         if p.node_id:
             by_node.setdefault(p.node_id, []).append(p.id)
-    return World(
+    world = World(
         site,
         edges,
         places,
@@ -207,3 +207,7 @@ def load_world(data_dir: Path, config_dir: Path | None = None) -> World:
         by_node,
         data_dir=data_dir,
     )
+    from .lowlying import add_combinations
+
+    add_combinations(world)
+    return world

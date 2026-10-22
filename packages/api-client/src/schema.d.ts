@@ -507,6 +507,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/layers/road-labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Road Labels Layer
+         * @description Named roads clipped to the township boundary; display only.
+         */
+        get: operations["road_labels_layer_layers_road_labels_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/layers/street_furniture": {
         parameters: {
             query?: never;
@@ -539,6 +559,26 @@ export interface paths {
         get: operations["layers_layers__lens__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/marathon/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plan Marathon
+         * @description Public read-only proposal and hypothetical closure impact; no approval or writes.
+         */
+        post: operations["plan_marathon_marathon_plan_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1035,6 +1075,19 @@ export interface components {
             /** Warnings */
             warnings?: string[];
         };
+        /** AnimatedTrip */
+        AnimatedTrip: {
+            /** After Coordinates */
+            after_coordinates: number[][];
+            /** Before Coordinates */
+            before_coordinates: number[][];
+            /** From Id */
+            from_id: string;
+            /** Profile */
+            profile: string;
+            /** To Id */
+            to_id: string;
+        };
         /**
          * AnswerCheck
          * @description The validator's verdict on one answer attempt: accepted, or sent back with readable
@@ -1403,6 +1456,11 @@ export interface components {
             trips_no_route: number;
             /** Trips No Route Before */
             trips_no_route_before: number;
+            /**
+             * Trips On Course
+             * @default 0
+             */
+            trips_on_course: number;
             /** Trips Total */
             trips_total: number;
             /** Warnings */
@@ -1472,6 +1530,73 @@ export interface components {
             road_names?: string[];
             /** Segment Ids */
             segment_ids?: string[];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** Course */
+        Course: {
+            /**
+             * Disclaimer
+             * @default Proposed course on mapped roads, not an approved route.
+             */
+            disclaimer: string;
+            /** Finish */
+            finish: string;
+            /** Finish Node */
+            finish_node: string;
+            /** Length M */
+            length_m: number;
+            /** Roads */
+            roads: components["schemas"]["CourseRoad"][];
+            /** Segment Ids */
+            segment_ids: string[];
+            /**
+             * Shape
+             * @enum {string}
+             */
+            shape: "loop" | "point_to_point";
+            /** Start */
+            start: string;
+            /** Start Node */
+            start_node: string;
+            /** Warnings */
+            warnings: string[];
+        };
+        /** CourseRoad */
+        CourseRoad: {
+            /** Length M */
+            length_m: number;
+            /** Name */
+            name: string;
+            /** Order */
+            order: number;
+        };
+        /** CourseScenario */
+        CourseScenario: {
+            /** Closures */
+            closures: components["schemas"]["CourseWindow"][];
+            /** Name */
+            name: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "works" | "event" | "accident" | "flooding" | "other";
+        };
+        /** CourseWindow */
+        CourseWindow: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Road Names */
+            road_names?: string[];
+            /** Segment Ids */
+            segment_ids: string[];
             /**
              * Starts At
              * Format: date-time
@@ -2081,6 +2206,11 @@ export interface components {
             trips_no_route: number;
             /** Trips No Route Before */
             trips_no_route_before: number;
+            /**
+             * Trips On Course
+             * @default 0
+             */
+            trips_on_course: number;
             /** Trips Total */
             trips_total: number;
             /** Warnings */
@@ -2144,6 +2274,11 @@ export interface components {
             from_id: string;
             /** No Route */
             no_route: boolean;
+            /**
+             * On Closed Course
+             * @default false
+             */
+            on_closed_course: boolean;
             /** Profile */
             profile: string;
             /** Segment Ids */
@@ -2414,6 +2549,110 @@ export interface components {
             /** Street Name */
             street_name: string | null;
         };
+        /** MarathonAnimation */
+        MarathonAnimation: {
+            /** Course Coordinates */
+            course_coordinates: number[][];
+            /**
+             * Label
+             * @default Simulation · illustrative
+             */
+            label: string;
+            /** Rerouted Trips */
+            rerouted_trips?: components["schemas"]["AnimatedTrip"][];
+        };
+        /** MarathonImpact */
+        MarathonImpact: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Detour Roads */
+            detour_roads: components["schemas"]["DetourRoad"][];
+            /**
+             * Disclaimer
+             * @default Detour pressure, estimated from mapped road class and sample trips, not traffic counts.
+             */
+            disclaimer: string;
+            event: components["schemas"]["CourseScenario"];
+            /** Evidence Id */
+            evidence_id: string;
+            /** Extra M Median */
+            extra_m_median: number | null;
+            /** Extra Min Median */
+            extra_min_median: number | null;
+            /** Per Profile */
+            per_profile: {
+                [key: string]: components["schemas"]["ProfileImpact"];
+            };
+            /** Places Cut Off */
+            places_cut_off: components["schemas"]["EventPlace"][];
+            /** Sample Limit Per Profile */
+            sample_limit_per_profile: number;
+            /** Suggestions */
+            suggestions: components["schemas"]["EventSuggestion"][];
+            /** Timing Ms */
+            timing_ms: number;
+            /** Trips */
+            trips: components["schemas"]["EventTrip"][];
+            /** Trips Affected */
+            trips_affected: number;
+            /** Trips Newly No Route */
+            trips_newly_no_route: number;
+            /** Trips No Route */
+            trips_no_route: number;
+            /** Trips No Route Before */
+            trips_no_route_before: number;
+            /**
+             * Trips On Course
+             * @default 0
+             */
+            trips_on_course: number;
+            /** Trips Total */
+            trips_total: number;
+            /** Warnings */
+            warnings?: string[];
+            /** Weights Note */
+            weights_note: string;
+        };
+        /** MarathonRequest */
+        MarathonRequest: {
+            /** Avoid Roads */
+            avoid_roads?: string[];
+            /** Distance Km */
+            distance_km: number;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Finish */
+            finish?: string | null;
+            /** Prefer Roads */
+            prefer_roads?: string[];
+            /** Profiles */
+            profiles?: string[];
+            /**
+             * Shape
+             * @default loop
+             * @enum {string}
+             */
+            shape: "loop" | "point_to_point";
+            /** Start */
+            start: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** MarathonResult */
+        MarathonResult: {
+            animation: components["schemas"]["MarathonAnimation"];
+            course: components["schemas"]["Course"];
+            impact: components["schemas"]["MarathonImpact"];
+        };
         /**
          * NoJourney
          * @description Why there is no journey to play: the route status and a plain message.
@@ -2478,6 +2717,11 @@ export interface components {
             trips_no_route: number;
             /** Trips No Route Before */
             trips_no_route_before: number;
+            /**
+             * Trips On Course
+             * @default 0
+             */
+            trips_on_course: number;
             /** Trips Total */
             trips_total: number;
         };
@@ -2607,6 +2851,19 @@ export interface components {
             };
             /** Stages */
             stages: components["schemas"]["Stage"][];
+        };
+        /** RoadLabel */
+        RoadLabel: {
+            /** Anchor */
+            anchor: number[];
+            /** Bearing Deg */
+            bearing_deg: number;
+            /** Length M */
+            length_m: number;
+            /** Name */
+            name: string;
+            /** Road Class */
+            road_class: string;
         };
         /** RoadSection */
         RoadSection: {
@@ -2785,6 +3042,8 @@ export interface components {
         };
         /** Scenario */
         Scenario: {
+            /** Components */
+            components?: string[];
             /** Created */
             created?: string | null;
             /**
@@ -2796,6 +3055,12 @@ export interface components {
             disclaimer: string;
             /** Id */
             id: string;
+            /**
+             * Kind
+             * @default river_stage
+             * @enum {string}
+             */
+            kind: "river_stage" | "lowlying" | "combined";
             /** Label */
             label: string;
             /** Links */
@@ -2848,6 +3113,7 @@ export interface components {
             brief_text?: string | null;
             /** Center */
             center?: number[] | null;
+            closure?: components["schemas"]["ClosureImpact"] | null;
             /** Day */
             day?: string | null;
             /** Distance M */
@@ -2863,9 +3129,10 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip" | "journey.play" | "development.play";
+            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip" | "journey.play" | "development.play" | "closure.show" | "marathon.show";
             /** Lens */
             lens?: ("access" | "flood" | "waste") | null;
+            marathon?: components["schemas"]["MarathonResult"] | null;
             /** Place Id */
             place_id?: string | null;
             plan?: components["schemas"]["DevelopmentPlan"] | null;
@@ -4500,6 +4767,26 @@ export interface operations {
             };
         };
     };
+    road_labels_layer_layers_road_labels_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadLabel"][];
+                };
+            };
+        };
+    };
     street_furniture_layer_layers_street_furniture_get: {
         parameters: {
             query?: never;
@@ -4572,6 +4859,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    plan_marathon_marathon_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarathonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarathonResult"];
+                };
             };
             /** @description Validation Error */
             422: {

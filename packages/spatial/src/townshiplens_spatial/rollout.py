@@ -71,6 +71,8 @@ class RiverRollout(BaseModel):
 def stages(world: World) -> list[Stage]:
     out = []
     for s in sorted(world.flood.scenarios, key=lambda s: s.stage_m):
+        if s.kind != "river_stage":
+            continue  # A terrain collection-area screen is not a river-rise animation stage.
         label = (
             "Normal level" if s.id == "baseline" or s.stage_m == 0 else f"River +{s.stage_m:g} m"
         )

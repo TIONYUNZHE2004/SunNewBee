@@ -229,6 +229,7 @@ glyphs do not justify it. Add a glyph by adding a path to `PATHS` and a name to 
 - **Evidence collapses:** the evidence list sits behind a header such as "Evidence · 3 sources ·
   2 with demo values (not surveyed)", with singular forms for one ("Evidence · 1 source · 1 with a
   demo value (not surveyed)"). Open it for the claim-by-claim list.
+- **Answer text (T-028 item 5):** a step's circled number is drawn by CSS (`data-n`), so copied text reads "1. …" once; a real space comes before a step's note tag, and only a status note ("not checked yet", "likely OK…") becomes a tag. "Not verified" lists only unverified facts (`unverifiedItems`: unchecked segments, rest points, closures, inferred entrances, demo values), never the answer's own "Worth knowing" notes.
 - **Honesty notes never collapse:** the uncertainty note ("Not verified"), the flood disclaimer
   ("indicative scenario, not a forecast", MBSA / JPS / NADMA) and the tickets-created line are
   always visible.
@@ -728,9 +729,10 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
 - **Flood impact.** `lib/api.useFloodImpact` reads `GET /scenarios/{id}/affected`; `flood/impactModel.impactSummary` turns it into counts and markers ("!" likely flooded, "⚠" cut off, both "indicative"; path length only, never a depth).
   - `flood/FloodImpact.FloodImpactCard` sits in the flood note; it skips its notes when the scenario disclaimer already carries them.
   - The Stylised 3D view draws the markers (`three/overlays/markers.ts`, kind `impact`, only while the flood layer is on); the List view lists them (`FloodImpactList`). Cesium and Mapbox don't draw them yet.
-- **Road closures (Management).** `closures/ClosurePanel` (under the What-if Lab) posts `SimulateClosureBody` to `POST /closures/simulate` (`closures/closureSimModel`, generated types). A 404/405 says "not available on this server yet" instead of guessing.
+- **Road closures (Management, chat only since T-028).** There is no form: a manager asks in chat, and the answer's server-built `closure.show` intent carries the `ClosureImpact` (generated types, `closures/closureSimModel`). `AnswerCard` shows `closures/ClosureResult` under the answer, and `sceneStore.closureSim` keeps the result for the map (`useOverlays` draws it on the access layer's edges; a new route answer clears it).
   - The result card and the Stylised map show the course in red (`event.closures[].segment_ids`) and detours by pressure band (low/medium/high). Pressure is for managers only.
   - The card lists the first 5 detour rows as the engine ordered them and counts the rest, and shows each suggestion text once. A suggestion's `basis` is shown in plain words (`basisWords`); an unknown term is kept as written.
+- **Marathon (Management, T-028).** A course question ("a 5 km marathon starting at …") brings a server-built `marathon.show` intent with the `MarathonResult` (course, impact, playback data). `closures/MarathonCard` shows the proposed course (length, shape, roads in order with their lengths, "Proposed course on mapped roads, not an approved route.") and the impact card; the map draws the course red and the detours by pressure (the same `closureSim` lines). The card and `resultLines` show trips that start or end on the closed road apart from trips that newly lose a route (`trips_on_course`).
 - **Resident route card.** `assistant/RouteSummary` names an active closure on the trip (`closures/routeClosures`: title and Malaysia-time window, matched from the answer's `closure` uncertainty items). It never shows pressure.
 
 **Clay look and tilt-shift (journey Phase B, display only):**

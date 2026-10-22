@@ -9,7 +9,9 @@ from collections.abc import AsyncIterator
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.usage import UsageLimits
 from townshiplens_spatial import tools as sp
+from townshiplens_spatial.events import ClosureImpact
 from townshiplens_spatial.journey import JourneyEvidenceError, build_journey
+from townshiplens_spatial.marathon import MarathonResult
 from townshiplens_spatial.models import Route
 
 from . import agent as agent_mod
@@ -192,6 +194,10 @@ CLOSURE_NOTES = {
         "ms": "Pemberat waktu puncak ialah corak perjalanan andaian, bukan diukur.",
         "zh": "高峰权重是假设的出行模式，并非实测。",
     },
+    "Proposed course on mapped roads, not an approved route.": {
+        "ms": "Laluan cadangan di jalan yang dipetakan, bukan laluan yang diluluskan.",
+        "zh": "基于已绘制道路的建议路线，并非已批准的路线。",
+    },
 }
 
 
@@ -204,7 +210,10 @@ def event_notes(ans: FinalAnswer, rec: TurnRecord, lang: str = "en") -> list[str
     last = rec.events[-1]
     if not last.get("weights_note"):
         return [] if _EVENT_SAID.search(said) else [EVENT_NOTE.get(lang, EVENT_NOTE["en"])]
-    notes = [n for n in (last.get("disclaimer"), last.get("weights_note")) if n]
+    course = last.get("course") or {}
+    notes = [
+        n for n in (course.get("disclaimer"), last.get("disclaimer"), last.get("weights_note")) if n
+    ]
     out = [CLOSURE_NOTES.get(n, {}).get(lang, n) for n in notes]
     return [n for n in out if n.rstrip(".") not in said]
 
@@ -268,6 +277,60 @@ def _urgent(caveat: str, rec: TurnRecord | None) -> bool:
     return flooded and any(n and n in low for n in names)
 
 
+def _marathon_card(rec: TurnRecord, ans: FinalAnswer) -> MarathonResult | None:
+    """The last marathon proposal of this turn (course, impact, playback data) for the
+    management card, the map and "Watch the marathon". Never for residents (pressure)."""
+    if rec.panel != "management" or ans.answer_status == "cannot_answer" or not rec.marathons:
+        return None
+    d = rec.marathons[-1]
+    try:
+        return MarathonResult.model_validate(
+            {**d, "impact": {**(d.get("impact") or {}), "trips": []}}
+        )
+    except ValueError:
+        log.warning("marathon result did not match MarathonResult", exc_info=True)
+        return None
+
+
+def _closure_card(rec: TurnRecord, ans: FinalAnswer) -> ClosureImpact | None:
+    """The last closure simulation of this turn, for the management result card and map lines
+    (T-028: the chat replaces the closure form). Never for residents: it carries pressure."""
+    if rec.panel != "management" or ans.answer_status == "cannot_answer":
+        return None
+    for d in reversed(rec.events):
+        if d.get("weights_note") and isinstance(d.get("event"), dict) and "at" in d:
+            try:
+                return ClosureImpact.model_validate({**d, "trips": []})
+            except ValueError:
+                log.warning("closure result did not match ClosureImpact", exc_info=True)
+                return None
+    return None
+
+
+_STOP = {"is", "are", "was", "the", "a", "an", "and", "from", "of", "to", "on", "in", "only"}
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in re.findall(r"\w+", text.lower()) if w not in _STOP}
+
+
+def _repeats(caveat: str, kept: list[set[str]]) -> bool:
+    """True when every word of this caveat is already in a kept one: the same note said twice
+    in slightly different words, so nothing is lost. Short notes (under 4 words) always stay."""
+    w = _words(caveat)
+    return len(w) >= 4 and any(w <= k for k in kept)
+
+
+# "1. ", "2) " or "Suggestion 3:" written by the model inside a step: the list numbers it.
+_STEP_NUMBER = re.compile(r"^\s*\d+[.)]\s+")
+_SUGGESTION_NUMBER = re.compile(r"^(Suggestion|Cadangan|建议)\s*\d+\s*([:：])\s*", re.IGNORECASE)
+
+
+def _unnumbered(step: str) -> str:
+    step = _STEP_NUMBER.sub("", step)
+    return _SUGGESTION_NUMBER.sub(lambda m: f"{m.group(1)}{m.group(2)} ", step)
+
+
 def answer_text(
     ans: FinalAnswer, label: str | None, rec: TurnRecord | None = None, lang: str = "en"
 ) -> str:
@@ -278,20 +341,24 @@ def answer_text(
     3. the summary and numbered steps;
     4. every other caveat under "Worth knowing:", one "•" line each.
 
-    Presentation only: every caveat is printed in full (an exact copy of the label is the only
-    text ever removed), so whatever the validator required is still in the text."""
+    Presentation only: every caveat is printed in full; the only text ever removed is an exact
+    copy of the label, a caveat whose words another caveat already says (T-028: the model's
+    "Detour pressure is estimated …" next to the tool's "Detour pressure, estimated …"), and a
+    step's own numbering, so whatever the validator required is still in the text."""
     summary = _strip_label(ans.summary, label) or ans.summary
     urgent: list[str] = []
     rest: list[str] = []
     seen: set[str] = set()
+    kept: list[set[str]] = []
     for raw in ans.caveats:
         c = _strip_label(raw, label)
         key = _norm(c)
-        if not c or key in seen:
+        if not c or key in seen or _repeats(c, kept):
             continue  # empty only when the caveat was just the label, which line 1 says
         if key in _norm(summary) and not _urgent(c, rec):
             continue  # already said in the summary
         seen.add(key)
+        kept.append(_words(c))
         if _urgent(c, rec):
             urgent.append(c)
         elif rest and c.startswith("and ") and rest[-1].lower().startswith("not checked yet"):
@@ -309,7 +376,9 @@ def answer_text(
     parts += [f"{URGENT_MARK} {dot(c)}" for c in urgent]
     parts.append(localize(summary, lang))
     if ans.steps:
-        parts.append("\n".join(f"{i}. {localize(s, lang)}" for i, s in enumerate(ans.steps, 1)))
+        parts.append(
+            "\n".join(f"{i}. {localize(_unnumbered(s), lang)}" for i, s in enumerate(ans.steps, 1))
+        )
     if rest:
         head = FRAME.get(lang, FRAME["en"])["worth"]
         parts.append(head + "\n" + "\n".join(f"• {dot(c)}" for c in rest))
@@ -404,6 +473,8 @@ def _answer_events(
         intents.append(SceneIntent(kind="whatif.diff"))  # a what-if is always drawn as a diff
     if rec.rollouts and not any(i.kind == "river.rollout" for i in intents):
         intents.append(SceneIntent(kind="river.rollout"))  # the map plays the rollout
+    # server-built only, below
+    intents = [i for i in intents if i.kind not in ("closure.show", "marathon.show")]
     for it in intents:
         # Only what the model may write; every server-attached field is rebuilt below.
         intent = SceneIntent(**it.model_dump(include=set(AnswerSceneIntent.model_fields)))
@@ -457,6 +528,10 @@ def _answer_events(
                 continue  # no simulation ran this turn
             intent.geojson = diff
         evs.append(SceneIntentEvent(intent=intent))
+    if (marathon := _marathon_card(rec, ans)) is not None:
+        evs.append(SceneIntentEvent(intent=SceneIntent(kind="marathon.show", marathon=marathon)))
+    elif (closure := _closure_card(rec, ans)) is not None:
+        evs.append(SceneIntentEvent(intent=SceneIntent(kind="closure.show", closure=closure)))
 
     ref = 0
     cited: set[str] = set()

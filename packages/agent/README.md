@@ -82,6 +82,26 @@ name the reason and the closure ("— works (Pipe repair)", "— accident").
 The flash-flood line ("Flash floods from heavy rain are not shown.") is a fixed statement of
 scope: it stays in the answer's notes and is never an uncertainty item ("Not verified").
 
+**Marathon course (T-028, management only).** `simulate_marathon(start, distance_km,
+start_time, end_time, day?, shape, finish?, avoid_roads?, prefer_roads?)` wraps the backend's
+course planner and closure engine; the window is built after the call event (like closures).
+Edits ("avoid …", "make it 10 km", "finish at …") are a new call. The impact joins
+`rec.events` (with its course), so the trip, pressure and suggestion checks apply;
+`validate.course_errors` allows only the course's length (0.1 km) or the distance asked for.
+The answer opens with the proposed course and its roads in order (`template.marathon_answer`);
+the server adds "Proposed course on mapped roads, not an approved route." and a
+`marathon.show` intent (course, impact without per-trip rows, playback data). Trips that start
+or end on the closed course are said apart ("plan access for them"), never as "newly without
+a route". The mock plans a course only when a distance in km is given; "close Jalan X for a
+marathon" stays a closure.
+
+**Closure card (T-028).** For a management answer with a closure simulation, the server adds a
+`closure.show` intent carrying the `ClosureImpact` (per-trip rows left out); the web shows the
+result card under the answer and draws the course and detours. Never for residents (pressure),
+never written by the model. `answer_text` drops a step's own numbering ("1.", "Suggestion 3:")
+and a caveat whose words an earlier caveat already says (e.g. the model's "Detour pressure is
+estimated …" next to the tool's "Detour pressure, estimated …").
+
 `ASSISTANT_SCOPE=all` opts into the legacy features documented below. Legacy engine/pipeline
 tests and removed-feature golden cases opt in explicitly; `tests/test_scope.py` tests the
 default separately. The existing browser hero suite opts into `all` because it includes

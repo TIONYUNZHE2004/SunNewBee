@@ -219,3 +219,73 @@ def test_a_road_name_on_several_stretches_may_carry_each_stretch_band():
     for text, errs in ((ok, 0), (bad, 1)):
         ans = FinalAnswer(answer_status="answered", summary=text, claims=[claim])
         assert len(closure_claim_errors(ans, rec)) == errs
+
+
+@needs_seed
+async def test_managers_get_the_closure_card_intent_residents_never(seed, tmp_path):
+    q = "Road works on Persiaran Garcinia next Tuesday 9 am-5 pm: what is affected?"
+    evs, _, _ = await _ask(seed, tmp_path, q)
+    cards = [e.intent for e in evs if e.type == "scene.intent" and e.intent.kind == "closure.show"]
+    assert len(cards) == 1
+    card = cards[0].closure
+    assert card is not None and card.trips == [] and card.event.reason == "works"
+    assert card.detour_roads and all(r.segment_ids for r in card.detour_roads)
+    assert any(c.segment_ids for c in card.event.closures)  # the course, for the map
+    evs, _, _ = await _ask(seed, tmp_path, q, panel="resident")
+    assert not any(e.type == "scene.intent" and e.intent.kind == "closure.show" for e in evs)
+
+
+MARATHON_Q = (
+    "I want to host a 5 km marathon starting at Elmina Valley Central Park on Sunday 6-10 am. "
+    "Which roads should we use and what is affected?"
+)
+
+
+@needs_seed
+async def test_a_marathon_is_proposed_on_mapped_roads_and_simulated_for_managers(seed, tmp_path):
+    evs, rec, text = await _ask(seed, tmp_path, MARATHON_Q)
+    call = next(e for e in evs if e.type == "tool.call" and e.name == "simulate_marathon")
+    assert call.args["start"] == "Elmina Valley Central Park" and call.args["distance_km"] == 5
+    assert call.args["start_time"] == "6am" and call.args["end_time"] == "10am"
+    assert "starts_at" not in call.args  # the window is built after the call event
+    assert evs[-1].answer_status == "answered" and rec.validator_errors == []
+    assert "Proposed 5.1 km loop course from Elmina Valley Central Park" in text
+    assert "not an approved route" in text and "detour pressure: high" in text
+    card = next(
+        e.intent for e in evs if e.type == "scene.intent" and e.intent.kind == "marathon.show"
+    )
+    assert card.marathon is not None and card.marathon.impact.trips == []
+    assert card.marathon.animation.course_coordinates and card.marathon.course.roads
+    assert not any(e.type == "scene.intent" and e.intent.kind == "closure.show" for e in evs)
+
+
+@needs_seed
+async def test_residents_cannot_plan_a_marathon(seed, tmp_path):
+    evs, rec, text = await _ask(seed, tmp_path, MARATHON_Q, panel="resident")
+    assert "simulate_marathon" not in rec.tool_calls and "pressure" not in text.lower()
+    assert not any(e.type == "scene.intent" and e.intent.kind == "marathon.show" for e in evs)
+
+
+def test_trips_on_the_course_are_said_apart_from_trips_without_a_route():
+    from townshiplens_agent.template import event_answer
+
+    out = event_answer({**CLOSURE, "trips_on_course": 4, "trips_newly_no_route": 0}, ["ev"])
+    assert any("4 sample trips start or end on the closed road" in c for c in out["caveats"])
+    ans = FinalAnswer(**out)
+    rec = TurnRecord(events=[{**CLOSURE, "trips_on_course": 4}], panel="management")
+    assert closure_claim_errors(ans, rec) == []
+
+
+def test_a_course_length_is_the_tools_or_the_one_asked_for():
+    from townshiplens_agent.validate import course_errors
+
+    rec = TurnRecord(
+        marathons=[{"course": {"length_m": 5102.7}, "requested_km": 5}], panel="management"
+    )
+    claim = Claim(text="course", status="indicative", evidence_ids=["ev"])
+    for text, n in (
+        ("A proposed 5.1 km loop for your 5 km run.", 0),
+        ("A proposed 7.5 km loop.", 1),
+    ):
+        ans = FinalAnswer(answer_status="answered", summary=text, claims=[claim])
+        assert len(course_errors(ans, rec)) == n

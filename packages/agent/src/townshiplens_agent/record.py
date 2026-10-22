@@ -82,6 +82,9 @@ class TurnRecord:
     affected: list[dict] = field(default_factory=list)
     # simulate_event results this turn (T-025): the numbers an event answer may quote.
     events: list[dict] = field(default_factory=list)
+    # T-028: each simulate_marathon result (course, impact, animation) for the marathon card;
+    # its impact (with the course) is also in `events`, so the closure checks apply.
+    marathons: list[dict] = field(default_factory=list)
     # Diagnostics (never shown to users, never stored): the validator's errors for each rejected
     # final_answer attempt, and token usage across all model requests of the turn.
     validator_errors: list[list[str]] = field(default_factory=list)

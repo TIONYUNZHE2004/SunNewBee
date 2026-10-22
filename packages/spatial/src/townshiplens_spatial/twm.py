@@ -569,6 +569,8 @@ def describe(world: World, a: Any) -> str:
         sc = next((s for s in world.flood.scenarios if s.id == a.scenario_id), None)
         if sc is None or a.scenario_id == "baseline":
             return "River at its normal level"
+        if sc.kind != "river_stage":
+            return sc.label
         return f"River +{sc.stage_m:g} m (indicative scenario)"
     if isinstance(a, RaisePaths):
         n = len(a.element_ids)

@@ -13,6 +13,18 @@ export function describeUncertainty(items: Record<string, string>[] | undefined)
   return out;
 }
 
+/** Items that repeat the answer's own "Worth knowing" notes (every caveat, the what-if label):
+ * shown there already, so never again as "Not verified" (T-028 item 5). */
+const ANSWER_NOTES = new Set(["caveat", "whatif"]);
+
+/** The items that are unverified facts: unchecked segments, rest points, closures (staff
+ * reports), inferred entrances, demo values. */
+export function unverifiedItems(
+  items: Record<string, string>[] | undefined,
+): Record<string, string>[] {
+  return (items ?? []).filter((it) => !ANSWER_NOTES.has(it.attribute ?? ""));
+}
+
 /**
  * Exact duplicate lines collapsed into one with a count ("… on an unnamed footway (x12)"), in
  * first-seen order (gate §9.1 F6). Every distinct line is kept: nothing is hidden, only repeats.

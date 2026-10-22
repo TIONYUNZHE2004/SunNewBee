@@ -57,24 +57,25 @@ function Steps({ steps }: { steps: Step[] }) {
                   className="absolute top-6 bottom-0 left-[0.6875rem] w-px bg-edge"
                 />
               )}
+              {/* the circled number is drawn by CSS, so copied text reads "1. …", not "11. …" */}
               <span
                 aria-hidden="true"
-                className={`relative grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-semibold tabular-nums ${
+                data-n={s.elided ? "…" : i + 1}
+                className={`relative grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-semibold tabular-nums before:content-[attr(data-n)] ${
                   s.elided ? "border border-dashed border-edge text-fg-soft" : "bg-raised text-fg"
                 }`}
-              >
-                {s.elided ? "…" : i + 1}
-              </span>
+              />
               <span className="min-w-0 pt-0.5">
                 <span className="sr-only">{i + 1}. </span>
                 <span className={s.elided ? "italic text-fg-soft" : "text-fg"}>
                   {s.elided ? s.text : emphasise(s.text)}
                 </span>
+                {s.note && " "}
                 {s.note && (
                   <span
-                    className={`ml-1.5 inline-flex items-center rounded-full border px-1.5 py-px text-[11px] leading-4 whitespace-nowrap ${noteTone(s.note)}`}
+                    className={`ml-0.5 inline-flex items-center rounded-full border px-1.5 py-px text-[11px] leading-4 whitespace-nowrap ${noteTone(s.note)}`}
                   >
-                    <span className="sr-only"> (</span>
+                    <span className="sr-only">(</span>
                     {s.note}
                     <span className="sr-only">)</span>
                   </span>

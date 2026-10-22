@@ -48,10 +48,11 @@ def test_cut_course_loses_routes_but_existing_data_gap_remains_no_data(world):
         for t in result.trips
         if t.from_id == "park-b" and t.to_id == "kiosk" and t.profile == "default"
     )
-    assert lost.affected and lost.no_route and lost.after_status == "blocked"
+    assert lost.on_closed_course and not lost.affected
+    assert lost.no_route and lost.after_status == "blocked"
     gaps = [t for t in result.trips if t.before_status == "no_data"]
     assert gaps and all(t.after_status == "no_data" and not t.affected for t in gaps)
-    assert result.trips_newly_no_route > 0
+    assert result.trips_newly_no_route == 0 and result.trips_on_course > 0
     assert result.trips_no_route == result.trips_no_route_before + result.trips_newly_no_route
     assert result.per_profile["drive"].trips_affected == 0  # tiny has no roads
     assert "park-b" in {p.id for p in result.places_cut_off}
