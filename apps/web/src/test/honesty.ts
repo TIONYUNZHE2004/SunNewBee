@@ -9,7 +9,10 @@ export function honestyViolations(text: string): string[] {
   const out: string[] = [];
   if (BANNED.test(text)) out.push(`banned safety wording: ${BANNED.exec(text)?.[0]}`);
   if (DEPTH.test(text)) out.push(`water depth: ${DEPTH.exec(text)?.[0]}`);
-  if (DEPTH_WORD.test(text)) out.push(`depth wording: ${DEPTH_WORD.exec(text)?.[0]}`);
+  // Yunzhe's T-032 override requires this exact limit beside illustrative water.
+  // A depth claim elsewhere in the same text must still fail.
+  const claims = text.replaceAll("Water look is illustrative; depth not modelled.", "");
+  if (DEPTH_WORD.test(claims)) out.push(`depth wording: ${DEPTH_WORD.exec(claims)?.[0]}`);
   return out;
 }
 

@@ -56,3 +56,5 @@ Papers behind the design are listed in [docs/02-research/world-models-2026.md](d
 | Enrolment in government schools by district (`enrolment_school_district`, via https://api.data.gov.my) | Ministry of Education Malaysia (EMIS) via data.gov.my, CC BY 4.0 | same |
 | Number of government schools by district (`schools_district`, via https://api.data.gov.my) | data.gov.my, CC BY 4.0 | same |
 
+
+T-032 river rendering: the pinned Three.js `Reflector` addon (MIT, https://github.com/mrdoob/three/blob/r186/examples/jsm/objects/Reflector.js) supplies planar reflections in `apps/web/src/features/flood/riverSurface.ts`. The wave shader is original procedural code; no texture or external asset was copied.

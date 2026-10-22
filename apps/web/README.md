@@ -897,3 +897,63 @@ grey. `styles.ts` and `mapStatus` carry the same statuses across all renderers. 
 legend exposes the estimate label. Legacy `ok` remains “No known barrier”.
 
 Resident route starters state the starting place explicitly. Free-text route questions with a missing or ambiguous start ask for clarification; the assistant must not silently assume a demo starting point.
+
+## Flood presentation (T-032)
+
+Stylised river scenarios use one batched planar reflection surface with procedural travelling
+waves (`features/flood/riverSurface.ts`). The height and ripples are illustrative; source
+`surface_height_m` never drives display height. The visible notice says "Water look is
+illustrative; depth not modelled." The Motion setting stops automatic ripple rendering.
+Only explicit `likely_flooded` polygons, or the legacy river-only scenario-water contract
+(`scenario_id` plus `surface_height_m`, no class), enter that renderer. Base water and unknown
+classes cannot enter it.
+
+Low-lying `possible` polygons stay terrain: two corner-cutting passes, intersected with their
+original footprint and the township boundary, a thin outline and translucent fill below roads
+and buildings. Holes are retained. This is display-only smoothing: no seed data, evaluation,
+route or API counter changes. Invalid polygons are omitted rather than drawn outside evidence.
+
+**Watch the river rise:** select a river scenario in Map settings (or ask a flood question), then
+press **Watch the river rise** below its impact summary. Stylised 3D is required; the button
+waits for that renderer and stays disabled while another trip/playback is open. Pause, Play,
+Restart, Exit and the native time slider control one camera. Reduced motion starts paused.
+
+`features/flood/floodStoryData.ts` resolves Normal / River +1 / +2 / +3 from the live scenario
+list and preloads the water and `/affected?profile=wheelchair` results. Counter changes are
+whole API values, not interpolated figures. The shared overlay receives a deterministic
+presentation clock; pause and seek freeze/reproduce both wave time and visual rise.
+
+The building shot intersects full OSM footprints (including courtyards) with river polygons,
+adds a blue base annotation and reuses the journey POI tag. It never assigns a measured depth
+or a tool flood class to a building. The resident beat reuses `createJourneyLayer`,
+`createHeroLayer`, `journeyCameraAt`, `JourneyHud`, `JourneyMiniMap` and `SimulationLabel`.
+It resolves Pangsapuri Cendana as a residential place, selects the nearest candidate with a
+mapped wheelchair route returned by the evacuation API, then binds the journey and route
+metadata by route id, endpoints, profile and scenario. Missing data stays a visible gap.
+
+Current seed: this route to Surau At Taqwa is unchanged at River +3 m and its access is partly
+unverified. The UI says so; it does not claim a flood detour. A detour claim requires a baseline
+route edge in the +3 m likely-flooded edge set and an after-route without it. OSM candidates
+remain labelled as candidates. End-card counts come from the final API stage, beside the 30 m
+model, drains and flash-flood limits and official guidance links.
+
+Acceptance: `?acceptance=1` exposes `window.__flood` (`start`, `seek`, `play`, `pause`, `close`,
+`state`, `camera`), following the existing journey hook. It makes no LLM calls. See
+[the T-032 capture index](../../docs/superpowers/screenshots/t032/README.md).
+
+The resident card retains the API's unmapped-entrance and no-sidewalk warnings. `JourneyHud`
+accepts one optional distance label: flood passes `Travelled` for the wheelchair user; other
+callers retain their default. The mini-map sits separately on the right to keep route limits
+readable. A journey API `no_data` response stays "No mapped connection (data gap)"; a known
+barrier stays a barrier. Technical HTTP codes are not used as resident-facing explanations.
+
+Flood playback hides cached marathon course dressing through the existing overlay wiring;
+it does not change marathon rendering code. Starting a day or rollout scene closes the flood
+story, just as starting another journey does, so only one playback owns the camera.
+
+The four viewpoint buttons (River rise, Building edge, Resident route, Model limits) seek that
+same timeline without changing play/pause. They adapt Yunzhe's four-image `Doc2.docx` visual
+reference: clear numbered story stages and direct access to each shot. Its illustrative depth,
+"dry route", lower-floor and road-closure claims are not copied into the product. Those claims
+are not supported by this seed's route or flood outputs. The selected viewpoint is exposed with
+`aria-current="step"`; the native slider remains available for exact seeks.

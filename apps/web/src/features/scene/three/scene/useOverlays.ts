@@ -10,6 +10,8 @@ import {
 import { closureFeatures } from "../../../closures/closureSimModel";
 import { courseDressing } from "../../../closures/courseDressing";
 import { useDevsim } from "../../../devsim/devsimStore";
+import { floodWaterFrame, useFloodStory } from "../../../flood/floodStoryStore";
+import { floodStateAt } from "../../../flood/floodTimeline";
 import { impactSummary } from "../../../flood/impactModel";
 import { gapsActive } from "../../../gaps/gapModel";
 import { useCompare } from "../../../journey/compareStore";
@@ -67,6 +69,7 @@ export function useOverlays({
   const scenarioId = useScene((s) => s.scenarioId);
   const accessVisible = useScene((s) => s.lensVisible.access);
   const pathStatus = useSceneSettings((s) => s.pathStatus);
+  const waterMotion = useSceneSettings((s) => s.motion);
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const whatIf = useScene((s) => s.whatIf);
   const closureResult = useScene((s) => s.closureSim);
@@ -108,13 +111,20 @@ export function useOverlays({
       if (l.length) ends.push(l[0] as number[], l[l.length - 1] as number[]);
     return ends;
   }, [route, journeyLine]);
-  const floodOn = !!scenarioId && floodLens;
-  const waterQ = useScenarioWater(floodOn ? scenarioId : null);
-  const floodQ = useLayer("flood", profile, scenarioId, floodOn);
+  const floodStory = useFloodStory((s) => s.story);
+  const storyStage = useFloodStory((s) => (s.timeline ? floodStateAt(s.t, s.timeline).stage : 0));
+  const stageData = floodStory?.stages[storyStage];
+  const floodOn = !!floodStory || (!!scenarioId && floodLens);
+  const waterQ = useScenarioWater(floodOn && !floodStory ? scenarioId : null);
+  const floodQ = useLayer("flood", profile, scenarioId, floodOn && !floodStory);
   const wasteQ = useLayer("waste", profile, scenarioId, wasteLens);
-  const evacQ = useEvacCentres(floodOn ? scenarioId : null, profile);
-  const impactQ = useFloodImpact(floodOn ? scenarioId : null);
-  const impact = useMemo(() => impactSummary(impactQ.data)?.markers ?? null, [impactQ.data]);
+  const evacQ = useEvacCentres(floodOn && !floodStory ? scenarioId : null, profile);
+  const impactQ = useFloodImpact(floodOn && !floodStory ? scenarioId : null);
+  const waterData = stageData?.water ?? waterQ.data;
+  const impact = useMemo(
+    () => impactSummary(stageData?.affected ?? impactQ.data)?.markers ?? null,
+    [stageData, impactQ.data],
+  );
   /**
    * Place markers drawn (`data-markers`): the access layer's points minus those hidden off the slab
    * (A-T5); without an outline, every point.
@@ -154,7 +164,7 @@ export function useOverlays({
     return detach;
   }, [engine, overlay, frame, roadNames, roadLabels.data, highlightKey]);
   // T-031 course dressing: arches, km markers, cones at the closure boundary, the closed window
-  const courseMarathon = closureResult?.marathon ?? null;
+  const courseMarathon = floodStory ? null : (closureResult?.marathon ?? null);
   const dressing = useMemo(
     () =>
       courseMarathon && accessData
@@ -177,19 +187,24 @@ export function useOverlays({
     if (!engine || !overlay) return;
     overlay.update({
       access: accessData ?? null,
-      accessVisible,
+      accessVisible: accessVisible && !floodStory,
       pathStatus,
       gaps: gapsQ.data ?? null,
       gapsOn,
-      route: routeOn && !journeyOn && !compareOn ? (route?.geojson ?? null) : null,
-      whatIf,
-      closureSim,
-      water: waterQ.data ?? null,
-      floodEdges: floodQ.data ?? null,
+      route: routeOn && !journeyOn && !compareOn && !floodStory ? (route?.geojson ?? null) : null,
+      whatIf: floodStory ? null : whatIf,
+      closureSim: floodStory ? null : closureSim,
+      water: waterData ?? null,
+      floodFrame: floodStory ? floodWaterFrame : undefined,
+      floodEdges: floodStory ? null : (floodQ.data ?? null),
       floodOn,
       waste: wasteQ.data ?? null,
       wasteOn: wasteLens,
-      evac: evacQ.data ?? null,
+      evac: floodStory
+        ? floodStory.resident
+          ? [floodStory.resident.centre]
+          : null
+        : (evacQ.data ?? null),
       impact,
       focusPlaceId,
       boundary,
@@ -214,7 +229,8 @@ export function useOverlays({
     route,
     whatIf,
     closureSim,
-    waterQ.data,
+    waterData,
+    floodStory,
     floodQ.data,
     floodOn,
     wasteQ.data,
@@ -226,6 +242,17 @@ export function useOverlays({
     keepPlaceIds,
     keepNear,
   ]);
+  // Water ripples need frames even when decorative motion is paused.
+  useEffect(() => {
+    if (!engine || !floodOn || !waterData || !waterMotion || floodStory) return;
+    let id = 0;
+    const draw = () => {
+      engine.requestRender();
+      id = requestAnimationFrame(draw);
+    };
+    id = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(id);
+  }, [engine, floodOn, waterData, waterMotion, floodStory]);
   // Elmina Day and rollout residents ride the same overlay layer.
   useResidents(engine, overlay, frame, { onScreen, clockRunning: running });
 
