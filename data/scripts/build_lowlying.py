@@ -218,7 +218,11 @@ def write_outputs(data_dir, dem, transform, cfg=None):
     polygons = features(mask, transform)
     # Coverage is what was screened: unscreened cells (mapped water, forest, scrub) are a gap,
     # so paths and places over them read UNKNOWN ("not screened"), never as checked and clear.
-    valid = unary_union(_polygons(np.isfinite(dem) & ~excluded, transform))
+    border = np.zeros(dem.shape, dtype=bool)
+    if n := cfg.boundary_cells:  # ignored by the screen (lowlying_mask), so not screened either
+        border[:n, :] = border[-n:, :] = True
+        border[:, :n] = border[:, -n:] = True
+    valid = unary_union(_polygons(np.isfinite(dem) & ~excluded & ~border, transform))
     edges, places, gaps = classify_world(world, polygons, valid)
     source_path = data_dir / "flood/scenarios.json"
     bundle = json.loads(source_path.read_text(encoding="utf-8"))
@@ -250,7 +254,7 @@ def write_outputs(data_dir, dem, transform, cfg=None):
     report = {
         "method": "priority_flood_terrain_screen",
         "config": {**cfg.__dict__, "exclude_landcover": list(cfg.exclude_landcover)},
-        "not_screened_cells": int(excluded.sum()),
+        "not_screened_cells": int((excluded | border).sum()),
         "dem_shape": list(dem.shape),
         "finite_cells": int(np.isfinite(dem).sum()),
         "lowlying_cells": int(mask.sum()),

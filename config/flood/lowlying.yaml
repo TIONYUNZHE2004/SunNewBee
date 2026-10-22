@@ -1,6 +1,6 @@
 # Terrain screening only; these are not water levels or predicted water depths.
-# Fill contrast must exceed the DEM's own noise: Copernicus GLO-30 relative vertical accuracy
-# is < 2 m (LE90) for slopes <= 20% (Copernicus DEM product handbook; Copernicus Data Space
+# Screening heuristic, not proof that each marked depression is real: GLO-30's stated relative
+# vertical accuracy is < 2 m (LE90, a 90th-percentile statistic, not a per-cell bound) for slopes <= 20% (Copernicus DEM product handbook; Copernicus Data Space
 # COP-DEM collection page). At 1 m (the first draft) 6.1% of the window was marked, much of it
 # inside that noise; at 2 m 3.5% (data/audits/2026-10-22-lowlying/sensitivity.json).
 min_fill_m: 2.0
