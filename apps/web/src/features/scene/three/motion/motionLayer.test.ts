@@ -1,10 +1,16 @@
 import * as THREE from "three";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AssetLibrary } from "../assets/library";
 import type { Manifest } from "../assets/manifest";
 import { createMotionUniforms, createRoleUniforms } from "../assets/roleMaterial";
 import { type Agent, easedDistance, PEOPLE_VISIBLE_M, poseAt, smoothYaw } from "./agents";
-import { AGENT_VISIBLE_M, agentLods, createMotionLayer, type YawMemory } from "./motionLayer";
+import {
+  AGENT_VISIBLE_M,
+  AMBIENT_FADE_MS,
+  agentLods,
+  createMotionLayer,
+  type YawMemory,
+} from "./motionLayer";
 
 const kit = (lods: { node: string; tris: number; maxM: number | null }[]) => ({
   group: "kit" as const,
@@ -121,6 +127,29 @@ describe("createMotionLayer", () => {
     expect(layer.group.visible).toBe(false);
     layer.setOpacity(1);
     expect(layer.group.visible).toBe(true);
+  });
+
+  it("ambient traffic off (T-031) fades the vehicles out and keeps people; on brings them back", () => {
+    let now = 1000;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    try {
+      const layer = make([agent("a", "person", 0, 0), agent("b", "vehicle", 0, 5)]);
+      layer.tick(0, cam(0, 30, 0));
+      expect(drawn(layer.group)).toBe(2);
+      layer.setVehicles(false);
+      now += AMBIENT_FADE_MS / 2; // half way through the fade: still drawn, fading
+      layer.tick(100, cam(0, 30, 0));
+      expect(drawn(layer.group)).toBe(2);
+      now += AMBIENT_FADE_MS; // faded out: only the person is drawn
+      layer.tick(200, cam(0, 30, 0));
+      expect(drawn(layer.group)).toBe(1);
+      layer.setVehicles(true);
+      now += AMBIENT_FADE_MS;
+      layer.tick(300, cam(0, 30, 0));
+      expect(drawn(layer.group)).toBe(2);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it("meshes are decorative with a no-op raycast and cast no shadow", () => {

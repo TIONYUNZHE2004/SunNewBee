@@ -126,6 +126,13 @@ export function useMotion({
     };
   }, [engine, roleUniforms, bus, low]);
   // Start: one frame starts the clock. Stop: static pose, then one final frame.
+  // T-031: a scenario playing its own cars switches the ambient ones off (fade out) and back on
+  const ambientTraffic = useScene((s) => s.ambientTraffic);
+  useEffect(() => {
+    if (!engine || !driver) return;
+    driver.setVehicles(ambientTraffic);
+    engine.requestRender();
+  }, [engine, driver, ambientTraffic]);
   useEffect(() => {
     if (!engine || !driver) return;
     if (!running) driver.rest();

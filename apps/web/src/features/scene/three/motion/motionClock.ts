@@ -162,6 +162,8 @@ export interface AgentLayer extends MotionLayer {
   setDensity(w: MoodMix): void;
   /** The devsim flow (`motionLayer.ts` MotionFlow); optional so older doubles need not provide it. */
   setFlow?(f: MotionFlow | null): void;
+  /** Ambient vehicles on / off (T-031 ambient-traffic switch); optional for older doubles. */
+  setVehicles?(on: boolean): void;
   samples?(): FlowSamples;
 }
 
@@ -186,6 +188,11 @@ export interface MotionDriver extends MotionLayer {
    * restores the mood density and the plain clock.
    */
   setFlow(f: MotionFlow | null): void;
+  /**
+   * Ambient vehicles (T-031 `sceneStore.ambientTraffic`) for the current and every later agent
+   * layer: false fades the decorative cars out while a scenario plays its own; true brings them back.
+   */
+  setVehicles(on: boolean): void;
   /** The agent layer's last drawn positions (devsim probe), or null without a layer. */
   samples(): FlowSamples | null;
 }
@@ -201,6 +208,7 @@ export function createMotionDriver(opts: {
   let agents: AgentLayer | null = null;
   let opacity = 1;
   let target: 0 | 1 = 1;
+  let vehicles = true;
   let weights: MoodMix = { day: 1, dusk: 0, night: 0 };
   let last: number | null = null;
   let flow: MotionFlow | null = null;
@@ -257,6 +265,7 @@ export function createMotionDriver(opts: {
       if (l) {
         l.setDensity(weights);
         l.setFlow?.(flow);
+        l.setVehicles?.(vehicles);
         l.setOpacity(opacity);
         group.add(l.group);
       }
@@ -264,6 +273,10 @@ export function createMotionDriver(opts: {
     setFlow(f) {
       flow = f;
       agents?.setFlow?.(f);
+    },
+    setVehicles(on) {
+      vehicles = on;
+      agents?.setVehicles?.(on);
     },
     samples: () => agents?.samples?.() ?? null,
     rest() {

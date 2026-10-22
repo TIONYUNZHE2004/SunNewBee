@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useScene } from "../scene/sceneStore";
 import type { MarathonResult } from "./closureSimModel";
 import { PLAY_S } from "./marathonPlay";
 
@@ -23,7 +24,11 @@ export const useMarathonPlay = create<MarathonPlayStore>((set) => ({
   result: null,
   t: 0,
   playing: false,
-  start: (result) => set({ result, t: 0, playing: true }),
+  start: (result) => {
+    // the city's ambient cars give way to the playback's own (T-031 shared switch)
+    useScene.getState().setAmbientTraffic(false);
+    set({ result, t: 0, playing: true });
+  },
   play: () =>
     set((s) => (s.result ? { playing: true, t: s.t >= PLAY_S ? 0 : s.t } : { playing: false })),
   pause: () => set({ playing: false }),
@@ -34,5 +39,8 @@ export const useMarathonPlay = create<MarathonPlayStore>((set) => ({
       const t = s.t + dt;
       return t >= PLAY_S ? { t: PLAY_S, playing: false } : { t };
     }),
-  stop: () => set({ result: null, t: 0, playing: false }),
+  stop: () => {
+    useScene.getState().setAmbientTraffic(true);
+    set({ result: null, t: 0, playing: false });
+  },
 }));
