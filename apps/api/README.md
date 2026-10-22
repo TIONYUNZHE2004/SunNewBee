@@ -184,5 +184,5 @@ river rise only (0 for terrain screening). `/scenarios/{id}/affected` includes p
 places/paths and cut-off places under the existing profile policy. Terrain polygons
 carry area and a possible label, with no `surface_height_m` or water depth. The seed
 must have real generated data before these scenarios appear. A missing layer is a gap.
-The driving UNKNOWN-only terrain policy is pending Yunzhe's review; no existing route
-or river-stage evaluation rule has been changed.
+Terrain-only possible marks are UNKNOWN for all profiles (decision A). Combined
+scenarios retain the existing river and physical-barrier rules.

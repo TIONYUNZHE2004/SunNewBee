@@ -16,9 +16,9 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from . import flood
-from .evaluate import _CHECKS, SIDEWALK_TYPES, evaluate_edge
+from .evaluate import _CHECKS, SIDEWALK_TYPES
 from .models import Claim, Closure
-from .routing import _flood_class, _target_pts, plan_route
+from .routing import _evaluate, _target_pts, plan_route
 from .world import World
 
 SIM_PROFILES = ("stroller", "wheelchair", "older_adult_rest")
@@ -240,12 +240,7 @@ def run_suite(
             if w2 is None:
                 continue
             # Cheap pre-check: the flip must make this edge PASS for the profile/scenario.
-            res, _ = evaluate_edge(
-                w2.edges[eid],
-                w2.profiles[prof],
-                _flood_class(w2, t["scenario_id"], eid),
-                flood_coverage=w2.flood.coverage_for(t["scenario_id"], eid),
-            )
+            res, _ = _evaluate(w2, w2.profiles[prof], t["scenario_id"], eid)
             if res != "PASS":
                 continue
             reruns += 1

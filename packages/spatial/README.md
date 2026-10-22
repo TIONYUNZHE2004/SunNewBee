@@ -586,8 +586,9 @@ and rainfall amounts are not modelled. A terrain mark is a possible collection a
 not a forecast. Unmarked areas do not establish absence. The data pipeline README
 records thresholds, limitations and generation requirements.
 
-Policy review pending: walking profiles evaluate possible marks as UNKNOWN. The
-existing driving profile treats possible river classes as FAIL; its evaluation rule
-has not been changed for this terrain feature. Do not present terrain-only driving
-exclusions as known inundation. An UNKNOWN-only terrain rule for driving requires
-Yunzhe's decision under the workflow's route-evaluation restriction.
+Decision A (Task 2): terrain-only possible marks evaluate UNKNOWN for every profile,
+including driving, at paths and assessed endpoints. A combined scenario retains the
+original river rules: a river possible class still excludes driving, and a river
+likely_flooded class remains FAIL. Physical barriers and closures also remain FAIL.
+The access layer uses the same factual assessment as routing. Terrain-only marks use
+“low-lying terrain may collect water (indicative)” rather than a river-flood assertion.

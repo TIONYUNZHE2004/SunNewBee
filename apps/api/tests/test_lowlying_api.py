@@ -50,3 +50,35 @@ def test_unbuilt_seed_does_not_advertise_a_generated_terrain_layer():
     assert "lowlying" not in {s["id"] for s in client.get("/scenarios").json()}
     assert client.get("/scenarios/lowlying").status_code == 404
     assert client.get("/scenarios/lowlying/affected").status_code == 404
+
+
+def test_access_layer_uses_unknown_terrain_for_driving_without_hiding_barriers():
+    from townshiplens_spatial.models import Scenario
+
+    world = state.get_ctx().world
+    edge = world.edges["seg-ab"]
+    edge.type = "street"
+    world.flood.scenarios.append(
+        Scenario(
+            id="lowlying",
+            label="Terrain",
+            stage_m=0,
+            kind="lowlying",
+            disclaimer="Indicative terrain screening",
+        )
+    )
+    world.flood.edge_classes["lowlying"] = {edge.id: "possible"}
+    client = TestClient(app)
+    result = client.get("/layers/access", params={"profile": "drive", "scenario_id": "lowlying"})
+    assert result.status_code == 200
+    row = next(
+        f["properties"] for f in result.json()["features"] if f["properties"]["id"] == edge.id
+    )
+    assert row["access_level"] == "unknown"
+    edge.osm_tags["motor_vehicle"] = "no"
+    world.version += 1
+    result = client.get("/layers/access", params={"profile": "drive", "scenario_id": "lowlying"})
+    row = next(
+        f["properties"] for f in result.json()["features"] if f["properties"]["id"] == edge.id
+    )
+    assert row["access_level"] == "barrier" and row["status_for_profile"] == "blocked"

@@ -71,3 +71,39 @@ def test_no_generated_layer_is_a_gap_not_an_empty_scenario(world):
     )
     with pytest.raises(ValueError, match="missing flood/lowlying.geojson"):
         lowlying.add_combinations(world)
+
+
+@pytest.mark.parametrize("profile", ["default", "wheelchair", "drive"])
+def test_terrain_is_unknown_for_edges_and_endpoints_but_river_rules_stay(world, profile):
+    from datetime import UTC, datetime
+
+    from townshiplens_spatial.models import Claim, Closure
+    from townshiplens_spatial.routing import endpoint_flood
+
+    # A road usable by all three profiles; terrain uncertainty must not make it FAIL.
+    edge = world.edges["seg-ab"]
+    edge.type = "street"
+    edge.claims["sidewalk"] = Claim(value="both", status="verified")
+    world.flood.edge_classes["stage_p1m"].pop(edge.id, None)
+    world.flood.place_classes["stage_p1m"].pop("playground", None)
+    add_low(world)
+    prof = world.profiles[profile]
+    for sid in ("lowlying", "stage_p1m+lowlying"):
+        assert _evaluate(world, prof, sid, edge.id)[0] == "UNKNOWN"
+        assert endpoint_flood(world, "playground", prof, sid)[0] == "UNKNOWN"
+    world.flood.edge_classes["stage_p2m"][edge.id] = "possible"
+    # Rebuild the already-derived combination to retain the river's provenance.
+    world.flood.edge_classes["stage_p2m+lowlying"][edge.id] = "possible"
+    expected = "FAIL" if profile == "drive" else "UNKNOWN"
+    assert _evaluate(world, prof, "stage_p2m+lowlying", edge.id)[0] == expected
+    world.flood.edge_classes["stage_p3m+lowlying"][edge.id] = "likely_flooded"
+    assert _evaluate(world, prof, "stage_p3m+lowlying", edge.id)[0] == "FAIL"
+    edge.closures = [
+        Closure(
+            id="closed",
+            element_id=edge.id,
+            reason="works",
+            starts_at=datetime(2000, 1, 1, tzinfo=UTC),
+        )
+    ]
+    assert _evaluate(world, prof, "lowlying", edge.id)[0] == "FAIL"

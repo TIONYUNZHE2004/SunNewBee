@@ -229,12 +229,15 @@ def endpoint_id(world: World, place_id: str) -> str:
 
 
 def endpoint_flood(world: World, place_id: str, profile, scenario_id: str | None):
+    from .lowlying import terrain_only
+
     eid = endpoint_id(world, place_id)
     return evaluate_flood(
         eid,
         profile,
         world.flood.place_classes.get(scenario_id or "", {}).get(eid),
         world.flood.coverage_for(scenario_id, eid),
+        terrain_only=bool(scenario_id) and terrain_only(world, scenario_id, eid, place=True),
     )
 
 
@@ -335,6 +338,8 @@ def eval_memo():
 
 
 def _evaluate(world, profile, scenario_id, key):
+    from .lowlying import terrain_only
+
     edge = world.edges[key]
     memo = _EVAL_MEMO.get()
     if memo is None:
@@ -343,6 +348,7 @@ def _evaluate(world, profile, scenario_id, key):
             profile,
             _flood_class(world, scenario_id, key),
             flood_coverage=world.flood.coverage_for(scenario_id, key),
+            terrain_only=bool(scenario_id) and terrain_only(world, scenario_id, key),
         )
     # The memo holds the edge, so its id() cannot be reused by another object meanwhile. The key
     # leaves out the world: imagined worlds (twm.apply) share the real world's flood classes
@@ -358,6 +364,7 @@ def _evaluate(world, profile, scenario_id, key):
                 profile,
                 _flood_class(world, scenario_id, key),
                 flood_coverage=world.flood.coverage_for(scenario_id, key),
+                terrain_only=bool(scenario_id) and terrain_only(world, scenario_id, key),
             ),
         )
     return hit[1]
