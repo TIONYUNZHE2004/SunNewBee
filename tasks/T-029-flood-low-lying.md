@@ -17,3 +17,4 @@
 
 ## Log
 - 2026-10-21 17:10 UTC · control · Created from Yunzhe's decisions.
+- 2026-10-22 01:40 UTC · control · Roles swapped (Yunzhe): Codex builds the marathon engine, cloud Claude audits it; cloud Claude builds the flood low-lying layer (its container reaches the Copernicus DEM; Codex got proxy 403), Codex audits it. Decision: low-lying terrain is UNKNOWN for every profile, driving included (option A). Overnight 21→22 Oct: Codex delivered T-028 backend 1–6 and the T-029 method on PR #29; cloud Claude hit its usage limit at 17:50 UTC and did nothing until 01:35 UTC.
