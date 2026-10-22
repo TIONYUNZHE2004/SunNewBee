@@ -19,7 +19,13 @@ from .labels import (
 )
 from .record import TurnRecord
 from .scope import greeting_text, refusal_text
-from .validate import DEPTH, FORBIDDEN, PLACEHOLDER_CAVEAT, PLACEHOLDER_SOURCE
+from .validate import (
+    DEMO_ROUTES_WARNING,
+    DEPTH,
+    FORBIDDEN,
+    PLACEHOLDER_CAVEAT,
+    PLACEHOLDER_SOURCE,
+)
 
 
 def scope_answer(question: str) -> FinalAnswer:
@@ -595,6 +601,9 @@ def event_answer(d: dict, evidence_ids: list[str]) -> dict:
             f"{before} of the {total} sample trips had no mapped route before the {word} "
             f"(data gaps, not the {word})."
         )
+    # the engine's own warning when sample routes rest on placeholder facts (AGENTS.md invariant)
+    if DEMO_ROUTES_WARNING in (d.get("warnings") or []):
+        caveats.append(DEMO_ROUTES_WARNING)
     return {
         "answer_status": "answered",
         "summary": summary,
