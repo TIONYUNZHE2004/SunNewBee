@@ -1,4 +1,4 @@
-{"meta": {"message": "My mum uses a walker. Can she walk from Harmoni 1 to Lakeside Mall Car Park B?", "profile": "older_adult_rest", "scenario_id": null, "world": "elmina", "world_fingerprint": "568c8617f4cc63645ec48a11fa23bb701ac806fb6ef0041f7d7e59e4e4470247", "model": "mock-scripted", "recorded_at": "2026-10-22T03:06:22+00:00"}}
+{"meta": {"message": "My mum uses a walker. Can she walk from Harmoni 1 to Lakeside Mall Car Park B?", "profile": "older_adult_rest", "scenario_id": null, "world": "elmina", "world_fingerprint": "0a3f0af6cb4dc96ba512a32836d67d05da5ec44c88a10af9dcb95c279ce73f6d", "model": "mock-scripted", "recorded_at": "2026-10-22T03:55:35+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "harmoni 1", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "1 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall car park b", "types": null, "limit": 5, "near_place": null}}
