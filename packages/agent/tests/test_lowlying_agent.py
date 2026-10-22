@@ -67,3 +67,14 @@ def test_a_plain_river_question_never_picks_a_combined_scenario(seed):
     with pytest.raises(RouteSelectionError):
         effective_scenario(q, seed, None, "stage_p3m+lowlying")
     assert effective_scenario("low-lying areas please", seed, None, "lowlying") == "lowlying"
+
+
+@needs_lowlying
+def test_with_terrain_on_screen_a_river_question_uses_the_river_component(seed):
+    q = "Which places are cut off by the river?"
+    assert effective_scenario(q, seed, "stage_p3m+lowlying", "stage_p3m") == "stage_p3m"
+    with pytest.raises(RouteSelectionError):
+        effective_scenario(q, seed, "stage_p3m+lowlying", "stage_p3m+lowlying")
+    # asking about low-lying areas keeps the combined scenario on screen
+    q2 = "Which low-lying areas may collect water?"
+    assert effective_scenario(q2, seed, "stage_p3m+lowlying", "lowlying") == "lowlying"

@@ -23,7 +23,8 @@ import { DevsimTextPanel } from "../list/DevsimTextPanel";
 import { JourneyStepList } from "../list/JourneyStepList";
 import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
-import { ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
+import { ROUTE_STYLE, statusStyle } from "../styles";
+import { SCENARIO_FILL_PAINT } from "./waterPaint";
 
 const prefersReducedMotion = () =>
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -363,12 +364,7 @@ export default function MapboxLite() {
       >
         {showWater && (
           <Source id="water" type="geojson" data={water.data as never}>
-            <Layer
-              id="water"
-              type="fill"
-              slot="bottom"
-              paint={{ "fill-color": WATER_COLOR, "fill-opacity": 0.45 }}
-            />
+            <Layer id="water" type="fill" slot="bottom" paint={SCENARIO_FILL_PAINT as never} />
           </Source>
         )}
         {showAccess && (

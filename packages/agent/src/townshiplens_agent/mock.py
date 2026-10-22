@@ -857,7 +857,9 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return _lowlying(q, rets, info)
     is_flood = bool(re.search(r"flood|river|banjir|sungai|rises|naik|水", q))
     ui_sid = _ui(info, "active_scenario")
-    ui_sid = None if ui_sid == "none" else ui_sid
+    ui_sid = None if ui_sid in ("none", "lowlying") else ui_sid
+    # a river question with low-lying terrain on screen uses the river component (T-029)
+    ui_sid = ui_sid.removesuffix("+lowlying") if ui_sid else ui_sid
     where_next = bool(re.search(_WHERE_NEXT, q))
     names_level = is_flood and bool(re.search(r"\d+(?:\.\d+)?\s*m\b", q))
     if where_next and not ui_sid and not names_level:  # no scenario to plan against

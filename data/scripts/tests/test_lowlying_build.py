@@ -130,4 +130,14 @@ def test_a_basin_under_forest_canopy_is_not_screened(tmp_path):
     canopy = Config(**{**CFG.__dict__, "exclude_landcover": ("forest",)})
     report = write_outputs(dest, dem, transform, canopy)
     assert report["lowlying_cells"] == 0 and report["not_screened_cells"] == 64
+    # not screened is a gap (UNKNOWN), never "checked and clear": every element over it
+    bundle = json.loads((dest / "flood/scenarios.json").read_text())
+    gaps = bundle["scenario_coverage"]["lowlying"]
+    world = load_world(dest)
+    inside = [
+        e.id
+        for e in world.edges.values()
+        if all(x0 <= x <= x0 + 0.004 and y0 - 0.004 <= y <= y0 for x, y in e.coords)
+    ]
+    assert inside and all(gaps.get(eid) == "uncovered" for eid in inside)
     assert write_outputs(dest, dem, transform, CFG)["lowlying_cells"] == 16  # no exclusion
