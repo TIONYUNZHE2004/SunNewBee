@@ -71,7 +71,11 @@ export function ResidentsLayer({
 
   if (!buttonVisible(t)) return null;
   return (
-    <div data-testid="devsim-residents" className="flex flex-col items-start gap-2">
+    // max-h-full: the overlay's slot is bounded, so the panel scrolls inside it (never above the stage)
+    <div
+      data-testid="devsim-residents"
+      className="flex max-h-full min-h-0 flex-col items-start gap-2"
+    >
       <ResidentsButton
         ref={buttonRef}
         count={data.residents.length}
