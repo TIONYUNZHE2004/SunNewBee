@@ -128,33 +128,42 @@ describe("move-in (AC-W5, schedule mode)", () => {
     layer.dispose();
   });
 
-  it("the children read plan.playground when the plan carries it (park anchor otherwise)", () => {
+  it("the children play at the plan's playground; without one, at the park anchor", () => {
     expect(playgroundCoord(null)).toBeNull();
     expect(playgroundCoord({ coord: [1, 2] })).toEqual([1, 2]);
     expect(playgroundCoord({ lonlat: [3, 4] })).toEqual([3, 4]);
-    expect(playgroundCoord({ at: [5, 6] })).toEqual([5, 6]);
     expect(playgroundCoord({ lon: 7, lat: 8 })).toEqual([7, 8]);
     expect(playgroundCoord({ name: "no point" })).toBeNull();
-    // Urban Park playground (seed place), ~360 m from the park anchor
-    const pg = [101.51053, 3.18077];
-    const withPg = {
-      ...(elmina as object),
-      playground: { id: "osm-node-pg", name: "Playground", lonlat: pg, walk_node: "n1" },
-    } as unknown as DevelopmentPlan;
-    expect(planExtras(withPg).playground).toEqual(pg);
-    expect(planExtras(C7).playground).toEqual(C7.anchors.park);
-    const g = siteGeom(withPg, frame);
-    const cast = createCast({ plan: withPg, geom: g });
-    const layer = createDevsimLayer({ plan: withPg, frame, anchors: false });
-    layer.add(cast);
-    layer.setT(33);
-    const [px, pz] = frame.toLocal(pg[0] as number, pg[1] as number);
-    for (let k = 0; k < KIDS; k++) {
-      const p = cast.poseOf(`child${k}`);
-      expect(p).not.toBeNull();
-      if (p) expect(Math.hypot(p.x - px, p.z - pz)).toBeLessThanOrEqual(8);
+    type Pg = { name: string; lon: number; lat: number };
+    const pg = (C7 as unknown as { playground: Pg }).playground;
+    expect(pg.name).toBe("Urban Park playground");
+    const noPg = { ...(elmina as object), playground: null } as unknown as DevelopmentPlan;
+    const cases: [DevelopmentPlan, number[]][] = [
+      // primary: the 45 s fixture's own playground (be-dev, nearest on foot to the entrance)
+      [C7, [pg.lon, pg.lat]],
+      // fallback: the park anchor
+      [noPg, C7.anchors.park],
+    ];
+    for (const [plan, at] of cases) {
+      expect(planExtras(plan).playground).toEqual(at);
+      const l = createDevsimLayer({ plan, frame, anchors: false });
+      const cast = createCast({ plan, geom: l.geom });
+      l.add(cast);
+      l.setT(33);
+      const [px, pz] = frame.toLocal(at[0] as number, at[1] as number);
+      for (let k = 0; k < KIDS; k++) {
+        const p = cast.poseOf(`child${k}`);
+        expect(p).not.toBeNull();
+        if (p) expect(Math.hypot(p.x - px, p.z - pz)).toBeLessThanOrEqual(8);
+      }
+      const st = l.demoState() as { kidsAtPlayground: number; kidsMaxDistM: number | null };
+      expect(st.kidsAtPlayground).toBe(KIDS);
+      expect(st.kidsMaxDistM).not.toBeNull();
+      expect(st.kidsMaxDistM as number).toBeLessThanOrEqual(8);
+      l.setT(30);
+      expect((l.demoState() as { kidsMaxDistM: number | null }).kidsMaxDistM).toBeNull();
+      l.dispose();
     }
-    layer.dispose();
   });
 
   it("lit share stays monotonic when seeking backward (C10 review minor 4)", () => {

@@ -709,6 +709,16 @@ export function createCast(o: CastOpts): Cast {
     wcrowd?.commit();
   };
 
+  const kidsMaxDist = (): number | null => {
+    let m: number | null = null;
+    for (const [id, p] of poses)
+      if (id.startsWith("child")) {
+        const d = Math.hypot(p.x - moveIn.playground[0], p.z - moveIn.playground[1]);
+        m = Math.max(m ?? 0, Math.round(d * 100) / 100);
+      }
+    return m;
+  };
+
   return {
     group,
     poseOf: (id) => poses.get(id) ?? null,
@@ -798,6 +808,8 @@ export function createCast(o: CastOpts): Cast {
         castOn: ids.filter((id) => spotlight.has(id)),
         movers: { walking: ids.filter((id) => id.startsWith("mover")).length, entered },
         kidsAtPlayground: ids.filter((id) => id.startsWith("child")).length,
+        /** The farthest drawn child from the playground (m; null: none drawn), AC-W5. */
+        kidsMaxDistM: kidsMaxDist(),
       };
     },
     aoExcluded: () => [glow],

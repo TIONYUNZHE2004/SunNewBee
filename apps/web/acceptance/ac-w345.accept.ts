@@ -47,6 +47,7 @@ type Bld = {
   parkedCars: number;
   movers: { walking: number; entered: number };
   kidsAtPlayground: number;
+  kidsMaxDistM: number | null;
   litShare: number;
   speaker: { who: string; anchored: boolean; headOnStage: boolean } | null;
   castOn: string[];
@@ -98,16 +99,17 @@ test("AC-W345: building set pieces, move-in and bubble speakers via the bld hook
   // ---- AC-W3 ----
   const w3: Record<string, unknown> = {};
   const r12 = await at(page, 12);
-  const yaw: number[] = [];
-  for (const t of [11.2, 11.6, 12, 12.4, 12.8]) yaw.push((await at(page, t)).crane.yawDeg);
-  const maxDelta = Math.max(
-    Math.abs((yaw[2] as number) - (yaw[0] as number)),
-    Math.abs((yaw[4] as number) - (yaw[2] as number)),
-    Math.abs((yaw[3] as number) - (yaw[1] as number)),
-  );
+  // pairs a full 1 s apart across the Raya hold (11-13 s): start, middle and end of the window
+  const yawPairs: { t0: number; t1: number; d: number }[] = [];
+  for (const t0 of [11.05, 11.5, 11.95]) {
+    const a = (await at(page, t0)).crane.yawDeg;
+    const b = (await at(page, t0 + 1)).crane.yawDeg;
+    yawPairs.push({ t0, t1: t0 + 1, d: Math.abs(b - a) });
+  }
+  const maxDelta = Math.max(...yawPairs.map((p) => p.d));
   w3.t12 = {
     rayaBanner: r12.overlays.includes("banner-raya"),
-    yawDeg: yaw,
+    yawPairs,
     maxDeltaDegOver1s: maxDelta,
     workers: r12.workers,
     lorries: r12.lorries.length,
@@ -173,7 +175,9 @@ test("AC-W345: building set pieces, move-in and bubble speakers via the bld hook
   const s31 = await at(page, 31);
   const s33 = await at(page, 33);
   const k324 = (await at(page, 32.4)).kidsAtPlayground;
-  const k326 = (await at(page, 32.6)).kidsAtPlayground;
+  const s326 = await at(page, 32.6);
+  const k326 = s326.kidsAtPlayground;
+  const kidsDist = [s326.kidsMaxDistM, s33.kidsMaxDistM, (await at(page, 40)).kidsMaxDistM];
   const w5Sum = {
     movingLorries30: s30.movingLorries,
     boxes31: s31.boxes,
@@ -184,6 +188,7 @@ test("AC-W345: building set pieces, move-in and bubble speakers via the bld hook
     parkedCars33: s33.parkedCars,
     kids324: k324,
     kids326: k326,
+    kidsMaxDistM: kidsDist,
   };
   check(s30.movingLorries >= 2, "W5 moving lorries >= 2");
   check(s31.boxes >= 8 && s33.boxes >= 8, "W5 boxes >= 8");
@@ -191,6 +196,10 @@ test("AC-W345: building set pieces, move-in and bubble speakers via the bld hook
   check(mono && s33.litShare >= 0.85, "W5 lit share monotonic to >= 0.85");
   check(s33.parkedCars >= 6, "W5 cars parked >= 6");
   check(k326 >= 4, "W5 children >= 4 after 32.5 s");
+  check(
+    kidsDist.every((d) => d !== null && d <= 8),
+    "W5 children within 8 m of the playground (32.6, 33, 40 s)",
+  );
   out.w5 = w5Sum;
 
   // ---- AC-W8 (3D side): every bubble anchored to a drawn speaker on stage ----

@@ -79,9 +79,9 @@ export interface DevelopmentPlanExtras {
 }
 
 /**
- * The plan's nearest playground (be-dev, pending): an id, a name, its [lon, lat] and a walk node.
- * The exact key of the point is not settled yet, so the 3D adapter (`setPieces.ts`
- * `playgroundCoord`) accepts `coord`, `lonlat`, `at` or `point` ([lon, lat]) or `lon` + `lat`.
+ * The plan's nearest playground (be-dev `DevsimPlayground`: id, name, `lon` + `lat`, `node_id`,
+ * walk m / min). The 3D adapter (`setPieces.ts` `playgroundCoord`) reads `lon` + `lat`, and also
+ * a [lon, lat] under `coord`, `lonlat`, `at` or `point`.
  */
 export interface PlaygroundRef {
   place_id?: string;
