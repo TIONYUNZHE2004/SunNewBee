@@ -211,8 +211,10 @@ describe("low-lying terrain areas (T-029)", () => {
     const layer = createFloodLayer(mixed, null, frame);
     const byName = Object.fromEntries(layer.ground.children.map((m) => [m.name, m as THREE.Mesh]));
     expect(Object.keys(byName).sort()).toEqual(["flood-fill", "flood-fill-possible"]);
-    const color = (n: string) =>
-      `#${((byName[n]?.material as THREE.MeshBasicMaterial).color as THREE.Color).getHexString()}`;
+    const color = (n: string) => {
+      const mat = (byName[n] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+      return `#${mat.color.getHexString()}`;
+    };
     expect(color("flood-fill-possible").toLowerCase()).toBe(
       statusStyle("flooded_possible").color.toLowerCase(),
     );

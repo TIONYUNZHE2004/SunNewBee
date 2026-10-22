@@ -37,6 +37,9 @@ export interface ImpactSummary {
   cutOff: number;
   /** "141.6 km" or "320 m" of likely flooded mapped paths. */
   pathLength: string;
+  /** T-029: places and paths marked `possible` (low-lying terrain), from the same response. */
+  possiblePlaces: number;
+  possiblePaths: number;
   markers: ImpactMarker[];
 }
 
@@ -62,12 +65,18 @@ export function impactSummary(a: AffectedResult | null | undefined): ImpactSumma
     flooded: flooded.length,
     cutOff: cut.length,
     pathLength: formatPathLength(a.flooded_path_m ?? 0),
+    possiblePlaces: a.possible_place_count ?? 0,
+    possiblePaths: a.possible_path_count ?? 0,
     markers: [
       ...flooded.map((p) => marker(p, "flooded")),
       ...cut.map((p) => marker(p, "cut_off")),
     ].filter((m): m is ImpactMarker => m !== null),
   };
 }
+
+/** Only `possible` marks (low-lying terrain, T-029): say those, not "0 likely flooded". */
+export const possibleOnly = (s: ImpactSummary) =>
+  s.flooded === 0 && s.pathLength === "0 m" && s.possiblePlaces + s.possiblePaths > 0;
 
 /** "3 places" / "1 place". */
 export const placesWord = (n: number) => `${n} ${n === 1 ? "place" : "places"}`;

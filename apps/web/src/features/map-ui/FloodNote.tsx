@@ -52,7 +52,9 @@ export function FloodNote() {
         </p>
         {sc?.disclaimer && <p className="m-0 mt-1 text-xs text-fg-soft">{sc.disclaimer}</p>}
         {/* the scenario disclaimer above may already carry both notes (T-024 data) */}
-        <FloodImpactCard notes={!sc?.disclaimer?.includes(FLASH_FLOOD_NOTE)} />
+        {/* the flash-flood note is about river stages; a terrain-only screen states its own
+            limits (rainfall not modelled) in its disclaimer */}
+        <FloodImpactCard notes={river && !sc?.disclaimer?.includes(FLASH_FLOOD_NOTE)} />
       </div>
     </InSlot>
   );
