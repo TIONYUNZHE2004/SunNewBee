@@ -12,7 +12,8 @@ Thresholds (`config/flood/lowlying.yaml`), from `sensitivity.json`:
 - At least 4 connected 30 m cells (~3,600 m²); outer 2 cells ignored.
 - Not screened, stated as a gap: mapped hydrology, land-cover water (one 985-cell lake was
   missing from hydrology.geojson) and forest or scrub (GLO-30 is a canopy surface; tree gaps
-  read as pits). 15,304 cells are not screened.
+  read as pits). 15,304 cells are not screened; the 1,123 paths and places over them carry a
+  coverage gap (UNKNOWN), never "checked and clear" (fixed after Codex's review on #32).
 
 Validation (`validation.json`): no public report found names a flooded place inside the
 township. Neighbouring Kampung Melayu Subang and Paya Jaras report repeated flash floods
