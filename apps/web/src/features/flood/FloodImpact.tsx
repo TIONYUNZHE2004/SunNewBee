@@ -11,6 +11,7 @@ import {
   placesWord,
   possibleOnly,
 } from "./impactModel";
+import { WatchRiverButton } from "./WatchRiverButton";
 
 /** The round "!" / "⚠" badge every flood-impact surface uses (map card, List view, 3D label). */
 export function ImpactGlyph({ kind }: { kind: ImpactKind }) {
@@ -71,6 +72,7 @@ export function FloodImpactCard({ notes = true }: { notes?: boolean }) {
           </span>
         )}
       </p>
+      <WatchRiverButton />
       {notes && (
         <p className="m-0 text-fg-soft">
           {INDICATIVE_NOTE} {FLASH_FLOOD_NOTE}

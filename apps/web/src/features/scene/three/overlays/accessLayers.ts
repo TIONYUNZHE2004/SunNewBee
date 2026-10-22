@@ -39,6 +39,8 @@ export interface OverlayState {
   floodEdges?: unknown;
   /** A scenario is chosen and the flood lens is on. Also gates the evacuation centres. */
   floodOn?: boolean;
+  /** T-032 deterministic wave/illustrative-rise clock; absent outside the river story. */
+  floodFrame?: () => [seconds: number, rise: number, fade: number];
   /** GET /layers/waste (points) and the waste lens. */
   waste?: unknown;
   wasteOn?: boolean;
@@ -135,7 +137,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   lineGroup.name = "overlay-lines";
   lineGroup.add(floodGroup, status, gapsGroup, whatIfGroup, closureGroup, routeGroup);
   group.add(markerGroup);
-  let flood: { dispose(): void } | null = null;
+  let flood: ReturnType<typeof createFloodLayer> | null = null;
   let markers: Markers | null = null;
   let markerKey: unknown[] | null = null;
   let cam: { x: number; y: number; z: number } | null = null;
@@ -173,13 +175,17 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
 
   /** Scenario water and flood edges: rebuilt only when their inputs change, shown by the lens. */
   function updateFlood(s: OverlayState) {
-    if (s.water !== last.water || s.floodEdges !== last.floodEdges) {
+    if (
+      s.water !== last.water ||
+      s.floodEdges !== last.floodEdges ||
+      s.boundary !== last.boundary
+    ) {
       flood?.dispose();
       flood = null;
       floodGroup.clear();
       groundGroup.clear();
       if (s.water || s.floodEdges) {
-        const f = createFloodLayer(s.water, s.floodEdges, frame);
+        const f = createFloodLayer(s.water, s.floodEdges, frame, s.boundary);
         flood = f;
         f.group.traverse((o) => {
           ((o as THREE.Mesh).material as LineMaterial | undefined)?.resolution?.set(res[0], res[1]);
@@ -286,6 +292,8 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       };
     },
     setView(c, fovDeg, target) {
+      if (groundGroup.visible)
+        flood?.update(...(last.floodFrame?.() ?? [performance.now() / 1000, 0, 1]));
       // Attached batches also follow the clock, so they are fed before the camera-moved early return.
       for (const ch of children) ch.setView?.(c, performance.now(), fovDeg, target);
       // The engine calls this every frame: relabel only when the camera moved.

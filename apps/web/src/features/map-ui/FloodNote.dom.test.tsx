@@ -32,6 +32,9 @@ describe("FloodNote", () => {
       expect(screen.getByRole("link", { name: new RegExp(n) })).toHaveAttribute("href");
     expect(note.className.split(" ")).not.toContain("absolute");
     expect(note.className).not.toMatch(/(^|\s)top-/);
-    expect(note.textContent).not.toMatch(/\bsafe\b|depth|metres deep/i);
+    expect(note).toHaveTextContent("Water look is illustrative; depth not modelled.");
+    expect(
+      note.textContent?.replace("Water look is illustrative; depth not modelled.", ""),
+    ).not.toMatch(/\bsafe\b|depth|metres deep/i);
   });
 });

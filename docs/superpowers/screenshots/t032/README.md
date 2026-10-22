@@ -1,0 +1,143 @@
+# T-032 · flood visual review
+
+**Open [the embedded PDF](flood-review.pdf) for all 32 images on 33 pages.** It contains the
+20 current light/dark shots, four cinematic strips, and eight first-checkpoint images.
+The current UI source is `ac734983dcb16cc3afd93cca5ddcbf684b563f86`. Historical images are labelled
+as first-checkpoint captures. All images are inside the PDF; no network or sign-in is needed
+after download. File size: 13,594,245 bytes.
+
+This repository is private. GitHub file links require a browser signed in with repository
+access. The earlier `raw.githubusercontent.com` embeds were not a reliable delivery method
+for readers outside the cloud session. The PR now uses ordinary GitHub file links pinned to
+the relevant full commit; no access token is included in a link.
+
+Delivery checks: all 33 PDF pages parse, all 32 screenshot pages contain embedded images,
+and there are no external image links or encrypted pages. Seven sample pages were rendered
+locally, including both building shots and the animation strips. A separate offline ZIP keeps
+all 32 original image files and their source checksums.
+
+For each later visual update: inspect the captures, rebuild and open the PDF, verify every
+image is embedded, then check the published files. A successful request from cloud credentials
+does not establish access for the reader. State any GitHub sign-in requirement and provide the
+downloadable review file with the update.
+
+## First rendering checkpoint
+
+22 Oct 2026. Stylised 3D, real Elmina seed, 1440 × 900, installed Chromium with SwiftShader.
+These are software-rendered captures, not a hardware performance measurement.
+
+| Shot | Light | Dark |
+| --- | --- | --- |
+| River surface / reflections | [river-day](river-day.png) | [river-night](river-night.png) |
+| Rounded low-lying terrain | [terrain-day](terrain-day.png) | [terrain-night](terrain-night.png) |
+
+[Three-frame ripple strip](waves-strip.jpg). The source frames are `waves-0..2.png`.
+River +3 m is the scenario stage, never a local depth. The water notice and official guidance
+stay visible. Terrain remains `possible`, with roads/buildings above its soft fill.
+
+Validation at the first rendering checkpoint: lint, typecheck, 2,952 web tests, generated-client
+drift, 26 mock golden questions, and production build pass. Full Python and the installed-Chromium
+E2E run are in progress; the pinned Playwright download was blocked by the cloud network policy.
+The full cinematic, building tags, resident journey, and Claude's pending ambient-traffic switch
+are still to come. No live model calls and no data regeneration.
+
+## Cinematic checkpoint
+
+The story runs for about 73 screen seconds on this seed. Four river stages lead to a building
+shot, one wheelchair resident and an overview with the model limits. All captions remain
+indicative. The source camera, hero, ribbon, mini-map, HUD and tags reuse the journey code.
+
+| Shot | Light | Dark |
+| --- | --- | --- |
+| Normal river | [light](story-normal-day.jpg) | [dark](story-normal-night.jpg) |
+| River +1 m | [light](story-river-p1-day.jpg) | [dark](story-river-p1-night.jpg) |
+| River +2 m | [light](story-river-p2-day.jpg) | [dark](story-river-p2-night.jpg) |
+| River +3 m | [light](story-river-p3-day.jpg) | [dark](story-river-p3-night.jpg) |
+| Building bands and tag | [light](story-buildings-day.jpg) | [dark](story-buildings-night.jpg) |
+| Resident, 40 s | [light](story-resident-early-day.jpg) | [dark](story-resident-early-night.jpg) |
+| Resident, 45 s | [light](story-resident-day.jpg) | [dark](story-resident-night.jpg) |
+| Resident, 49 s | [light](story-resident-mid-day.jpg) | [dark](story-resident-mid-night.jpg) |
+| Resident, 58 s | [light](story-resident-late-day.jpg) | [dark](story-resident-late-night.jpg) |
+| Overview and limits | [light](story-end-day.jpg) | [dark](story-end-night.jpg) |
+
+Four-frame river strips: [light](story-river-strip-day.jpg) / [dark](story-river-strip-night.jpg).
+Three-frame resident strips: [light](story-resident-strip-day.jpg) / [dark](story-resident-strip-night.jpg).
+Both themes were captured at 1440 × 900 in the built Stylised app, Chromium/SwiftShader,
+with the real Elmina API and no live LLM. Pause/seek and Exit worked in both themes;
+there were no page or shader errors. The external font was blocked deliberately in the capture.
+
+Actual `/scenarios/{id}/affected?profile=wheelchair` values used by the HUD:
+
+| Scenario | Places likely flooded | Places cut off | Path metres likely flooded |
+| --- | ---: | ---: | ---: |
+| baseline | 0 | 4 | 0.00 |
+| stage_p1m | 15 | 6 | 58604.23 |
+| stage_p2m | 16 | 9 | 91596.99 |
+| stage_p3m | 19 | 9 | 141598.68 |
+
+The normal cut-off count includes existing mapped disconnections; it does not mean the river
+caused four new closures. Path length is formatted as metres or kilometres on screen.
+
+Resident source calls: `/places?q=Pangsapuri%20Cendana`, `/evacuation-centres` with
+`near=osm-way-910378225`, `profile=wheelchair`, `scenario_id=stage_p3m`, then `/routes` and
+`/journeys` to `__centre__evc-osm-way-910378231`. The nearest returned mapped candidate is
+Surau At Taqwa (`osm_candidate`). Route: 358.7 m, estimated 5.1 min, `partly_unverified`.
+Two returned centres have `no_data`; these are labelled as data gaps.
+
+The baseline and +3 m routes have exactly these five edges:
+`seg-598711924-0`, `seg-885027020-0`, `seg-240136676-1`, `seg-240136713-0`,
+`seg-1346147888-1`. None is in the +3 m likely-flooded edge set. Therefore the UI states that
+the mapped route is unchanged and does not show the requested flood-detour tag for this seed.
+No route evaluation or data was altered to manufacture a detour.
+
+Dependency still pending: Claude's `setAmbientTraffic` is absent from DaVinci (41ce937a) and
+his current worker branch (5b309d06). These captures therefore still contain ambient cars.
+The PR stays draft until his shared switch lands and the flood calls it. No independent switch
+is implemented here.
+
+Checks: the first rendering checkpoint passed GitHub CI (run 39796301546). The cinematic has
+passed lint, workspace typecheck, 2,965 web tests, generated-client drift, 26 mock golden
+questions and production build. Final CI results are recorded on PR #40.
+Python is unchanged: 3,191 passed / 37 skipped. Installed Chromium E2E: 39 passed, two failures
+also reproduced on unchanged DaVinci 449171b9: external-font `ERR_TUNNEL_CONNECTION_FAILED`
+and the phone composer-height assertion (111.1875 px versus >150 px). No unrelated UI fix was made.
+
+## Route-limit review
+
+The current captures show the API's two specific route limits: about 347 m follows road centre
+lines without a mapped sidewalk, and the home entrance is not mapped. The mini-map is separate
+from the warning card. The wheelchair distance label is Travelled; the shared HUD's other
+callers keep their existing label. Five API contract probes also cover a failed place lookup,
+mismatched journey/route ids, a missing connection and a missing river stage, beside an honest
+candidate control. Ten built-app browser probes pass for the four API counters, route labels,
+pause, repeatable camera seeks, honest failure states and Exit.
+
+All twenty cinematic captures and both theme strips were refreshed after this review. The
+cinematic checkpoint at 86006f95 passed all seven GitHub CI gates (run 39803286030). The latest
+checks and the pending shared-traffic requirement are reported on PR #40.
+
+## User reference review (23 Oct MYT)
+
+Yunzhe supplied `Doc2.docx`: four AI-generated concept images, with no text instructions. They
+show reflective water between buildings, blue building tags, a resident follow shot and a
+numbered story timeline. The existing river/reflection and building-band implementation covers
+the first two ideas. Four new viewpoint buttons now give direct access to River rise, Building
+edge, Resident route and Model limits, through the same deterministic camera and timeline.
+They preserve pause and expose the current step to screen readers.
+
+The concept labels are visual references, not evidence. Local depths, lower-floor impact, a
+"dry evacuation route", official assembly points and road closures are not asserted from those
+images. The real route remains partly unverified and unchanged at River +3 m. No AI-generated
+geometry, place or route facts were added to the seed.
+
+After merging DaVinci 41ce937a and adding viewpoint navigation: lint, workspace typecheck,
+2,989 web tests, generated-client drift, 26/26 mock golden cases and build pass. Eleven built-app
+probes pass, including all four native viewpoint buttons, unchanged-route/candidate labels and
+honest missing-data controls. The camera-return probe waits for the expected rendered pose,
+rather than a fixed 1.5 s on this software GPU. All twenty shots and both pairs of animation
+strips are refreshed for the viewpoint UI. The ambient-traffic switch remains the dependency
+listed above; no independent switch was added.
+
+Four further built-app control checks pass: Play advances and Pause freezes; Play at the
+completed end restarts; Restart returns to Normal and plays; Exit during Play removes the
+story without a page error. Both theme capture runs also exit cleanly, with no shader errors.

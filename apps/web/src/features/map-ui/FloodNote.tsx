@@ -1,5 +1,7 @@
 import { useScenarios } from "../../lib/api";
 import { FloodImpactCard } from "../flood/FloodImpact";
+import { WATER_LOOK_NOTE } from "../flood/floodPresentation";
+import { useFloodStory } from "../flood/floodStoryStore";
 import { FLASH_FLOOD_NOTE } from "../flood/impactModel";
 import { useScene } from "../scene/sceneStore";
 import { InSlot } from "./mapSlots";
@@ -10,7 +12,8 @@ const LINK = "font-medium text-lilac underline underline-offset-2";
 export function FloodNote() {
   const scenarioId = useScene((s) => s.scenarioId);
   const { data } = useScenarios();
-  if (!scenarioId || scenarioId === "baseline") return null;
+  const storyOn = useFloodStory((s) => s.status !== "idle");
+  if (storyOn || !scenarioId || scenarioId === "baseline") return null;
   const sc = data?.find((s) => s.id === scenarioId);
   // T-029: low-lying terrain (stage 0) and river + terrain read by their own label
   const river = (sc?.kind ?? "river_stage") === "river_stage";
@@ -54,6 +57,7 @@ export function FloodNote() {
         {/* the scenario disclaimer above may already carry both notes (T-024 data) */}
         {/* the flash-flood note is about river stages; a terrain-only screen states its own
             limits (rainfall not modelled) in its disclaimer */}
+        {river && <p className="m-0 mt-1 text-xs text-fg-soft">{WATER_LOOK_NOTE}</p>}
         <FloodImpactCard notes={river && !sc?.disclaimer?.includes(FLASH_FLOOD_NOTE)} />
       </div>
     </InSlot>

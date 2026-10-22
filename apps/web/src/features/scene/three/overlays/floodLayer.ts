@@ -1,124 +1,107 @@
 import * as THREE from "three";
-import { groupEdgesByStatus, lineFeatures, waterPolygons } from "../../geo";
-import { type EdgeStatus, statusStyle, WATER_COLOR } from "../../styles";
-import { localRing, triangulate } from "../cityMesh";
+import { type FloodShape, floodShapes } from "../../../flood/floodPresentation";
+import { createRiverSurface } from "../../../flood/riverSurface";
+import { groupEdgesByStatus, lineFeatures } from "../../geo";
+import { type EdgeStatus, statusStyle } from "../../styles";
+import { triangulate } from "../cityMesh";
 import type { LocalFrame } from "../frame";
+import type { Boundary } from "../ground/boundary";
 import { lineToLocal } from "../routeLine";
 import { createLineBatch, statusLineStyle } from "./lines";
 
-/** Metres the scenario water floats above the ground: the flood overlay's one and only height. */
+/** River height is illustrative; source surface_height_m is deliberately never read. */
 export const FLOOD_LIFT_M = 0.3;
-/**
- * The fill is MAIN-scene ground, drawn after the ground bands (1-5), lamp pools (6) and cloud
- * shadows (7), so it tints roads and parks but buildings occlude it (depth tested). Its polygon
- * offset is more negative than every band (-1..-5) and the lamp pools (-6), so the 0.30 m lift
- * wins over the ground without z-fighting at township range. The flood EDGES are status lines in
- * the overlay pass (order 12, the what-if order).
- */
 export const FLOOD_ORDER = { fill: 8, edges: 12 } as const;
 export const FLOOD_POLYGON_OFFSET = -8;
-export const FLOOD_ALPHA = 0.55;
-/** Hatch: 45 degree lines, 4 px wide on a 12 px pitch. One texture repeat covers HATCH_REPEAT_M
- * metres (world-scaled by design: the hatch grows and shrinks with the zoom, like the ground). */
-const HATCH_PX = 12;
-const HATCH_LINE_PX = 4;
-const HATCH_REPEAT_M = 6;
+export const FLOOD_ALPHA = 0.16;
 const FLOODED: EdgeStatus[] = ["flooded_likely", "flooded_possible"];
 
-/**
- * The hatch as a tiny RGBA texture multiplied into the water colour: white (no change) with
- * darker diagonal lines. Pixels on the same x + y share a value, so the lines run at 45 degrees.
- * Data texture (not a canvas): identical in every environment.
- */
-export function hatchTexture(): THREE.DataTexture {
-  const data = new Uint8Array(HATCH_PX * HATCH_PX * 4);
-  for (let y = 0; y < HATCH_PX; y++)
-    for (let x = 0; x < HATCH_PX; x++) {
-      const v = (x + y) % HATCH_PX < HATCH_LINE_PX ? 150 : 255;
-      data.set([v, v, v, 255], (y * HATCH_PX + x) * 4);
-    }
-  const t = new THREE.DataTexture(data, HATCH_PX, HATCH_PX, THREE.RGBAFormat);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.magFilter = THREE.LinearFilter;
-  t.minFilter = THREE.LinearMipmapLinearFilter;
-  t.generateMipmaps = true;
-  t.needsUpdate = true;
-  return t;
-}
-
-/** Triangulated, flat, upward-facing fill of every scenario-water polygon (holes honoured). */
-function fillGeometry(
-  water: unknown,
-  frame: LocalFrame,
-  possible: boolean,
-): THREE.BufferGeometry | null {
+/** Build one batch per class. Reflector uses XY; terrain uses the city's XZ plane. */
+function fillGeometry(shapes: FloodShape[], possible: boolean): THREE.BufferGeometry | null {
   const pos: number[] = [];
-  const uv: number[] = [];
-  for (const poly of waterPolygons(water)) {
-    if (poly.possible !== possible) continue;
-    const rings = poly.rings.map((r) => localRing(r, frame));
-    if (rings.length === 0 || rings.some((r) => r === null)) continue;
-    const [contour, ...holes] = rings as [number, number][][];
-    const tris = triangulate(contour as [number, number][], holes);
+  for (const poly of shapes) {
+    if ((poly.kind === "possible") !== possible) continue;
+    const [contour, ...holes] = poly.rings;
+    if (!contour) continue;
+    const tris = triangulate(contour, holes);
     if (!tris) continue;
-    const all = [contour as [number, number][], ...holes].flat();
+    const all = poly.rings.flat();
     for (const t of tris)
       for (const i of t) {
-        const [x, z] = all[i] as [number, number];
-        pos.push(x, FLOOD_LIFT_M, z);
-        uv.push(x / HATCH_REPEAT_M, z / HATCH_REPEAT_M);
+        const [x, z] = all[i]!;
+        pos.push(...(possible ? [x, 0.025, z] : [x, -z, 0]));
       }
   }
-  if (pos.length === 0) return null;
+  if (!pos.length) return null;
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
   return g;
 }
 
-/**
- * Draped scenario water (the fill is `ground`, the edges `group`): flat triangulated polygons at y = 0.30 m, #1e6fb8 at alpha 0.55 with a
- * hatch. No vertical faces, no height, no depth, no animation: it is an indicative class, not a
- * water surface. Flood edges (flooded_likely, flooded_possible) use the flood status styles, 2 px
- * wider as in Cesium. Base and land-cover water (#7fb6c9) never comes through here.
- */
+/** River water and terrain possibility are intentionally different materials and draw orders. */
 export function createFloodLayer(
   water: unknown,
   floodEdges: unknown,
   frame: LocalFrame,
-): { group: THREE.Group; ground: THREE.Group; dispose(): void } {
-  /** Flood edges (overlay scene). */
+  boundary?: Boundary | null,
+): {
+  group: THREE.Group;
+  ground: THREE.Group;
+  update(seconds: number, rise?: number, fade?: number): void;
+  dispose(): void;
+} {
   const group = new THREE.Group();
   group.name = "flood";
-  /** The tinted fill (main scene, depth tested). */
   const ground = new THREE.Group();
   ground.name = "flood-ground";
-  let texture: THREE.DataTexture | null = null;
-
-  // River-stage water in the water colour; low-lying terrain areas (T-029, class "possible")
-  // in the "possibly flooded" colour, so they never read as a water surface
-  for (const possible of [false, true]) {
-    const geo = water ? fillGeometry(water, frame, possible) : null;
-    if (!geo) continue;
-    texture ??= hatchTexture();
+  const shapes = floodShapes(water, frame, boundary);
+  const riverGeo = fillGeometry(shapes, false);
+  const river = riverGeo ? createRiverSurface(riverGeo) : null;
+  if (river) {
+    river.mesh.renderOrder = FLOOD_ORDER.fill;
+    river.update(0);
+    ground.add(river.mesh);
+  }
+  const terrainGeo = fillGeometry(shapes, true);
+  if (terrainGeo) {
     const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(possible ? statusStyle("flooded_possible").color : WATER_COLOR),
-      map: texture,
+      color: statusStyle("flooded_possible").color,
       transparent: true,
       opacity: FLOOD_ALPHA,
       depthTest: true,
       depthWrite: false,
       polygonOffset: true,
-      polygonOffsetFactor: FLOOD_POLYGON_OFFSET,
-      polygonOffsetUnits: FLOOD_POLYGON_OFFSET,
+      polygonOffsetFactor: -0.5,
+      polygonOffsetUnits: -0.5,
       side: THREE.DoubleSide,
-      // Overlay colours go through the composer's OutputPass tone mapping (ruling: accepted for P3).
     });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.name = possible ? "flood-fill-possible" : "flood-fill";
-    mesh.renderOrder = FLOOD_ORDER.fill;
-    mesh.frustumCulled = false;
-    ground.add(mesh);
+    const terrain = new THREE.Mesh(terrainGeo, mat);
+    terrain.name = "flood-fill-possible";
+    terrain.renderOrder = 0; // roads (1–5) and buildings draw over the soft terrain fill
+    ground.add(terrain);
+    const points: number[] = [];
+    for (const shape of shapes.filter((s) => s.kind === "possible"))
+      for (const ring of shape.rings)
+        for (let i = 0; i < ring.length; i++) {
+          const a = ring[i]!;
+          const b = ring[(i + 1) % ring.length]!;
+          points.push(a[0], 0.035, a[1], b[0], 0.035, b[1]);
+        }
+    const outline = new THREE.LineSegments(
+      new THREE.BufferGeometry().setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(points, 3),
+      ),
+      new THREE.LineBasicMaterial({
+        color: statusStyle("flooded_possible").color,
+        transparent: true,
+        opacity: 0.38,
+        depthWrite: false,
+      }),
+    );
+    outline.name = "flood-possible-outline";
+    ground.add(outline);
   }
 
   if (floodEdges)
@@ -139,15 +122,17 @@ export function createFloodLayer(
   return {
     group,
     ground,
+    update(seconds, rise, fade) {
+      river?.update(seconds, rise, fade);
+    },
     dispose() {
+      river?.dispose();
       for (const o of [...group.children, ...ground.children]) {
         const m = o as THREE.Mesh;
         m.geometry?.dispose();
         (m.material as THREE.Material | undefined)?.dispose();
         o.removeFromParent();
       }
-      texture?.dispose();
-      texture = null;
     },
   };
 }

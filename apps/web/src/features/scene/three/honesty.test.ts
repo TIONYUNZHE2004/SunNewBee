@@ -381,9 +381,9 @@ describe("honesty 3: people and vehicles fade out for Day and Rollout", () => {
   });
 });
 
-// ---- 4. flood is flat and static ---------------------------------------------------------------
+// ---- 4. flood surface is illustrative (T-032 override) ---------------------------------------------------------------
 
-describe("honesty 4: scenario water is flat, matte and still", () => {
+describe("honesty 4: river animation never reads a modelled depth", () => {
   const ring = (x: number, y: number, s = 1e-3) => [
     [x, y],
     [x + s, y],
@@ -396,7 +396,7 @@ describe("honesty 4: scenario water is flat, matte and still", () => {
     features: [
       {
         type: "Feature",
-        properties: { surface_height_m: 7.5 },
+        properties: { class: "likely_flooded", surface_height_m: 7.5 },
         geometry: { type: "Polygon", coordinates: [ring(101.5, 3.18)] },
       },
     ],
@@ -419,33 +419,31 @@ describe("honesty 4: scenario water is flat, matte and still", () => {
   const layer = createFloodLayer(water, edges, frame);
   const all = [...layer.ground.children, ...layer.group.children];
 
-  it("the fill is flat at 0.30 m in the main scene", () => {
+  it("keeps the river surface horizontal and independent of source surface height", () => {
     const fill = layer.ground.children[0] as THREE.Mesh;
     expect(fill).toBeInstanceOf(THREE.Mesh);
+    fill.updateMatrixWorld(true);
     const pos = fill.geometry.getAttribute("position");
     expect(pos.count).toBeGreaterThan(0);
-    for (let i = 0; i < pos.count; i++) expect(pos.getY(i)).toBeCloseTo(FLOOD_LIFT_M, 6);
-    expect(FLOOD_LIFT_M).toBe(0.3);
-    expect((fill.material as THREE.MeshBasicMaterial).color.getHexString()).toBe(
-      new THREE.Color(WATER_COLOR).getHexString(),
-    );
+    for (let i = 0; i < pos.count; i++) {
+      const p = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(fill.matrixWorld);
+      expect(p.y).toBeCloseTo(FLOOD_LIFT_M, 6);
+    }
+    layer.update(9, 1);
+    expect(fill.position.y).not.toBe(7.5);
   });
 
-  it("no water-surface material and no animated uniform on any flood object", () => {
+  it("animates only the river; status lines stay factual and the mesh is depth tested", () => {
     expect(all.length).toBeGreaterThan(1);
     for (const o of all) {
-      const mat = (o as THREE.Mesh).material as THREE.Material | undefined;
-      expect(mat).toBeDefined();
-      expect(mat).not.toBeInstanceOf(THREE.MeshPhysicalMaterial);
-      expect((mat as { transmission?: number }).transmission ?? 0).toBe(0);
-      // No shader patching of a base material (the shimmer technique) ...
-      if (!(mat as THREE.ShaderMaterial).isShaderMaterial)
-        expect(mat?.onBeforeCompile).toBe(THREE.Material.prototype.onBeforeCompile);
-      // ... and no time-like uniform on shader materials (the line batches).
-      const uniforms = (mat as THREE.ShaderMaterial).uniforms ?? {};
-      for (const k of Object.keys(uniforms)) expect(k).not.toMatch(/time/i);
+      const mat = (o as THREE.Mesh).material as THREE.ShaderMaterial;
+      expect(mat.depthTest).toBe(true);
+      const uniforms = mat.uniforms ?? {};
+      if (o.name === "flood-fill") expect(uniforms.time).toBeDefined();
+      else for (const k of Object.keys(uniforms)) expect(k).not.toMatch(/time/i);
       expect(o.userData.decorative).not.toBe(true);
     }
+    layer.dispose();
   });
 });
 
@@ -841,7 +839,7 @@ describe("honesty 8: every overlay draws above every decor object", () => {
           line("y", { whatif: true, side: "after" }, 40),
         ),
       },
-      water: ffc(box({}, [0, 0, 50, 50])),
+      water: ffc(box({ class: "likely_flooded" }, [0, 0, 50, 50])),
       floodEdges: ffc(
         line("f1", { status: "flooded_likely" }, 50),
         line("f2", { status: "flooded_possible" }, 60),
