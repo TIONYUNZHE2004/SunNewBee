@@ -1,4 +1,4 @@
-import type { Ref } from "react";
+import type { CSSProperties, Ref } from "react";
 import type { CompareIntent } from "../compareTypes";
 import {
   DEMO_VALUES,
@@ -16,10 +16,12 @@ import {
 export function ReasonsCard({
   compare,
   className = "",
+  style,
   ref,
 }: {
   compare: CompareIntent;
   className?: string;
+  style?: CSSProperties;
   ref?: Ref<HTMLElement>;
 }) {
   const rows = reasonRows(compare);
@@ -29,6 +31,7 @@ export function ReasonsCard({
       ref={ref}
       data-beat="reasons"
       aria-labelledby="compare-reasons-h"
+      style={style}
       className={`rounded-lg border border-line bg-card p-4 ${className}`}
     >
       <h3 id="compare-reasons-h" className="m-0 text-base font-semibold">

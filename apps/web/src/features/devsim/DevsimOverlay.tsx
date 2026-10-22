@@ -13,6 +13,7 @@ import {
   speakerKeepClear,
 } from "./bubblePlacement";
 import { bannersAt, hoardingCardOn, hudAt, tagsAt } from "./buildModel";
+import { measureClearArea } from "./clearArea";
 import { SITE_LABEL } from "./copy";
 import { EstimateHud, MoveInCounter } from "./DevsimHud";
 import { DevsimStatusNotice } from "./DevsimStatus";
@@ -181,12 +182,6 @@ const BRIEF_SLIDE_S = 0.5;
 /** The brief's width before it is measured (prototype 440 px; 26 rem here). */
 const BRIEF_W_ESTIMATE = 416;
 
-/** Pure: how far (CSS px) the 3D look point moves left at t so the tower clears the brief. */
-export function briefViewShift(t: number, briefW: number): number {
-  if (t < BUILD_T.brief) return 0;
-  return ease((t - BUILD_T.brief) / BUILD_T.briefShiftS) * briefW;
-}
-
 /**
  * The Development Simulation's DOM overlay (spec §5.3; demo polish §6.2, §6.3), shown while the
  * devsim store is active: the Simulation badge, the hypothetical label (throughout), the estimate
@@ -232,12 +227,13 @@ export function DevsimOverlay({
     const w = briefRef.current?.offsetWidth ?? 0;
     if (briefOn && w > 0 && Math.abs(w - briefW) > 0.5) setBriefW(w);
   });
-  // the tower stays clear of the brief: the engine's view offset moves the look point left
-  const shift = briefOn ? briefViewShift(t, briefW) : 0;
-  useEffect(() => {
-    useDevsim.getState().setViewShift(shift);
-  }, [shift]);
-  useEffect(() => () => useDevsim.getState().setViewShift(0), []);
+  // V2 fix B-a: the map area the overlays leave clear, after every layout (the renderer frames
+  // each camera beat's subject in it: never under the left stack, the brief or the bars)
+  useLayoutEffect(() => {
+    const el = stage.current;
+    useDevsim.getState().setClear(el && status !== "idle" ? measureClearArea(el) : null);
+  });
+  useEffect(() => () => useDevsim.getState().setClear(null), []);
 
   if (status === "idle") return null;
   if (!plan)
@@ -362,6 +358,7 @@ export function DevsimOverlay({
       )}
       {briefOn && (
         <div
+          data-devsim="residents"
           className="pointer-events-none absolute left-4 z-30 flex flex-col justify-end *:pointer-events-auto"
           style={{
             bottom: `calc(var(--sheet-h,0px) + var(--attr-h,0px) + ${BARS_BOTTOM} + 13.5rem)`,
@@ -390,7 +387,7 @@ export function DevsimOverlay({
           bottom: `calc(var(--sheet-h,0px) + var(--attr-h,0px) + ${BARS_BOTTOM})`,
         }}
       >
-        <div className="flex w-full max-w-[42rem] flex-col gap-2">
+        <div data-devsim="bars" className="flex w-full max-w-[42rem] flex-col gap-2">
           {hud && <ScheduleBar schedule={plan.schedule} month={hud.month} />}
           <PlaybackBar onClose={onClose} />
         </div>

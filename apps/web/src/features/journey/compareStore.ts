@@ -47,6 +47,12 @@ export interface CompareStore {
   /** prefers-reduced-motion at load: the renderer cuts between beats instead of flying. */
   reduced: boolean;
   screen: CompareScreen | null;
+  /**
+   * Top edge of the overlay's player dock (CSS px of the map stage), or null: the reasons card
+   * always sits above it, so the renderer's overview keeps the card's estimated height clear above
+   * this line before the card shows (AC-N7, V2 fix N-b).
+   */
+  dockTop: number | null;
   /** A new compare, paused at 0. Ends a shown trip and a Development Simulation (one at a time). */
   load: (payload: CompareIntent) => void;
   /** Play from t; from the end it starts again at 0. */
@@ -62,11 +68,12 @@ export interface CompareStore {
   setScreen: (s: CompareScreen | null) => void;
   /** The overlay's reasons-card top (AC-N7), merged into `screen` (created empty when null). */
   setCardTop: (top: number | null) => void;
+  setDockTop: (top: number | null) => void;
   /** Frame tick: moves t by dt while playing; stops at the end. */
   advance: (dt: number) => void;
 }
 
-const empty = { payload: null, t: 0, playing: false, screen: null };
+const empty = { payload: null, t: 0, playing: false, screen: null, dockTop: null };
 
 /** A screen with nothing drawn (before the renderer's first frame, or without a renderer). */
 export const EMPTY_SCREEN: CompareScreen = {
@@ -86,7 +93,14 @@ export const useCompare = create<CompareStore>((set) => ({
   load: (payload) => {
     if (useDevsim.getState().status !== "idle") useDevsim.getState().stop();
     if (useJourney.getState().plan) useJourney.getState().clear();
-    set({ payload, t: 0, playing: false, screen: null, reduced: reducedMotion() });
+    set((s) => ({
+      payload,
+      t: 0,
+      playing: false,
+      screen: null,
+      dockTop: s.dockTop,
+      reduced: reducedMotion(),
+    }));
   },
   play: () =>
     set((s) =>
@@ -108,6 +122,14 @@ export const useCompare = create<CompareStore>((set) => ({
       (s.screen?.cardTop ?? null) === cardTop
         ? {}
         : { screen: { ...(s.screen ?? EMPTY_SCREEN), cardTop } },
+    ),
+  setDockTop: (dockTop) =>
+    set((s) =>
+      s.dockTop === (dockTop === null ? null : Math.round(dockTop))
+        ? {}
+        : {
+            dockTop: dockTop === null ? null : Math.round(dockTop),
+          },
     ),
   advance: (dt) =>
     set((s) => {

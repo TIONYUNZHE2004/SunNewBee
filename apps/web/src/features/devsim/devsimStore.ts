@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { DevelopmentPlan } from "./types";
+import { rectChanged } from "./clearArea";
+import type { DevelopmentPlan, Rect } from "./types";
 
 export type DevsimStatus = "idle" | "loading" | "ready" | "unavailable" | "error";
 
@@ -11,11 +12,18 @@ export interface DevsimStore {
   status: DevsimStatus;
   briefText: string | null;
   /**
-   * CSS px the 3D view's look point moves left while the Impact Brief is on screen (spec §6.2: the
-   * tower stays clear of the panel). Written by the overlay, applied by the engine's view offset.
+   * The 3D view's horizontal view offset now (CSS px, `camera.setViewOffset` x; positive moves the
+   * picture left): written by the Stylised renderer as it frames the beat's subject in `clear`
+   * (spec §6.2, V2 fix B-a). Informational (demo hook).
    */
   viewShiftPx: number;
   setViewShift: (px: number) => void;
+  /**
+   * The map area the overlays leave clear (CSS px of the map stage), measured by the overlay after
+   * each layout; the renderer frames each camera beat's subject in it. Null before it is measured.
+   */
+  clear: Rect | null;
+  setClear: (r: Rect | null) => void;
   /** A `development.play` intent: inlined plan (ready) or none yet (loading, the caller fetches it). */
   start: (plan: DevelopmentPlan | null, briefText: string) => void;
   setPlan: (plan: DevelopmentPlan) => void;
@@ -40,6 +48,7 @@ const idle = {
   status: "idle" as DevsimStatus,
   briefText: null,
   viewShiftPx: 0,
+  clear: null as Rect | null,
 };
 
 const clampT = (plan: DevelopmentPlan, t: number) =>
@@ -53,9 +62,10 @@ export const useDevsim = create<DevsimStore>((set) => ({
   setStatus: (status) => set({ status }),
   setViewShift: (px) =>
     set((s) => {
-      const v = Number.isFinite(px) ? Math.max(0, Math.round(px)) : 0;
+      const v = Number.isFinite(px) ? Math.round(px) : 0;
       return v === s.viewShiftPx ? {} : { viewShiftPx: v };
     }),
+  setClear: (r) => set((s) => (rectChanged(s.clear, r) ? { clear: r ? { ...r } : null } : {})),
   setT: (t) => set((s) => (s.plan ? { t: clampT(s.plan, t) } : {})),
   play: () =>
     set((s) =>

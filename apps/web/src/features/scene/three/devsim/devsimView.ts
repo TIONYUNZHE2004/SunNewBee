@@ -239,11 +239,112 @@ export function devsimCameraDriver(o: {
   state: () => StateAt | null;
   pose: (s: StateAt) => DevsimCameraPose;
   playing: () => boolean;
+  /** The view offset that frames the beat's subject in the clear map area (`framingOffset`). */
+  frame?: (s: StateAt, pose: DevsimCameraPose, now: number) => readonly [number, number] | null;
 }): CameraDriver {
-  return () => {
+  return (now) => {
     const st = o.state();
     if (!st) return null;
     const pose = o.pose(st);
-    return o.playing() ? { ...pose, animating: true } : pose;
+    const off = o.frame?.(st, pose, now) ?? null;
+    const out = off ? { ...pose, viewOffset: off } : pose;
+    return o.playing() ? { ...out, animating: true } : out;
+  };
+}
+
+/** A CSS px rectangle of the map stage (the clear area). */
+export interface ScreenRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** The site is kept this share of the clear area's size inside its edges (V2 fix B-a). */
+export const FRAME_INSET = 0.15;
+
+const _cam = new THREE.PerspectiveCamera();
+const _v = new THREE.Vector3();
+
+/** Pure-ish (a scratch camera): `p` projected by `pose` in a `size` view without a view offset. */
+export function projectPose(
+  pose: DevsimCameraPose,
+  size: readonly [number, number],
+  p: readonly [number, number, number],
+): [number, number] | null {
+  _cam.fov = pose.fovDeg;
+  _cam.aspect = size[0] / Math.max(1, size[1]);
+  _cam.near = 1;
+  _cam.far = 30000;
+  _cam.clearViewOffset();
+  _cam.updateProjectionMatrix();
+  _cam.position.set(...pose.position);
+  _cam.lookAt(pose.look[0], pose.look[1], pose.look[2]);
+  _cam.updateMatrixWorld(true);
+  _v.set(p[0], p[1], p[2]).applyMatrix4(_cam.matrixWorldInverse);
+  if (_v.z >= 0) return null;
+  _v.applyMatrix4(_cam.projectionMatrix);
+  return [((_v.x + 1) / 2) * size[0], ((1 - _v.y) / 2) * size[1]];
+}
+
+/**
+ * The view offset (CSS px, `DrivenCamera.viewOffset`) that frames a devsim camera beat's subject in
+ * the map area the overlays leave clear (V2 fix B-a): the beat's look point and, by `siteWeight`
+ * (`cameraSiteWeight`), the site, are centred in `clear` (their midpoint for a beat aimed between
+ * the site and someone), and the site is then pulled inside the clear area's inner part (inset by
+ * FRAME_INSET), so neither the hoarded site nor the tower is drawn under an overlay. Null without a
+ * clear area (no offset: the panel's applies).
+ */
+export function framingOffset(o: {
+  pose: DevsimCameraPose;
+  size: readonly [number, number];
+  clear: ScreenRect | null;
+  site: readonly [number, number, number];
+  siteWeight: number;
+}): [number, number] | null {
+  const { pose, size, clear } = o;
+  if (!clear || clear.w <= 0 || clear.h <= 0) return null;
+  const w = Math.max(0, Math.min(1, o.siteWeight));
+  const look: [number, number] = [size[0] / 2, size[1] / 2];
+  const s = w > 0 ? projectPose(pose, size, o.site) : null;
+  const k = s ? w / 2 : 0;
+  const f: [number, number] = s
+    ? [look[0] + (s[0] - look[0]) * k, look[1] + (s[1] - look[1]) * k]
+    : look;
+  const cx = clear.x + clear.w / 2;
+  const cy = clear.y + clear.h / 2;
+  let dx = f[0] - cx;
+  let dy = f[1] - cy;
+  if (s) {
+    // the site after the shift, pulled into the inner clear area (weighted, so it never jumps)
+    const ix = clear.w * FRAME_INSET;
+    const iy = clear.h * FRAME_INSET;
+    const pull = (v: number, lo: number, hi: number) => (v < lo ? v - lo : v > hi ? v - hi : 0);
+    dx += w * pull(s[0] - dx, clear.x + ix, clear.x + clear.w - ix);
+    dy += w * pull(s[1] - dy, clear.y + iy, clear.y + clear.h - iy);
+  }
+  return [dx, dy];
+}
+
+/**
+ * A clear area that glides (V2 fix B-a): while the playback plays, a new clear area (a card shows
+ * or goes) is eased toward over CLEAR_GLIDE_MS of wall time, so the camera framing never pops;
+ * paused or seeking, it snaps (a seek draws the same frame at any history).
+ */
+export const CLEAR_GLIDE_MS = 350;
+
+export function glideRect(
+  prev: ScreenRect | null,
+  next: ScreenRect | null,
+  dtMs: number,
+  playing: boolean,
+): ScreenRect | null {
+  if (!next || !prev || !playing || !(dtMs > 0)) return next ? { ...next } : null;
+  const k = 1 - Math.exp(-dtMs / CLEAR_GLIDE_MS);
+  return {
+    x: prev.x + (next.x - prev.x) * k,
+    y: prev.y + (next.y - prev.y) * k,
+    w: prev.w + (next.w - prev.w) * k,
+    h: prev.h + (next.h - prev.h) * k,
   };
 }

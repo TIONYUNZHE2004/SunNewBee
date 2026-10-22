@@ -85,6 +85,12 @@ export interface CompareLayer {
   /** Route points for the overview's screen box (AC-N7). */
   routePoints(n?: number): [number, number, number][];
   setKit(kit: CrowdKit | null): void;
+  /**
+   * The half being drawn (split screen), or null (one view): the left half draws the fastest
+   * route over the recommended one where they share a street, so each half shows its own route's
+   * colour (V2 fix N-a); otherwise the recommended route is on top.
+   */
+  setSide(side: "left" | "right" | null): void;
   dispose(): void;
 }
 
@@ -283,6 +289,7 @@ export function createCompareLayer(o: {
   };
   const ribbons: { g: THREE.BufferGeometry; points: Float32Array; spec: RibbonSpec; w: number }[] =
     [];
+  const meshes: Record<string, THREE.Mesh> = {};
   const addRibbon = (
     points: Float32Array,
     spec: RibbonSpec,
@@ -296,6 +303,7 @@ export function createCompareLayer(o: {
     const mesh = new THREE.Mesh(g, ribbonMat(hex, order));
     mesh.name = name;
     mesh.renderOrder = 18 + order;
+    meshes[name] = mesh;
     mesh.raycast = NOOP;
     mesh.frustumCulled = true;
     group.add(mesh);
@@ -491,6 +499,11 @@ export function createCompareLayer(o: {
       ] as const)
         for (let i = 0; i <= n; i++) out.push(up(p.pointAt((L * i) / n), 0.3));
       return out;
+    },
+    setSide(side) {
+      const f = meshes["compare-ribbon-fastest"];
+      // above the recommended ribbon (19), below the unchecked run and the stop edge (20, 21)
+      if (f) f.renderOrder = side === "left" ? 19.5 : 18;
     },
     setKit(k) {
       if (crowd) {

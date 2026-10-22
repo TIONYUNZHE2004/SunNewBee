@@ -3,7 +3,10 @@
  *
  * Navigation compare (B11; AC-N1, N2, N3, N5, N7, N9):
  * - Stylised 3D (SwiftShader, stubbed buildings as in three.spec.ts) with `/api/chat` stubbed to
- *   stream the recorded Elmina `route.compare` intent (`fixtures/compare-intent.json`, B6): every
+ *   stream the mock's real Elmina answer intents in its order (`fixtures/nav-answer-intents.json`:
+ *   `route.compare`, `route.highlight`, `journey.play`; V2 fix N-a), whose compare is the recorded
+ *   `fixtures/compare-intent.json` (B6): the left pill is never covered (no route legend or trip
+ *   chrome over it), the reasons card sits clear of the map notes, and every
  *   §5.4 row is checked by `data-beat` at its midpoint and 0.5 s outside it, the chip counter at
  *   19.3 / 19.5 s, the walkers, and the routes' box above the reasons card at ≥ 32 s.
  * - List view on the tiny world with the real mock assistant: Watch the trip shows the toast and
@@ -24,8 +27,13 @@
 import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { DEVSIM_BRIEF } from "../src/features/assistant/starters";
+import { OBSTACLE_SELECTORS } from "../src/features/devsim/clearArea";
 import type { DevelopmentPlan } from "../src/features/devsim/types";
 
+/** The mock assistant's scene intents for the corridor question on Elmina, in its order. */
+const answerIntents = JSON.parse(
+  readFileSync(new URL("./fixtures/nav-answer-intents.json", import.meta.url), "utf8"),
+) as { kind: string; route_id: string }[];
 const intent = JSON.parse(
   readFileSync(new URL("./fixtures/compare-intent.json", import.meta.url), "utf8"),
 ) as {
@@ -186,11 +194,17 @@ test.describe("navigation compare beats, Stylised 3D, recorded Elmina intent", (
         headers: { "Content-Type": "text/event-stream" },
         body: sse([
           { type: "text.delta", delta: "Recommended route (demo values, not yet surveyed)." },
-          { type: "scene.intent", intent },
+          ...answerIntents.map((i) => ({ type: "scene.intent", intent: i })),
           { type: "done", message_id: "m", answer_status: "answered", model: "stub" },
         ]),
       }),
     );
+    expect(answerIntents.map((i) => i.kind)).toEqual([
+      "route.compare",
+      "route.highlight",
+      "journey.play",
+    ]);
+    expect(answerIntents[0]).toEqual(intent);
     await page.goto("/");
     const scene = page.getByTestId("three-scene");
     await expect(scene).toBeVisible(COLD);
@@ -199,6 +213,8 @@ test.describe("navigation compare beats, Stylised 3D, recorded Elmina intent", (
       .toBeGreaterThan(0);
     await openAssistant(page);
     const answer = await ask(page, "Wheelchair route from Elmina Lakeside Mall to Surau Kiambang?");
+    // the answer's own route is on the map with its legend before the trip
+    await expect(page.getByRole("button", { name: "Clear route from map" })).toBeVisible(COLD);
 
     // AC-N1: Watch the trip starts the compare playback (not the journey)
     await answer.getByRole("button", { name: "Watch the trip" }).click();
@@ -272,6 +288,36 @@ test.describe("navigation compare beats, Stylised 3D, recorded Elmina intent", (
         : `Recommended · ${r.recommended.minutes} min`,
     );
     await expect(beat(page, "intro")).toHaveCount(0); // the query chip is a 0–3 s beat
+
+    // V2 fix N-a: while the compare plays the only chrome is its own: no route legend, no journey
+    // trip bar, one player; both pills are uncovered (the element at each pill's centre is the
+    // pill), at the start, mid-way and at the stop
+    for (const t of [1.5, 5, 17, 25]) {
+      await seek(page, t);
+      await expect(page.getByRole("button", { name: "Clear route from map" })).toHaveCount(0);
+      await expect(page.getByTestId("journey-trip-bar")).toHaveCount(0);
+      await expect(
+        page.getByTestId("compare-dock").getByRole("button", { name: "Exit trip" }),
+      ).toHaveCount(1);
+      await expect(
+        page.getByTestId("top-stack").getByRole("button", { name: "Exit trip" }),
+      ).toHaveCount(0);
+      for (const id of ["split-pill-fastest", "split-pill-recommended"]) {
+        const pill = beat(page, id);
+        await expect(pill, `${id} @${t}`).toBeVisible();
+        // the compare stage is pointer-transparent: the pill takes hits for the probe only
+        const top = await pill.evaluate((el) => {
+          const e = el as HTMLElement;
+          const was = e.style.pointerEvents;
+          e.style.pointerEvents = "auto";
+          const r = e.getBoundingClientRect();
+          const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          e.style.pointerEvents = was;
+          return !!hit && (hit === e || e.contains(hit));
+        });
+        expect(top, `${id} uncovered @${t}`).toBe(true);
+      }
+    }
     await seek(page, 1.5);
     await expect(beat(page, "intro")).toHaveText(
       `Wheelchair · ${intent.compare.from_place.name} → ${intent.compare.to_place.name}`,
@@ -333,7 +379,19 @@ test.describe("navigation compare beats, Stylised 3D, recorded Elmina intent", (
     const s30 = await navState(page);
     expect(Math.abs((s30.walkers?.fastest ?? 0) - (s30.stopAtM ?? 1e9))).toBeLessThanOrEqual(2);
 
-    // AC-N7: after the merge (settled from 32 s, B8), both routes lie above the card with ≥ 24 px
+    // AC-N7: after the merge (settled from 32 s, B8), both routes lie above the card with ≥ 24 px;
+    // V2 fix N-b: they fill the clear area above it (≥ 35 % of its width or height), not a few px
+    // of a township-wide view; N-c: the card is whole and clear of the map's notes
+    const stageBox = (await page.getByTestId("compare-stage").boundingBox()) as {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+    const topStack = (await page.getByTestId("top-stack").boundingBox()) as {
+      y: number;
+      height: number;
+    };
     for (const t of [32.5, 33, 38]) {
       await seek(page, t);
       await expect
@@ -347,7 +405,41 @@ test.describe("navigation compare beats, Stylised 3D, recorded Elmina intent", (
       expect(s.camera).toBe("overview");
       expect((s.routesBbox?.y1 ?? 1e9) + 24).toBeLessThanOrEqual(s.cardTop ?? -1);
       expect(s.routesBbox?.y0 ?? -1).toBeGreaterThanOrEqual(0);
+      const b = s.routesBbox as { x0: number; y0: number; x1: number; y1: number };
+      const clearTop = topStack.y + topStack.height - stageBox.y;
+      const clearH = (s.cardTop as number) - clearTop;
+      const share = Math.max((b.y1 - b.y0) / clearH, (b.x1 - b.x0) / stageBox.width);
+      console.log(`V2 N-b @${t}s routes fill ${(share * 100).toFixed(0)} % of the clear area`);
+      expect(share, `routes fill the clear area @${t}`).toBeGreaterThanOrEqual(0.35);
+      const card = beat(page, "reasons");
+      const cb = (await card.boundingBox()) as {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      };
+      const fits = await card.evaluate((el) => el.scrollHeight <= el.clientHeight + 1);
+      expect(fits, "the card's lines are not clipped").toBe(true);
+      expect(cb.y).toBeGreaterThanOrEqual(stageBox.y);
+      expect(cb.y + cb.height).toBeLessThanOrEqual(stageBox.y + stageBox.height);
+      // the map notes under it (the decorative note when the renderer shows one)
+      const notes = page.locator('[data-testid="bottom-stack"] [data-slot="notes"] > *');
+      for (let i = 0; i < (await notes.count()); i++) {
+        const nb = await notes.nth(i).boundingBox();
+        if (nb) expect(cb.y + cb.height, "card above the map notes").toBeLessThanOrEqual(nb.y);
+      }
+      // the card's slot shows all of it (it scrolls there only when the map is too short)
+      const whole = await card.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const slot = el.closest('[data-slot="card"]')?.getBoundingClientRect();
+        return !!slot && r.top >= slot.top - 1 && r.bottom <= slot.bottom + 1;
+      });
+      expect(whole, "card whole inside its slot").toBe(true);
     }
+    // Exit trip restores the answer's route and its legend
+    await page.getByTestId("compare-dock").getByRole("button", { name: "Exit trip" }).click();
+    await expect(page.getByTestId("compare-stage")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Clear route from map" })).toBeVisible(COLD);
   });
 });
 
@@ -504,6 +596,8 @@ type BldState = {
   kidsAtPlayground?: number;
   litShare?: number;
   speaker?: { who: string; anchored: boolean; headOnStage: boolean } | null;
+  /** Where the site (hoarding, tower) is drawn, CSS px of the map stage (V2 B-a). */
+  siteScreen?: { x: number; y: number } | null;
 };
 
 /** Pause, seek, then let the 3D layer pose and project at t (three frames) and read the state. */
@@ -780,6 +874,45 @@ test.describe("building impact beats, Stylised 3D, 45 s Elmina plan", () => {
       expect(s.litShare ?? 0).toBeGreaterThanOrEqual(0.85);
       expect(s.parkedCars ?? 0).toBeGreaterThanOrEqual(6);
       expect(s.kidsAtPlayground ?? 0).toBeGreaterThanOrEqual(4);
+    });
+
+    await test.step("the site and the tower are framed in the clear map area at 7, 21 and 36 s (V2 B-a)", async () => {
+      for (const t of [7, 21, 36]) {
+        await expect.poll(async () => (await bldAt(page, t)).siteScreen != null, COLD).toBe(true);
+        const s = await bldAt(page, t);
+        const p = s.siteScreen as { x: number; y: number };
+        // every overlay box, measured here from the DOM (stage-relative), and the visible map
+        const { boxes, w, h } = await page.evaluate(
+          (sels) => {
+            const stage = document.querySelector('[data-testid="three-scene"]') as HTMLElement;
+            const o = stage.getBoundingClientRect();
+            const css = (n: string) =>
+              Number.parseFloat(getComputedStyle(stage).getPropertyValue(n)) || 0;
+            const out: { sel: string; x: number; y: number; w: number; h: number }[] = [];
+            for (const sel of sels)
+              for (const el of document.querySelectorAll(sel)) {
+                const r = el.getBoundingClientRect();
+                if (r.width > 0 && r.height > 0)
+                  out.push({ sel, x: r.left - o.left, y: r.top - o.top, w: r.width, h: r.height });
+              }
+            return {
+              boxes: out,
+              w: o.width - css("--panel-w"),
+              h: o.height - css("--sheet-h") - css("--attr-h"),
+            };
+          },
+          OBSTACLE_SELECTORS as unknown as string[],
+        );
+        note(`V2 B-a @${t}s site ${JSON.stringify(p)} map ${w}x${h} overlays ${boxes.length}`);
+        expect(p.x, `site on the map @${t}`).toBeGreaterThanOrEqual(0);
+        expect(p.x).toBeLessThanOrEqual(w);
+        expect(p.y, `site on the map @${t}`).toBeGreaterThanOrEqual(0);
+        expect(p.y).toBeLessThanOrEqual(h);
+        for (const b of boxes) {
+          const under = p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
+          expect(under, `site under ${b.sel} ${JSON.stringify(b)} @${t}`).toBe(false);
+        }
+      }
     });
 
     await test.step("Impact Brief from 34 s with the tower left of it (AC-W6)", async () => {

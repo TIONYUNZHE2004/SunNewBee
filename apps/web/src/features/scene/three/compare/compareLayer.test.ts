@@ -114,6 +114,22 @@ describe("createCompareLayer", () => {
     expect(byName["compare-ribbon-stop"]).toBe(hex(COMPARE_COLOURS.stop));
   });
 
+  it("each half draws its own route on top where they share a street (V2 N-a)", () => {
+    const order = (n: string) =>
+      (layer.group.getObjectByName(`compare-ribbon-${n}`) as THREE.Mesh).renderOrder;
+    // one view: the recommended route on top
+    expect(order("fastest")).toBeLessThan(order("recommended"));
+    layer.setSide("left");
+    expect(order("fastest")).toBeGreaterThan(order("recommended"));
+    expect(order("fastest")).toBeLessThan(order("unchecked"));
+    expect(order("fastest")).toBeLessThan(order("stop"));
+    layer.setSide("right");
+    expect(order("fastest")).toBeLessThan(order("recommended"));
+    layer.setSide("left");
+    layer.setSide(null);
+    expect(order("fastest")).toBeLessThan(order("recommended"));
+  });
+
   it("two wheelchair heroes placed by distance along their routes", () => {
     expect(layer.heroes.fastest.variant).toBe("wheelchair");
     expect(layer.heroes.recommended.variant).toBe("wheelchair");
