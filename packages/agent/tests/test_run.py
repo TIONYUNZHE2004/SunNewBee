@@ -1088,6 +1088,30 @@ def test_answer_text_drops_repeated_status_sentence(ctx):
     assert "• The incline on an unnamed ramp is not checked yet." in text
 
 
+def test_answer_text_numbers_each_step_once_and_says_each_note_once():
+    """T-028 item 5: "1. 11.Suggestion 1:" and the disclaimer said twice."""
+    from townshiplens_agent.answer import FinalAnswer
+
+    ans = FinalAnswer(
+        answer_status="answered",
+        summary="90 of 300 sample trips change route.",
+        steps=["1. Suggestion 1: consider a marshal at Jalan A.", "Suggestion 2: signpost it."],
+        caveats=[
+            "Detour pressure is estimated from mapped road class and sample trips, not traffic "
+            "counts.",
+            "Detour pressure, estimated from mapped road class and sample trips, not traffic "
+            "counts.",
+            "Peak weights are an assumed travel pattern, not measured.",
+            "Not checked.",
+        ],
+    )
+    text = run_mod.answer_text(ans, None)
+    assert "1. Suggestion: consider a marshal at Jalan A." in text
+    assert "2. Suggestion: signpost it." in text
+    assert text.count("Detour pressure") == 1 and "Peak weights" in text
+    assert "• Not checked." in text  # short notes always stay
+
+
 # --- Cycle 0 review fix 1: rendering never loses validator-required text ---------------------
 @pytest.mark.parametrize(
     "status, caveat, must_keep",

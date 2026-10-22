@@ -44,6 +44,10 @@ class TurnRecord:
     selection_error: str | None = None
     strict_selection: bool = False
     context_route: dict | None = None
+    # T-028: the session's last marathon request (canonical), for edits ("make it 10 km")
+    context_marathon: dict | None = None
+    # this turn's marathon request in the same canonical form (stored for the next turn)
+    marathon_request: dict | None = None
     # Staff-reported closures plan_route says affect a route (rows with element_name, impact), and
     # every closure row any tool returned this turn (id -> row).
     route_closures: list[dict] = field(default_factory=list)
@@ -88,6 +92,9 @@ class TurnRecord:
     compares: list[dict] = field(default_factory=list)
     # simulate_event results this turn (T-025): the numbers an event answer may quote.
     events: list[dict] = field(default_factory=list)
+    # T-028: each simulate_marathon result (course, impact, animation) for the marathon card;
+    # its impact (with the course) is also in `events`, so the closure checks apply.
+    marathons: list[dict] = field(default_factory=list)
     # Diagnostics (never shown to users, never stored): the validator's errors for each rejected
     # final_answer attempt, and token usage across all model requests of the turn.
     validator_errors: list[list[str]] = field(default_factory=list)

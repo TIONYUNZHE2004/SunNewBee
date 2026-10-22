@@ -1,4 +1,4 @@
-import type { ClosureImpact } from "./closureSimModel";
+import type { ClosureImpact, MarathonResult } from "./closureSimModel";
 
 /** A `POST /closures/simulate` response in the generated shape: road works on one road. One
  * detour name repeats, so the card must not key rows by name. */
@@ -25,6 +25,7 @@ export const SIM_RESULT: ClosureImpact = {
   trips_no_route: 45,
   trips_no_route_before: 42,
   trips_newly_no_route: 3,
+  trips_on_course: 4,
   extra_m_median: 82.5,
   extra_min_median: 0.2,
   places_cut_off: [{ id: "p-park", name: "Parking (unnamed, OSM)" }],
@@ -76,4 +77,45 @@ export const SIM_RESULT: ClosureImpact = {
   disclaimer:
     "Detour pressure, estimated from mapped road class and sample trips, not traffic counts.",
   timing_ms: 4200,
+};
+
+/** A `marathon.show` payload: a short proposed loop and its impact (the same numbers). */
+export const MARATHON: MarathonResult = {
+  course: {
+    segment_ids: ["seg-ab", "seg-bc"],
+    length_m: 5102.7,
+    roads: [
+      { name: "Persiaran Tamarind", length_m: 376.9, order: 1 },
+      { name: "Persiaran Dillenia", length_m: 488.9, order: 2 },
+    ],
+    start: "p-park",
+    finish: "p-park",
+    start_node: "n1",
+    finish_node: "n1",
+    shape: "loop",
+    warnings: [],
+    disclaimer: "Proposed course on mapped roads, not an approved route.",
+  },
+  impact: {
+    ...SIM_RESULT,
+    event: {
+      name: "Proposed marathon",
+      reason: "event",
+      closures: [
+        {
+          segment_ids: ["seg-ab", "seg-bc"],
+          starts_at: "2026-10-25T22:00:00Z",
+          ends_at: "2026-10-26T02:00:00Z",
+        },
+      ],
+    },
+  },
+  animation: {
+    label: "Simulation · illustrative",
+    course_coordinates: [
+      [101.5, 3.1],
+      [101.51, 3.1],
+    ],
+    rerouted_trips: [],
+  },
 };

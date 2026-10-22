@@ -1,0 +1,28 @@
+{
+ "method": "priority_flood_terrain_screen",
+ "config": {
+  "min_fill_m": 2.0,
+  "min_cells": 4,
+  "boundary_cells": 2,
+  "connectivity": 8,
+  "exclude_mapped_water": true,
+  "exclude_landcover": [
+   "water",
+   "forest",
+   "scrub"
+  ]
+ },
+ "not_screened_cells": 17818,
+ "dem_shape": [
+  325,
+  361
+ ],
+ "finite_cells": 117325,
+ "lowlying_cells": 3000,
+ "polygon_count": 235,
+ "area_m2": 2844895.3,
+ "possible_edges": 515,
+ "possible_places": 6,
+ "coverage_gaps": 1421,
+ "disclaimer": "Indicative terrain screening from Copernicus GLO-30, not a forecast. The 30 m surface model includes buildings and trees. Drains and culverts are not modelled; rainfall amounts are not modelled. Marked areas are possible collection areas, not predicted inundation or water depth. Mapped water and forest or scrub are not screened. Unmarked areas are not proof of absence. Follow official MBSA / JPS / NADMA guidance."
+}

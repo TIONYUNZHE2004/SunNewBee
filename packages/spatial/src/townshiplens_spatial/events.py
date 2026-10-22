@@ -3,19 +3,24 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import threading
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from datetime import UTC, date, datetime
+from math import atan2, degrees
 from statistics import median
 from time import perf_counter
 from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from shapely.geometry import Point
+from shapely.strtree import STRtree
 
 from . import closure_roads, flood, traffic, twm
 from .direction import direction_rule
+from .geo import haversine_m
 from .models import ClosureReason
-from .routing import route_batch
+from .routing import _road_nodes, _targets, route_batch
 from .sim import ORIGIN_TYPES, snapshot_world
 from .world import World
 
@@ -24,7 +29,82 @@ PRESSURE_DISCLAIMER = (
     "Detour pressure, estimated from mapped road class and sample trips, not traffic counts."
 )
 MAX_SEGMENTS = 40
+MAX_COURSE_SEGMENTS = 400
 DEFAULT_PROFILES = ("default", "wheelchair", "drive")
+# Resident destinations, not display furniture. Parking/stops are origin access points.
+RESIDENT_DESTINATION_TYPES = {
+    "home",
+    "house",
+    "residential",
+    "apartments",
+    "school",
+    "kindergarten",
+    "mall",
+    "shop",
+    "shops",
+    "supermarket",
+    "work",
+    "office",
+    "park",
+    "playground",
+    "clinic",
+    "hospital",
+    "facility",
+    "community_centre",
+    "evacuation_centre",
+    "place_of_worship",
+    "restaurant",
+    "tuition_centre",
+    "toilet",
+}
+_ORIGIN_PRIORITY = (
+    "home",
+    "house",
+    "residential",
+    "apartments",
+    "school",
+    "kindergarten",
+    "community_centre",
+    "mall",
+    "shop",
+    "clinic",
+    "park",
+    "parking",
+)
+
+
+def resident_destination(world, place_id):
+    return world.places[place_id].type in RESIDENT_DESTINATION_TYPES
+
+
+def _sample_place_key(world, place):
+    # The sample concerns the event's local township field, not alphabetical OSM ids.
+    if hasattr(world, "site") and hasattr(place, "coord"):
+        return haversine_m(world.site.center, place.coord), place.id
+    return 0, place.id
+
+
+def _origin_sample(world, limit):
+    groups = {}
+    for place in sorted(world.places.values(), key=lambda p: _sample_place_key(world, p)):
+        if place.type in RESIDENT_DESTINATION_TYPES | ORIGIN_TYPES:
+            groups.setdefault(place.type, []).append(place.id)
+    order = sorted(
+        groups,
+        key=lambda t: (
+            _ORIGIN_PRIORITY.index(t) if t in _ORIGIN_PRIORITY else len(_ORIGIN_PRIORITY),
+            t,
+        ),
+    )
+    # Ten origin trees per profile bound compute cost while meeting the 10% target.
+    chosen = []
+    for i in range(max((len(v) for v in groups.values()), default=0)):
+        for kind in order:
+            if i < len(groups[kind]):
+                chosen.append(groups[kind][i])
+                if len(chosen) == min(10, limit):
+                    return chosen
+    return chosen
 
 
 class EventSpec(BaseModel):
@@ -92,6 +172,14 @@ class ClosureScenario(BaseModel):
     _name = field_validator("name")(EventSpec._name.__func__)
 
 
+class CourseWindow(ClosureWindow):
+    segment_ids: list[str] = Field(min_length=1, max_length=MAX_COURSE_SEGMENTS)
+
+
+class CourseScenario(ClosureScenario):
+    closures: list[CourseWindow] = Field(min_length=1, max_length=1)
+
+
 class EventTrip(BaseModel):
     from_id: str
     to_id: str
@@ -105,6 +193,7 @@ class EventTrip(BaseModel):
     extra_m: float | None
     extra_min: float | None
     segment_ids: list[str]
+    on_closed_course: bool = False
 
 
 class ProfileImpact(BaseModel):
@@ -115,6 +204,7 @@ class ProfileImpact(BaseModel):
     trips_newly_no_route: int
     extra_m_median: float | None
     extra_min_median: float | None
+    trips_on_course: int = 0
 
 
 class EventPlace(BaseModel):
@@ -163,31 +253,33 @@ def validate_event(world: World, spec: EventSpec) -> None:
         raise ValueError(f"unknown segments: {', '.join(unknown)}")
 
 
-def resolve_scenario(world: World, spec: ClosureScenario) -> ClosureScenario:
+def resolve_scenario(world: World, spec: ClosureScenario, limit=MAX_SEGMENTS) -> ClosureScenario:
     windows = [
         window.model_copy(
             update={
                 "segment_ids": closure_roads.resolve(
-                    world, window.road_names, window.segment_ids, MAX_SEGMENTS
+                    world, window.road_names, window.segment_ids, limit
                 )
             }
         )
         for window in spec.closures
     ]
-    if sum(len(window.segment_ids) for window in windows) > MAX_SEGMENTS:
-        raise ValueError(f"at most {MAX_SEGMENTS} segment/window pairs per scenario")
+    if sum(len(window.segment_ids) for window in windows) > limit:
+        raise ValueError(f"at most {limit} segment/window pairs per scenario")
     return spec.model_copy(update={"closures": windows})
 
 
 def _summary(trips: list[EventTrip]) -> ProfileImpact:
-    metres = [t.extra_m for t in trips if t.extra_m is not None]
-    minutes = [t.extra_min for t in trips if t.extra_min is not None]
+    ordinary = [t for t in trips if not t.on_closed_course]
+    metres = [t.extra_m for t in ordinary if t.extra_m is not None]
+    minutes = [t.extra_min for t in ordinary if t.extra_min is not None]
     return ProfileImpact(
         trips_total=len(trips),
-        trips_affected=sum(t.affected for t in trips),
-        trips_no_route=sum(t.no_route for t in trips),
-        trips_no_route_before=sum(t.before_m is None for t in trips),
-        trips_newly_no_route=sum(t.before_m is not None and t.no_route for t in trips),
+        trips_affected=sum(t.affected for t in ordinary),
+        trips_no_route=sum(t.no_route for t in ordinary),
+        trips_no_route_before=sum(t.before_m is None for t in ordinary),
+        trips_newly_no_route=sum(t.before_m is not None and t.no_route for t in ordinary),
+        trips_on_course=sum(t.on_closed_course for t in trips),
         extra_m_median=round(median(metres), 1) if metres else None,
         extra_min_median=round(median(minutes), 1) if minutes else None,
     )
@@ -203,16 +295,28 @@ _BASELINE_LOCK = threading.Lock()
 def _journeys(world, profile, limit, expanded):
     if not expanded:
         return twm.suite_journeys(world, profile)[:limit]
-    types = {t for peak in traffic.config().peaks for t in peak.types} | {"facility", "toilet"}
-    origins = sorted(p.id for p in world.places.values() if p.type in ORIGIN_TYPES)
-    destinations = sorted(p.id for p in world.places.values() if p.type in types)
-    # Round-robin origins: the bounded sample represents all mapped parking/stops.
-    return [
-        twm.Journey(from_id=o, to_id=d, profile=profile)
-        for d in destinations
-        for o in origins
-        if o != d
-    ][:limit]
+    origins = _origin_sample(world, limit)
+    destinations = [
+        p.id
+        for p in sorted(
+            (p for p in world.places.values() if p.type in RESIDENT_DESTINATION_TYPES),
+            key=lambda p: _sample_place_key(world, p),
+        )
+    ]
+    pairs, counts_o, counts_d = [], Counter(), Counter()
+    small, large = sorted((origins, destinations), key=len)
+    cap = max(1, limit // 10) if min(len(origins), len(destinations)) >= 10 else limit
+    for offset in range(len(large)):
+        for i, value in enumerate(small):
+            other = large[(i + offset) % len(large)]
+            o, d = (value, other) if small is origins else (other, value)
+            if o != d and counts_o[o] < cap and counts_d[d] < cap:
+                pairs.append(twm.Journey(from_id=o, to_id=d, profile=profile))
+                counts_o[o] += 1
+                counts_d[d] += 1
+                if len(pairs) == limit:
+                    return pairs
+    return pairs
 
 
 def _baseline(world, closure_hash, profile, journeys):
@@ -227,14 +331,13 @@ def _baseline(world, closure_hash, profile, journeys):
     with _BASELINE_LOCK:
         if key in _BASELINES:
             _BASELINES.move_to_end(key)
-            return _BASELINES[key][1:]
-    states = twm.rollout(world, None, journeys)
-    cut_off = {p.id for p in flood.cut_off_places(world, profile)}
+            return _BASELINES[key][1]
+    states = twm.rollout(world, None, journeys, summaries=True)
     with _BASELINE_LOCK:
-        _BASELINES[key] = world.graph, states, cut_off
+        _BASELINES[key] = world.graph, states
         while len(_BASELINES) > 12:
             _BASELINES.popitem(last=False)
-    return states, cut_off
+    return states
 
 
 def _suggestions(world, detours, cut_off, summary, closed):
@@ -347,6 +450,137 @@ def _suggestions(world, detours, cut_off, summary, closed):
     return suggestions
 
 
+LABEL_RULES_VERSION = 1
+
+
+def label_fingerprint(world):
+    source = [
+        (e.id, e.name, e.length_m, e.from_node, e.to_node, e.coords[0], e.coords[-1])
+        for e in sorted(world.edges.values(), key=lambda e: e.id)
+    ]
+    return hashlib.sha256(
+        json.dumps(
+            [LABEL_RULES_VERSION, source], ensure_ascii=False, separators=(",", ":")
+        ).encode()
+    ).hexdigest()
+
+
+def _unnamed_stretches(world, *, use_compiled=True):
+    """Connected unnamed areas, labelled by a mapped landmark, direction and length."""
+    signature = tuple(
+        (e.id, e.name, e.length_m, e.from_node, e.to_node) for e in world.edges.values()
+    )
+    cached = world.graph.graph.get("_closure_unnamed_stretches")
+    if cached and cached[0] == signature:
+        return cached[1]
+    # Static derived labels are compiled with the seed. Validate every geometry/name
+    # input before using them; stale or incomplete indexes fall back to rebuilding.
+    if (
+        use_compiled
+        and world.data_dir
+        and (path := world.data_dir / "base/closure_labels.json").exists()
+    ):
+        try:
+            compiled = json.loads(path.read_text(encoding="utf-8"))
+            if compiled.get("rules_version") == LABEL_RULES_VERSION and compiled.get(
+                "source_fingerprint"
+            ) == label_fingerprint(world):
+                result = {eid: g["label"] for g in compiled["groups"] for eid in g["segment_ids"]}
+                expected = {e.id for e in world.edges.values() if not e.name}
+                if set(result) == expected and all(
+                    isinstance(label, str) and label for label in result.values()
+                ):
+                    world.graph.graph["_closure_unnamed_stretches"] = (signature, result)
+                    return result
+        except (OSError, ValueError, KeyError, TypeError):
+            pass  # Optional derived index, never a substitute for missing map data.
+    graph, named, anchors = {}, {}, {}
+    for edge in world.edges.values():
+        if edge.name:
+            for node in (edge.from_node, edge.to_node):
+                named.setdefault(node, set()).add(edge.name)
+            old = anchors.get(edge.name)
+            if old is None or (edge.length_m, edge.id) > (old.length_m, old.id):
+                anchors[edge.name] = edge
+        else:
+            graph.setdefault(edge.from_node, []).append(edge.id)
+            graph.setdefault(edge.to_node, []).append(edge.id)
+    # Split at unnamed junctions as well as named roads. A whole branched path
+    # network is not one road: each maximal degree-two chain has its own pressure.
+    boundary = {n for n in graph if len(graph[n]) != 2 or n in named}
+    visited, stretches = set(), []
+
+    def walk(start, first):
+        nodes, ids, node, eid = [start], [], start, first
+        while eid not in visited:
+            visited.add(eid)
+            ids.append(eid)
+            edge = world.edges[eid]
+            node = edge.to_node if node == edge.from_node else edge.from_node
+            nodes.append(node)
+            if node in boundary or node == start:
+                break
+            options = sorted(k for k in graph[node] if k not in visited)
+            if not options:
+                break
+            eid = options[0]
+        stretches.append((nodes, ids))
+
+    for node in sorted(boundary):
+        for eid in sorted(graph[node]):
+            if eid not in visited:
+                walk(node, eid)
+    for edge in sorted(world.edges.values(), key=lambda e: e.id):
+        if not edge.name and edge.id not in visited:
+            walk(edge.from_node, edge.id)
+    if named:
+        named_nodes = sorted(named)
+        nearest_named = STRtree([Point(world.node_coords[n]) for n in named_nodes])
+    areas = []
+    for nodes, ids in stretches:
+        coords = [world.node_coords[n] for n in nodes]
+        centre = [sum(x[k] for x in coords) / len(coords) for k in (0, 1)]
+        adjacent = sorted({name for node in nodes for name in named.get(node, ())})
+        if adjacent:
+            near = adjacent[0]
+        elif named:
+            node = named_nodes[int(nearest_named.nearest(Point(centre)))]
+            near = min(named[node])
+        else:
+            near = None
+        length = sum(world.edges[eid].length_m for eid in ids)
+        if near:
+            edge = anchors[near]
+            anchor = [(edge.coords[0][k] + edge.coords[-1][k]) / 2 for k in (0, 1)]
+            bearing = (degrees(atan2(centre[0] - anchor[0], centre[1] - anchor[1])) + 360) % 360
+            direction = (
+                "north",
+                "north-east",
+                "east",
+                "south-east",
+                "south",
+                "south-west",
+                "west",
+                "north-west",
+            )[int((bearing + 22.5) // 45) % 8]
+            label = f"unnamed path near {near} ({direction}, {length:.0f} m path)"
+        else:
+            label = f"unnamed path ({length:.0f} m path; no named road nearby)"
+        areas.append((ids, centre, label))
+    counts = Counter(label for _, _, label in areas)
+    labels = {}
+    for ids, centre, label in areas:
+        if counts[label] > 1:
+            # Coordinates identify the mapped location when direction/length coincide;
+            # never expose an arbitrary traversal index as a road name.
+            label += f" near {centre[1]:.7f}° N, {centre[0]:.7f}° E"
+        for eid in ids:
+            labels[eid] = label
+    result = labels
+    world.graph.graph["_closure_unnamed_stretches"] = (signature, result)
+    return result
+
+
 def simulate_closure(
     world: World,
     spec: ClosureScenario,
@@ -369,9 +603,30 @@ def simulate_event(
     return _simulate(world, scenario, profiles, spec.starts_at, legacy=spec)
 
 
-def _simulate(world, spec, profiles, at, legacy):
+def _frozen_baseline(world, at):
+    baseline, closure_hash = snapshot_world(world, at)
+    for element in (*baseline.edges.values(), *baseline.places.values()):
+        element.closures = [
+            c.model_copy(update={"starts_at": datetime(2000, 1, 1, tzinfo=UTC)})
+            for c in element.closures
+        ]
+    return baseline, closure_hash
+
+
+def warm_baselines(world: World, at: datetime | None = None) -> None:
+    """Fill the normal closure sample cache without applying a proposed closure."""
+    baseline, closure_hash = _frozen_baseline(world, at or datetime.now(UTC))
+    profiles = [p for p in DEFAULT_PROFILES if p in world.profiles and not world.profiles[p].stub]
+    with route_batch():
+        for profile in profiles:
+            journeys = _journeys(baseline, profile, twm.MAX_JOURNEYS // len(profiles), True)
+            _baseline(baseline, closure_hash, profile, journeys)
+    _unnamed_stretches(world)
+
+
+def _simulate(world, spec, profiles, at, legacy, max_segments=MAX_SEGMENTS, frozen_baseline=None):
     started = perf_counter()
-    spec = resolve_scenario(world, spec)
+    spec = resolve_scenario(world, spec, max_segments)
     profiles = tuple(dict.fromkeys(profiles))
     if not profiles or len(profiles) > 5:
         raise ValueError("choose between one and five profiles")
@@ -379,46 +634,56 @@ def _simulate(world, spec, profiles, at, legacy):
         if profile not in world.profiles or world.profiles[profile].stub:
             raise ValueError(f"unknown or unavailable profile {profile}")
     at = EventSpec._utc(at or spec.closures[0].starts_at)
-    baseline, closure_hash = snapshot_world(world, at)
-    for element in (*baseline.edges.values(), *baseline.places.values()):
-        element.closures = [
-            c.model_copy(update={"starts_at": datetime(2000, 1, 1, tzinfo=UTC)})
-            for c in element.closures
-        ]
+    baseline, closure_hash = frozen_baseline or _frozen_baseline(world, at)
     closed = {
         eid
         for window in spec.closures
         if window.starts_at <= at < window.ends_at
         for eid in window.segment_ids
     }
+    course_nodes = closure_roads._nodes(baseline, closed)
     actions = [twm.ClosePath(element_id=eid) for eid in sorted(closed)]
-    after = twm.apply(baseline, actions, max_actions=MAX_SEGMENTS).world
+    after = twm.apply(baseline, actions, max_actions=max_segments).world
     limit = twm.MAX_JOURNEYS // len(profiles)
     trips = []
     roads = {}
+    unnamed = _unnamed_stretches(world)
     cut_off = {}
     demo = False
     with route_batch():
         for profile in profiles:
             journeys = _journeys(baseline, profile, limit, expanded=legacy is None)
-            states, before_ids = _baseline(baseline, closure_hash, profile, journeys)
+            states = _baseline(baseline, closure_hash, profile, journeys)
+            prof = baseline.profiles[profile]
+            road_nodes = _road_nodes(baseline, prof) if prof.allowed_types is not None else None
+            on_course = {
+                pid
+                for pid in {pid for j in journeys for pid in (j.from_id, j.to_id)}
+                if course_nodes.intersection(_targets(baseline, pid, prof, road_nodes=road_nodes))
+            }
             for j, b in zip(journeys, states, strict=True):
                 # Removing edges cannot improve an unavailable route. An existing best
                 # route avoiding every removed edge is still optimal, so reuse it exactly.
-                a = twm._state(after, j, None, True) if closed.intersection(b.segment_ids) else b
+                a = (
+                    twm._state(after, j, None, True, summary=True)
+                    if closed.intersection(b.segment_ids)
+                    else b
+                )
                 rerouted = (
                     b.distance_m is not None
                     and a.distance_m is not None
                     and b.segment_ids != a.segment_ids
                 )
                 lost = b.distance_m is not None and a.distance_m is None
+                endpoint_on_course = j.from_id in on_course or j.to_id in on_course
                 demo |= b.demo_evidence or a.demo_evidence
                 trips.append(
                     EventTrip(
                         **j.model_dump(),
                         before_status=b.status,
                         after_status=a.status,
-                        affected=rerouted or lost,
+                        affected=(rerouted or lost) and not endpoint_on_course,
+                        on_closed_course=endpoint_on_course,
                         no_route=a.distance_m is None,
                         before_m=b.distance_m,
                         after_m=a.distance_m,
@@ -427,11 +692,11 @@ def _simulate(world, spec, profiles, at, legacy):
                         segment_ids=a.segment_ids,
                     )
                 )
-                if rerouted:
+                if rerouted and not endpoint_on_course:
                     per_road = {}
                     for eid in set(a.segment_ids) - set(b.segment_ids):
                         edge = world.edges[eid]
-                        per_road.setdefault(edge.name or "Unnamed paths", set()).add(eid)
+                        per_road.setdefault(edge.name or unnamed[eid], set()).add(eid)
                     weight = traffic.trip_weight(
                         world.places[j.to_id].type, at, world.site.timezone
                     )
@@ -439,8 +704,8 @@ def _simulate(world, spec, profiles, at, legacy):
                         old_ids, count, weighted = roads.get(key, (set(), 0, 0.0))
                         roads[key] = old_ids | ids, count + 1, weighted + weight
             if closed:
-                for place in flood.cut_off_places(after, profile):
-                    if place.id not in before_ids:
+                for place in flood.newly_cut_off_by_closure(baseline, after, profile, closed):
+                    if legacy is not None or resident_destination(world, place.id):
                         cut_off[place.id] = EventPlace(id=place.id, name=place.name)
     detours = sorted(
         [
@@ -458,12 +723,30 @@ def _simulate(world, spec, profiles, at, legacy):
     )
     summary = _summary(trips)
     warnings = [
-        "Sample trips are a deterministic bounded sample of everyday journeys, "
-        "not measured demand.",
-        "Closures are assessed only at at (default: first closure start); changes later in "
-        "the window are not modelled.",
+        "Sample trips use up to ten origins across resident categories and destinations "
+        "near the site centre. Outlying journeys are not represented; this is not measured demand.",
+        "Closures are assessed only at one moment (by default the first closure start); later "
+        "changes in the window are not modelled.",
         "Extra minutes are travel-distance/pace estimates, not congestion or crowd predictions.",
     ]
+    if summary.trips_on_course:
+        warnings.append(
+            f"{summary.trips_on_course} sample trips start or end on the course: access during "
+            "the event needs a separate plan; excluded from detour and new route-loss counts."
+        )
+    limited_profiles = []
+    for profile in profiles:
+        sample = [t for t in trips if t.profile == profile]
+        if sample and any(
+            max(Counter(getattr(t, field) for t in sample).values()) * 10 > len(sample)
+            for field in ("from_id", "to_id")
+        ):
+            limited_profiles.append(profile)
+    if limited_profiles:
+        warnings.append(
+            f"Sample diversity: {', '.join(limited_profiles)} cannot meet the 10% endpoint-share "
+            "target with the available sample; this bounded sample is not representative."
+        )
     if demo:
         warnings.append("Some routes use demo values, not yet surveyed.")
     warnings.extend(
@@ -489,7 +772,7 @@ def _simulate(world, spec, profiles, at, legacy):
         evidence_id=f"ev-event-{digest}" if legacy else f"ev-closure-{digest}",
         weights_note=traffic.config().weights_note,
         timing_ms=round((perf_counter() - started) * 1000, 2),
-        warnings=warnings,
+        warnings=list(dict.fromkeys(warnings)),
     )
     if legacy:
         return EventImpact(event=legacy, **common)

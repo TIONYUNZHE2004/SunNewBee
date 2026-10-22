@@ -86,6 +86,42 @@ describe("AnswerCard", () => {
     expect(note).toHaveTextContent("(limit 8.3%) on Jalan B");
   });
 
+  it("Not verified holds only unverified facts, never the answer's own Worth-knowing notes", () => {
+    const items = [
+      {
+        element_id: "answer",
+        attribute: "caveat",
+        note: "Peak weights are an assumed travel pattern",
+      },
+      { element_id: "whatif", attribute: "whatif", note: "Imagined changes are not real" },
+      { element_id: "route", attribute: "demo_values", note: "Some segment facts are demo values" },
+    ];
+    show(msg({ uncertainty: { type: "uncertainty", level: "partial", items } as never }));
+    const note = screen.getByText(/^Not verified/).closest('[role="note"]') as HTMLElement;
+    expect(note).toHaveTextContent("Some segment facts are demo values");
+    expect(note).not.toHaveTextContent("Peak weights");
+    expect(note).not.toHaveTextContent("Imagined changes");
+  });
+
+  it("no Not verified box when every item is an answer note", () => {
+    const items = [{ element_id: "answer", attribute: "caveat", note: "Not traffic counts" }];
+    show(msg({ uncertainty: { type: "uncertainty", level: "partial", items } as never }));
+    expect(screen.queryByText(/^Not verified/)).toBeNull();
+  });
+
+  it("a step reads '1. …' once, with a space before its note (copied text, T-028 item 5)", () => {
+    show(
+      msg({
+        text: "Intro.\n1. Suggestion: consider a marshal at Jalan A (4 sample trips).\n2. Continue about 38 m (not checked yet).",
+      }),
+    );
+    const steps = screen.getAllByRole("listitem").map((li) => li.textContent ?? "");
+    const first = steps.find((t) => t.includes("marshal")) ?? "";
+    expect(first).toBe("1. Suggestion: consider a marshal at Jalan A (4 sample trips).");
+    const second = steps.find((t) => t.includes("38 m")) ?? "";
+    expect(second).toBe("2. Continue about 38 m. (not checked yet)");
+  });
+
   it("summary strip shows status with its label, distance, time and Show on map", () => {
     useScene.setState({ route: { id: "r1", geojson: { type: "LineString", coordinates: [] } } });
     show(msg());

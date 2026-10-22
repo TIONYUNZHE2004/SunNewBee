@@ -107,6 +107,10 @@ def _level(world, sid: str, lang: str) -> str:
     sc = next((s for s in world.flood.scenarios if s.id == sid), None)
     if sc is None or sc.stage_m is None:
         return BASELINE[_I[lang]]
+    if getattr(sc, "kind", "river_stage") != "river_stage":
+        # T-029: low-lying terrain (stage 0) or a river stage plus terrain: its own label,
+        # never "River +0 m" or "Normal river level"
+        return sc.label
     n = int(sc.stage_m) if float(sc.stage_m).is_integer() else sc.stage_m
     return LEVEL[_I[lang]].format(n=n)
 

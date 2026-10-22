@@ -13,8 +13,12 @@ import { availableViews, type View, webglSupported } from "../scene/selectView";
 import { useEffectiveView, useMapStyle } from "../scene/useMapStyle";
 import { TRAVEL_LABELS, TRAVEL_ORDER } from "./TravelLabels";
 
-export function levelOptions(scenarios: { id: string; label: string; stage_m?: number | null }[]) {
+type ScenarioRow = { id: string; label: string; stage_m?: number | null; kind?: string | null };
+
+export function levelOptions(scenarios: ScenarioRow[]) {
   const stages = scenarios
+    // river stages only: low-lying terrain and river+terrain are the switch below (T-029)
+    .filter((s) => (s.kind ?? "river_stage") === "river_stage")
     .filter((s) => typeof s.stage_m === "number" && s.stage_m > 0)
     .sort((a, b) => (a.stage_m as number) - (b.stage_m as number))
     .map((s) => ({ id: s.id as string | null, label: `+${s.stage_m} m` }));
@@ -23,6 +27,25 @@ export function levelOptions(scenarios: { id: string; label: string; stage_m?: n
 
 /** Map view options (3D, lite map, list) with the reason a view cannot be used. The list view
  * always works: it is the accessible, keyless fallback and shows everything as text. */
+/** T-029: the river stage on screen and whether low-lying terrain is added to it. */
+export function splitScenario(id: string | null): { stage: string | null; lowlying: boolean } {
+  if (!id || id === "baseline") return { stage: null, lowlying: false };
+  if (id === "lowlying") return { stage: null, lowlying: true };
+  if (id.endsWith("+lowlying")) return { stage: id.slice(0, -"+lowlying".length), lowlying: true };
+  return { stage: id, lowlying: false };
+}
+
+/** The scenario id for a river stage with or without low-lying terrain, if the world has it. */
+export function joinScenario(
+  stage: string | null,
+  lowlying: boolean,
+  scenarios: ScenarioRow[],
+): string | null {
+  if (!lowlying) return stage;
+  const id = stage ? `${stage}+lowlying` : "lowlying";
+  return scenarios.some((s) => s.id === id) ? id : stage;
+}
+
 export function viewOptions(available: View[]) {
   const reason = (v: View) =>
     available.includes(v)
@@ -111,14 +134,26 @@ export function SettingsPopover() {
   const effective = useEffectiveView();
   const { choice, setChoice } = useTheme();
   const { alwaysShow, setAlwaysShow } = useCameraUi();
-  const { motion, quality, pathStatus, fx, setMotion, setQuality, setPathStatus, setFx } =
-    useSceneSettings();
+  const {
+    motion,
+    quality,
+    pathStatus,
+    fx,
+    roadNames,
+    setMotion,
+    setQuality,
+    setPathStatus,
+    setFx,
+    setRoadNames,
+  } = useSceneSettings();
   const available = useMemo(
     () => availableViews(ENV, webglSupported(), hasBuildings),
     [hasBuildings],
   );
   const scenarios = useScenarios();
   const levels = levelOptions(scenarios.data ?? []);
+  const hasLowlying = (scenarios.data ?? []).some((s) => s.id === "lowlying");
+  const current = splitScenario(scenarioId);
   const hidden = useBehindFullSheet();
 
   useEffect(() => {
@@ -285,13 +320,28 @@ export function SettingsPopover() {
               {levels.map((o) => (
                 <Radio
                   key={o.id ?? "normal"}
-                  checked={scenarioId === o.id || (o.id === null && scenarioId === "baseline")}
-                  onClick={() => setScenario(o.id)}
+                  checked={current.stage === o.id}
+                  onClick={() =>
+                    setScenario(joinScenario(o.id, current.lowlying, scenarios.data ?? []))
+                  }
                 >
                   {o.label}
                 </Radio>
               ))}
             </div>
+            {hasLowlying && (
+              <label className="mt-2 flex min-h-11 items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-lilac"
+                  checked={current.lowlying}
+                  onChange={(e) =>
+                    setScenario(joinScenario(current.stage, e.target.checked, scenarios.data ?? []))
+                  }
+                />
+                Low-lying areas that may collect water
+              </label>
+            )}
             <p className="m-0 mt-1 text-xs text-fg-soft">Indicative scenarios, not forecasts.</p>
           </div>
           <div>
@@ -305,6 +355,15 @@ export function SettingsPopover() {
               </Radio>
             </div>
             <StatusLegend />
+            <label className="mt-2 flex min-h-11 items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="size-4 accent-lilac"
+                checked={roadNames}
+                onChange={(e) => setRoadNames(e.target.checked)}
+              />
+              Road names
+            </label>
           </div>
         </div>
       )}

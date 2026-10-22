@@ -82,6 +82,43 @@ name the reason and the closure ("— works (Pipe repair)", "— accident").
 The flash-flood line ("Flash floods from heavy rain are not shown.") is a fixed statement of
 scope: it stays in the answer's notes and is never an uncertainty item ("Not verified").
 
+**Marathon course (T-028, management only).** `simulate_marathon(start, distance_km,
+start_time, end_time, day?, shape, finish?, avoid_roads?, prefer_roads?)` wraps the backend's
+course planner and closure engine; the window is built after the call event (like closures).
+Edits ("avoid …", "make it 10 km", "finish at …") are a new call. The impact joins
+`rec.events` (with its course), so the trip, pressure and suggestion checks apply;
+`validate.course_errors` allows only the course's length (0.1 km) or the distance asked for.
+The answer opens with the proposed course and its roads in order (`template.marathon_answer`);
+the server adds "Proposed course on mapped roads, not an approved route." and a
+`marathon.show` intent (course, impact without per-trip rows, playback data). Trips that start
+or end on the closed course are said apart ("plan access for them"), never as "newly without
+a route". The mock plans a course only when a distance in km is given; "close Jalan X for a
+marathon" stays a closure.
+
+Edits in the same session ("Make it 10 km.", "Avoid Persiaran Tamarind.", "Prefer …",
+"point to point", "finish at …"): each turn stores its marathon request in canonical form
+(`SessionMemory.marathon_context`: the resolved start/finish place ids, mapped road names only,
+typed distance and window). Management turns get it as `last_marathon={…}` in the UI context,
+and the model (and the mock) re-call `simulate_marathon` with only the edit changed. Residents
+never get it. A course outside ±10% of the target says why in the summary, as the planner wrote
+it ("Requested 21100 m; proposed 930.9 m. …").
+
+**Low-lying areas (T-029).** A question about low-lying areas or water collecting
+("low-lying", "collect water", "kawasan rendah", "低洼") may use scenario `lowlying`, or
+`stage_pNm+lowlying` when it also names a river level (`route_binding.effective_scenario`); a
+plain river question keeps river stages only, never a combined id. Terrain marks are
+`possible` only: answers give the possible counts ("may collect water (possible, not
+checked)"), never "likely flooded" for terrain, never a depth. The level text for a non-river
+scenario is its own label, never "River +0 m" (`canonical._level`). The flash-flood line is
+added only with a river stage.
+
+**Closure card (T-028).** For a management answer with a closure simulation, the server adds a
+`closure.show` intent carrying the `ClosureImpact` (per-trip rows left out); the web shows the
+result card under the answer and draws the course and detours. Never for residents (pressure),
+never written by the model. `answer_text` drops a step's own numbering ("1.", "Suggestion 3:")
+and a caveat whose words an earlier caveat already says (e.g. the model's "Detour pressure is
+estimated …" next to the tool's "Detour pressure, estimated …").
+
 `ASSISTANT_SCOPE=all` opts into the legacy features documented below. Legacy engine/pipeline
 tests and removed-feature golden cases opt in explicitly; `tests/test_scope.py` tests the
 default separately. The existing browser hero suite opts into `all` because it includes

@@ -1,0 +1,7 @@
+{
+  "old_candidates": 5341,
+  "alternative_length_m": 5212.9,
+  "alternative_repeated_m": 0.0,
+  "alternative_generated_by_old_search": false,
+  "rule": "One root shortest-path tree plus one connecting edge omitted this alternative; it was not generated and then rejected."
+}

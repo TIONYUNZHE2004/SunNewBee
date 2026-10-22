@@ -30,7 +30,10 @@ from .template import (
     event_answer,
     fixit_answer,
     greeting_answer,
+    marathon_answer,
     my_trip_answer,
+    path_length,
+    place_list,
     plan_answer,
     rollout_answer,
     scope_answer,
@@ -269,14 +272,6 @@ def _route_places(rets, ends: list[tuple[str, str | None]]):
 def _ui(info: AgentInfo, key: str) -> str | None:
     m = re.search(rf"{key}=(\w+)", info.instructions or "")
     return m.group(1) if m else None
-
-
-def _few(rows, n: int = 3) -> str:
-    """ "A, B, C and 4 more" from marker rows, distinct names in tool order."""
-    names = list(dict.fromkeys(r["name"] for r in rows or [] if r.get("name")))
-    more = len(rows or []) - len([r for r in rows or [] if r.get("name") in names[:n]])
-    shown = ", ".join(names[:n])
-    return f"{shown} and {more} more" if more > 0 and shown else shown
 
 
 def _no_answer(info: AgentInfo) -> str:
@@ -530,6 +525,151 @@ def _clock_words(q: str) -> str:
     return re.sub(r"(\d{1,2})点", r"\1", q).replace("到", "-")
 
 
+_LOWLYING = r"low[- ]lying|collect (?:rain)?water|kawasan rendah|tanah rendah|低洼|积水"
+
+
+def _lowlying(q: str, rets, info: AgentInfo) -> ModelResponse:
+    """T-029: low-lying terrain that may collect water (possible only), alone or with a river
+    stage the question names; counts and names from the tool, never a depth."""
+    n = len(rets)
+    m = re.search(r"(\d)\s*m\b", q)
+    sid = f"stage_p{m.group(1)}m+lowlying" if m else "lowlying"
+    if n == 0:
+        return _call("list_flood_scenarios")
+    known = {s.get("id") for s in (_data(rets[0][1]) or []) if isinstance(s, dict)}
+    if sid not in known:
+        return _cannot("There is no low-lying terrain screen for that scenario in our data yet.")
+    if n == 1:
+        return _call(
+            "affected_places", scenario_id=sid, kind="all", profile=_profile(q, info, "default")
+        )
+    a = _data(rets[-1][1])
+    ev = [i for i in _ev_ids(rets) if i == f"ev-scn-{sid}"]
+    if not isinstance(a, dict) or not ev:
+        return _cannot()
+
+    def count(side: str) -> str:
+        pl, pa = a.get(f"{side}_place_count", 0), a.get(f"{side}_path_count", 0)
+        return (
+            f"{pl} {'place' if pl == 1 else 'places'} and {pa} path "
+            f"{'segment' if pa == 1 else 'segments'}"
+        )
+
+    named = ""
+    # a combined screen counts river-flooded places, so it names them too (validator)
+    if sid != "lowlying" and (flooded := place_list(a.get("flooded_places"))):
+        named += f" Likely flooded by the river rise (indicative): {flooded}."
+    if cut := place_list(a.get("cut_off_places")):
+        named += f" Cut off, no mapped way in or out (indicative): {cut}."
+    label = next(s.get("label") for s in _data(rets[0][1]) if s.get("id") == sid)
+    return _final(
+        answer_status="answered",
+        summary=(
+            f"{label}: {count('possible')} are in areas that may collect water "
+            f"(possible, not checked).{named} {_FLOOD_NOTE}"
+            if sid == "lowlying"
+            else f"{label}: {count('likely')} are likely flooded by the river rise, and "
+            f"{count('possible')} possibly (river rise or low-lying terrain).{named} {_FLOOD_NOTE}"
+        ),
+        claims=[{"text": label, "status": "indicative", "evidence_ids": ev}],
+        scenario_id=sid,
+        scene_intents=[{"kind": "flood.set_level", "scenario_id": sid}],
+    )
+
+
+_MARATHON = r"marathon|maraton|马拉松|fun run|larian"
+# T-028 edits of the last proposed course, in the same session
+_MARATHON_EDIT = (
+    r"make it \d|\d+(?:\.\d+)?\s*km\b|\bavoid\b|\bprefer\b|point[ _-]to[ _-]point"
+    r"|finish (?:at|in)\b|\bloop\b"
+)
+_ROADNAME = r"((?:persiaran|jalan|lebuh|lorong|bulatan)\s[^,.?;]+)"
+
+
+def _last_marathon(info: AgentInfo) -> dict | None:
+    m = re.search(r"last_marathon=(\{.*\})", info.instructions or "")
+    try:
+        return json.loads(m.group(1)) if m else None
+    except ValueError:
+        return None
+
+
+def _marathon_edit(q: str, last: dict, rets) -> ModelResponse:
+    """Re-plan the session's last course with the manager's edit; every other argument stays."""
+    if not rets:
+        args = {k: v for k, v in last.items() if v not in (None, [], "")}
+        if km := re.search(r"(\d+(?:\.\d+)?)\s*km\b", q):
+            args["distance_km"] = float(km.group(1))
+        for road in re.findall(rf"\bavoid\s+{_ROADNAME}", q):
+            args["avoid_roads"] = [*args.get("avoid_roads", []), road.strip().title()]
+        for road in re.findall(rf"\bprefer\s+{_ROADNAME}", q):
+            args["prefer_roads"] = [*args.get("prefer_roads", []), road.strip().title()]
+        if re.search(r"point[ _-]to[ _-]point", q):
+            args["shape"] = "point_to_point"
+        elif re.search(r"\bloop\b", q):
+            args["shape"] = "loop"
+            args.pop("finish", None)
+        if fin := re.search(r"finish (?:at|in)\s+(.+?)(?:[,.?]|$)", q):
+            args["finish"] = fin.group(1).strip().title()
+            args["shape"] = "point_to_point"
+        return _call("simulate_marathon", **args)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):  # a road or place the planner cannot use: relay the reason
+        why = " ".join(rets[-1][1].get("warnings") or []) if isinstance(rets[-1][1], dict) else ""
+        return _cannot(why or "I couldn't re-plan the course on the township model.")
+    imp = d.get("impact") or {}
+    ev = [i for i in _ev_ids(rets) if i == imp.get("evidence_id")]
+    return _final(**marathon_answer(d, ev))
+
+
+def _marathon(q: str, rets, info: AgentInfo) -> ModelResponse:
+    """T-028: a course proposal from the start place, distance and window in the question."""
+    if not rets:
+        if "simulate_marathon" not in {t.name for t in info.function_tools}:
+            return _cannot("I can't plan a marathon course from our data yet.")
+        start = re.search(
+            r"(?:start(?:ing)?|bermula)\s+(?:at|from|di|dari)\s+(.+?)(?=\s+(?:on|from|and|this|next|at|pada|dari)\b|[,?.]|$)",
+            q,
+        )
+        km = re.search(r"(\d+(?:\.\d+)?)\s*km", q)
+        when = re.search(
+            r"(\d{1,2}(?::\d\d)?)\s*(?:am|pm)?\s*(?:-|–|to|until)\s*(\d{1,2}(?::\d\d)?\s*(?:am|pm)?)",
+            _clock_words(q),
+        )
+        if not start or not km or not when:
+            return _cannot(
+                "Tell me where the run starts, how long it is and its start and end times, "
+                "and I can propose a course."
+            )
+        start_time = re.search(r"\d{1,2}(?::\d\d)?\s*(?:am|pm)?", _clock_words(q)[when.start() :])
+        end = when.group(2).replace(" ", "")
+        if not re.search(r"am|pm", start_time.group(0)) and re.search(r"am|pm", end):
+            start_time_s = start_time.group(0) + re.search(r"am|pm", end).group(0)
+        else:
+            start_time_s = start_time.group(0).replace(" ", "")
+        day = (m := re.search(rf"(?:下)?(?:{_WEEKDAY})", q)) and m.group(0)
+        avoid = re.findall(r"avoid\s+((?:persiaran|jalan|lebuh|lorong|bulatan)\s[^,.?]+)", q)
+        return _call(
+            "simulate_marathon",
+            start=start.group(1).strip().title(),
+            distance_km=float(km.group(1)),
+            start_time=start_time_s,
+            end_time=end,
+            **({"day": day} if day else {}),
+            **({"avoid_roads": [a.strip().title() for a in avoid]} if avoid else {}),
+        )
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):  # unknown start, too long, no course: relay the reason
+        why = " ".join(rets[-1][1].get("warnings") or []) if isinstance(rets[-1][1], dict) else ""
+        return _cannot(why or "I couldn't plan a course on the township model.")
+    imp = d.get("impact") or {}
+    ev = [i for i in _ev_ids(rets) if i == imp.get("evidence_id")]
+    start = re.search(
+        r"(?:start(?:ing)?)\s+(?:at|from)\s+(.+?)(?=\s+(?:on|from|and|this|next|at)\b|[,?.]|$)", q
+    )
+    return _final(**marathon_answer(d, ev, start.group(1).strip().title() if start else None))
+
+
 def _event(q: str, rets, info: AgentInfo) -> ModelResponse:
     if not rets:
         reason = next((r for r, p in _REASON_WORDS if re.search(p, q)), "other")
@@ -751,13 +891,22 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return _tipping(q, rets, info)
     if scope == "all" and re.search(_PLAN, q):
         return _plan(q, rets, info)
+    if scope == "all" and (last := _last_marathon(info)) and re.search(_MARATHON_EDIT, q):
+        return _marathon_edit(q, last, rets)
+    if scope == "all" and re.search(_MARATHON, q) and re.search(r"\d\s*km\b", q):
+        # a course to plan ("a 5 km marathon from X"); "close Jalan Y for a marathon" is a closure
+        return _marathon(q, rets, info)
     if scope == "all" and re.search(_EVENT, q):
         return _event(q, rets, info)
     if scope == "all" and re.search(_WHATIF, q):
         return _whatif(q, rets, info)
+    if re.search(_LOWLYING, q):
+        return _lowlying(q, rets, info)
     is_flood = bool(re.search(r"flood|river|banjir|sungai|rises|naik|水", q))
     ui_sid = _ui(info, "active_scenario")
-    ui_sid = None if ui_sid == "none" else ui_sid
+    ui_sid = None if ui_sid in ("none", "lowlying") else ui_sid
+    # a river question with low-lying terrain on screen uses the river component (T-029)
+    ui_sid = ui_sid.removesuffix("+lowlying") if ui_sid else ui_sid
     where_next = bool(re.search(_WHERE_NEXT, q))
     names_level = is_flood and bool(re.search(r"\d+(?:\.\d+)?\s*m\b", q))
     if where_next and not ui_sid and not names_level:  # no scenario to plan against
@@ -803,10 +952,10 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         # T-024: the marker lists, by name, and the metres of likely flooded paths
         named = ""
         if (metres := a.get("flooded_path_m")) is not None:
-            named += f" About {round(metres)} m of mapped paths are likely flooded."
-        if flooded := _few(a.get("flooded_places")):
+            named += f" About {path_length(metres)} of mapped paths are likely flooded."
+        if flooded := place_list(a.get("flooded_places")):
             named += f" Likely flooded (indicative): {flooded}."
-        if cut := _few(a.get("cut_off_places")):
+        if cut := place_list(a.get("cut_off_places")):
             named += f" Cut off, no mapped way in or out (indicative): {cut}."
         return _final(
             answer_status="answered",

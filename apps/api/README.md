@@ -170,3 +170,19 @@ always event. Individual rows can still be ended through `/closures/{id}/end`. P
 rows never disclose staff notes. Resident routing avoids active stored closures and
 names them; pressure remains a management estimate. There is no traffic, crowd or queue
 model. See the spatial README for the sample, cache and metric definitions.
+
+T-028: `POST /marathon/plan` is public and read-only. It accepts `start` (mapped place
+id or full name), `distance_km`, `starts_at`, `ends_at`, optional `shape`, `finish`,
+`avoid_roads`, `prefer_roads`, and `profiles`. It returns `{course, impact}`; no closure
+is persisted. Proposed courses allow 400 segments; ad-hoc closures retain 40. A busy
+solver returns 503; invalid or unmapped requests return 422. Major roads need an
+explicit road preference. Proposals are not event approvals or access assessments.
+
+T-029: a generated `lowlying` scenario is listed with `kind: lowlying`. Combined ids
+such as `stage_p1m+lowlying` use `kind: combined` and list `components`. `stage_m` is
+river rise only (0 for terrain screening). `/scenarios/{id}/affected` includes possible
+places/paths and cut-off places under the existing profile policy. Terrain polygons
+carry area and a possible label, with no `surface_height_m` or water depth. The seed
+must have real generated data before these scenarios appear. A missing layer is a gap.
+Terrain-only possible marks are UNKNOWN for all profiles (decision A). Combined
+scenarios retain the existing river and physical-barrier rules.

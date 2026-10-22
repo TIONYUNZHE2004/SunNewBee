@@ -56,6 +56,21 @@ describe("answerBlocks (the checked answer as display blocks)", () => {
     expect(answerBlocks("Intro.\nRoute status: blocked")[1]?.kind).toBe("para");
   });
 
+  it("only a status note becomes a tag; other parentheticals stay in the step's words", () => {
+    const [b] = answerBlocks(
+      "1. Review two-way operation on Jalan A (6 mapped one-way detour segments; staff approval needed).\n2. Continue about 38 m (not checked yet).",
+    );
+    expect(b).toEqual({
+      kind: "steps",
+      steps: [
+        {
+          text: "Review two-way operation on Jalan A (6 mapped one-way detour segments; staff approval needed).",
+        },
+        { text: "Continue about 38 m.", note: "not checked yet" },
+      ],
+    });
+  });
+
   it("tones: confirmed ok, blocked bad, a data gap never reads as blocked", () => {
     expect(statusTone("confirmed")).toBe("ok");
     expect(statusTone("blocked")).toBe("bad");

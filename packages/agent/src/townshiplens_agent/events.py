@@ -6,6 +6,8 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from townshiplens_spatial.devsim_models import DevelopmentPlan
+from townshiplens_spatial.events import ClosureImpact
+from townshiplens_spatial.marathon import MarathonResult
 from townshiplens_spatial.models import (
     HHMM_PATTERN,
     CompareVr,
@@ -31,6 +33,8 @@ IntentKind = Literal[
     "day.trip",  # a resident's own rehearsed trip: day.show plus the trip (geojson, server-built)
     "journey.play",  # play a planned route as a journey (JourneyPlan attached by the server)
     "development.play",  # play the Development Simulation (plan attached by the server, if built)
+    "closure.show",  # a closure simulation's result card and map lines (server-added, managers)
+    "marathon.show",  # a proposed marathon course, its impact and playback (server-added, managers)
     "route.compare",  # fastest vs recommended split screen (payload attached by the server)
 ]
 
@@ -126,6 +130,13 @@ class SceneIntent(AnswerSceneIntent):
     # POST /developments/simulate itself. Matches the web's DevelopmentPlayIntent.
     plan: DevelopmentPlan | None = None
     brief_text: str | None = None
+    # closure.show, attached by the server from this turn's simulate_closure result for the
+    # management screen only (pressure is for managers); per-trip rows are left out.
+    closure: ClosureImpact | None = None
+    # marathon.show (T-028), attached by the server from this turn's simulate_marathon result for
+    # the management screen only: the course, its impact (per-trip rows left out) and the
+    # illustrative playback data.
+    marathon: MarathonResult | None = None
     # route.compare, attached by the server (run.py) from compare_routes this turn; never set by
     # the model. route_id is the recommended route (also drawn by route.highlight).
     compare: RouteCompare | None = None
@@ -251,7 +262,10 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     profile: Literal["default", "stroller", "wheelchair", "older_adult_rest", "drive"] = "default"
     # Constrained: it is interpolated into the agent's instructions (prompt-injection guard).
-    scenario_id: str | None = Field(default=None, pattern=r"^(baseline|stage_p[1-3]m)$")
+    # The low-lying switch sends `lowlying` or `stage_pNm+lowlying` (T-029).
+    scenario_id: str | None = Field(
+        default=None, pattern=r"^(baseline|lowlying|stage_p[1-3]m(\+lowlying)?)$"
+    )
     # A random per-tab id (the web client mints it) keying short in-memory follow-up context.
     session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{8,64}$")
     # Which screen asks (T-023): the management panel gets every tool and no topic refusal; the

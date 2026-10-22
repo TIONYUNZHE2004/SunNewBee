@@ -119,7 +119,9 @@ def test_seed_scenarios_state_their_margin():
 
     raw = json.loads(Path("data/seed/elmina/flood/scenarios.json").read_text(encoding="utf-8"))
     items = raw if isinstance(raw, list) else raw["scenarios"]
-    assert items and all(Scenario.model_validate(i).margin_m is not None for i in items)
+    # river stages state their margin; the T-029 terrain screen has none (it is not a stage)
+    river = [i for i in items if i.get("kind", "river_stage") == "river_stage"]
+    assert river and all(Scenario.model_validate(i).margin_m is not None for i in river)
 
 
 def test_briefing_names_the_origin():

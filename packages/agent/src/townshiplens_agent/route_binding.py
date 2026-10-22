@@ -328,19 +328,44 @@ def effective_profile(question, ui_profile, supplied=None):
     return chosen
 
 
+# T-029: a question about low-lying terrain (areas that may collect water)
+LOWLYING_WORDS = re.compile(
+    r"low[- ]lying|collect (?:rain)?water|kawasan rendah|tanah rendah|低洼|积水", re.I
+)
+
+
 def effective_scenario(question, world, ui_scenario, supplied=None):
     asked = {f.value for f in extract_facts(question) if f.kind == "stage"}
-    allowed = {s.id for s in world.flood.scenarios if s.stage_m in asked}
-    if asked and len({s.stage_m for s in world.flood.scenarios if s.id in allowed}) < len(asked):
+    river = {
+        s.id: s.stage_m
+        for s in world.flood.scenarios
+        if getattr(s, "kind", "river_stage") == "river_stage"
+    }
+    allowed = {sid for sid, m in river.items() if m in asked}
+    if asked and len({river[sid] for sid in allowed}) < len(asked):
         raise RouteSelectionError(
             "No scenario exists for the requested river level. Ask for a modelled level."
         )
+    if LOWLYING_WORDS.search(question):
+        # the terrain screen alone, or with each river level the question names
+        ids = {s.id for s in world.flood.scenarios}
+        want = {f"{sid}+lowlying" for sid in allowed} if allowed else {"lowlying"}
+        if not want <= ids:
+            raise RouteSelectionError(
+                "There is no low-lying terrain screen for that scenario in this township's data."
+            )
+        allowed = want
     if re.search(
         r"\bbaseline\b|\bwithout flooding\b|\btanpa banjir\b|无洪水|没有洪水", question, re.I
     ):
         allowed.add("baseline")
     if not allowed:
-        allowed = {ui_scenario or "baseline"}
+        ui = ui_scenario or "baseline"
+        if not LOWLYING_WORDS.search(question):
+            # a river question with low-lying terrain on screen: the river component only, so
+            # terrain counts never enter a river answer
+            ui = ui.removesuffix("+lowlying") if ui != "lowlying" else "baseline"
+        allowed = {ui}
     chosen = supplied or (next(iter(allowed)) if len(allowed) == 1 else None)
     if chosen not in allowed:
         raise RouteSelectionError(

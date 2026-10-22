@@ -2,6 +2,7 @@ import type { SceneIntent } from "@tl/api-client";
 import { create } from "zustand";
 import { useMode } from "../../app/modeStore";
 import { loadProfile, saveProfile } from "../../lib/profileStore";
+import type { ClosureImpact } from "../closures/closureSimModel";
 import { isDemoPreset } from "../demo/demoFlag";
 import { installDevsimHook } from "../devsim/devsimHook";
 import { useDevsim } from "../devsim/devsimStore";
@@ -63,7 +64,8 @@ export interface SceneState {
   /** A what-if diff (imagined, never a real route): before/after lines and imagined changes. */
   whatIf: { geojson: { type: string; features: unknown[] } } | null;
   /** T-026 closure simulation on the map (Management): course and detour lines, by pressure. */
-  closureSim: { geojson: { type: string; features: unknown[] } } | null;
+  /** The closure result a management answer showed (closure.show): map lines by pressure. */
+  closureSim: { result: ClosureImpact; roads?: string[] } | null;
   setClosureSim: (c: SceneState["closureSim"]) => void;
   /** Rising-river rollout playback: synthetic residents on the map (simulation, not a forecast). */
   rollout: { on: boolean; stage: number; playing: boolean };
@@ -231,6 +233,20 @@ function staleTrip(routeId: string): boolean {
   return !!plan && plan.route_id !== routeId;
 }
 
+/** A camera view over these [lon, lat] points: their bounding-box centre, a range that fits it. */
+export function frameCoords(
+  coords: readonly (readonly number[])[],
+): { center: [number, number]; rangeM: number } | null {
+  const pts = coords.filter((c) => Number.isFinite(c[0]) && Number.isFinite(c[1]));
+  if (pts.length === 0) return null;
+  const lons = pts.map((c) => c[0] as number);
+  const lats = pts.map((c) => c[1] as number);
+  const [w, e, s, n] = [Math.min(...lons), Math.max(...lons), Math.min(...lats), Math.max(...lats)];
+  const lat = (s + n) / 2;
+  const spanM = Math.max((e - w) * 111_320 * Math.cos((lat * Math.PI) / 180), (n - s) * 110_540);
+  return { center: [(w + e) / 2, lat], rangeM: Math.max(600, Math.round(spanM * 1.6)) };
+}
+
 /** True when the compare playback holds a compare whose routes do not include `routeId`. */
 function staleCompare(routeId: string): boolean {
   const p = useCompare.getState().payload;
@@ -278,6 +294,7 @@ export const useScene = create<SceneState>((set) => ({
           if (i.route_id && i.geojson) {
             next.route = { id: i.route_id, geojson: i.geojson as unknown as GeoJSON.LineString };
             next.whatIf = null; // a real route is never drawn under an older imagined diff
+            next.closureSim = null; // nor under an older closure simulation
             if (dropTrip) next.journey = null;
           }
           break;
@@ -286,6 +303,27 @@ export const useScene = create<SceneState>((set) => ({
             next.whatIf = {
               geojson: i.geojson as unknown as { type: string; features: unknown[] },
             };
+          break;
+        case "closure.show":
+          next.closureSim = i.closure
+            ? {
+                result: i.closure,
+                roads: i.closure.event.closures.flatMap((c) =>
+                  "road_names" in c ? (c.road_names ?? []) : [],
+                ),
+              }
+            : null;
+          break;
+        case "marathon.show":
+          // the proposed course in red, its detours by pressure (the same map lines)
+          next.closureSim = i.marathon
+            ? { result: i.marathon.impact, roads: i.marathon.course.roads.map((r) => r.name) }
+            : null;
+          // frame the proposed course (its own coordinates), so its road names are in view
+          if (i.marathon) {
+            const view = frameCoords(i.marathon.animation.course_coordinates);
+            if (view) next.camera = view;
+          }
           break;
         case "river.rollout":
           next.rollout = { on: true, stage: 0, playing: true };

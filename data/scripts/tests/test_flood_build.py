@@ -509,7 +509,12 @@ def test_seed_scenario_disclaimers_match_build_constant():
 
     p = Path(__file__).resolve().parents[2] / "seed/elmina/flood/scenarios.json"
     scenarios = json.loads(p.read_text(encoding="utf-8"))["scenarios"]
-    assert scenarios and all(s["disclaimer"] == DISCLAIMERS["rem"] for s in scenarios)
+    river = [s for s in scenarios if s.get("kind", "river_stage") == "river_stage"]
+    assert river and all(s["disclaimer"] == DISCLAIMERS["rem"] for s in river)
+    # the T-029 terrain screen keeps its own disclaimer (limits stated, never a depth)
+    from data.scripts.build_lowlying import DISCLAIMER as LOWLYING
+
+    assert all(s["disclaimer"] == LOWLYING for s in scenarios if s.get("kind") == "lowlying")
     assert "101.46" in DISCLAIMERS["rem"] and "paths outside it are not" in DISCLAIMERS["rem"]
 
 

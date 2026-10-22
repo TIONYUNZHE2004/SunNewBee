@@ -7,7 +7,9 @@ import {
   type ImpactMarker,
   INDICATIVE_NOTE,
   impactSummary,
+  listRows,
   placesWord,
+  possibleOnly,
 } from "./impactModel";
 
 /** The round "!" / "⚠" badge every flood-impact surface uses (map card, List view, 3D label). */
@@ -41,21 +43,33 @@ export function FloodImpactCard({ notes = true }: { notes?: boolean }) {
       className="mt-2 space-y-1.5 border-t border-edge pt-2 text-xs text-fg"
     >
       <p className="m-0 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="inline-flex items-center gap-1.5">
-          <ImpactGlyph kind="flooded" />
+        {possibleOnly(s) ? (
           <span>
-            <strong>{placesWord(s.flooded)}</strong> {IMPACT_STYLE.flooded.label.toLowerCase()}
+            <strong>{placesWord(s.possiblePlaces)}</strong> and{" "}
+            <strong>
+              {s.possiblePaths} mapped {s.possiblePaths === 1 ? "path" : "paths"}
+            </strong>{" "}
+            in low-lying areas (possible)
           </span>
-        </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            <ImpactGlyph kind="flooded" />
+            <span>
+              <strong>{placesWord(s.flooded)}</strong> {IMPACT_STYLE.flooded.label.toLowerCase()}
+            </span>
+          </span>
+        )}
         <span className="inline-flex items-center gap-1.5">
           <ImpactGlyph kind="cut_off" />
           <span>
             <strong>{placesWord(s.cutOff)}</strong> cut off: no mapped way in or out
           </span>
         </span>
-        <span>
-          <strong>{s.pathLength}</strong> of mapped paths likely flooded
-        </span>
+        {!possibleOnly(s) && (
+          <span>
+            <strong>{s.pathLength}</strong> of mapped paths likely flooded
+          </span>
+        )}
       </p>
       {notes && (
         <p className="m-0 text-fg-soft">
@@ -68,11 +82,12 @@ export function FloodImpactCard({ notes = true }: { notes?: boolean }) {
 
 function MarkerRows({ title, rows }: { title: string; rows: ImpactMarker[] }) {
   if (rows.length === 0) return null;
+  const { places, small } = listRows(rows);
   return (
     <div className="mt-3">
       <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-soft">{title}</h3>
       <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-        {rows.map((m) => (
+        {places.map((m) => (
           <li
             key={`${m.kind}:${m.id}`}
             className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-sm"
@@ -82,6 +97,15 @@ function MarkerRows({ title, rows }: { title: string; rows: ImpactMarker[] }) {
             <span className="sr-only">: {IMPACT_STYLE[m.kind].label}</span>
           </li>
         ))}
+        {small > 0 && (
+          <li
+            data-testid="impact-small-features"
+            className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink-soft"
+          >
+            + {small} small mapped {small === 1 ? "feature" : "features"} (shelters, seats, bins,
+            toilets)
+          </li>
+        )}
       </ul>
     </div>
   );
@@ -97,8 +121,9 @@ export function FloodImpactList({ scenarioId }: { scenarioId: string }) {
   return (
     <div data-testid="flood-impact-list" className="mt-3">
       <p className="text-sm">
-        {placesWord(s.flooded)} likely flooded · {placesWord(s.cutOff)} cut off · {s.pathLength} of
-        mapped paths likely flooded. {FLASH_FLOOD_NOTE}
+        {possibleOnly(s)
+          ? `${placesWord(s.possiblePlaces)} and ${s.possiblePaths} mapped paths in low-lying areas (possible) · ${placesWord(s.cutOff)} cut off.`
+          : `${placesWord(s.flooded)} likely flooded · ${placesWord(s.cutOff)} cut off · ${s.pathLength} of mapped paths likely flooded. ${FLASH_FLOOD_NOTE}`}
       </p>
       <MarkerRows title={IMPACT_STYLE.flooded.label} rows={flooded} />
       <MarkerRows title={IMPACT_STYLE.cut_off.label} rows={cut} />

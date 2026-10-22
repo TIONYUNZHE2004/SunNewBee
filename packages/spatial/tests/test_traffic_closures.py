@@ -142,22 +142,35 @@ def test_two_way_rule_is_based_on_mapped_direction(pressured):
 
 
 def test_crossing_rule_names_a_mapped_junction_and_new_cutoff_count(world):
+    world.places["home-a"] = world.places["park-b"].model_copy(
+        update={"id": "home-a", "name": "Home A", "type": "residential"}
+    )
     result = events.simulate_closure(world, scenario("seg-ab"), ("default",))
     suggestion = next(s for s in result.suggestions if s.kind == "crossing_point")
     assert "mapped closure-boundary junction" in suggestion.text
     assert any(f"mapped_junction={n}" in suggestion.basis for n in world.graph)
     assert f"count={len(result.places_cut_off)}" in suggestion.basis
-    assert {p.id for p in result.places_cut_off} == {"park-b"}
+    assert {p.id for p in result.places_cut_off} == {"home-a"}
 
 
-def test_split_rule_is_for_multiple_active_segments(pressured):
+def test_split_rule_is_for_multiple_active_segments(pressured, monkeypatch):
+    sample = [
+        events.twm.Journey(from_id="park-b", to_id=f"kiosk-{i}", profile="default")
+        for i in range(5)
+    ]
+    monkeypatch.setattr(events, "_journeys", lambda *a, **kw: sample)
     result = events.simulate_closure(pressured, scenario("seg-bc", "seg-cd"), ("default",))
     suggestion = next(s for s in result.suggestions if s.kind == "split")
     assert "active_segments=2" in suggestion.basis
     assert f"trips_affected={result.trips_affected}" in suggestion.basis
 
 
-def test_reschedule_rule_discloses_unassessed_times(pressured):
+def test_reschedule_rule_discloses_unassessed_times(pressured, monkeypatch):
+    sample = [
+        events.twm.Journey(from_id="park-b", to_id=f"kiosk-{i}", profile="default")
+        for i in range(5)
+    ]
+    monkeypatch.setattr(events, "_journeys", lambda *a, **kw: sample)
     result = events.simulate_closure(pressured, scenario("seg-bc"), ("default",))
     suggestion = next(s for s in result.suggestions if s.kind == "reschedule")
     assert f"trips_affected={result.trips_affected}" in suggestion.basis
@@ -250,6 +263,12 @@ def test_management_closure_tool_returns_weights_pressure_and_evidence_without_w
     assert result.data["event"]["reason"] == "works" and result.data["detour_roads"]
     assert result.data["reason"] == "works"
     assert result.data["weights_note"] in result.warnings
+    # managers read this warning: plain words, never the field name `at` (audit round 2, Q6)
+    moment = [w for w in result.warnings if w.startswith("Closures are assessed")]
+    assert moment == [
+        "Closures are assessed only at one moment (by default the first closure start); later "
+        "changes in the window are not modelled."
+    ]
     assert world.closures == [] and ctx.vrs.list("all") == []
     assert not tools.simulate_closure(ctx, **(kwargs | {"reason": "invented"})).ok
     assert not tools.simulate_closure(ctx, **kwargs, at="bad-date").ok

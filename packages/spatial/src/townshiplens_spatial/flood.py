@@ -12,8 +12,11 @@ Definitions:
 
 from __future__ import annotations
 
+from collections import deque
+
 import networkx as nx
 
+from .direction import allows_direction
 from .models import AffectedResult, CentreReachability, FloodPlace, Scenario
 from .routing import (
     CENTRE_PREFIX,
@@ -83,15 +86,22 @@ def place_marker(place) -> FloodPlace:
     return FloodPlace(id=place.id, name=place.name, type=place.type, lonlat=place.coord)
 
 
-def cut_off_places(
-    world: World, profile_id: str, scenario_id: str | None = None
-) -> list[FloodPlace]:
-    """Mapped places with no non-FAIL way to any available centre; UNKNOWN stays usable.
+def _expand_reachable(world, profile, scenario_id, connected, pending):
+    while pending:
+        node = pending.popleft()
+        for previous, data in world.graph[node].items():
+            if previous in connected:
+                continue
+            if any(
+                allows_direction(world.edges[key], profile.id, previous)
+                and _evaluate(world, profile, scenario_id, key)[0] != "FAIL"
+                for key in data
+            ):
+                connected.add(previous)
+                pending.append(previous)
 
-    Reverse the routing weight, including vehicle direction, to find all origins in one
-    search. Missing entrances/road snaps are data gaps, not proof of isolation. Unlike the
-    older flood-island field this also includes mapped components isolated at baseline.
-    """
+
+def _centre_reachable(world, profile_id, scenario_id=None):
     profile = world.profiles[profile_id]
     roads = _road_nodes(world, profile) if profile.allowed_types is not None else None
     centres = {
@@ -101,14 +111,52 @@ def cut_off_places(
         and endpoint_flood(world, f"{CENTRE_PREFIX}{c.id}", profile, scenario_id)[0] != "FAIL"
         for node in _targets(world, f"{CENTRE_PREFIX}{c.id}", profile, road_nodes=roads)
     }
-    weight = make_weight(world, profile, scenario_id, True)
-    connected = (
-        nx.multi_source_dijkstra_path_length(
-            world.graph, centres, weight=lambda u, v, data: weight(v, u, data)
-        )
-        if centres
-        else {}
-    )
+    connected = set(centres)
+    _expand_reachable(world, profile, scenario_id, connected, deque(sorted(centres)))
+    return connected, profile, roads
+
+
+def newly_cut_off_by_closure(before, after, profile_id, closed_ids):
+    """Exact cutoff difference for edge-only closures with unchanged places/centres.
+
+    One reverse traversal finds after access. Reopening the proposed edges then
+    expands only the newly connected part, instead of traversing the whole map twice.
+    """
+    connected, profile, roads = _centre_reachable(after, profile_id)
+    restored = set(connected)
+    pending = deque()
+    for eid in sorted(closed_ids):
+        edge = before.edges[eid]
+        for previous, node in ((edge.from_node, edge.to_node), (edge.to_node, edge.from_node)):
+            if (
+                node in restored
+                and previous not in restored
+                and allows_direction(edge, profile.id, previous)
+                and _evaluate(before, profile, None, eid)[0] != "FAIL"
+            ):
+                restored.add(previous)
+                pending.append(previous)
+    _expand_reachable(before, profile, None, restored, pending)
+    return [
+        place_marker(p)
+        for p in sorted(after.places.values(), key=lambda p: p.id)
+        if not p.id.startswith("__")
+        and (targets := _targets(after, p.id, profile, road_nodes=roads))
+        and not any(n in connected for n in targets)
+        and any(n in restored for n in targets)
+    ]
+
+
+def cut_off_places(
+    world: World, profile_id: str, scenario_id: str | None = None
+) -> list[FloodPlace]:
+    """Mapped places with no non-FAIL way to any available centre; UNKNOWN stays usable.
+
+    Reverse the routing weight, including vehicle direction, to find all origins in one
+    search. Missing entrances/road snaps are data gaps, not proof of isolation. Unlike the
+    older flood-island field this also includes mapped components isolated at baseline.
+    """
+    connected, profile, roads = _centre_reachable(world, profile_id, scenario_id)
     flooded = world.flood.place_classes.get(scenario_id, {})
     return [
         place_marker(p)

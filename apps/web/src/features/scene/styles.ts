@@ -70,3 +70,12 @@ export const CESIUM_DASH: Partial<Record<EdgeStatus, { dashLength: number; dashP
     unknown: { dashLength: 16, dashPattern: 0xfff0 }, // long dashes
     flooded_possible: { dashLength: 16, dashPattern: 0xff00 }, // medium dashes
   };
+
+/** T-028 road-name tags on the Stylised map: neutral, or the closed-course red for roads an
+ * answer closes or a proposed course uses (the same red as COURSE_STYLE). */
+export const ROAD_LABEL_STYLE = {
+  bg: "rgba(255,255,255,0.85)",
+  text: "#33363b",
+  hotBg: "#C53030",
+  hotText: "#ffffff",
+} as const;

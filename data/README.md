@@ -489,3 +489,48 @@ and three overlapping closures (39 segments), each with an empty and a populated
 baseline cache. Every case loads a fresh seed world; seed loading is outside the timing,
 while snapshots and static routing-cache initialization are included. It uses no network,
 model calls, downloads or persistent writes. Timings describe this machine, not an SLA.
+
+T-029 terrain screening: `uv run python data/scripts/build_lowlying.py` reads the same
+Copernicus GLO-30 window/cache as `build_flood.py`; it does not rebuild the river stages
+or download new OSM data. An 8-connected priority flood computes minimum spill levels
+with raster borders and NoData neighbours as outlets. `config/flood/lowlying.yaml` is
+the only threshold source: at least 2 m terrain fill contrast, at least four adjacent
+cells (about 3,600 m²), and a two-cell window border exclusion. 2 m is GLO-30's stated
+relative vertical accuracy (< 2 m LE90 for slopes ≤ 20%), so a smaller contrast is inside the
+DEM's own noise (the 1 m draft marked 6.1% of the window, 2 m marks 3.5%:
+`data/audits/2026-10-22-lowlying/sensitivity.json`). The cell filter removes single-cell
+pits. Neither was fitted to a flood report. Not screened, and stated as a gap: mapped water
+in `base/hydrology.geojson` and land-cover water, forest and scrub in `base/landcover.geojson`
+(`exclude_landcover`; GLO-30 is a canopy surface, so gaps between trees read as pits).
+
+Generated for the Elmina seed on 22 Oct 2026: 235 polygons, 2.84 km², 515 of 16,120 path
+segments and 6 places `possible`; 15,304 cells not screened (plus the ignored outer border), so 1,421
+paths and places over them carry a coverage gap (UNKNOWN, "not screened"), never "checked and
+clear". No public report found names a
+flooded place inside the township; reports for neighbouring Kampung Melayu Subang and Paya
+Jaras are recorded, not scored (`data/audits/2026-10-22-lowlying/validation.json`).
+
+Outputs are `flood/lowlying.geojson` (polygons and area), `lowlying-audit.json` (method,
+config and counts), and possible-only edge/place classes in `scenarios.json`. Fill
+contrast is internal terrain geometry, never published as water depth. Empty/invalid
+DEM coverage cannot create an apparently complete empty scenario. NoData gaps stay
+explicit. The real Elmina outputs are committed separately from code; passing synthetic-raster
+tests does not validate them against real floods.
+
+Label: “Low-lying areas that may collect water (indicative)”. Copernicus GLO-30 is a
+30 m surface model: buildings and trees raise it. Drains and culverts are not modelled.
+Rainfall amounts are not modelled. Enclosed surface-model depressions are only possible
+collection areas, not predicted inundation. Unmarked areas are not proof of absence.
+Public-report validation and blocked searches belong in `data/audits/`; do not tune to
+one report or describe inaccessible sources as checked.
+
+### Static closure labels (Task 2)
+
+After changing seed walk geometry or road names, run
+`uv run python data/scripts/build_closure_labels.py`. This offline command writes
+`data/seed/elmina/base/closure_labels.json`; commit generated data separately. Labels
+are derived from mapped names, direction and measured path length, not surveyed road
+names. The optional index carries a rules version and a source fingerprint covering
+edge ids, names, lengths, endpoints and coordinates. Runtime rejects a stale index
+and recomputes it. Cold marathon benchmarks include index loading and validation,
+with seed loading reported separately; no warmed route/course cache is required.

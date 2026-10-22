@@ -3,8 +3,10 @@ import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/icons";
 import { CitationList } from "../chat/CitationList";
 import { type AssistantMessage, isRefusal, isTemplateFallback } from "../chat/chatReducer";
-import { describeUncertainty, groupUncertainty } from "../chat/uncertainty";
+import { describeUncertainty, groupUncertainty, unverifiedItems } from "../chat/uncertainty";
 import { useElementNames } from "../chat/useElementNames";
+import { ClosureResult } from "../closures/ClosureResult";
+import { MarathonCard } from "../closures/MarathonCard";
 import { TripStrip } from "../day/TripStrip";
 import { OwnCompareControls } from "../journey/CompareControls";
 import { isPlayableCompare } from "../journey/compareTypes";
@@ -28,7 +30,9 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
       : "border-edge bg-surface";
   const uncertain =
     m.uncertainty && m.uncertainty.level !== "none"
-      ? groupUncertainty(describeUncertainty(m.uncertainty.items as Record<string, string>[]))
+      ? groupUncertainty(
+          describeUncertainty(unverifiedItems(m.uncertainty.items as Record<string, string>[])),
+        )
       : [];
   const links = (m.disclaimer?.links ?? [])
     .map((l) => ({ href: l.url ?? l.href, label: l.label ?? l.title ?? l.name }))
@@ -166,6 +170,7 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
           </span>
         </div>
       )}
+      {m.marathon ? <MarathonCard m={m.marathon} /> : m.closure && <ClosureResult r={m.closure} />}
       {m.disclaimer && (
         <div role="note" className="rounded-xl border border-edge bg-raised px-3 py-2.5 text-fg">
           <span aria-hidden="true" className="font-semibold text-lantern">

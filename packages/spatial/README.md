@@ -513,15 +513,21 @@ apply. Other staff closures are also frozen at `at`. This is one instant, not a 
 or a worst case across the windows. Neither live state nor the closure store changes.
 Default profiles are `default`, `wheelchair`, `drive`; up to five known profiles are
 supported. Total samples are capped at 300, split evenly between profiles, exposed by
-`sample_limit_per_profile`. Sample origins are mapped parking/drop-offs/stops; destinations
-are facilities/toilets and the destination types in the peak table, sorted by id with
-origins interleaved. These are sample journeys, never measured demand.
+`sample_limit_per_profile`. Sample origins rotate across up to ten mapped transport and resident-destination
+categories. Origins and destinations favour places near the site centre; outlying
+journeys are not represented. Each endpoint is capped at 10% when enough pairs exist.
+These are deterministic sample journeys, never measured demand.
 
 `trips_affected` counts rerouted or newly disconnected trips. `trips_no_route` includes
 existing gaps; `trips_no_route_before` and `trips_newly_no_route` distinguish them.
 Pre-existing disconnected data stays `no_data` and is never attributed to a closure.
 Extra metre/minute medians cover rerouted trips only (null if none); minutes describe
 physical distance/profile pace, never traffic delay. Per-profile counts use the same rules.
+Trips whose origin or destination maps onto a closed-course node have
+`on_closed_course=true` and are counted separately in `trips_on_course`. These access-during-
+the-event cases are excluded from ordinary detour, no-route and newly-no-route summaries.
+The total sample still includes them. Origins and destinations rotate together; samples
+that cannot meet the 10% endpoint-share target carry an explicit limitation warning.
 `places_cut_off` contains newly lost mapped centre access in at least one selected
 profile; pre-existing isolation and missing entrances are excluded.
 
@@ -533,8 +539,10 @@ Detour roads group newly used segments by mapped name, counting each rerouted sa
 trip once per road. For a mixed-class road, `road_class` is the newly used segment class
 with the lowest capacity, a conservative bottleneck assumption. `weighted_trips` sums
 the destination/time weights;
-`trips` is the unweighted count. Unnamed segments are “Unnamed paths”; absent classes
-are `unknown` and use the `others` capacity. Rows sort by weighted trips, name, class.
+`trips` is the unweighted count. Unnamed segments group into maximal degree-two chains, split at junctions and named
+roads. Labels use a nearby mapped road, direction and measured chain length, with
+coordinates when those words coincide. Each chain has its own pressure; absent classes are `unknown` and use the `others` capacity.
+Rows sort by weighted trips, name, class. Duplicate warnings are removed.
 Pressure = weighted trips / class capacity: secondary 4, tertiary 3, unclassified 2,
 residential 1, service 0.5, others 1. Bands are low <1, medium 1–3, high >3.
 The disclaimer is “Detour pressure, estimated from mapped road class and sample trips,
@@ -552,12 +560,101 @@ active. Suggestions disclose unassessed alternatives; they do not change routing
 snaps within an immutable snapshot, preserving route selection, direction and endpoint
 checks. Static road nodes and up to 512 road snaps are shared across snapshots, keyed
 by road membership and endpoint coordinates; closures never change the geometry snap.
-Rest-constrained searches keep their normal solver. A bounded baseline cache
+Search frontiers pause after requested targets and resume for later destinations,
+preserving insertion-order ties. Road snaps use an exact spherical candidate grid
+followed by the same distance and tie checks. Aggregate RouteState calculations omit
+only unused presentation fields; resident routes and rest-limit checks retain them.
+One frozen snapshot serves course planning, impacts and animation. Rest-constrained
+searches keep their normal solver. A bounded baseline cache
 (12 profile/sample entries) keys by graph, world version, date, frozen closure set, profile
 and sample. Only baseline routes intersecting active proposed segments are recalculated.
-`timing_ms` includes snapshotting, cache lookup/calculation, impacts and suggestions.
+The API warms the default three-profile closure baselines first on startup, and again
+after world, date or active-closure changes. Future event windows with different staff
+closures calculate their own baseline. `timing_ms` includes snapshotting, cache
+lookup/calculation, impacts and suggestions.
 
 `simulate_event(EventSpec(...))` uses the same engine, retaining the old event shape,
 everyday sample and disclaimer. The API/tool aliases preserve existing callers.
 Stored named closures keep the public `event_name` separate from private staff notes;
 labels use their actual reason, including named works/accidents/flooding/other closures.
+
+### Marathon proposals (T-028)
+
+`marathon.plan_course(world, start, distance_km, shape="loop", finish=None,
+avoid_roads=[], prefer_roads=[])` returns an ordered, continuous course, its actual
+length and consecutive road stretches. Start/finish accept place ids or exact,
+unambiguous full names. Point-to-point needs a finish. Major roads are excluded
+unless explicitly named in `prefer_roads`. Active closures and steps are excluded.
+This is a proposed road-closure layout, not a running or profile access assessment.
+Road direction, crossing provision and event approval still need review.
+
+The deterministic search samples eight directions at three radii and preferred-road
+anchors. It joins each outward shortest path to a return path that excludes its edges;
+bounded repeated-path fallbacks remain. Named roads have lower search cost than
+unnamed paths; preferences reduce cost further. An in-band repeat-free candidate
+precedes repeated candidates. Up to 24 candidates are ranked by preference and newly
+lost mapped centre access across default, wheelchair and driving profiles. Direction
+and parallel-edge rules are retained. This is a bounded heuristic, not a global minimum.
+If no in-band single loop is found, a bounded multi-lap proposal may meet a long
+request; repeated metres and lap counts remain explicit. Repeated roads and distances
+outside ±10% get warnings. Proposals have at most 400 ordered segments;
+ad-hoc closure requests still have a 40-segment limit. The bounded proposal cache
+invalidates on world/version/date/active-closure changes.
+
+`marathon.simulate_marathon(world, MarathonRequest(...))` proposes the course and
+runs the unchanged closure engine at `starts_at`. It accepts one ISO datetime window,
+up to five profiles and the same road edits. It returns `{course, impact, animation}`. The public,
+read-only `POST /marathon/plan` takes that request; no event is stored. The spatial
+`tools.simulate_marathon` wrapper is for management only. Label all proposals:
+“Proposed course on mapped roads, not an approved route.”
+
+`GET /layers/road-labels` returns a list of `{name, road_class, length_m, anchor,
+bearing_deg}`. Geometry and length are clipped to the configured display boundary
+(site bbox if none); an unreadable configured boundary fails instead of widening it.
+The anchor is the midpoint of the longest clipped segment; its local tangent sets the
+bearing (clockwise from north). Class comes from that segment's mapped highway tag.
+
+`MarathonResult.animation` contains `course_coordinates` in traversal order and up
+to five `rerouted_trips` with `before_coordinates` / `after_coordinates`, place ids and
+profile. The label is “Simulation · illustrative”. These are example routes from the
+same closure sample, not vehicle/crowd counts. Missing or disconnected geometry is
+omitted, never joined with a fabricated connector.
+
+### Low-lying terrain scenarios (T-029)
+
+Generated terrain uses scenario id `lowlying`, `kind: lowlying`, and possible-only
+edge/place classes. `stage_m: 0` means baseline river rise; it is not a terrain value
+or a water depth. The label is “Low-lying areas that may collect water (indicative)”.
+The loader requires its GeoJSON before it lists the scenario. The Elmina seed has it since
+22 Oct 2026 (`data/README.md`, T-029); the tiny fixture does not.
+
+With generated data, the loader also derives `stage_p1m+lowlying` (and each other
+positive river stage). These have `kind: combined` and `components` listing their
+inputs. River `likely_flooded` always wins; terrain can only add `possible`, never
+remove a river class. Missing raster coverage combines conservatively. Separate
+`scenario_coverage` maps keep the terrain screen's gaps independent of river coverage.
+GET `/scenarios`, `/scenarios/{id}`, `/scenarios/{id}/affected`, and normal layer APIs
+use these ids. River-rise playback and built-in day stages retain river-only inputs.
+
+Limits: GLO-30 is a 30 m surface model, including buildings and trees. Drains, culverts
+and rainfall amounts are not modelled. A terrain mark is a possible collection area,
+not a forecast. Unmarked areas do not establish absence. The data pipeline README
+records thresholds, limitations and generation requirements.
+
+Decision A (Task 2): terrain-only possible marks evaluate UNKNOWN for every profile,
+including driving, at paths and assessed endpoints. A combined scenario retains the
+original river rules: a river possible class still excludes driving, and a river
+likely_flooded class remains FAIL. Physical barriers and closures also remain FAIL.
+The access layer uses the same factual assessment as routing. Terrain-only marks use
+“low-lying terrain may collect water (indicative)” rather than a river-flood assertion.
+
+Task 2 audit refinement: general closure samples draw up to ten origins across mapped
+resident destination and transport-access categories, rather than only the seven seed
+car parks. Pair selection caps each endpoint at 10% when enough distinct pairs exist.
+A small-pool limitation is emitted once across profiles. The sample is deterministic,
+bounded and not measured demand. Pre-existing no-route cases remain in its denominator.
+Closure cutoff counts and course ranking use `RESIDENT_DESTINATION_TYPES` (homes,
+schools, shops, parks, clinics, community/evacuation centres and other listed resident
+destinations); bins, seating and shelters are excluded. Legacy event results retain
+their prior place-count contract. Unnamed labels use landmark/direction/measured length,
+with a geographic qualifier for collisions; arbitrary stretch indices are not public names.
