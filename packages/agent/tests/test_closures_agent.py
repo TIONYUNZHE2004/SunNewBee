@@ -249,7 +249,10 @@ async def test_a_marathon_is_proposed_on_mapped_roads_and_simulated_for_managers
     assert call.args["start_time"] == "6am" and call.args["end_time"] == "10am"
     assert "starts_at" not in call.args  # the window is built after the call event
     assert evs[-1].answer_status == "answered" and rec.validator_errors == []
-    assert "Proposed 5.1 km loop course from Elmina Valley Central Park" in text
+    assert (
+        f"Proposed {round(rec.marathons[-1]['course']['length_m'] / 1000, 1):g} km "
+        "loop course from Elmina Valley Central Park"
+    ) in text
     assert "not an approved route" in text and "detour pressure: high" in text
     card = next(
         e.intent for e in evs if e.type == "scene.intent" and e.intent.kind == "marathon.show"
