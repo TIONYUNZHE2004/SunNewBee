@@ -1,0 +1,180 @@
+{
+  "length_m": 5102.7,
+  "segments": [
+    "seg-909861399-13",
+    "seg-909861399-12",
+    "seg-909861399-11",
+    "seg-909868200-0",
+    "seg-909868200-1",
+    "seg-926280618-0",
+    "seg-926280617-0",
+    "seg-926280617-1",
+    "seg-909868198-0",
+    "seg-909868199-0",
+    "seg-909868197-0",
+    "seg-1313068358-1",
+    "seg-1306543738-2",
+    "seg-1306543739-0",
+    "seg-1387292586-0",
+    "seg-1387292587-0",
+    "seg-1346155030-0",
+    "seg-1346155030-1",
+    "seg-1387292581-0",
+    "seg-1387292584-0",
+    "seg-1306543740-6",
+    "seg-1306543740-0",
+    "seg-1306543740-1",
+    "seg-1306543740-2",
+    "seg-1346155032-0",
+    "seg-1346155032-1",
+    "seg-1346155032-2",
+    "seg-1344498804-0",
+    "seg-1344498804-1",
+    "seg-1344498804-2",
+    "seg-1344498804-3",
+    "seg-1346164259-1",
+    "seg-1346164259-2",
+    "seg-1346164259-3",
+    "seg-926285928-2",
+    "seg-926285927-0",
+    "seg-926285926-0",
+    "seg-926285926-1",
+    "seg-926285926-2",
+    "seg-926285925-0",
+    "seg-926285925-1",
+    "seg-926285925-2",
+    "seg-926285925-3",
+    "seg-1489731346-6",
+    "seg-1489731346-5",
+    "seg-1489731346-4",
+    "seg-1489731346-3",
+    "seg-1489731346-2",
+    "seg-1489731346-1",
+    "seg-1489731346-0",
+    "seg-1346155032-2",
+    "seg-1346155032-1",
+    "seg-1346155032-0",
+    "seg-1306543740-2",
+    "seg-1306543740-1",
+    "seg-1306543740-0",
+    "seg-1306543740-6",
+    "seg-1387292584-0",
+    "seg-1387292581-0",
+    "seg-1346155030-1",
+    "seg-1346155030-0",
+    "seg-1387292587-0",
+    "seg-1387292586-0",
+    "seg-1306543739-0",
+    "seg-1306543738-2",
+    "seg-1313068358-1",
+    "seg-909868197-0",
+    "seg-909868199-0",
+    "seg-909868198-0",
+    "seg-926280617-1",
+    "seg-926280617-0",
+    "seg-926280618-0",
+    "seg-909868200-1",
+    "seg-909868200-0",
+    "seg-909861399-11",
+    "seg-909861399-12",
+    "seg-909861399-13"
+  ],
+  "repeated_m": 1429.31,
+  "repeated_share": 0.2801085699727595,
+  "road_rows": 15,
+  "unique_road_names": 7,
+  "old_names": [
+    "unnamed path near Buggy Path (stretch 217)",
+    "Iconic Bridge of Elmina City",
+    "unnamed path near Iconic Bridge of Elmina City (stretch 320)",
+    "Persiaran Tamarind",
+    "unnamed path near Persiaran Garcinia (stretch 330)",
+    "Persiaran Tamarind",
+    "Persiaran Dillenia",
+    "unnamed path near Buggy Path (stretch 217)",
+    "Jalan Tristania U15/32",
+    "Persiaran Tamarind",
+    "unnamed path near Persiaran Garcinia (stretch 330)",
+    "Persiaran Tamarind",
+    "unnamed path near Iconic Bridge of Elmina City (stretch 320)",
+    "Iconic Bridge of Elmina City",
+    "unnamed path near Buggy Path (stretch 217)"
+  ],
+  "old_cutoffs": [
+    {
+      "id": "osm-node-12001752608",
+      "name": "Waste Basket (unnamed, OSM)",
+      "type": "waste_basket"
+    },
+    {
+      "id": "osm-node-12001769039",
+      "name": "Seating (unnamed, OSM)",
+      "type": "seating"
+    },
+    {
+      "id": "osm-way-1150761049",
+      "name": "Park (unnamed, OSM)",
+      "type": "park"
+    },
+    {
+      "id": "osm-way-1286251723",
+      "name": "Shelter (unnamed, OSM)",
+      "type": "shelter"
+    },
+    {
+      "id": "osm-way-1286251724",
+      "name": "Shelter (unnamed, OSM)",
+      "type": "shelter"
+    }
+  ],
+  "resident_cutoffs_same_course": [
+    {
+      "id": "osm-way-1150761049",
+      "name": "Park (unnamed, OSM)",
+      "type": "park"
+    }
+  ],
+  "label_before_after": [
+    {
+      "before": "unnamed path near Buggy Path (stretch 217)",
+      "after": [
+        "unnamed path near Iconic Bridge of Elmina City (south-east, 29 m path)",
+        "unnamed path near Iconic Bridge of Elmina City (south-east, 7 m path)",
+        "unnamed path near Iconic Bridge of Elmina City (south-east, 81 m path)",
+        "unnamed path near Jalan Metafasa U16/166 (north, 26 m path)",
+        "unnamed path near Jalan Metafasa U16/166 (north, 38 m path)",
+        "unnamed path near Jalan Metafasa U16/174 (north-west, 21 m path)",
+        "unnamed path near Jalan Metafasa U16/174 (north-west, 67 m path)",
+        "unnamed path near Jalan Tristania U15/32 (south-west, 400 m path)",
+        "unnamed path near Jalan Tristania U15/32 (south-west, 7 m path)",
+        "unnamed path near Persiaran Dillenia (south, 24 m path) near 3.1842495° N, 101.5027965° E",
+        "unnamed path near Persiaran Dillenia (south, 6 m path)",
+        "unnamed path near Persiaran Shorea (south-east, 10 m path) near 3.1841480° N, 101.5027450° E",
+        "unnamed path near Persiaran Shorea (south-east, 12 m path) near 3.1840853° N, 101.5026657° E"
+      ]
+    }
+  ],
+  "profiles": {
+    "default": {
+      "trips": 100,
+      "origins": 7,
+      "destinations": 20,
+      "max_origin_share": 0.15,
+      "max_destination_share": 0.07
+    },
+    "wheelchair": {
+      "trips": 100,
+      "origins": 7,
+      "destinations": 20,
+      "max_origin_share": 0.15,
+      "max_destination_share": 0.07
+    },
+    "drive": {
+      "trips": 100,
+      "origins": 7,
+      "destinations": 20,
+      "max_origin_share": 0.15,
+      "max_destination_share": 0.07
+    }
+  }
+}
