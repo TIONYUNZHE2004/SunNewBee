@@ -126,6 +126,8 @@ def test_polyline_is_oriented_and_chained_like_the_route(world, a, b, profile):
     for (f0, t0, _), (f1, _t1, _) in zip(plan.spans, plan.spans[1:], strict=False):
         assert t0 == pytest.approx(f1) and t0 > f0
     assert [s[2] for s in plan.spans] == [s.eval for s in route.segments]
+    # One edge type per span, for the player's display only (walkers keep to a road's verge).
+    assert plan.span_types == [world.edges[s.edge_id].type for s in route.segments]
     # Local-metre lengths stay within 1% of the route's own distance.
     assert plan.spans[-1][1] == pytest.approx(route.distance_m, rel=0.01)
 

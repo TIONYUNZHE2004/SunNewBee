@@ -478,6 +478,9 @@ class JourneyPlan(BaseModel):
     pace_m_per_s: float
     polyline: list[LonLat]  # route coordinates in travel order, oriented and chained
     spans: list[tuple[float, float, EvalResult]]  # [from_m, to_m, eval], one per route segment
+    # The walk edge type of each span (street, sidewalk, ...): display only, so the player keeps
+    # a walker on a road's verge instead of its centre line. Never a fact about a pavement.
+    span_types: list[str] = Field(default_factory=list)
     events: list[JourneyEvent]
     conditions: list[dict[str, Any]] = Field(default_factory=list)  # seam for later (P4)
 

@@ -21,7 +21,17 @@ def _end(world, place_id: str) -> CompareEnd:
     return CompareEnd(id=place_id, name=p.name if p else place_id)
 
 
-def _route(r: dict | None) -> CompareRoute | None:
+def _segment(world, s: dict) -> CompareSegment:
+    e = world.edges.get(s["edge_id"])
+    return CompareSegment(
+        edge_id=s["edge_id"],
+        eval=s["eval"],
+        type=e.type if e else "unknown",
+        length_m=round(e.length_m, 1) if e else 0.0,
+    )
+
+
+def _route(world, r: dict | None) -> CompareRoute | None:
     if r is None:
         return None
     return CompareRoute(
@@ -30,7 +40,7 @@ def _route(r: dict | None) -> CompareRoute | None:
         distance_m=r["distance_m"],
         est_minutes=r["est_minutes"],
         coordinates=[list(c[:2]) for c in (r.get("geometry") or {}).get("coordinates") or []],
-        segments=[CompareSegment(edge_id=s["edge_id"], eval=s["eval"]) for s in r["segments"]],
+        segments=[_segment(world, s) for s in r["segments"]],
     )
 
 
@@ -43,8 +53,8 @@ def compare_payload(world, d: dict) -> RouteCompare:
         profile=d["profile"],
         status=d["status"],
         same_path=d["same_path"],
-        fastest=_route(d.get("fastest")),
-        recommended=_route(d.get("recommended")),
+        fastest=_route(world, d.get("fastest")),
+        recommended=_route(world, d.get("recommended")),
         stop=d.get("stop"),
         reasons=d["reasons"],
         extra_minutes=d.get("extra_minutes"),
