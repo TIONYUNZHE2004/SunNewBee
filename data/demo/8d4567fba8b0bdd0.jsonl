@@ -1,4 +1,4 @@
-{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "7389eb50888617a106ec2db7af4a61c19dc5517859e6cde7f5ff88ba1e07883c", "model": "mock-scripted", "recorded_at": "2026-10-22T12:48:25+00:00"}}
+{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "11bec4e63ba52973e980cd881687d9ec9e89eb4311a28bd5598a90ac64a782ec", "model": "mock-scripted", "recorded_at": "2026-10-22T17:57:29+00:00"}}
 {"type": "tool.call", "id": "day_rehearsal-0", "name": "day_rehearsal", "args": {"day": "storm"}}
 {"type": "tool.result", "id": "day_rehearsal-0", "name": "day_rehearsal", "summary": "ok"}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}

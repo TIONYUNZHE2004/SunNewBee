@@ -1,4 +1,4 @@
-{"meta": {"message": "From Elmina Lakeside Mall, nearest evacuation centre if the water rises 3 m", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "7389eb50888617a106ec2db7af4a61c19dc5517859e6cde7f5ff88ba1e07883c", "model": "mock-scripted", "recorded_at": "2026-10-22T12:47:31+00:00"}}
+{"meta": {"message": "From Elmina Lakeside Mall, nearest evacuation centre if the water rises 3 m", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "11bec4e63ba52973e980cd881687d9ec9e89eb4311a28bd5598a90ac64a782ec", "model": "mock-scripted", "recorded_at": "2026-10-22T17:56:43+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "args": {"scenario_id": "stage_p3m", "profile": "default", "near_place": "lakeside-mall"}}
