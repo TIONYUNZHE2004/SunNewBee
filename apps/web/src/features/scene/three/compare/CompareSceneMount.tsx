@@ -8,6 +8,7 @@ import {
 } from "../../../journey/compareStore";
 import { compareStateAt } from "../../../journey/compareTimeline";
 import { isPlayableCompare } from "../../../journey/compareTypes";
+import { applyCutaway, NO_CUT, setCut, sightCut } from "../../../journey/three/cutaway";
 import { projectToScreen } from "../../../journey/three/project";
 import { createViewFit } from "../../../journey/three/viewFit";
 import { measureMapArea } from "../../../journey/useMapInsets";
@@ -115,6 +116,12 @@ export function CompareSceneMount({
     };
   }, [wantKit, kit]);
 
+  // building materials carry the (inactive) cutaway from their first compile, as in JourneyMount
+  useEffect(() => {
+    if (!engine?.addMaterialPatch) return;
+    return engine.addMaterialPatch((root) => applyCutaway([root]));
+  }, [engine]);
+
   const [layer, setLayer] = useState<CompareLayer | null>(null);
   useEffect(() => {
     if (!layer || !engine) return;
@@ -141,7 +148,14 @@ export function CompareSceneMount({
     const sv: SplitView = {
       left: { camera: new THREE.PerspectiveCamera(50, 1, 2, 30000), look: new THREE.Vector3() },
       right: { camera: new THREE.PerspectiveCamera(50, 1, 2, 30000), look: new THREE.Vector3() },
-      beforeSide: (side) => l.setSide(side),
+      beforeSide: (side) => {
+        l.setSide(side);
+        // buildings between each half's camera and its walker are cut away (never hide the walker)
+        if (!side) return setCut(NO_CUT);
+        const w = l.anchors().walkers[side === "left" ? "fastest" : "recommended"];
+        const p = sv[side].camera.position;
+        setCut(sightCut([p.x, p.y, p.z], [w[0], w[2]]));
+      },
     };
     let splitOn = false;
 

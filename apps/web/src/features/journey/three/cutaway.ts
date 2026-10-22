@@ -64,6 +64,27 @@ export function cutFor(
   };
 }
 
+/** Capsule radius (m) of the compare split's sight-line cut: the walker plus a margin, ~50 m off. */
+export const SIGHT_CUT_RADIUS_M = 4;
+
+/**
+ * The compare split's cut (demo polish, owner video: a mall wall, then a roof hid the walker): every
+ * building fragment in a capsule from the half's chase camera to its walker's chest is not drawn,
+ * whichever building it belongs to, so each half's camera always sees its walker. Display only,
+ * like the hero cutaway; the chase camera, footprints, heights and picking are unchanged.
+ */
+export function sightCut(camera: Vec3, walker: readonly [number, number]): Cut {
+  const far = 1e6;
+  return {
+    on: true,
+    a: [...camera],
+    b: [walker[0], HERO_CHEST_Y, walker[1]],
+    r: SIGHT_CUT_RADIUS_M,
+    min: [-far, -far, -far],
+    max: [far, far, far],
+  };
+}
+
 /** Distance from p to the segment a-b. */
 export function segmentDistance(p: Vec3, a: Vec3, b: Vec3): number {
   const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];

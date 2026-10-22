@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { afterEach, describe, expect, it } from "vitest";
 import { createClearance } from "../../scene/three/clearance";
+import { HERO_CHEST_Y } from "../../scene/three/journey/followRig";
 import { meshBlocks } from "./cameraProbe";
 import {
   applyCutaway,
@@ -11,7 +12,9 @@ import {
   injectCutaway,
   NO_CUT,
   patchCutaway,
+  SIGHT_CUT_RADIUS_M,
   setCut,
+  sightCut,
 } from "./cutaway";
 
 const grid = createClearance([
@@ -148,5 +151,21 @@ describe("building cutaway around the hero (D-T5 ruling, display only)", () => {
     expect(sh.fragmentShader).toContain("uTlCutR");
     expect(m.customProgramCacheKey()).toContain("tl-cut");
     expect(applyCutaway([building()])).toBe(1);
+  });
+});
+
+describe("compare split sight-line cut (any building between a half's camera and its walker)", () => {
+  const cut = sightCut([0, 26, -42], [0, 0]);
+
+  it("cuts a fragment of any building on the line from the camera to the walker", () => {
+    expect(inCut(cut, [0, 13, -21])).toBe(true);
+    expect(inCut(cut, [1000, 13, -21])).toBe(false);
+  });
+
+  it("aims at the walker's chest and keeps its radius", () => {
+    expect(cut.b).toEqual([0, HERO_CHEST_Y, 0]);
+    expect(cut.r).toBe(SIGHT_CUT_RADIUS_M);
+    // a building beside the walker, off the sight line, stays drawn
+    expect(inCut(cut, [10, 2, 0])).toBe(false);
   });
 });
