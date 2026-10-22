@@ -8,6 +8,7 @@ import {
   INDICATIVE_NOTE,
   impactSummary,
   placesWord,
+  possibleOnly,
 } from "./impactModel";
 
 /** The round "!" / "⚠" badge every flood-impact surface uses (map card, List view, 3D label). */
@@ -41,21 +42,33 @@ export function FloodImpactCard({ notes = true }: { notes?: boolean }) {
       className="mt-2 space-y-1.5 border-t border-edge pt-2 text-xs text-fg"
     >
       <p className="m-0 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="inline-flex items-center gap-1.5">
-          <ImpactGlyph kind="flooded" />
+        {possibleOnly(s) ? (
           <span>
-            <strong>{placesWord(s.flooded)}</strong> {IMPACT_STYLE.flooded.label.toLowerCase()}
+            <strong>{placesWord(s.possiblePlaces)}</strong> and{" "}
+            <strong>
+              {s.possiblePaths} mapped {s.possiblePaths === 1 ? "path" : "paths"}
+            </strong>{" "}
+            in low-lying areas (possible)
           </span>
-        </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            <ImpactGlyph kind="flooded" />
+            <span>
+              <strong>{placesWord(s.flooded)}</strong> {IMPACT_STYLE.flooded.label.toLowerCase()}
+            </span>
+          </span>
+        )}
         <span className="inline-flex items-center gap-1.5">
           <ImpactGlyph kind="cut_off" />
           <span>
             <strong>{placesWord(s.cutOff)}</strong> cut off: no mapped way in or out
           </span>
         </span>
-        <span>
-          <strong>{s.pathLength}</strong> of mapped paths likely flooded
-        </span>
+        {!possibleOnly(s) && (
+          <span>
+            <strong>{s.pathLength}</strong> of mapped paths likely flooded
+          </span>
+        )}
       </p>
       {notes && (
         <p className="m-0 text-fg-soft">
@@ -97,8 +110,9 @@ export function FloodImpactList({ scenarioId }: { scenarioId: string }) {
   return (
     <div data-testid="flood-impact-list" className="mt-3">
       <p className="text-sm">
-        {placesWord(s.flooded)} likely flooded · {placesWord(s.cutOff)} cut off · {s.pathLength} of
-        mapped paths likely flooded. {FLASH_FLOOD_NOTE}
+        {possibleOnly(s)
+          ? `${placesWord(s.possiblePlaces)} and ${s.possiblePaths} mapped paths in low-lying areas (possible) · ${placesWord(s.cutOff)} cut off.`
+          : `${placesWord(s.flooded)} likely flooded · ${placesWord(s.cutOff)} cut off · ${s.pathLength} of mapped paths likely flooded. ${FLASH_FLOOD_NOTE}`}
       </p>
       <MarkerRows title={IMPACT_STYLE.flooded.label} rows={flooded} />
       <MarkerRows title={IMPACT_STYLE.cut_off.label} rows={cut} />

@@ -95,6 +95,15 @@ or end on the closed course are said apart ("plan access for them"), never as "n
 a route". The mock plans a course only when a distance in km is given; "close Jalan X for a
 marathon" stays a closure.
 
+**Low-lying areas (T-029).** A question about low-lying areas or water collecting
+("low-lying", "collect water", "kawasan rendah", "低洼") may use scenario `lowlying`, or
+`stage_pNm+lowlying` when it also names a river level (`route_binding.effective_scenario`); a
+plain river question keeps river stages only, never a combined id. Terrain marks are
+`possible` only: answers give the possible counts ("may collect water (possible, not
+checked)"), never "likely flooded" for terrain, never a depth. The level text for a non-river
+scenario is its own label, never "River +0 m" (`canonical._level`). The flash-flood line is
+added only with a river stage.
+
 **Closure card (T-028).** For a management answer with a closure simulation, the server adds a
 `closure.show` intent carrying the `ClosureImpact` (per-trip rows left out); the web shows the
 result card under the answer and draws the course and detours. Never for residents (pressure),
