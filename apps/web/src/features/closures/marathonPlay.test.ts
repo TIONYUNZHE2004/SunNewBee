@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MARATHON } from "./fixtures";
+import { shotStart } from "./marathonCinematic";
 import { CAR_LOOP_S, canPlay, carsAt, PLAY_S, RUNNERS, runnersAt, simClock } from "./marathonPlay";
 import { useMarathonPlay } from "./marathonPlayStore";
 
@@ -29,11 +30,17 @@ describe("Watch the marathon playback model (T-028)", () => {
     expect(runnersAt([course[0] as number[]], 3)).toEqual([]);
   });
 
-  it("one car per rerouted trip drives its after route, looping; empty routes skip", () => {
-    const [a] = carsAt([trip], 0);
-    const [b] = carsAt([trip], CAR_LOOP_S / 2);
-    expect(a?.[0]).toBe(101.5); // on the after (north) line, never the before line
-    expect(a?.[1]).not.toBe(b?.[1]);
+  it("the followed car drives its after route once in the car shot; others loop; empty skip", () => {
+    const carStart = shotStart("car");
+    const [a] = carsAt([trip], carStart);
+    const [b] = carsAt([trip], carStart + 5);
+    expect(a).toEqual([101.5, 3.1]); // the start of its after (north) route, never the before line
+    expect(b?.[0]).toBe(101.5);
+    expect(b?.[1]).toBeGreaterThan(3.1);
+    expect(carsAt([trip], 0)).toEqual([[101.5, 3.1]]); // waits at its start before the shot
+    const other = { ...trip, before_coordinates: [] };
+    const loop = carsAt([trip, other], CAR_LOOP_S / 2);
+    expect(loop).toHaveLength(2);
     expect(carsAt([{ ...trip, after_coordinates: [] }], 1)).toEqual([]);
   });
 

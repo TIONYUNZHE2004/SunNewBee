@@ -17,7 +17,7 @@ export interface Dressing {
 /** Arch size in metres (stylised: drawn larger than life so it reads from the overview). */
 export const ARCH = { span: 22, height: 12, post: 1.8 } as const;
 /** Cone size in metres (also larger than life), and its white band. */
-export const CONE = { radius: 2.4, height: 6 } as const;
+export const CONE = { radius: 0.9, height: 2.4 } as const;
 const TAG_PX = 24; // the canvas height: labels draw 1:1
 const TAG_H = 24;
 const NOOP = () => {};
@@ -52,41 +52,11 @@ export function createMarathonCourse(
 
   /** A pixel-sized tag; `row` stacks it that many tag heights above its anchor on screen. */
   function label(text: string, bg: string, fg: string, x: number, y: number, z: number, row = 0) {
-    const canvas = makeCanvas();
-    const ctx = canvas.getContext("2d");
-    const font = "700 13px sans-serif";
-    if (ctx) {
-      ctx.font = font;
-      const w = Math.ceil(ctx.measureText(text).width) + 16;
-      canvas.width = w;
-      canvas.height = TAG_H;
-      ctx.font = font; // resizing a canvas resets its state
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, w, TAG_H);
-      ctx.fillStyle = fg;
-      ctx.textBaseline = "middle";
-      ctx.fillText(text, 8, TAG_H / 2 + 1);
-    }
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const m = new THREE.SpriteMaterial({
-      map: tex,
-      sizeAttenuation: false,
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-    });
-    const s = new THREE.Sprite(m);
-    s.position.set(x, y, z);
-    s.center.set(0.5, 0.5 - row * 1.15);
-    s.renderOrder = MARKER_ORDER.labels - 1;
-    s.raycast = NOOP;
-    s.frustumCulled = false;
-    s.userData.aspect = Math.max(1, canvas.width) / TAG_H;
-    s.userData.text = text;
-    disposables.push(tex, m);
-    labels.push(s);
-    group.add(s);
+    const t = tagSprite(text, bg, fg, makeCanvas, row);
+    t.sprite.position.set(x, y, z);
+    disposables.push(...t.disposables);
+    labels.push(t.sprite);
+    group.add(t.sprite);
   }
 
   // Start / finish arches: two posts and a crossbar, across the course at its ends
@@ -167,12 +137,62 @@ export function createMarathonCourse(
       res = [w, h];
     },
     setView(_cam, _now, fovDeg = 40) {
-      const scale = (TAG_PX * 2 * Math.tan((fovDeg * Math.PI) / 360)) / Math.max(1, res[1]);
-      for (const s of labels) s.scale.set(scale * (s.userData.aspect as number), scale, 1);
+      for (const s of labels) tagScale(s, fovDeg, res[1]);
     },
     dispose() {
       for (const x of disposables) x.dispose();
       group.clear();
     },
   };
+}
+
+/**
+ * A pixel-sized tag (a 2D-canvas pill) as a sprite: drawn over everything, never picked. `row`
+ * stacks it that many tag heights above its anchor on screen. Scale it with `tagScale`.
+ */
+export function tagSprite(
+  text: string,
+  bg: string,
+  fg: string,
+  makeCanvas: () => HTMLCanvasElement,
+  row = 0,
+): { sprite: THREE.Sprite; disposables: { dispose(): void }[] } {
+  const canvas = makeCanvas();
+  const ctx = canvas.getContext("2d");
+  const font = "700 13px sans-serif";
+  if (ctx) {
+    ctx.font = font;
+    const w = Math.ceil(ctx.measureText(text).width) + 16;
+    canvas.width = w;
+    canvas.height = TAG_H;
+    ctx.font = font; // resizing a canvas resets its state
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, TAG_H);
+    ctx.fillStyle = fg;
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, 8, TAG_H / 2 + 1);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.SpriteMaterial({
+    map: tex,
+    sizeAttenuation: false,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const s = new THREE.Sprite(m);
+  s.center.set(0.5, 0.5 - row * 1.15);
+  s.renderOrder = MARKER_ORDER.labels - 1;
+  s.raycast = NOOP;
+  s.frustumCulled = false;
+  s.userData.aspect = Math.max(1, canvas.width) / TAG_H;
+  s.userData.text = text;
+  return { sprite: s, disposables: [tex, m] };
+}
+
+/** Sets a tag's screen size for the camera's fov and the canvas height (CSS px). */
+export function tagScale(s: THREE.Sprite, fovDeg: number, heightPx: number): void {
+  const k = (TAG_PX * 2 * Math.tan((fovDeg * Math.PI) / 360)) / Math.max(1, heightPx);
+  s.scale.set(k * (s.userData.aspect as number), k, 1);
 }
