@@ -56,7 +56,9 @@ export const useFloodStory = create<FloodStore>((set, get) => ({
   close: () => {
     request?.abort();
     request = null;
-    useScene.getState().setAmbientTraffic(true);
+    // only a story that turned the cars off turns them back on (a marathon start closes this
+    // story while its own playback keeps them off)
+    if (get().status === "ready") useScene.getState().setAmbientTraffic(true);
     set({ status: "idle", story: null, timeline: null, error: null, t: 0, playing: false });
   },
 }));

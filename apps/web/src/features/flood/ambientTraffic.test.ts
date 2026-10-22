@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { MARATHON } from "../closures/fixtures";
+import { useMarathonPlay } from "../closures/marathonPlayStore";
 import { useScene } from "../scene/sceneStore";
 import type { FloodStory } from "./floodStoryData";
 import { useFloodStory } from "./floodStoryStore";
@@ -26,5 +28,24 @@ describe("flood playback ambient traffic", () => {
 
     useFloodStory.getState().close();
     expect(useScene.getState().ambientTraffic).toBe(true);
+  });
+
+  it("a marathon start that closes the story keeps the cars hidden", () => {
+    useFloodStory.getState().load(story);
+    // FloodStoryScene closes the story when a marathon result arrives
+    const off = useMarathonPlay.subscribe((s, p) => {
+      if (s.result && s.result !== p.result) useFloodStory.getState().close();
+    });
+    useMarathonPlay.getState().start(MARATHON);
+    off();
+    expect(useScene.getState().ambientTraffic).toBe(false);
+    useMarathonPlay.getState().stop();
+    expect(useScene.getState().ambientTraffic).toBe(true);
+  });
+
+  it("closing a story that never loaded leaves the switch alone", () => {
+    useScene.getState().setAmbientTraffic(false);
+    useFloodStory.getState().close();
+    expect(useScene.getState().ambientTraffic).toBe(false);
   });
 });
