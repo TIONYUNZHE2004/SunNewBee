@@ -478,3 +478,27 @@ and three overlapping closures (39 segments), each with an empty and a populated
 baseline cache. Every case loads a fresh seed world; seed loading is outside the timing,
 while snapshots and static routing-cache initialization are included. It uses no network,
 model calls, downloads or persistent writes. Timings describe this machine, not an SLA.
+
+T-029 terrain screening: `uv run python data/scripts/build_lowlying.py` reads the same
+Copernicus GLO-30 window/cache as `build_flood.py`; it does not rebuild the river stages
+or download new OSM data. An 8-connected priority flood computes minimum spill levels
+with raster borders and NoData neighbours as outlets. `config/flood/lowlying.yaml` is
+the only threshold source: at least 1 m terrain fill contrast, at least four adjacent
+cells (about 3,600 m²), and a two-cell window border exclusion. The contrast threshold
+suppresses sub-metre raster noise; it is not a confidence bound. The cell filter removes
+single-cell pits. Neither was fitted to a flood report. Known mapped water polygons in
+`base/hydrology.geojson` are excluded. Missing hydrology means no such exclusion.
+
+Outputs are `flood/lowlying.geojson` (polygons and area), `lowlying-audit.json` (method,
+config and counts), and possible-only edge/place classes in `scenarios.json`. Fill
+contrast is internal terrain geometry, never published as water depth. Empty/invalid
+DEM coverage cannot create an apparently complete empty scenario. NoData gaps stay
+explicit. A separate generation commit must contain the real Elmina outputs; passing
+synthetic-raster tests does not establish that the seed has been generated or validated.
+
+Label: “Low-lying areas that may collect water (indicative)”. Copernicus GLO-30 is a
+30 m surface model: buildings and trees raise it. Drains and culverts are not modelled.
+Rainfall amounts are not modelled. Enclosed surface-model depressions are only possible
+collection areas, not predicted inundation. Unmarked areas are not proof of absence.
+Public-report validation and blocked searches belong in `data/audits/`; do not tune to
+one report or describe inaccessible sources as checked.

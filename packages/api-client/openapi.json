@@ -158,6 +158,51 @@
         "title": "AffectedResult",
         "type": "object"
       },
+      "AnimatedTrip": {
+        "properties": {
+          "after_coordinates": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "After Coordinates",
+            "type": "array"
+          },
+          "before_coordinates": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Before Coordinates",
+            "type": "array"
+          },
+          "from_id": {
+            "title": "From Id",
+            "type": "string"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "to_id": {
+            "title": "To Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_id",
+          "to_id",
+          "profile",
+          "before_coordinates",
+          "after_coordinates"
+        ],
+        "title": "AnimatedTrip",
+        "type": "object"
+      },
       "AnswerCheck": {
         "description": "The validator's verdict on one answer attempt: accepted, or sent back with readable\nreasons (the model then rewrites it). `repairs` counts fact-free fixes applied first.",
         "properties": {
@@ -1067,6 +1112,11 @@
             "title": "Trips No Route Before",
             "type": "integer"
           },
+          "trips_on_course": {
+            "default": 0,
+            "title": "Trips On Course",
+            "type": "integer"
+          },
           "trips_total": {
             "title": "Trips Total",
             "type": "integer"
@@ -1287,6 +1337,177 @@
           "ends_at"
         ],
         "title": "ClosureWindow",
+        "type": "object"
+      },
+      "Course": {
+        "properties": {
+          "disclaimer": {
+            "default": "Proposed course on mapped roads, not an approved route.",
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "finish": {
+            "title": "Finish",
+            "type": "string"
+          },
+          "finish_node": {
+            "title": "Finish Node",
+            "type": "string"
+          },
+          "length_m": {
+            "title": "Length M",
+            "type": "number"
+          },
+          "roads": {
+            "items": {
+              "$ref": "#/components/schemas/CourseRoad"
+            },
+            "title": "Roads",
+            "type": "array"
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Segment Ids",
+            "type": "array"
+          },
+          "shape": {
+            "enum": [
+              "loop",
+              "point_to_point"
+            ],
+            "title": "Shape",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "string"
+          },
+          "start_node": {
+            "title": "Start Node",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "segment_ids",
+          "length_m",
+          "roads",
+          "start",
+          "finish",
+          "start_node",
+          "finish_node",
+          "shape",
+          "warnings"
+        ],
+        "title": "Course",
+        "type": "object"
+      },
+      "CourseRoad": {
+        "properties": {
+          "length_m": {
+            "title": "Length M",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "order": {
+            "title": "Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "length_m",
+          "order"
+        ],
+        "title": "CourseRoad",
+        "type": "object"
+      },
+      "CourseScenario": {
+        "additionalProperties": false,
+        "properties": {
+          "closures": {
+            "items": {
+              "$ref": "#/components/schemas/CourseWindow"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "title": "Closures",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "works",
+              "event",
+              "accident",
+              "flooding",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "reason",
+          "closures"
+        ],
+        "title": "CourseScenario",
+        "type": "object"
+      },
+      "CourseWindow": {
+        "additionalProperties": false,
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "road_names": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Road Names",
+            "type": "array"
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 400,
+            "minItems": 1,
+            "title": "Segment Ids",
+            "type": "array"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment_ids",
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "CourseWindow",
         "type": "object"
       },
       "CreateClosureBody": {
@@ -2835,6 +3056,11 @@
             "title": "Trips No Route Before",
             "type": "integer"
           },
+          "trips_on_course": {
+            "default": 0,
+            "title": "Trips On Course",
+            "type": "integer"
+          },
           "trips_total": {
             "title": "Trips Total",
             "type": "integer"
@@ -3024,6 +3250,11 @@
           },
           "no_route": {
             "title": "No Route",
+            "type": "boolean"
+          },
+          "on_closed_course": {
+            "default": false,
+            "title": "On Closed Course",
             "type": "boolean"
           },
           "profile": {
@@ -3813,6 +4044,284 @@
         "title": "Maneuver",
         "type": "object"
       },
+      "MarathonAnimation": {
+        "properties": {
+          "course_coordinates": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Course Coordinates",
+            "type": "array"
+          },
+          "label": {
+            "default": "Simulation \u00b7 illustrative",
+            "title": "Label",
+            "type": "string"
+          },
+          "rerouted_trips": {
+            "items": {
+              "$ref": "#/components/schemas/AnimatedTrip"
+            },
+            "maxItems": 5,
+            "title": "Rerouted Trips",
+            "type": "array"
+          }
+        },
+        "required": [
+          "course_coordinates"
+        ],
+        "title": "MarathonAnimation",
+        "type": "object"
+      },
+      "MarathonImpact": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "detour_roads": {
+            "items": {
+              "$ref": "#/components/schemas/DetourRoad"
+            },
+            "title": "Detour Roads",
+            "type": "array"
+          },
+          "disclaimer": {
+            "default": "Detour pressure, estimated from mapped road class and sample trips, not traffic counts.",
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "event": {
+            "$ref": "#/components/schemas/CourseScenario"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "extra_m_median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra M Median"
+          },
+          "extra_min_median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Min Median"
+          },
+          "per_profile": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ProfileImpact"
+            },
+            "title": "Per Profile",
+            "type": "object"
+          },
+          "places_cut_off": {
+            "items": {
+              "$ref": "#/components/schemas/EventPlace"
+            },
+            "title": "Places Cut Off",
+            "type": "array"
+          },
+          "sample_limit_per_profile": {
+            "title": "Sample Limit Per Profile",
+            "type": "integer"
+          },
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/EventSuggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          },
+          "timing_ms": {
+            "title": "Timing Ms",
+            "type": "number"
+          },
+          "trips": {
+            "items": {
+              "$ref": "#/components/schemas/EventTrip"
+            },
+            "title": "Trips",
+            "type": "array"
+          },
+          "trips_affected": {
+            "title": "Trips Affected",
+            "type": "integer"
+          },
+          "trips_newly_no_route": {
+            "title": "Trips Newly No Route",
+            "type": "integer"
+          },
+          "trips_no_route": {
+            "title": "Trips No Route",
+            "type": "integer"
+          },
+          "trips_no_route_before": {
+            "title": "Trips No Route Before",
+            "type": "integer"
+          },
+          "trips_on_course": {
+            "default": 0,
+            "title": "Trips On Course",
+            "type": "integer"
+          },
+          "trips_total": {
+            "title": "Trips Total",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "weights_note": {
+            "title": "Weights Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trips_total",
+          "trips_affected",
+          "trips_no_route",
+          "trips_no_route_before",
+          "trips_newly_no_route",
+          "extra_m_median",
+          "extra_min_median",
+          "event",
+          "per_profile",
+          "places_cut_off",
+          "detour_roads",
+          "suggestions",
+          "trips",
+          "sample_limit_per_profile",
+          "evidence_id",
+          "weights_note",
+          "timing_ms",
+          "at"
+        ],
+        "title": "MarathonImpact",
+        "type": "object"
+      },
+      "MarathonRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "avoid_roads": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Avoid Roads",
+            "type": "array"
+          },
+          "distance_km": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 50.0,
+            "title": "Distance Km",
+            "type": "number"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "finish": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish"
+          },
+          "prefer_roads": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Prefer Roads",
+            "type": "array"
+          },
+          "profiles": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Profiles",
+            "type": "array"
+          },
+          "shape": {
+            "default": "loop",
+            "enum": [
+              "loop",
+              "point_to_point"
+            ],
+            "title": "Shape",
+            "type": "string"
+          },
+          "start": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Start",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "distance_km",
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "MarathonRequest",
+        "type": "object"
+      },
+      "MarathonResult": {
+        "properties": {
+          "animation": {
+            "$ref": "#/components/schemas/MarathonAnimation"
+          },
+          "course": {
+            "$ref": "#/components/schemas/Course"
+          },
+          "impact": {
+            "$ref": "#/components/schemas/MarathonImpact"
+          }
+        },
+        "required": [
+          "course",
+          "impact",
+          "animation"
+        ],
+        "title": "MarathonResult",
+        "type": "object"
+      },
       "NoJourney": {
         "description": "Why there is no journey to play: the route status and a plain message.",
         "properties": {
@@ -3966,6 +4475,11 @@
           },
           "trips_no_route_before": {
             "title": "Trips No Route Before",
+            "type": "integer"
+          },
+          "trips_on_course": {
+            "default": 0,
+            "title": "Trips On Course",
             "type": "integer"
           },
           "trips_total": {
@@ -4294,6 +4808,42 @@
           "evidence_id"
         ],
         "title": "RiverRollout",
+        "type": "object"
+      },
+      "RoadLabel": {
+        "properties": {
+          "anchor": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Anchor",
+            "type": "array"
+          },
+          "bearing_deg": {
+            "title": "Bearing Deg",
+            "type": "number"
+          },
+          "length_m": {
+            "title": "Length M",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "road_class": {
+            "title": "Road Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "road_class",
+          "length_m",
+          "anchor",
+          "bearing_deg"
+        ],
+        "title": "RoadLabel",
         "type": "object"
       },
       "RoadSection": {
@@ -4742,6 +5292,13 @@
       },
       "Scenario": {
         "properties": {
+          "components": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Components",
+            "type": "array"
+          },
           "created": {
             "anyOf": [
               {
@@ -4764,6 +5321,16 @@
           },
           "id": {
             "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "river_stage",
+            "enum": [
+              "river_stage",
+              "lowlying",
+              "combined"
+            ],
+            "title": "Kind",
             "type": "string"
           },
           "label": {
@@ -8126,6 +8693,29 @@
         "summary": "Gaps Layer"
       }
     },
+    "/layers/road-labels": {
+      "get": {
+        "description": "Named roads clipped to the township boundary; display only.",
+        "operationId": "road_labels_layer_layers_road_labels_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoadLabel"
+                  },
+                  "title": "Response Road Labels Layer Layers Road Labels Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Road Labels Layer"
+      }
+    },
     "/layers/street_furniture": {
       "get": {
         "description": "Street furniture points (display only). Declared before /layers/{lens} so it wins. 404 when\nthe world has no base/street_furniture.geojson (the client then draws no fact props).",
@@ -8222,6 +8812,45 @@
           }
         },
         "summary": "Layers"
+      }
+    },
+    "/marathon/plan": {
+      "post": {
+        "description": "Public read-only proposal and hypothetical closure impact; no approval or writes.",
+        "operationId": "plan_marathon_marathon_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarathonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarathonResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plan Marathon"
       }
     },
     "/places": {

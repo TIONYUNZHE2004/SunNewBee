@@ -3,7 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from townshiplens_spatial import events, tools
+from townshiplens_spatial import events, marathon, tools
 from townshiplens_spatial.sim import snapshot_world
 
 from .. import state
@@ -58,6 +58,21 @@ def _simulate(body: SimulateEventBody | SimulateClosureBody):
 def simulate_closure(body: SimulateClosureBody) -> events.ClosureImpact:
     """Public, hypothetical closure impact; no persistent writes or traffic counts."""
     return _simulate(body)
+
+
+@router.post("/marathon/plan", response_model=marathon.MarathonResult)
+def plan_marathon(body: marathon.MarathonRequest) -> marathon.MarathonResult:
+    """Public read-only proposal and hypothetical closure impact; no approval or writes."""
+    if not tools._WM_SLOTS.acquire(blocking=False):
+        raise HTTPException(503, "world-model solver busy; try again shortly")
+    try:
+        with state.world_lock:
+            world, _ = snapshot_world(state.get_ctx().world, body.starts_at)
+        return marathon.simulate_marathon(world, body)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    finally:
+        tools._WM_SLOTS.release()
 
 
 @router.post("/events/simulate", response_model=events.EventImpact | events.ClosureImpact)

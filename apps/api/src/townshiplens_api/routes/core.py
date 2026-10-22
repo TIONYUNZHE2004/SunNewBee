@@ -22,6 +22,7 @@ from townshiplens_spatial.models import (
     Site,
     ToolResult,
 )
+from townshiplens_spatial.road_labels import RoadLabel, road_labels
 from townshiplens_spatial.routing import CENTRE_PREFIX
 
 from .. import geojson, state
@@ -489,6 +490,15 @@ def street_furniture_layer(request: Request, response: Response):
         return Response(status_code=304, headers=headers)
     response.headers.update(headers)
     return payload
+
+
+@router.get("/layers/road-labels", response_model=list[RoadLabel])
+def road_labels_layer() -> list[RoadLabel]:
+    """Named roads clipped to the township boundary; display only."""
+    try:
+        return road_labels(state.get_ctx().world)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(502, "township road-label boundary is unreadable") from exc
 
 
 @router.get(

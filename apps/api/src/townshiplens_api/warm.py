@@ -17,7 +17,8 @@ import logging
 import threading
 import time
 
-from townshiplens_spatial import tools
+from townshiplens_spatial import events, tools
+from townshiplens_spatial.sim import snapshot_world
 
 from . import state
 
@@ -50,7 +51,19 @@ def _storm_change(ctx, n: int):
     return tools.day_test_change(ctx, "storm", n)
 
 
+def _closures(ctx):
+    if not tools._WM_SLOTS.acquire(blocking=False):
+        raise RuntimeError("world-model solver busy")
+    try:
+        with state.world_lock:
+            world, _ = snapshot_world(ctx.world)
+        events.warm_baselines(world)
+    finally:
+        tools._WM_SLOTS.release()
+
+
 JOBS = (
+    ("closure_baselines", _closures),
     ("river_rollout", lambda ctx: tools.rising_river_rollout(ctx, profiles=None, n=30)),
     ("what_if_suggestions", lambda ctx: tools.suggest_interventions(ctx, profile="wheelchair")),
     ("verify_next", lambda ctx: tools.plan_verifications(ctx, "wheelchair", "evacuation", 15)),
@@ -83,7 +96,12 @@ def _signal(ctx) -> tuple:
         for status in ("open", "in_progress")
         for vr in ctx.vrs.list(status=status)
     }
-    return ctx.world.version, tuple(sorted(keys))
+    # Expiring checks and clock-driven staff closures also invalidate baselines.
+    from datetime import UTC, datetime
+
+    with state.world_lock:
+        _, closure_hash = snapshot_world(ctx.world)
+    return ctx.world.version, datetime.now(UTC).date(), closure_hash, tuple(sorted(keys))
 
 
 def _wait_idle(stop: threading.Event | None) -> None:

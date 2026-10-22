@@ -1,0 +1,37 @@
+{
+  "task": "T-029",
+  "checked_at": "2026-10-21T17:43:05.583536+00:00",
+  "real_elmina_generation": "blocked",
+  "dem_cache_present": false,
+  "dem_fetch": {
+    "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N03_00_E101_00_DEM/Copernicus_DSM_COG_10_N03_00_E101_00_DEM.tif",
+    "operation": "build_flood.read_window via build_lowlying.py",
+    "outcome": "proxy_connect_403",
+    "exception": "rasterio.errors.RasterioIOError: CURL error: CONNECT tunnel failed, response 403"
+  },
+  "public_report_searches": [
+    {
+      "query": "City of Elmina Denai Alam flood December 2021",
+      "url": "https://www.google.com/search",
+      "outcome": "blocked",
+      "error_type": "ProxyError",
+      "detail": "HTTPSConnectionPool(host='www.google.com', port=443): Max retries exceeded with url: /search?q=City+of+Elmina+Denai+Alam+flood+December+2021 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))",
+      "checked_at": "2026-10-21T17:41:03.687134+00:00"
+    },
+    {
+      "query": "Shah Alam flooded locations December 2021 Elmina",
+      "url": "https://www.google.com/search",
+      "outcome": "blocked",
+      "error_type": "ProxyError",
+      "detail": "HTTPSConnectionPool(host='www.google.com', port=443): Max retries exceeded with url: /search?q=Shah+Alam+flooded+locations+December+2021+Elmina (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))",
+      "checked_at": "2026-10-21T17:41:03.694092+00:00"
+    }
+  ],
+  "verified_hits": [],
+  "verified_misses": [],
+  "usable_reports": 0,
+  "interpretation": "Searches were blocked. This does not establish that reports or historical floods do not exist. No place-level validation or threshold fitting was done. Synthetic tests do not validate real Elmina flood locations.",
+  "outputs_committed": false,
+  "network_configuration": "Required domains saved in cloud environment settings draft; runtime access still denied.",
+  "pending_route_policy": "Driving possible_is=FAIL is unchanged. Terrain-only UNKNOWN rule awaits Yunzhe decision."
+}

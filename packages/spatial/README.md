@@ -477,6 +477,11 @@ existing gaps; `trips_no_route_before` and `trips_newly_no_route` distinguish th
 Pre-existing disconnected data stays `no_data` and is never attributed to a closure.
 Extra metre/minute medians cover rerouted trips only (null if none); minutes describe
 physical distance/profile pace, never traffic delay. Per-profile counts use the same rules.
+Trips whose origin or destination maps onto a closed-course node have
+`on_closed_course=true` and are counted separately in `trips_on_course`. These access-during-
+the-event cases are excluded from ordinary detour, no-route and newly-no-route summaries.
+The total sample still includes them. Origins and destinations rotate together; samples
+that cannot meet the 10% endpoint-share target carry an explicit limitation warning.
 `places_cut_off` contains newly lost mapped centre access in at least one selected
 profile; pre-existing isolation and missing entrances are excluded.
 
@@ -488,8 +493,10 @@ Detour roads group newly used segments by mapped name, counting each rerouted sa
 trip once per road. For a mixed-class road, `road_class` is the newly used segment class
 with the lowest capacity, a conservative bottleneck assumption. `weighted_trips` sums
 the destination/time weights;
-`trips` is the unweighted count. Unnamed segments are “Unnamed paths”; absent classes
-are `unknown` and use the `others` capacity. Rows sort by weighted trips, name, class.
+`trips` is the unweighted count. Unnamed segments group into connected stretches,
+each labelled “unnamed path near <nearest named road> (stretch N)”. Each stretch
+has its own pressure; absent classes are `unknown` and use the `others` capacity.
+Rows sort by weighted trips, name, class. Duplicate warnings are removed.
 Pressure = weighted trips / class capacity: secondary 4, tertiary 3, unclassified 2,
 residential 1, service 0.5, others 1. Bands are low <1, medium 1–3, high >3.
 The disclaimer is “Detour pressure, estimated from mapped road class and sample trips,
@@ -510,9 +517,77 @@ by road membership and endpoint coordinates; closures never change the geometry 
 Rest-constrained searches keep their normal solver. A bounded baseline cache
 (12 profile/sample entries) keys by graph, world version, date, frozen closure set, profile
 and sample. Only baseline routes intersecting active proposed segments are recalculated.
-`timing_ms` includes snapshotting, cache lookup/calculation, impacts and suggestions.
+The API warms the default three-profile closure baselines first on startup, and again
+after world, date or active-closure changes. Future event windows with different staff
+closures calculate their own baseline. `timing_ms` includes snapshotting, cache
+lookup/calculation, impacts and suggestions.
 
 `simulate_event(EventSpec(...))` uses the same engine, retaining the old event shape,
 everyday sample and disclaimer. The API/tool aliases preserve existing callers.
 Stored named closures keep the public `event_name` separate from private staff notes;
 labels use their actual reason, including named works/accidents/flooding/other closures.
+
+### Marathon proposals (T-028)
+
+`marathon.plan_course(world, start, distance_km, shape="loop", finish=None,
+avoid_roads=[], prefer_roads=[])` returns an ordered, continuous course, its actual
+length and consecutive road stretches. Start/finish accept place ids or exact,
+unambiguous full names. Point-to-point needs a finish. Major roads are excluded
+unless explicitly named in `prefer_roads`. Active closures and steps are excluded.
+This is a proposed road-closure layout, not a running or profile access assessment.
+Road direction, crossing provision and event approval still need review.
+
+The deterministic search uses weighted shortest-path trees and one connecting edge.
+Named roads precede unnamed paths; preferences reduce their search cost. It compares
+up to 24 distance/repetition/name candidates by newly lost mapped centre access for
+the existing default profile, retaining direction and parallel-edge rules. This is a
+bounded heuristic, not a global minimum. Repeated segments/roads and distances
+outside ±10% get explicit warnings. Proposals have at most 400 ordered segments;
+ad-hoc closure requests still have a 40-segment limit. The bounded proposal cache
+invalidates on world/version/date/active-closure changes.
+
+`marathon.simulate_marathon(world, MarathonRequest(...))` proposes the course and
+runs the unchanged closure engine at `starts_at`. It accepts one ISO datetime window,
+up to five profiles and the same road edits. It returns `{course, impact}`. The public,
+read-only `POST /marathon/plan` takes that request; no event is stored. The spatial
+`tools.simulate_marathon` wrapper is for management only. Label all proposals:
+“Proposed course on mapped roads, not an approved route.”
+
+`GET /layers/road-labels` returns a list of `{name, road_class, length_m, anchor,
+bearing_deg}`. Geometry and length are clipped to the configured display boundary
+(site bbox if none); an unreadable configured boundary fails instead of widening it.
+The anchor is the midpoint of the longest clipped segment; its local tangent sets the
+bearing (clockwise from north). Class comes from that segment's mapped highway tag.
+
+`MarathonResult.animation` contains `course_coordinates` in traversal order and up
+to five `rerouted_trips` with `before_coordinates` / `after_coordinates`, place ids and
+profile. The label is “Simulation · illustrative”. These are example routes from the
+same closure sample, not vehicle/crowd counts. Missing or disconnected geometry is
+omitted, never joined with a fabricated connector.
+
+### Low-lying terrain scenarios (T-029)
+
+Generated terrain uses scenario id `lowlying`, `kind: lowlying`, and possible-only
+edge/place classes. `stage_m: 0` means baseline river rise; it is not a terrain value
+or a water depth. The label is “Low-lying areas that may collect water (indicative)”.
+The loader requires its GeoJSON before it lists the scenario. Until real DEM generation
+succeeds, the seed does not advertise a low-lying layer; it returns an unknown scenario.
+
+With generated data, the loader also derives `stage_p1m+lowlying` (and each other
+positive river stage). These have `kind: combined` and `components` listing their
+inputs. River `likely_flooded` always wins; terrain can only add `possible`, never
+remove a river class. Missing raster coverage combines conservatively. Separate
+`scenario_coverage` maps keep the terrain screen's gaps independent of river coverage.
+GET `/scenarios`, `/scenarios/{id}`, `/scenarios/{id}/affected`, and normal layer APIs
+use these ids. River-rise playback and built-in day stages retain river-only inputs.
+
+Limits: GLO-30 is a 30 m surface model, including buildings and trees. Drains, culverts
+and rainfall amounts are not modelled. A terrain mark is a possible collection area,
+not a forecast. Unmarked areas do not establish absence. The data pipeline README
+records thresholds, limitations and generation requirements.
+
+Policy review pending: walking profiles evaluate possible marks as UNKNOWN. The
+existing driving profile treats possible river classes as FAIL; its evaluation rule
+has not been changed for this terrain feature. Do not present terrain-only driving
+exclusions as known inundation. An UNKNOWN-only terrain rule for driving requires
+Yunzhe's decision under the workflow's route-evaluation restriction.
