@@ -1,5 +1,11 @@
 import { useEffect } from "react";
 import { COURSE_STYLE } from "../closures/closureSimModel";
+import {
+  END_CARD_FROM_S,
+  MarathonEndCard,
+  MarathonHud,
+  MarathonMiniMap,
+} from "../closures/MarathonHud";
 import { PLAY_LABEL, PLAY_NOTE, PLAY_S, PLAY_STYLE, simClock } from "../closures/marathonPlay";
 import { useMarathonPlay } from "../closures/marathonPlayStore";
 import { useScene } from "../scene/sceneStore";
@@ -31,8 +37,9 @@ const btn =
   "grid size-11 shrink-0 place-items-center rounded-full text-fg-soft hover:bg-raised focus-visible:outline-2";
 
 /**
- * T-028 "Watch the marathon" controls: the "Simulation · illustrative" label, the simulated clock,
- * play / pause, a scrubber and close, plus the legend for runners, cars and the closed course.
+ * T-028 / T-031 "Watch the marathon" controls: the "Simulation · illustrative" label, the
+ * simulated clock, play / pause, restart, a scrubber and exit; the HUD (shot caption, counters),
+ * the mini-map, the end card at the close, and the legend for runners, cars and the closed course.
  */
 export function MarathonTag() {
   const result = useMarathonPlay((s) => s.result);
@@ -74,6 +81,17 @@ export function MarathonTag() {
         >
           <span aria-hidden="true">{playing ? "❚❚" : "▶"}</span>
         </button>
+        <button
+          type="button"
+          className={btn}
+          aria-label="Restart"
+          onClick={() => {
+            st.seek(0);
+            st.play();
+          }}
+        >
+          <span aria-hidden="true">↺</span>
+        </button>
         <input
           type="range"
           min={0}
@@ -92,19 +110,35 @@ export function MarathonTag() {
         >
           ×
         </button>
-        <span className="flex w-full flex-wrap items-center gap-x-3 text-xs text-fg-soft">
-          {drawn ? (
-            <>
-              <Key color={PLAY_STYLE.runner} round label="Runners" />
-              <Key color={PLAY_STYLE.car} label="Sample cars on detours" />
-              <Key color={COURSE_STYLE.color} label={COURSE_STYLE.label} />
-              <Key color={PLAY_STYLE.before} label="Car route before the closure" />
-            </>
-          ) : (
-            <span>Runners and cars play on the 3D stylised map.</span>
-          )}
-          <span>{PLAY_NOTE}</span>
-        </span>
+        <div className="flex w-full items-start gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            <MarathonHud m={result} t={t} />
+            {t >= END_CARD_FROM_S && (
+              <MarathonEndCard
+                m={result}
+                onReplay={() => {
+                  st.seek(0);
+                  st.play();
+                }}
+                onExit={() => st.stop()}
+              />
+            )}
+            <span className="flex w-full flex-wrap items-center gap-x-3 text-xs text-fg-soft">
+              {drawn ? (
+                <>
+                  <Key color={PLAY_STYLE.runner} round label="Runners" />
+                  <Key color={PLAY_STYLE.car} label="Sample cars on detours" />
+                  <Key color={COURSE_STYLE.color} label={COURSE_STYLE.label} />
+                  <Key color={PLAY_STYLE.before} label="Car route before the closure" />
+                </>
+              ) : (
+                <span>Runners and cars play on the 3D stylised map.</span>
+              )}
+              <span>{PLAY_NOTE}</span>
+            </span>
+          </div>
+          {drawn && <MarathonMiniMap m={result} t={t} />}
+        </div>
       </section>
     </InSlot>
   );

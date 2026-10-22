@@ -1,5 +1,6 @@
 import { pointAlong } from "../whatif/rolloutModel";
 import type { MarathonResult } from "./closureSimModel";
+import { carAt, runnerAt, TOTAL_S } from "./marathonCinematic";
 
 /**
  * T-028 "Watch the marathon": an illustrative playback of a proposed course. Runners move along the
@@ -8,19 +9,16 @@ import type { MarathonResult } from "./closureSimModel";
  * speeds are decoration, never crowd sizes, vehicle counts or delays.
  */
 
-/** Screen seconds for the whole closure window. */
-export const PLAY_S = 40;
+/** Screen seconds for the whole closure window: the cinematic's length (T-031). */
+export const PLAY_S = TOTAL_S;
 /** Runners drawn (decorative; not a crowd size). */
 export const RUNNERS = 24;
 /** Screen seconds for one car to drive its detour (decorative speed). */
 export const CAR_LOOP_S = 8;
-/** Runners finish between these fractions of the window (decorative paces). */
-const FINISH_FIRST = 0.45;
-const FINISH_LAST = 0.85;
 
 export const PLAY_LABEL = "Simulation · illustrative";
 export const PLAY_NOTE =
-  "Runners and cars are illustrative: not crowd sizes, vehicle counts or delays.";
+  "Runners, spectators and cars are illustrative: not crowd sizes, vehicle counts or delays.";
 
 /** Runner, car and before-route colours (an overlay legend, outside the clay city tokens). */
 export const PLAY_STYLE = {
@@ -61,25 +59,29 @@ export function simClock(m: MarathonResult, t: number): string | null {
 const spread = (i: number) => (((i * 0.618034) % 1) + 1) % 1;
 
 /**
- * Runner positions (lon/lat) at screen time `t`: all start together at the course start and
- * finish by FINISH_LAST of the window; each keeps its own steady decorative pace.
+ * Runner positions (lon/lat) at screen time `t`: all wait at the start until the run shot, then
+ * each keeps its own steady decorative pace (`runnerAt`); runner 0 is the lead.
  */
 export function runnersAt(course: Coords, t: number, n = RUNNERS): [number, number][] {
   if (course.length < 2) return [];
-  const f = Math.min(Math.max(t / PLAY_S, 0), 1);
-  return Array.from({ length: n }, (_, i) => {
-    const finish = FINISH_FIRST + spread(i) * (FINISH_LAST - FINISH_FIRST);
-    return pointAlong(course, Math.min(f / finish, 1));
-  });
+  return Array.from({ length: n }, (_, i) => pointAlong(course, runnerAt(t, i)));
 }
 
-/** One car per rerouted sample trip, driving its after-closure route on a loop; empty lines skip. */
+/**
+ * Sample cars at `t`: the followed trip's car drives its after-closure route once in the car shot
+ * (first in the list); the others loop on theirs. Trips without an after route are skipped.
+ */
 export function carsAt(trips: MarathonResult["animation"]["rerouted_trips"] = [], t = 0) {
-  return trips.flatMap((trip, i) =>
-    trip.after_coordinates.length >= 2
-      ? [pointAlong(trip.after_coordinates, (t / CAR_LOOP_S + spread(i + 7)) % 1)]
-      : [],
+  const followed = trips.find(
+    (tr) => tr.after_coordinates.length >= 2 && tr.before_coordinates.length >= 2,
   );
+  const rest = trips.filter((tr) => tr !== followed && tr.after_coordinates.length >= 2);
+  return [
+    ...(followed ? [pointAlong(followed.after_coordinates, carAt(t))] : []),
+    ...rest.map((trip, i) =>
+      pointAlong(trip.after_coordinates, (t / CAR_LOOP_S + spread(i + 7)) % 1),
+    ),
+  ];
 }
 
 /** True when the result has a course line to play. */
