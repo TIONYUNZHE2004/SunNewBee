@@ -174,8 +174,9 @@ export function DevsimSceneMount(props: DevsimSceneMountProps) {
     // Fast-forward flow (spec §7): the decorative people and cars run on the devsim flow clock
     // (timeScale integrated over t, so a seek is deterministic), thinned by the flow density, and
     // people keep off the hoarded footway. The zone stays for the whole run (gate 2: dropping it
-    // when the hoarding came down at ~33.5 s snapped every clipped walker onto its full path; a
-    // position-keeping hand-over would make the frame depend on the seek history).
+    // when the hoarding came down, 28 s on the 45 s plan (`BUILD_T.hoarding`), snapped every
+    // clipped walker onto its full path; a position-keeping hand-over would make the frame depend
+    // on the seek history).
     const geom = l.geom;
     const avoid = (x: number, z: number) => nearClosed(geom, x, z);
     const avoidVehicles = (x: number, z: number) => nearQueue(geom, x, z);

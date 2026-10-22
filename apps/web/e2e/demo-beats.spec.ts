@@ -762,16 +762,17 @@ test.describe("building impact beats, Stylised 3D, 45 s Elmina plan", () => {
       expect(maxD).toBeLessThanOrEqual(3);
     });
 
-    await test.step("move-in counts at 32.9 s (AC-W5)", async () => {
+    // spec AC-W5: "between 27 and 33 s … to at least 0.85 by 33 s": sampled at the bound itself
+    await test.step("move-in counts by 33 s (AC-W5)", async () => {
       let prev = -1;
-      for (const t of [27, 27.5, 28, 28.5, 29, 29.5, 30, 30.5, 31, 31.5, 32, 32.5, 32.9]) {
+      for (const t of [27, 27.5, 28, 28.5, 29, 29.5, 30, 30.5, 31, 31.5, 32, 32.5, 33]) {
         const lit = (await bldAt(page, t)).litShare ?? -1;
         expect(lit, `lit share @${t}`).toBeGreaterThanOrEqual(prev - 1e-9);
         prev = lit;
       }
-      const s = await bldAt(page, 32.9);
+      const s = await bldAt(page, 33);
       note(
-        `AC-W5 @32.9s lorries ${s.movingLorries} boxes ${s.boxes} movers ${JSON.stringify(s.movers)} lit ${s.litShare} cars ${s.parkedCars} kids ${s.kidsAtPlayground}`,
+        `AC-W5 @33s lorries ${s.movingLorries} boxes ${s.boxes} movers ${JSON.stringify(s.movers)} lit ${s.litShare} cars ${s.parkedCars} kids ${s.kidsAtPlayground}`,
       );
       expect(s.movingLorries ?? 0).toBeGreaterThanOrEqual(2);
       expect(s.boxes ?? 0).toBeGreaterThanOrEqual(8);
@@ -797,8 +798,22 @@ test.describe("building impact beats, Stylised 3D, 45 s Elmina plan", () => {
           `AC-W6 @${t}s towerBbox ${JSON.stringify(s.towerBbox)} panelLeft ${s.panelLeft} viewShift ${s.viewShiftPx}`,
         );
         const tb = s.towerBbox as { x: number; y: number; w: number; h: number };
+        // the hook's panelLeft is the DOM brief's own left edge, relative to the map stage
+        const stageBox = await scene.boundingBox();
+        const briefBox = await brief.boundingBox();
+        expect(stageBox && briefBox, "stage and brief boxes").toBeTruthy();
+        const stage = stageBox as { x: number; y: number; width: number; height: number };
+        const domLeft = (briefBox as { x: number }).x - stage.x;
+        note(`AC-W6 @${t}s DOM brief left ${domLeft.toFixed(1)} stage ${JSON.stringify(stage)}`);
+        expect(
+          Math.abs((s.panelLeft as number) - domLeft),
+          "panelLeft = DOM brief x",
+        ).toBeLessThanOrEqual(1);
         expect(tb.w, "tower on screen").toBeGreaterThan(0);
         expect(tb.x, "tower on screen").toBeGreaterThanOrEqual(0);
+        expect(tb.h, "tower on screen").toBeGreaterThan(0);
+        expect(tb.y, `tower top on screen @${t}`).toBeGreaterThanOrEqual(0);
+        expect(tb.y + tb.h, `tower foot on screen @${t}`).toBeLessThanOrEqual(stage.height);
         expect(tb.x + tb.w, `tower left of the brief @${t}`).toBeLessThanOrEqual(
           s.panelLeft as number,
         );
@@ -856,7 +871,28 @@ test.describe("building impact beats, Stylised 3D, 45 s Elmina plan", () => {
       await page.keyboard.press("Escape");
       await expect(page.getByRole("dialog")).toHaveCount(0);
       await expect(button).toBeFocused();
-      // keyboard: Enter on the focused button opens it; Close closes it and focus returns
+      // keyboard: Enter on the focused button opens it (focus moves in, to the heading); Tab past
+      // Close to the first resident; Enter opens their detail (focus on Back); Escape closes the
+      // panel and focus returns to the button
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await page.keyboard.press("Tab");
+      await expect(page.getByTestId("devsim-residents-close")).toBeFocused();
+      await page.keyboard.press("Tab");
+      const first = page.getByRole("dialog").getByTestId("devsim-resident-item").first();
+      await expect(first).toBeFocused();
+      const firstName = (await first.textContent()) ?? "";
+      await page.keyboard.press("Enter");
+      const kbDetail = page.getByRole("dialog").getByTestId("devsim-resident-detail");
+      await expect(kbDetail).toBeVisible();
+      note(`AC-W7 keyboard: Tab, Tab, Enter on "${firstName}" opened the detail`);
+      await expect(
+        page.getByRole("dialog").getByRole("button", { name: "All 40 residents" }),
+      ).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(button).toBeFocused();
+      // Enter again; Close closes it and focus returns
       await page.keyboard.press("Enter");
       await expect(page.getByRole("dialog")).toBeVisible();
       const close = page.getByTestId("devsim-residents-close");
