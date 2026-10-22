@@ -525,6 +525,55 @@ def _clock_words(q: str) -> str:
     return re.sub(r"(\d{1,2})点", r"\1", q).replace("到", "-")
 
 
+_LOWLYING = r"low[- ]lying|collect (?:rain)?water|kawasan rendah|tanah rendah|低洼|积水"
+
+
+def _lowlying(q: str, rets, info: AgentInfo) -> ModelResponse:
+    """T-029: low-lying terrain that may collect water (possible only), alone or with a river
+    stage the question names; counts and names from the tool, never a depth."""
+    n = len(rets)
+    m = re.search(r"(\d)\s*m\b", q)
+    sid = f"stage_p{m.group(1)}m+lowlying" if m else "lowlying"
+    if n == 0:
+        return _call("list_flood_scenarios")
+    known = {s.get("id") for s in (_data(rets[0][1]) or []) if isinstance(s, dict)}
+    if sid not in known:
+        return _cannot("There is no low-lying terrain screen for that scenario in our data yet.")
+    if n == 1:
+        return _call(
+            "affected_places", scenario_id=sid, kind="all", profile=_profile(q, info, "default")
+        )
+    a = _data(rets[-1][1])
+    ev = [i for i in _ev_ids(rets) if i == f"ev-scn-{sid}"]
+    if not isinstance(a, dict) or not ev:
+        return _cannot()
+
+    def count(side: str) -> str:
+        pl, pa = a.get(f"{side}_place_count", 0), a.get(f"{side}_path_count", 0)
+        return (
+            f"{pl} {'place' if pl == 1 else 'places'} and {pa} path "
+            f"{'segment' if pa == 1 else 'segments'}"
+        )
+
+    named = ""
+    if cut := _few(a.get("cut_off_places")):
+        named += f" Cut off, no mapped way in or out (indicative): {cut}."
+    label = next(s.get("label") for s in _data(rets[0][1]) if s.get("id") == sid)
+    return _final(
+        answer_status="answered",
+        summary=(
+            f"{label}: {count('possible')} are in areas that may collect water "
+            f"(possible, not checked).{named} {_FLOOD_NOTE}"
+            if sid == "lowlying"
+            else f"{label}: {count('likely')} are likely flooded by the river rise, and "
+            f"{count('possible')} possibly (river rise or low-lying terrain).{named} {_FLOOD_NOTE}"
+        ),
+        claims=[{"text": label, "status": "indicative", "evidence_ids": ev}],
+        scenario_id=sid,
+        scene_intents=[{"kind": "flood.set_level", "scenario_id": sid}],
+    )
+
+
 _MARATHON = r"marathon|maraton|马拉松|fun run|larian"
 
 
@@ -804,6 +853,8 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return _event(q, rets, info)
     if scope == "all" and re.search(_WHATIF, q):
         return _whatif(q, rets, info)
+    if re.search(_LOWLYING, q):
+        return _lowlying(q, rets, info)
     is_flood = bool(re.search(r"flood|river|banjir|sungai|rises|naik|水", q))
     ui_sid = _ui(info, "active_scenario")
     ui_sid = None if ui_sid == "none" else ui_sid
