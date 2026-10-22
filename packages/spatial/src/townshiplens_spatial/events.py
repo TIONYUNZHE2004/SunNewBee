@@ -29,6 +29,73 @@ PRESSURE_DISCLAIMER = (
 MAX_SEGMENTS = 40
 MAX_COURSE_SEGMENTS = 400
 DEFAULT_PROFILES = ("default", "wheelchair", "drive")
+# Resident destinations, not display furniture. Parking/stops are origin access points.
+RESIDENT_DESTINATION_TYPES = {
+    "home",
+    "house",
+    "residential",
+    "apartments",
+    "school",
+    "kindergarten",
+    "mall",
+    "shop",
+    "shops",
+    "supermarket",
+    "work",
+    "office",
+    "park",
+    "playground",
+    "clinic",
+    "hospital",
+    "facility",
+    "community_centre",
+    "evacuation_centre",
+    "place_of_worship",
+    "restaurant",
+    "tuition_centre",
+    "toilet",
+}
+_ORIGIN_PRIORITY = (
+    "home",
+    "house",
+    "residential",
+    "apartments",
+    "school",
+    "kindergarten",
+    "community_centre",
+    "mall",
+    "shop",
+    "clinic",
+    "park",
+    "parking",
+)
+
+
+def resident_destination(world, place_id):
+    return world.places[place_id].type in RESIDENT_DESTINATION_TYPES
+
+
+def _origin_sample(world, limit):
+    groups = {}
+    for place in sorted(world.places.values(), key=lambda p: p.id):
+        if place.type in RESIDENT_DESTINATION_TYPES | ORIGIN_TYPES:
+            groups.setdefault(place.type, []).append(place.id)
+    order = sorted(
+        groups,
+        key=lambda t: (
+            _ORIGIN_PRIORITY.index(t) if t in _ORIGIN_PRIORITY else len(_ORIGIN_PRIORITY),
+            t,
+        ),
+    )
+    # Ten origin trees per profile bound compute cost while meeting the 10% target.
+    chosen = []
+    for i in range(max((len(v) for v in groups.values()), default=0)):
+        for kind in order:
+            if i < len(groups[kind]):
+                chosen.append(groups[kind][i])
+                if len(chosen) == min(10, limit):
+                    return chosen
+    return chosen
 
 
 class EventSpec(BaseModel):
@@ -219,19 +286,21 @@ _BASELINE_LOCK = threading.Lock()
 def _journeys(world, profile, limit, expanded):
     if not expanded:
         return twm.suite_journeys(world, profile)[:limit]
-    types = {t for peak in traffic.config().peaks for t in peak.types} | {"facility", "toilet"}
-    origins = sorted(p.id for p in world.places.values() if p.type in ORIGIN_TYPES)
-    destinations = sorted(p.id for p in world.places.values() if p.type in types)
-    # Rotate both sides of the bipartite sample, rather than filling it with the
-    # first destination. Each complete round uses the smaller side exactly once.
-    pairs = []
+    origins = _origin_sample(world, limit)
+    destinations = sorted(
+        p.id for p in world.places.values() if p.type in RESIDENT_DESTINATION_TYPES
+    )
+    pairs, counts_o, counts_d = [], Counter(), Counter()
     small, large = sorted((origins, destinations), key=len)
+    cap = max(1, limit // 10) if min(len(origins), len(destinations)) >= 10 else limit
     for offset in range(len(large)):
         for i, value in enumerate(small):
             other = large[(i + offset) % len(large)]
             o, d = (value, other) if small is origins else (other, value)
-            if o != d:
+            if o != d and counts_o[o] < cap and counts_d[d] < cap:
                 pairs.append(twm.Journey(from_id=o, to_id=d, profile=profile))
+                counts_o[o] += 1
+                counts_d[d] += 1
                 if len(pairs) == limit:
                     return pairs
     return pairs
@@ -377,7 +446,7 @@ def _unnamed_stretches(world):
     cached = world.graph.graph.get("_closure_unnamed_stretches")
     if cached and cached[0] == signature:
         return cached[1]
-    graph, named, anchors = nx.Graph(), {}, {}
+    graph, named, anchors = nx.MultiGraph(), {}, {}
     for edge in world.edges.values():
         if edge.name:
             for node in (edge.from_node, edge.to_node):
@@ -386,7 +455,7 @@ def _unnamed_stretches(world):
             if old is None or (edge.length_m, edge.id) > (old.length_m, old.id):
                 anchors[edge.name] = edge
         else:
-            graph.add_edge(edge.from_node, edge.to_node, length_m=edge.length_m)
+            graph.add_edge(edge.from_node, edge.to_node, key=edge.id, length_m=edge.length_m)
     areas = []
     for nodes in sorted(nx.connected_components(graph), key=lambda ns: min(ns)):
         coords = [world.node_coords[n] for n in nodes]
@@ -552,7 +621,9 @@ def _simulate(world, spec, profiles, at, legacy, max_segments=MAX_SEGMENTS):
                         roads[key] = old_ids | ids, count + 1, weighted + weight
             if closed:
                 for place in flood.cut_off_places(after, profile):
-                    if place.id not in before_ids:
+                    if place.id not in before_ids and (
+                        legacy is not None or resident_destination(world, place.id)
+                    ):
                         cut_off[place.id] = EventPlace(id=place.id, name=place.name)
     detours = sorted(
         [
@@ -581,16 +652,19 @@ def _simulate(world, spec, profiles, at, legacy, max_segments=MAX_SEGMENTS):
             f"{summary.trips_on_course} sample trips start or end on the course: access during "
             "the event needs a separate plan; excluded from detour and new route-loss counts."
         )
+    limited_profiles = []
     for profile in profiles:
         sample = [t for t in trips if t.profile == profile]
         if sample and any(
             max(Counter(getattr(t, field) for t in sample).values()) * 10 > len(sample)
             for field in ("from_id", "to_id")
         ):
-            warnings.append(
-                f"{profile}: the available mapped endpoints cannot meet the 10% sample "
-                "diversity target; this small sample is not representative."
-            )
+            limited_profiles.append(profile)
+    if limited_profiles:
+        warnings.append(
+            f"Sample diversity: {', '.join(limited_profiles)} cannot meet the 10% endpoint-share "
+            "target with the available sample; this bounded sample is not representative."
+        )
     if demo:
         warnings.append("Some routes use demo values, not yet surveyed.")
     warnings.extend(

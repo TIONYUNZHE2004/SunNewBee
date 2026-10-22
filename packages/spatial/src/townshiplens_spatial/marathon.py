@@ -151,7 +151,11 @@ def _ranking_context(world):
         if flood.centre_closure(world, c) is None
         for n in _targets(world, f"{CENTRE_PREFIX}{c.id}", prof)
     }
-    places = {p.id: set(_targets(world, p.id, prof)) for p in world.places.values()}
+    places = {
+        p.id: set(_targets(world, p.id, prof))
+        for p in world.places.values()
+        if events.resident_destination(world, p.id)
+    }
     return reverse, centres, places
 
 

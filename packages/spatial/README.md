@@ -592,3 +592,14 @@ original river rules: a river possible class still excludes driving, and a river
 likely_flooded class remains FAIL. Physical barriers and closures also remain FAIL.
 The access layer uses the same factual assessment as routing. Terrain-only marks use
 “low-lying terrain may collect water (indicative)” rather than a river-flood assertion.
+
+Task 2 audit refinement: general closure samples draw up to ten origins across mapped
+resident destination and transport-access categories, rather than only the seven seed
+car parks. Pair selection caps each endpoint at 10% when enough distinct pairs exist.
+A small-pool limitation is emitted once across profiles. The sample is deterministic,
+bounded and not measured demand. Pre-existing no-route cases remain in its denominator.
+Closure cutoff counts and course ranking use `RESIDENT_DESTINATION_TYPES` (homes,
+schools, shops, parks, clinics, community/evacuation centres and other listed resident
+destinations); bins, seating and shelters are excluded. Legacy event results retain
+their prior place-count contract. Unnamed labels use landmark/direction/measured length,
+with a geographic qualifier for collisions; arbitrary stretch indices are not public names.
