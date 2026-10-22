@@ -6,6 +6,7 @@ const MOTION = "tl.motion";
 const QUALITY = "tl.quality";
 const PATH_STATUS = "tl.pathStatus";
 const FX = "tl.fx";
+const ROAD_NAMES = "tl.roadNames";
 
 const read = (k: string) => {
   try {
@@ -28,6 +29,7 @@ const storedMotion = read(MOTION);
 const storedQuality = read(QUALITY);
 const storedPathStatus = read(PATH_STATUS);
 const storedFx = read(FX);
+const storedRoadNames = read(ROAD_NAMES);
 
 interface SceneSettings {
   motion: boolean;
@@ -40,6 +42,9 @@ interface SceneSettings {
    * prefers-reduced-motion (`three/tiltShift.ts` dofActive).
    */
   fx: boolean;
+  /** Road names on the map (T-028; `GET /layers/road-labels`). On by default. */
+  roadNames: boolean;
+  setRoadNames: (v: boolean) => void;
   setMotion: (v: boolean) => void;
   setFx: (v: boolean) => void;
   setQuality: (q: QualityChoice) => void;
@@ -53,6 +58,11 @@ export const useSceneSettings = create<SceneSettings>((set) => ({
     : "auto",
   pathStatus: storedPathStatus === "true",
   fx: storedFx !== "false",
+  roadNames: storedRoadNames !== "false",
+  setRoadNames: (roadNames) => {
+    write(ROAD_NAMES, String(roadNames));
+    set({ roadNames });
+  },
   setFx: (fx) => {
     write(FX, String(fx));
     set({ fx });
