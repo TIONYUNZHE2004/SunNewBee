@@ -220,7 +220,8 @@ _safe_vr_args = safe_vr_args  # backwards-compatible alias
 
 
 # compare_routes is not here (R46): a compare is a dry-day comparison, so the UI's scenario is
-# never injected into it (and a compare under a scenario is refused: compare_intent.compare_for).
+# never injected into it, here or in call_tool's strict-selection block (a scenario the question
+# itself names still applies, and a compare under any scenario is refused: compare_for).
 SCENARIO_TOOLS = (
     "plan_route",
     "list_evacuation_centres",
@@ -404,8 +405,10 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
             "affected_places",
             "nearby_amenities",
         }:
+            # R46: the scenario on screen never reaches compare_routes (dry-day comparison)
+            ui = None if name == "compare_routes" else ui_scenario(deps)
             kwargs["scenario_id"] = effective_scenario(
-                deps.request.message, deps.ctx.world, ui_scenario(deps), kwargs.get("scenario_id")
+                deps.request.message, deps.ctx.world, ui, kwargs.get("scenario_id")
             )
         if name in {"nearby_amenities", "list_evacuation_centres"}:
             origin = kwargs.get("origin_id") or kwargs.get("near_place")

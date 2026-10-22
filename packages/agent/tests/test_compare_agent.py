@@ -259,12 +259,15 @@ async def _deps(world, tmp_path, scenario=None):
 ENDS = {"from_id": "park-b", "to_id": "toilet-1", "profile": "wheelchair"}
 
 
-async def test_ui_scenario_is_not_injected_into_compare_routes(tiny, tmp_path):
-    """A compare is a dry-day comparison: the scenario on screen never reaches compare_routes."""
+@pytest.mark.parametrize("strict", [False, True])
+async def test_ui_scenario_is_not_injected_into_compare_routes(tiny, tmp_path, strict):
+    """A compare is a dry-day comparison: the scenario on screen never reaches compare_routes,
+    with or without strict selection (run_turn always turns it on)."""
     from townshiplens_agent.agent import SCENARIO_TOOLS, call_tool
 
     assert "compare_routes" not in SCENARIO_TOOLS
     deps = await _deps(tiny, tmp_path, scenario="stage_p1m")
+    deps.rec.strict_selection = strict
     await call_tool(deps, "compare_routes", **ENDS)
     calls = []
     while not deps.rec.queue.empty():
