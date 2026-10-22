@@ -28,6 +28,9 @@ class _Turn:
     answer: str
     simulated: bool  # the turn ran a world-model simulation (what-if or survey plan)
     route: dict | None = None  # server-selected IDs only; no model-written endpoint facts
+    # T-028: the last marathon request in canonical form (place ids, mapped road names, typed
+    # distance/times), so "make it 10 km" / "avoid X" re-plans the same course
+    marathon: dict | None = None
 
 
 @dataclass
@@ -83,6 +86,14 @@ class SessionMemory:
         s = self._get(session_id)
         return dict(s.turns[-1].route) if s and s.turns and s.turns[-1].route else None
 
+    def marathon_context(self, session_id: str | None) -> dict | None:
+        """The most recent marathon request of this session (for edits), if any."""
+        s = self._get(session_id)
+        for t in reversed(s.turns if s else []):
+            if t.marathon:
+                return dict(t.marathon)
+        return None
+
     def add_turn(
         self,
         session_id: str | None,
@@ -90,13 +101,17 @@ class SessionMemory:
         answer: str,
         simulated: bool = False,
         route: dict | None = None,
+        marathon: dict | None = None,
     ) -> None:
         if not session_id or not question:
             return
         now = time.monotonic()
         self._expire(now)
         s = self._s.setdefault(session_id, _Session())
-        s.turns = [*s.turns, _Turn(question[:2000], answer[:MAX_ANSWER_CHARS], simulated, route)]
+        s.turns = [
+            *s.turns,
+            _Turn(question[:2000], answer[:MAX_ANSWER_CHARS], simulated, route, marathon),
+        ]
         s.turns = s.turns[-self.max_turns :]
         while len(s.turns) > 1 and sum(len(t.question) + len(t.answer) for t in s.turns) > (
             self.max_chars

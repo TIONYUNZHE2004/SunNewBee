@@ -6,6 +6,7 @@ and push ToolCall / ToolResultEvent / VerificationRequested onto the record's qu
 """
 
 import asyncio
+import json
 import re
 import time
 from dataclasses import dataclass
@@ -394,6 +395,7 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
             for s, e in [event_window(c["start"], c["end"], c.get("day"), tz)]
         ]
     if name == "simulate_marathon":  # T-028: the window is built here, never by the model
+        asked = {k: kwargs.get(k) for k in ("start_time", "end_time", "day")}
         kwargs["starts_at"], kwargs["ends_at"] = event_window(
             kwargs.pop("start_time"),
             kwargs.pop("end_time"),
@@ -517,6 +519,18 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
         course = res.data.get("course") or {}
         rec.events.append({**(res.data.get("impact") or {}), "course": course})
         rec.marathons.append({**res.data, "requested_km": kwargs.get("distance_km")})
+        # canonical request for edits next turn: resolved place ids, mapped road names, the
+        # window as asked; never free text
+        names = {e.name for e in deps.ctx.world.edges.values() if e.name}
+        rec.marathon_request = {
+            "start": course.get("start"),
+            "distance_km": kwargs.get("distance_km"),
+            **asked,
+            "shape": course.get("shape") or kwargs.get("shape") or "loop",
+            "finish": course.get("finish") if course.get("shape") == "point_to_point" else None,
+            "avoid_roads": [r for r in kwargs.get("avoid_roads") or [] if r in names],
+            "prefer_roads": [r for r in kwargs.get("prefer_roads") or [] if r in names],
+        }
         rec.place_names |= {r["name"] for r in course.get("roads") or []}
         rec.place_names |= {course.get("start") or "", course.get("finish") or ""} - {""}
         imp = res.data.get("impact") or {}
@@ -855,10 +869,15 @@ def build_agent(
     def ui_context(ctx: RunContext[Deps]) -> str:
         r = ctx.deps.request
         # Only ids that exist in the world are interpolated (never free text from the request).
-        return (
+        out = (
             f"UI context: profile={r.profile}; active_scenario={ui_scenario(ctx.deps) or 'none'}; "
             f"assistant_scope={assistant_scope}; panel={panel}."
         )
+        if (last := ctx.deps.rec.context_marathon) and panel == "management":
+            # T-028: canonical (place ids, mapped road names, typed values): a manager's edit
+            # ("make it 10 km", "avoid X", "finish at Y") re-calls simulate_marathon with it
+            out += f" last_marathon={json.dumps(last, separators=(',', ':'))}"
+        return out
 
     @register_tool
     async def find_place(

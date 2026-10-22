@@ -575,6 +575,48 @@ def _lowlying(q: str, rets, info: AgentInfo) -> ModelResponse:
 
 
 _MARATHON = r"marathon|maraton|马拉松|fun run|larian"
+# T-028 edits of the last proposed course, in the same session
+_MARATHON_EDIT = (
+    r"make it \d|\d+(?:\.\d+)?\s*km\b|\bavoid\b|\bprefer\b|point[ _-]to[ _-]point"
+    r"|finish (?:at|in)\b|\bloop\b"
+)
+_ROADNAME = r"((?:persiaran|jalan|lebuh|lorong|bulatan)\s[^,.?;]+)"
+
+
+def _last_marathon(info: AgentInfo) -> dict | None:
+    m = re.search(r"last_marathon=(\{.*\})", info.instructions or "")
+    try:
+        return json.loads(m.group(1)) if m else None
+    except ValueError:
+        return None
+
+
+def _marathon_edit(q: str, last: dict, rets) -> ModelResponse:
+    """Re-plan the session's last course with the manager's edit; every other argument stays."""
+    if not rets:
+        args = {k: v for k, v in last.items() if v not in (None, [], "")}
+        if km := re.search(r"(\d+(?:\.\d+)?)\s*km\b", q):
+            args["distance_km"] = float(km.group(1))
+        for road in re.findall(rf"\bavoid\s+{_ROADNAME}", q):
+            args["avoid_roads"] = [*args.get("avoid_roads", []), road.strip().title()]
+        for road in re.findall(rf"\bprefer\s+{_ROADNAME}", q):
+            args["prefer_roads"] = [*args.get("prefer_roads", []), road.strip().title()]
+        if re.search(r"point[ _-]to[ _-]point", q):
+            args["shape"] = "point_to_point"
+        elif re.search(r"\bloop\b", q):
+            args["shape"] = "loop"
+            args.pop("finish", None)
+        if fin := re.search(r"finish (?:at|in)\s+(.+?)(?:[,.?]|$)", q):
+            args["finish"] = fin.group(1).strip().title()
+            args["shape"] = "point_to_point"
+        return _call("simulate_marathon", **args)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):  # a road or place the planner cannot use: relay the reason
+        why = " ".join(rets[-1][1].get("warnings") or []) if isinstance(rets[-1][1], dict) else ""
+        return _cannot(why or "I couldn't re-plan the course on the township model.")
+    imp = d.get("impact") or {}
+    ev = [i for i in _ev_ids(rets) if i == imp.get("evidence_id")]
+    return _final(**marathon_answer(d, ev))
 
 
 def _marathon(q: str, rets, info: AgentInfo) -> ModelResponse:
@@ -846,6 +888,8 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return _tipping(q, rets, info)
     if scope == "all" and re.search(_PLAN, q):
         return _plan(q, rets, info)
+    if scope == "all" and (last := _last_marathon(info)) and re.search(_MARATHON_EDIT, q):
+        return _marathon_edit(q, last, rets)
     if scope == "all" and re.search(_MARATHON, q) and re.search(r"\d\s*km\b", q):
         # a course to plan ("a 5 km marathon from X"); "close Jalan Y for a marathon" is a closure
         return _marathon(q, rets, info)

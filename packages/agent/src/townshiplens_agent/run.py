@@ -795,6 +795,9 @@ async def run_turn(
     rec = record or TurnRecord()
     rec.strict_selection = True
     rec.context_route = memory.route_context(req.session_id)
+    rec.context_marathon = (
+        memory.marathon_context(req.session_id) if req.panel == "management" else None
+    )
     # Stages the resident named, and the stages the world has scenarios for ("+1 m to +3 m").
     rec.asked_stages = {f.value for f in extract_facts(question) if f.kind == "stage"} | {
         float(s.stage_m) for s in ctx.world.flood.scenarios if s.stage_m is not None
@@ -933,6 +936,7 @@ async def run_turn(
         shown,
         simulated=bool(rec.what_ifs or rec.plans or rec.days or rec.day_changes),
         route=context_route,
+        marathon=rec.marathon_request if ans.answer_status != "cannot_answer" else None,
     )
     for ev in events:
         yield ev

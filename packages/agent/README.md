@@ -95,6 +95,14 @@ or end on the closed course are said apart ("plan access for them"), never as "n
 a route". The mock plans a course only when a distance in km is given; "close Jalan X for a
 marathon" stays a closure.
 
+Edits in the same session ("Make it 10 km.", "Avoid Persiaran Tamarind.", "Prefer …",
+"point to point", "finish at …"): each turn stores its marathon request in canonical form
+(`SessionMemory.marathon_context`: the resolved start/finish place ids, mapped road names only,
+typed distance and window). Management turns get it as `last_marathon={…}` in the UI context,
+and the model (and the mock) re-call `simulate_marathon` with only the edit changed. Residents
+never get it. A course outside ±10% of the target says why in the summary, as the planner wrote
+it ("Requested 21100 m; proposed 930.9 m. …").
+
 **Low-lying areas (T-029).** A question about low-lying areas or water collecting
 ("low-lying", "collect water", "kawasan rendah", "低洼") may use scenario `lowlying`, or
 `stage_pNm+lowlying` when it also names a river level (`route_binding.effective_scenario`); a
