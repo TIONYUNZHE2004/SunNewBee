@@ -22,8 +22,10 @@ export interface CompareSegment {
   edge_id: string;
   /** PASS | FAIL | UNKNOWN under the route's own profile. */
   eval: string;
-  /** Not on the wire today; read when present (B8 stop edge length). */
+  /** The edge's length (m): the stop edge's drawn length, and where each segment sits. */
   length_m?: number;
+  /** The walk edge type (street, sidewalk, ...): display only, a walker keeps to a road's verge. */
+  type?: string;
 }
 
 export interface CompareRoute {

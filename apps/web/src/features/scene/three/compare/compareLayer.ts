@@ -1,7 +1,12 @@
 import * as THREE from "three";
 import { beatVisible, type CompareTimeline, T_START } from "../../../journey/compareTimeline";
 import type { CompareIntent, CompareRoute } from "../../../journey/compareTypes";
-import { createRoutePath, type RoutePath, type SpanEval } from "../../../journey/routePath";
+import {
+  createRoutePath,
+  type RoutePath,
+  roadsideRuns,
+  type SpanEval,
+} from "../../../journey/routePath";
 import type { JourneyPlan } from "../../../journey/timeline";
 import { COMPARE_RIBBON_STYLE } from "../../styles";
 import { walkRate } from "../assets/heroManifest";
@@ -176,17 +181,45 @@ export function spansWith(
   return out;
 }
 
+/**
+ * Each segment's [from_m, to_m] along a route of `L` metres, from the segments' lengths scaled to
+ * the route length; null when any length is missing (an older payload: no roadside offset).
+ */
+export function segmentMetres(r: CompareRoute, L: number): [number, number][] | null {
+  const lens = r.segments.map((s) => s.length_m);
+  if (lens.length === 0 || lens.some((m) => typeof m !== "number" || !Number.isFinite(m)))
+    return null;
+  const total = (lens as number[]).reduce((a, b) => a + b, 0);
+  if (!(total > 0)) return null;
+  const k = L / total;
+  let at = 0;
+  return (lens as number[]).map((m) => {
+    const from = at;
+    at += m * k;
+    return [from, at];
+  });
+}
+
 function pathOf(
   r: CompareRoute,
   spans: [number, number, SpanEval][],
   frame: LocalFrame,
 ): RoutePath {
+  const L = spans.at(-1)?.[1] ?? 0;
+  const segs = segmentMetres(r, L);
+  const roadside = segs
+    ? roadsideRuns(
+        segs.map(([a, b]) => [a, b, null] as const),
+        r.segments.map((s) => s.type ?? ""),
+      )
+    : [];
   return createRoutePath(
     {
       polyline: r.coordinates as unknown as JourneyPlan["polyline"],
       spans: spans as unknown as JourneyPlan["spans"],
     },
     (lon, lat) => frame.toLocal(lon, lat),
+    { roadside },
   );
 }
 
