@@ -1,4 +1,4 @@
-{"meta": {"message": "Priya uses a wheelchair at Lakeside Mall. If the river rises 3 m, where can she go?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "tiny", "world_fingerprint": "9c2e6c6c38142c389700c64b56062ce232f9702a94685760bb8dd462ff604a62", "model": "mock-scripted", "recorded_at": "2026-10-22T04:45:29+00:00"}}
+{"meta": {"message": "Priya uses a wheelchair at Lakeside Mall. If the river rises 3 m, where can she go?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "tiny", "world_fingerprint": "5d1ddcdee79990219c6a7b847754010c121a130cec76c10d77dc6cd95f495c2d", "model": "mock-scripted", "recorded_at": "2026-10-22T05:22:00+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "1 result(s)"}
 {"type": "tool.call", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "args": {"scenario_id": "stage_p3m", "profile": "wheelchair", "near_place": "lakeside-mall"}}
