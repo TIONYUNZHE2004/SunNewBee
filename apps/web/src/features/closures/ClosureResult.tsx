@@ -24,6 +24,7 @@ export function ClosureResult({ r }: { r: ClosureImpact }) {
           <strong>{l.affected}</strong>
         </li>
         <li>{l.newly}</li>
+        {l.onCourse && <li>{l.onCourse}</li>}
         {l.extra && <li className="text-fg-soft">{l.extra}</li>}
         {l.gaps && <li className="text-fg-soft">{l.gaps}</li>}
       </ul>

@@ -6,6 +6,7 @@ import { type AssistantMessage, isRefusal, isTemplateFallback } from "../chat/ch
 import { describeUncertainty, groupUncertainty, unverifiedItems } from "../chat/uncertainty";
 import { useElementNames } from "../chat/useElementNames";
 import { ClosureResult } from "../closures/ClosureResult";
+import { MarathonCard } from "../closures/MarathonCard";
 import { TripStrip } from "../day/TripStrip";
 import { OwnJourneyControls } from "../journey/OwnJourneyControls";
 import { WatchTripButton } from "../journey/WatchTripButton";
@@ -163,7 +164,7 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
           </span>
         </div>
       )}
-      {m.closure && <ClosureResult r={m.closure} />}
+      {m.marathon ? <MarathonCard m={m.marathon} /> : m.closure && <ClosureResult r={m.closure} />}
       {m.disclaimer && (
         <div role="note" className="rounded-xl border border-edge bg-raised px-3 py-2.5 text-fg">
           <span aria-hidden="true" className="font-semibold text-lantern">

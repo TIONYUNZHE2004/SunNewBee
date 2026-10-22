@@ -6,7 +6,9 @@ import type { Schemas } from "@tl/api-client";
  * under the answer and the map lines come from here.
  */
 
-export type ClosureImpact = Schemas["ClosureImpact"];
+/** A closure simulation's result: a closure answer's, or a proposed marathon course's impact. */
+export type ClosureImpact = Schemas["ClosureImpact"] | Schemas["MarathonImpact"];
+export type MarathonResult = Schemas["MarathonResult"];
 export type DetourRoad = Schemas["DetourRoad"];
 export type ClosureSuggestion = Schemas["EventSuggestion"];
 export type Pressure = DetourRoad["pressure"];
@@ -29,6 +31,7 @@ export function resultLines(r: ClosureImpact): {
   newly: string;
   gaps: string | null;
   extra: string | null;
+  onCourse: string | null;
 } {
   return {
     affected: `${r.trips_affected} of ${n(r.trips_total, "sample trip", "sample trips")} change route`,
@@ -40,6 +43,11 @@ export function resultLines(r: ClosureImpact): {
       r.extra_m_median != null
         ? `Rerouted trips go about ${r.extra_m_median} m further (median)`
         : null,
+    // T-028: trips that start or end on the closed road are an access question, apart from
+    // trips that newly lose a route
+    onCourse: r.trips_on_course
+      ? `${n(r.trips_on_course, "sample trip starts or ends", "sample trips start or end")} on the closed road: plan access for them`
+      : null,
   };
 }
 

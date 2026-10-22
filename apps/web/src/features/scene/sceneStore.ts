@@ -262,6 +262,10 @@ export const useScene = create<SceneState>((set) => ({
         case "closure.show":
           next.closureSim = i.closure ? { result: i.closure } : null;
           break;
+        case "marathon.show":
+          // the proposed course in red, its detours by pressure (the same map lines)
+          next.closureSim = i.marathon ? { result: i.marathon.impact } : null;
+          break;
         case "river.rollout":
           next.rollout = { on: true, stage: 0, playing: true };
           break;
