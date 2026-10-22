@@ -34,8 +34,8 @@ DISCLAIMER = (
     "Indicative terrain screening from Copernicus GLO-30, not a forecast. The 30 m surface "
     "model includes buildings and trees. Drains and culverts are not modelled; rainfall "
     "amounts are not modelled. Marked areas are possible collection areas, not predicted "
-    "inundation or water depth. Unmarked areas are not proof of absence. Follow official "
-    "MBSA / JPS / NADMA guidance."
+    "inundation or water depth. Mapped water and forest or scrub are not screened. Unmarked "
+    "areas are not proof of absence. Follow official MBSA / JPS / NADMA guidance."
 )
 
 
@@ -46,10 +46,13 @@ class Config:
     boundary_cells: int
     connectivity: int
     exclude_mapped_water: bool
+    # land-cover classes (base/landcover.geojson) left unscreened: water, canopy
+    exclude_landcover: tuple[str, ...] = ()
 
 
 def load_config(path=CONFIG):
-    cfg = Config(**yaml.safe_load(Path(path).read_text(encoding="utf-8")))
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    cfg = Config(**{**raw, "exclude_landcover": tuple(raw.get("exclude_landcover") or ())})
     if (
         not np.isfinite(cfg.min_fill_m)
         or cfg.min_fill_m <= 0
@@ -161,6 +164,24 @@ def _water(data_dir, shape_, transform):
     )
 
 
+def _landcover(data_dir, shape_, transform, classes):
+    """Cells under the given land-cover classes (base/landcover.geojson), not screened."""
+    path = data_dir / "base/landcover.geojson"
+    if not classes or not path.exists():
+        return np.zeros(shape_, dtype=bool)
+    geometries = [
+        f["geometry"]
+        for f in json.loads(path.read_text())["features"]
+        if f["properties"].get("class") in classes
+        and f["geometry"]["type"] in ("Polygon", "MultiPolygon")
+    ]
+    if not geometries:
+        return np.zeros(shape_, dtype=bool)
+    return rasterize(
+        [(g, 1) for g in geometries], out_shape=shape_, transform=transform, fill=0, dtype="uint8"
+    ).astype(bool)
+
+
 def classify_world(world, polygons, coverage):
     """Intersect real segment/point geometries; never infer an entrance or a water level."""
     low = unary_union([shape(f["geometry"]) for f in polygons])
@@ -186,7 +207,13 @@ def write_outputs(data_dir, dem, transform, cfg=None):
     if not np.isfinite(dem).any():
         raise ValueError("DEM has no finite cells; no low-lying scenario was written")
     world = load_world(data_dir)
-    excluded = _water(data_dir, dem.shape, transform) if cfg.exclude_mapped_water else None
+    water = (
+        _water(data_dir, dem.shape, transform)
+        if cfg.exclude_mapped_water
+        else np.zeros(dem.shape, dtype=bool)
+    )
+    cover = _landcover(data_dir, dem.shape, transform, set(cfg.exclude_landcover))
+    excluded = water | cover
     mask = lowlying_mask(dem, cfg, excluded)
     polygons = features(mask, transform)
     valid = unary_union(_polygons(np.isfinite(dem), transform))
@@ -220,7 +247,8 @@ def write_outputs(data_dir, dem, transform, cfg=None):
     bundle.setdefault("scenario_coverage", {})["lowlying"] = gaps
     report = {
         "method": "priority_flood_terrain_screen",
-        "config": cfg.__dict__,
+        "config": {**cfg.__dict__, "exclude_landcover": list(cfg.exclude_landcover)},
+        "not_screened_cells": int(excluded.sum()),
         "dem_shape": list(dem.shape),
         "finite_cells": int(np.isfinite(dem).sum()),
         "lowlying_cells": int(mask.sum()),
