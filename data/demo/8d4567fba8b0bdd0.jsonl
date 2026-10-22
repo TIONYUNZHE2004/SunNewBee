@@ -1,4 +1,4 @@
-{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "c48f759033b06cc4a1e3517964378c64d9cfca8d02809700a3251dd92787fa79", "model": "mock-scripted", "recorded_at": "2026-10-22T10:02:36+00:00"}}
+{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "4467e2326f47f98f30ba686920f1cb2fae6331160288da8c62ce40030f8db990", "model": "mock-scripted", "recorded_at": "2026-10-22T09:14:14+00:00"}}
 {"type": "tool.call", "id": "day_rehearsal-0", "name": "day_rehearsal", "args": {"day": "storm"}}
 {"type": "tool.result", "id": "day_rehearsal-0", "name": "day_rehearsal", "summary": "ok"}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
@@ -27,7 +27,7 @@
 {"type": "text.delta", "delta": "cenario, not a forecast. Follow official"}
 {"type": "text.delta", "delta": " MBSA / JPS / NADMA guidance.\n• Flash fl"}
 {"type": "text.delta", "delta": "oods from heavy rain are not shown."}
-{"type": "scene.intent", "intent": {"kind": "day.show", "place_id": null, "route_id": null, "scenario_id": "stage_p3m", "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null, "route_status": null, "distance_m": null, "est_minutes": null, "day": "storm", "t_min": 445, "start_time": null, "journey": null, "plan": null, "brief_text": null, "closure": null, "marathon": null}}
+{"type": "scene.intent", "intent": {"kind": "day.show", "place_id": null, "route_id": null, "scenario_id": "stage_p3m", "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null, "route_status": null, "distance_m": null, "est_minutes": null, "day": "storm", "t_min": 445, "start_time": null, "journey": null, "plan": null, "brief_text": null, "compare": null}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-day-storm", "element_id": "day", "attribute": "storm", "status": "indicative", "verified_at": null, "source_type": "rehearsal", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Residents are synthetic: a rehearsal on the township model, not a forecast and not real people"}, {"element_id": "answer", "attribute": "caveat", "note": "This is an indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance"}]}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not. Flash floods from heavy rain are not shown.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}

@@ -69,8 +69,13 @@ export function placeBubbleBox(
   area: BubbleArea,
   /** The side the bubble is on now: kept while it still fits, so it does not flip (owner fix). */
   prefer?: BubbleSide | null,
+  /**
+   * The boxes the bubble points at (its own speaker and name tag); default all of `keepClear`.
+   * Other people in `keepClear` are then only kept clear of, not pointed at.
+   */
+  anchor?: readonly Rect[],
 ): BubbleBox {
-  const sp = union(keepClear);
+  const sp = union(anchor && anchor.length > 0 ? anchor : keepClear);
   const cx = sp.x + sp.w / 2;
   const cy = sp.y + sp.h / 2;
   const minX = EDGE;

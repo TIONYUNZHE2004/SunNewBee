@@ -39,6 +39,9 @@ def _model(summary: str, profile="default", scenario=None):
         caveats = [w for w in data.get("warnings", [])]
         caveats += [r[k] for k in ("crossing_note", "road_note") if r.get(k)]
         caveats.append("Estimated from map data, not checked on site.")
+        if any(e.get("source_type") == "team_survey_placeholder" for e in data["evidence"]):
+            # the demo corridor (B5) runs along this route
+            caveats.append("Some segment facts are demo values, not yet surveyed.")
         ev = (r.get("evidence_ids") or [e["id"] for e in data["evidence"]])[:3]
         ans = {
             "answer_status": "partial",

@@ -198,6 +198,16 @@ export const EFFECT_COLOURS = {
   heroDisc: "#fff3c2",
 } as const;
 
+/**
+ * Navigation compare wheelchair users (B8): the hero's purple baju (Blender palette `baju`) is
+ * recoloured per walker, a shade deeper than its route colour so it reads as cloth. Display only.
+ */
+export const COMPARE_HERO_COLOURS = {
+  heroBaju: "#8a63cc",
+  shirtFastest: "#d06a2c",
+  shirtRecommended: "#24946b",
+} as const;
+
 /** Development Simulation set dressing (hypothetical tower, site kit, cast): display only. */
 export const DEVSIM_COLOURS = {
   white: "#ffffff",
@@ -231,6 +241,16 @@ export const DEVSIM_COLOURS = {
   hoardingNavy: "#3d4a63",
   hoardingPale: "#efe2c4",
   kerbSand: "#c9b892",
+  // C9 construction set pieces (prototype demo-storyboards): lorry route ribbon, netting, scaffold
+  // tubes, rain streaks, the piling rig, the crane's load and its sling
+  lorryRoute: "#e8931f",
+  netting: "#3fa35b",
+  scaffoldTube: "#a08a62",
+  rain: "#c4d2e0",
+  rigRed: "#d2544f",
+  rigSteel: "#3a3d42",
+  loadTimber: "#8a6d3b",
+  cable: "#33353a",
 } as const;
 
 export type ClayRole =

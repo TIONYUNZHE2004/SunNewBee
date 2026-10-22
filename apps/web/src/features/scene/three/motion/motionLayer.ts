@@ -10,6 +10,7 @@ import {
   type RoleUniforms,
 } from "../assets/roleMaterial";
 import { markUsed } from "../assets/uploadRange";
+import { bokehDepthMaterial } from "../tiltShift";
 import {
   AGENT_LIFT_M,
   type Agent,
@@ -17,6 +18,7 @@ import {
   densityFor,
   displayScale,
   easedDistance,
+  fadeAt,
   type MoodMix,
   PEOPLE_VISIBLE_M,
   type Pose2,
@@ -40,6 +42,7 @@ import {
   personClear,
   vehicleClear,
 } from "./crowdRules";
+import { nearDeadEnd, uturnSample, uturnTickBegin, uturnTickEnd, uturnWatchOn } from "./uturnWatch";
 import { createVehicleLights } from "./vehicleLights";
 
 /**
@@ -55,6 +58,10 @@ export interface YawEntry {
   gait?: GaitState;
   /** C-T8 keep-out side memory (P8). */
   keep?: KeepOutMemory;
+  /** The fading lap the keep-out memory belongs to: a respawn forgets the side (review M2). */
+  lap?: number;
+  /** The keep-out's last push (m) and its motion time (s): a sudden change is not drawn. */
+  push?: { dx: number; dz: number; t: number; shown: boolean };
 }
 export type YawMemory = Map<string, YawEntry>;
 
@@ -96,13 +103,35 @@ const AVOID_STEP_M = 1;
 /** A clipped route shorter than this is not walked (the person is not drawn). */
 const AVOID_MIN_M = 4;
 
+/** The warp knots up to path metre `s` (the last knot interpolated onto it). */
+function truncateWarp(w: Float32Array, s: number): Float32Array {
+  const k: number[] = [];
+  for (let i = 0; i < w.length; i += 2) {
+    const n = w[i] as number;
+    const a = w[i + 1] as number;
+    if (a < s) {
+      k.push(n, a);
+      continue;
+    }
+    const pn = k[k.length - 2] ?? 0;
+    const pa = k[k.length - 1] ?? 0;
+    k.push(a > pa ? pn + ((n - pn) * (s - pa)) / (a - pa) : pn, s);
+    break;
+  }
+  return Float32Array.from(k);
+}
+
 /**
- * The agent's path without the avoid zone (devsim: the hoarded footway): the longest run of the
- * path outside it, walked as an open path (the person turns round at its ends, `poseAt`), so people
- * stop and turn before the hoarding instead of walking through it or vanishing. The agent itself
- * when the path never enters the zone; null when less than AVOID_MIN_M of it is outside. Pure.
+ * The agent's path without the avoid zone (devsim: the hoarded footway). The agent itself when the
+ * path never enters the zone; null when less than AVOID_MIN_M of it is outside. Pure.
+ * - A fading agent (`ends: "fade"`, demo polish A1) walks its path up to where it first enters the
+ *   zone, fades out there and respawns at its start (the first stretch outside the zone, when its
+ *   start is inside): never turning round in place.
+ * - A hand-made open path keeps the longest run outside the zone and turns round at its ends
+ *   (`poseAt`), so people stop and turn before the hoarding instead of walking through it.
  */
 export function avoidRoute(a: Agent, avoid: (x: number, z: number) => boolean): Agent | null {
+  if (a.ends === "fade") return fadeAvoidRoute(a, avoid);
   const p = a.path;
   const n = p.length / 2;
   if (n < 2) return avoid(p[0] ?? 0, p[1] ?? 0) ? null : a;
@@ -147,6 +176,59 @@ export function avoidRoute(a: Agent, avoid: (x: number, z: number) => boolean): 
   return { ...a, path: new Float32Array(best), length: bestL, offset: a.offset % bestL };
 }
 
+function fadeAvoidRoute(a: Agent, avoid: (x: number, z: number) => boolean): Agent | null {
+  const p = a.path;
+  const n = p.length / 2;
+  if (n < 2) return avoid(p[0] ?? 0, p[1] ?? 0) ? null : a;
+  const run: number[] = [];
+  let runL = 0;
+  let startS = 0;
+  let walked = 0;
+  let entered = false;
+  let done = false;
+  for (let i = 0; i < n - 1 && !done; i++) {
+    const ax = p[i * 2] as number;
+    const az = p[i * 2 + 1] as number;
+    const bx = p[i * 2 + 2] as number;
+    const bz = p[i * 2 + 3] as number;
+    const L = Math.hypot(bx - ax, bz - az);
+    const steps = Math.max(1, Math.ceil(L / AVOID_STEP_M));
+    for (let k = i === 0 ? 0 : 1; k <= steps; k++) {
+      const u = k / steps;
+      const x = ax + (bx - ax) * u;
+      const z = az + (bz - az) * u;
+      if (avoid(x, z)) {
+        entered = true;
+        // in the zone: the stretch so far is the route when long enough, else look past the zone
+        if (runL >= AVOID_MIN_M) {
+          done = true;
+          break;
+        }
+        run.length = 0;
+        runL = 0;
+        continue;
+      }
+      const m = run.length;
+      if (m === 0) startS = walked + L * u;
+      else runL += Math.hypot(x - (run[m - 2] as number), z - (run[m - 1] as number));
+      run.push(x, z);
+    }
+    walked += L;
+  }
+  if (!entered) return a;
+  if (runL < AVOID_MIN_M) return null;
+  const out: Agent = {
+    ...a,
+    path: new Float32Array(run),
+    length: runL,
+    offset: a.offset % runL,
+  };
+  // the slow zones still hold when the route starts at the path's start; else walk it unwarped
+  if (a.warp && startS === 0) out.warp = truncateWarp(a.warp, runL);
+  else delete out.warp;
+  return out;
+}
+
 /** The share of the peak-density plan shown at `density` x the day density. */
 export function flowShare(density: number): number {
   return Math.max(
@@ -154,6 +236,22 @@ export function flowShare(density: number): number {
     Math.min(1, (density * densityFor({ day: 1, dusk: 0, night: 0 })) / DENSITY_PEAK),
   );
 }
+
+/**
+ * A keep-out push changing by more than this between two drawn frames (m) hides the person for that
+ * frame: a safety net only, kept at the review-round threshold. Since the radial push at round
+ * joints (A4w) the push is continuous and the demo playback never trips it (crowdKeepOut.test.ts
+ * asserts 0 hides and a largest push step under this value).
+ */
+const PUSH_SNAP_M = 0.6;
+/**
+ * Keep-out counters for tests (crowdKeepOut.test.ts): frames hidden because the push jumped by more
+ * than PUSH_SNAP_M, and the largest push change between consecutive frames (m). Display only.
+ */
+export const keepOutStats = { snapHides: 0, maxPushStepM: 0 };
+
+/** Vehicle variants without a headlight: no night beam on the road (A2 kit: the bicycle). */
+const NO_BEAM: ReadonlySet<string> = new Set(["bicycle"]);
 
 /** Agents just outside the view still get matrices, so nothing pops in at the edge while panning. */
 const FRUSTUM_MARGIN_M = 50;
@@ -218,6 +316,8 @@ const KIND: Record<Agent["kind"], RoleKind> = { person: "person", vehicle: "vehi
 interface Bucket {
   mesh: THREE.InstancedMesh;
   pal: THREE.InstancedBufferAttribute[];
+  /** Per-instance opacity (demo polish A1: fading at a path end). */
+  fade: THREE.InstancedBufferAttribute;
   n: number;
 }
 interface Slot {
@@ -295,13 +395,29 @@ export function createMotionLayer(
   const materialFor = (kind: Agent["kind"]) => {
     let mt = materials.get(kind);
     if (!mt) {
-      mt = createRoleMaterial({ instanced: true, uniforms, motion, kind: KIND[kind] });
+      mt = createRoleMaterial({ instanced: true, uniforms, motion, kind: KIND[kind], fade: true });
       mt.transparent = true;
       materials.set(kind, mt);
     }
     return mt;
   };
   const wrappers: THREE.BufferGeometry[] = [];
+  // A3: the bokeh depth render draws each agent at its instance matrix and leaves out the faded
+  // ones (iFade < 0.5), as the colour pass does (one twin for every agent mesh)
+  const bokehDepth = bokehDepthMaterial();
+  bokehDepth.name = "tl_agent_depth";
+  bokehDepth.customProgramCacheKey = () => "tl_agent_depth";
+  bokehDepth.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace("void main() {", "attribute float iFade;\nvarying float vTlFade;\nvoid main() {")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvTlFade = iFade;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("void main() {", "varying float vTlFade;\nvoid main() {")
+      .replace(
+        "#include <alphatest_fragment>",
+        "if (vTlFade < 0.5) discard;\n#include <alphatest_fragment>",
+      );
+  };
 
   // Capacity per (kind, variant): every bucket of a variant can hold all its agents.
   const perVariant = new Map<string, number>();
@@ -334,6 +450,9 @@ export function createMotionLayer(
         return at;
       });
       for (const [i, at] of pal.entries()) geo.setAttribute(`iPal${i}`, at);
+      const fade = new THREE.InstancedBufferAttribute(new Float32Array(cap).fill(1), 1);
+      fade.setUsage(THREE.DynamicDrawUsage);
+      geo.setAttribute("iFade", fade);
       wrappers.push(geo);
       const mesh = new THREE.InstancedMesh(geo, materialFor(a.kind), cap);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -347,8 +466,9 @@ export function createMotionLayer(
       mesh.raycast = NOOP;
       mesh.userData.decorative = true;
       mesh.userData.lod = lod;
+      mesh.userData.bokehDepth = bokehDepth;
       group.add(mesh);
-      buckets[lod] = { mesh, pal, n: 0 };
+      buckets[lod] = { mesh, pal, fade, n: 0 };
     });
     const avail = buckets.flatMap((b, i) => (b ? [i] : []));
     const resolve = (vspec?.lods ?? []).map((_l, i) => {
@@ -473,6 +593,8 @@ export function createMotionLayer(
     return v;
   });
   const pose: Pose2 = { x: 0, z: 0, yaw: 0 };
+  /** A fading agent's opacity and lap this tick (fadeAt). */
+  const fo = { opacity: 1, lap: 0 };
   /** The poses of the pure facing (`yawAt`): now and the look-back. */
   const cur: Pose2 = { x: 0, z: 0, yaw: 0 };
   const back: Pose2 = { x: 0, z: 0, yaw: 0 };
@@ -482,21 +604,56 @@ export function createMotionLayer(
    * The keep-out (P8) on `pose` for a person: moves pose.x / z out of her zone; false when the
    * person must not be drawn this frame. Vehicles are untouched (they keep to the carriageway).
    */
-  const keepClear = (a: Agent, hero: HeroXZ | null): boolean => {
+  const keepClear = (a: Agent, hero: HeroXZ | null, t: number): boolean => {
     if (a.kind !== "person") return true;
     let mem = yawMemory.get(a.id);
+    // a respawned person is somewhere else: the side of her path it was held on no longer holds
+    // (an entry without a lap yet, made by the facing, adopts this one without a reset)
+    if (mem && mem.lap !== fo.lap) {
+      if (mem.lap !== undefined) {
+        if (mem.keep) mem.keep.side = undefined;
+        // and its last push belongs to the old spot
+        if (mem.push) mem.push.shown = false;
+      }
+      mem.lap = fo.lap;
+    }
     if (!hero) {
       if (mem?.keep) mem.keep.side = undefined;
       return true;
     }
     if (!mem) {
-      mem = { yaw: pose.yaw, at: Number.NaN };
+      // born on this lap: the next frame must not take it for a respawn (review minor)
+      mem = { yaw: pose.yaw, at: Number.NaN, lap: fo.lap };
       yawMemory.set(a.id, mem);
     }
     mem.keep ??= {};
     keepOut(pose.x, pose.z, hero, mem.keep, kept);
+    // The zone's push is continuous (crowdRules keepOut); a frame where it still jumps by over
+    // PUSH_SNAP_M is not drawn, the next one shows it settled (no visible snap). Counted for tests.
+    const dx = kept.x - pose.x;
+    const dz = kept.z - pose.z;
+    const prev = mem.push;
+    const shown = !kept.hidden;
+    // the jump against the last frame, when both are drawn and that frame is recent (a person the
+    // keep-out hid reappears where she is: that is not a jump anyone saw)
+    const step =
+      shown && prev?.shown && t > prev.t && t - prev.t < 0.25
+        ? Math.hypot(dx - prev.dx, dz - prev.dz)
+        : 0;
+    // mutate (no per-frame allocation)
+    if (prev) {
+      prev.dx = dx;
+      prev.dz = dz;
+      prev.t = t;
+      prev.shown = shown;
+    } else mem.push = { dx, dz, t, shown };
     pose.x = kept.x;
     pose.z = kept.z;
+    if (step > keepOutStats.maxPushStepM) keepOutStats.maxPushStepM = step;
+    if (step > PUSH_SNAP_M) {
+      keepOutStats.snapHides++;
+      return false;
+    }
     return !kept.hidden;
   };
 
@@ -509,6 +666,8 @@ export function createMotionLayer(
         yaw: pose.yaw,
         at: nowMs,
         ...(mem?.keep ? { keep: mem.keep } : {}),
+        ...(mem?.lap !== undefined ? { lap: mem.lap } : {}),
+        ...(mem?.push ? { push: mem.push } : {}),
       };
       yawMemory.set(id, fresh);
       return { yaw: pose.yaw, dt: 0, mem: fresh };
@@ -566,14 +725,20 @@ export function createMotionLayer(
       };
       for (const b of allBuckets) b.n = 0;
       lights?.begin();
+      const watch = uturnWatchOn();
+      if (watch) uturnTickBegin(t);
       for (const [si, s] of slots.entries()) {
         if (!densityShown(s.agent.id, shareOf(s.agent.kind))) continue;
         // a person whose path crosses the avoid zone walks the part before it (turning there)
         const ag = routeOf(s.agent);
         if (!ag) continue;
         poseAt(ag, t, pose);
+        const tangent = pose.yaw;
+        // A1: a fading agent at the very end / start of its lap is not drawn at all
+        const fade = fadeAt(ag, t, fo).opacity;
+        if (fade <= 0) continue;
         if (s.agent.kind === "vehicle" && flow?.avoidVehicles?.(pose.x, pose.z)) continue;
-        if (!keepClear(ag, hero)) continue;
+        if (!keepClear(ag, hero, t)) continue;
         // ITER2: no decorative vehicle by her route or between the camera and her, no person at the
         // camera's feet (whole agents, never half cut), while a journey hero is shown.
         if (
@@ -596,7 +761,22 @@ export function createMotionLayer(
         const k = scaleFor(s.agent.kind, d);
         _q.setFromAxisAngle(_y, yaw);
         b.mesh.setMatrixAt(b.n, _m.compose(_p, _q, _s.set(k, k, k)));
-        if (s.agent.kind === "vehicle") lights?.add(pose.x, pose.z, yaw, s.halfLengthM, k);
+        // night beams only while the car is mostly shown (no beam on a faded-out car); a bicycle
+        // has no headlight (A2 kit) and throws no car-sized beam (A4w)
+        if (s.agent.kind === "vehicle" && fade >= 0.5 && !NO_BEAM.has(s.agent.variant))
+          lights?.add(pose.x, pose.z, yaw, s.halfLengthM, k);
+        b.fade.setX(b.n, fade);
+        if (watch)
+          uturnSample(
+            ag.id,
+            ag.kind,
+            t,
+            pose.x,
+            pose.z,
+            tangent,
+            nearDeadEnd(ag.deadEnds, pose.x, pose.z),
+            fo.lap,
+          );
         const smp = slotSample[si];
         if (smp) {
           smp[0] = pose.x;
@@ -624,7 +804,10 @@ export function createMotionLayer(
           continue;
         }
         poseAt(ag, t, pose);
-        const clear = keepClear(ag, hero) && personClear(pose.x, pose.z, hero, camera);
+        const tangent = pose.yaw;
+        const fade = fadeAt(ag, t, fo).opacity;
+        const clear =
+          fade > 0 && keepClear(ag, hero, t) && personClear(pose.x, pose.z, hero, camera);
         const d = Math.hypot(pose.x - camera.x, camera.y, pose.z - camera.z);
         const raw = lodFor(d, crowdLods, s.raw);
         s.raw = raw;
@@ -661,10 +844,23 @@ export function createMotionLayer(
           clip.row + f.f0,
           clip.row + f.f1,
           f.t,
+          fade,
         );
+        if (watch)
+          uturnSample(
+            ag.id,
+            "person",
+            t,
+            pose.x,
+            pose.z,
+            tangent,
+            nearDeadEnd(ag.deadEnds, pose.x, pose.z),
+            fo.lap,
+          );
       }
       crowd?.commit();
       lights?.end();
+      if (watch) uturnTickEnd();
       for (const b of allBuckets) {
         const was = b.mesh.count;
         b.mesh.count = b.n;
@@ -672,6 +868,7 @@ export function createMotionLayer(
         if (b.n === 0 && was === 0) continue;
         markUsed(b.mesh.instanceMatrix, b.n);
         for (const a of b.pal) markUsed(a, b.n);
+        markUsed(b.fade, b.n);
       }
     },
     setOpacity(o) {
@@ -685,11 +882,12 @@ export function createMotionLayer(
       for (const g of wrappers) {
         // Detach the library's shared attributes first: dispose() would delete their GPU buffers.
         for (const name of Object.keys(g.attributes))
-          if (!name.startsWith("iPal")) g.deleteAttribute(name);
+          if (!name.startsWith("iPal") && name !== "iFade") g.deleteAttribute(name);
         g.setIndex(null);
         g.dispose();
       }
       for (const mt of materials.values()) mt.dispose();
+      bokehDepth.dispose();
       crowd?.dispose();
       lights?.dispose();
       group.clear();

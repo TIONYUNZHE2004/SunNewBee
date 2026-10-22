@@ -90,11 +90,21 @@ async def test_mcp_clients_cannot_store_free_text(server, monkeypatch):
     async with Client(server) as c:
         tools = {t.name: t for t in await c.list_tools()}
         assert "question_summary" not in tools["plan_route"].input_schema["properties"]
+        assert "question_summary" not in tools["compare_routes"].input_schema["properties"]
+        cmp = await c.call_tool(
+            "compare_routes", {"from_id": "park-b", "to_id": "toilet-1", "profile": "wheelchair"}
+        )
         await c.call_tool(
             "plan_route", {"from_id": "park-b", "to_id": "kiosk", "profile": "stroller"}
         )
     summaries = [v.question_summary for v in mcp_server._ctx().vrs.list(status="all")]
     assert summaries and all("->" in s for s in summaries)  # built from place names
+    vr_id = json.loads(cmp.content[0].text)["data"]["vr"]["id"]
+    assert (
+        mcp_server._ctx()
+        .vrs.get(vr_id)
+        .question_summary.startswith("wheelchair route Car Park B -> ")
+    )
 
     monkeypatch.setenv("MCP_ALLOW_VR", "true")
     monkeypatch.setattr(mcp_server, "vr_db", lambda site: ":memory:")

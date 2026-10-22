@@ -12,9 +12,10 @@ import {
   WORKERS,
 } from "./cast";
 import { along, distToLine, lengthOf, siteGeom } from "./geom";
+import { KIDS } from "./moveIn";
 import { stateAt } from "./state";
 
-const P = plan as DevelopmentPlan;
+const P = plan as unknown as DevelopmentPlan;
 const g = siteGeom(P, createFrame([101.5076, 3.1794]));
 const at = (t: number) => castAt(t, g, { workersActive: stateAt(t, P).workersActive });
 
@@ -92,9 +93,9 @@ describe("devsim cast script", () => {
     expect(day).toBeGreaterThan(0);
   });
 
-  it("slots are fixed: cast, kid, movers, workers", () => {
+  it("slots are fixed: cast, kid, movers, children, workers", () => {
     const s = castSlots(P);
-    expect(s).toHaveLength(P.cast.length + 1 + MOVERS + WORKERS);
+    expect(s).toHaveLength(P.cast.length + 1 + MOVERS + KIDS + WORKERS);
     const c = createCast({ plan: P, geom: g });
     c.update({ s: stateAt(19, P), t: 19, night: 0 });
     const n1 = c.people?.().length;

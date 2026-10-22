@@ -1,5 +1,7 @@
+import * as THREE from "three";
 import type { StateAt } from "../../../devsim/types";
 import type { Clearance, Vec3 } from "../clearance";
+import type { CameraDriver } from "../engine";
 import type { LocalFrame } from "../frame";
 import type { LightPreset } from "../lighting";
 import type { MoodSource, MoodWeights } from "../mood";
@@ -25,14 +27,50 @@ export function devsimMoodWeights(sun: StateAt["sun"]): MoodWeights {
  * evening and night so the lit windows, street lights, floodlights and the speakers read (Q3).
  * Display only.
  */
-export function devsimGrade(p: LightPreset, w: MoodWeights): LightPreset {
+export function devsimGrade(p: LightPreset, w: MoodWeights, wet = 0): LightPreset {
   const dark = w.night + 0.6 * w.dusk;
-  return {
+  const graded: LightPreset = {
     ...p,
     exposure: p.exposure * (1 - 0.45 * dark),
     hemiIntensity: p.hemiIntensity * (1 - 0.35 * dark),
     envIntensity: p.envIntensity * (1 - 0.6 * dark),
     groundGrade: p.groundGrade * (1 - 0.3 * w.night),
+  };
+  return wet > 0 ? rainGrade(graded, wet) : graded;
+}
+
+/** How far the monsoon rain greys the sky and fog (saturation kept) and darkens them. */
+const RAIN_DESAT = 0.8;
+const RAIN_DARKEN = 0.12;
+const _hsl = { h: 0, s: 0, l: 0 };
+const _c = new THREE.Color();
+const greyed = (hex: string, wet: number) => {
+  _c.set(hex).getHSL(_hsl);
+  _c.setHSL(_hsl.h, _hsl.s * (1 - RAIN_DESAT * wet), _hsl.l * (1 - RAIN_DARKEN * wet));
+  return `#${_c.getHexString()}`;
+};
+
+/**
+ * The monsoon set piece's grade (C9 step 5): the sky, background and fog turn toward grey at
+ * their own lightness (so night stays night: ruling in the C9 report), the sun weakens and the fog
+ * closes in a little. `wet` 0..1 (the set piece's rain level); 0 returns the preset unchanged.
+ */
+export function rainGrade(p: LightPreset, wet: number): LightPreset {
+  const k = Math.max(0, Math.min(1, wet));
+  if (k === 0) return p;
+  return {
+    ...p,
+    background: greyed(p.background, k),
+    skyTop: greyed(p.skyTop, k),
+    hemiSky: greyed(p.hemiSky, k),
+    sunIntensity: p.sunIntensity * (1 - 0.55 * k),
+    exposure: p.exposure * (1 - 0.08 * k),
+    fog: {
+      ...p.fog,
+      color: greyed(p.fog.color, k),
+      nearK: p.fog.nearK * (1 - 0.35 * k),
+      farK: p.fog.farK * (1 - 0.2 * k),
+    },
   };
 }
 
@@ -87,4 +125,226 @@ export function devsimCamera(
     if (inRing(pad, pos[0], pos[2])) pos[1] = Math.max(pos[1], towerTopM + TOWER_CLEAR_M);
   }
   return { position: [pos[0], pos[1], pos[2]], look, fovDeg: DEVSIM_FOV_DEG };
+}
+
+/**
+ * AO fades out over this camera range (m) in the devsim (C10p ruling): the wide beats (the 760 m
+ * opening, the 240-270 m construction beats, the 27-33 s move-in at 230-330 m) draw without the
+ * GTAO pass, which re-draws every opaque mesh for its normal buffer (~75-85 draws and ~0.9 M
+ * triangles there). The close beats (< 150 m: yard, Farid, the door, the queue, the park) keep it
+ * full. A fade over 50 m, so a fly in or out never pops (the 32 -> 34.6 s fly crosses it in ~0.4 s).
+ */
+export const DEVSIM_AO_FADE_M = [170, 220] as const;
+
+/** The devsim AO weight at a camera range: 1 up to 170 m, 0 from 220 m, smooth between. */
+export function devsimAoWeight(rangeM: number): number {
+  const [a, b] = DEVSIM_AO_FADE_M;
+  return 1 - ease(span(rangeM, a, b));
+}
+
+/**
+ * The camera's range from its target (m) in a frame state (the beat offset): the one range source
+ * for the devsim AO fade (`DevsimLayer.aoWeight`) and the small-prop shadows (`smallShadows`).
+ */
+export const cameraRangeM = (s: StateAt): number => Math.hypot(...s.camera.offset);
+
+/**
+ * Small devsim props (scaffold tubes, the crane's load, move-in boxes and cars) cast shadows only
+ * nearer than this (the AO cut-off): from farther their shadow is a pixel or two, and each caster is
+ * one more draw in the shadow pass of the wide beats (C10p, C10 review minor 1).
+ */
+export const DEVSIM_SMALL_SHADOW_M = DEVSIM_AO_FADE_M[1];
+
+/** Whether small devsim props cast shadows in this frame state. */
+export const smallShadows = (s: StateAt): boolean => cameraRangeM(s) < DEVSIM_SMALL_SHADOW_M;
+
+/**
+ * How strong the small props' shadows are in this frame state: 1 up to 170 m, 0 from 220 m (the
+ * AO fade band), so a fly in or out (the 66 s plan's 32 -> 34.6 s fly to the door) fades them in
+ * instead of popping them on at 220 m. They cast (`smallShadows`) exactly while this is above 0.
+ */
+export const smallShadowWeight = (s: StateAt): number => devsimAoWeight(cameraRangeM(s));
+
+/** A small-prop shadow fader: the casters' shadow-map depth material, thinned by alpha hash. */
+export interface ShadowFade {
+  /** Gives the mesh the fading shadow depth material (the sun's shadow map draws it with this). */
+  attach(mesh: THREE.Mesh): void;
+  /** Sets every attached caster's shadow for the frame state: cast while > 0, density = weight. */
+  set(s: StateAt): void;
+  /** The weight last set (tests, demo hook). */
+  weight(): number;
+  dispose(): void;
+}
+
+/**
+ * Pure-ish (three objects only): the small-prop shadow fade (V2 polish). Shadows are on or off per
+ * caster, so the fade thins the caster in the shadow pass instead: a basic-packed depth material
+ * (the one three's shadow map uses) with `alphaHash` at opacity = weight discards a weight-sized
+ * share of its fragments, and the soft shadow filter turns that into a lighter shadow. One program
+ * (uniform opacity, no recompile while it fades); the engine's shadow warm-up compiles it with the
+ * casters (`customDepthMaterial`).
+ */
+export function createShadowFade(): ShadowFade {
+  const flip: Record<number, THREE.Side> = {
+    [THREE.FrontSide]: THREE.BackSide,
+    [THREE.BackSide]: THREE.FrontSide,
+    [THREE.DoubleSide]: THREE.DoubleSide,
+  };
+  const bySide = new Map<THREE.Side, THREE.MeshDepthMaterial>();
+  const meshes: THREE.Mesh[] = [];
+  let w = 1;
+  const forSide = (side: THREE.Side) => {
+    let d = bySide.get(side);
+    if (!d) {
+      d = new THREE.MeshDepthMaterial({
+        depthPacking: THREE.BasicDepthPacking,
+        side,
+        alphaHash: true,
+        opacity: w,
+      });
+      d.name = "devsim-shadow-fade";
+      bySide.set(side, d);
+    }
+    return d;
+  };
+  return {
+    attach(mesh) {
+      const m = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+      const side = m?.shadowSide ?? flip[m?.side ?? THREE.FrontSide] ?? THREE.BackSide;
+      mesh.customDepthMaterial = forSide(side);
+      meshes.push(mesh);
+    },
+    set(s) {
+      w = smallShadowWeight(s);
+      const on = w > 0;
+      for (const d of bySide.values()) d.opacity = w;
+      for (const m of meshes) m.castShadow = on;
+    },
+    weight: () => w,
+    dispose() {
+      for (const d of bySide.values()) d.dispose();
+      bySide.clear();
+      meshes.length = 0;
+    },
+  };
+}
+
+/**
+ * The devsim camera driver (C10p): the beat pose at the layer's frame state, flagged `animating`
+ * only while the playback plays, so the engine schedules its own next frame then (without it every
+ * playback frame was a one-off request the engine counted as idle) and goes idle again at a pause
+ * or at the end (the store stops playing at `total_s`).
+ */
+export function devsimCameraDriver(o: {
+  state: () => StateAt | null;
+  pose: (s: StateAt) => DevsimCameraPose;
+  playing: () => boolean;
+  /** The view offset that frames the beat's subject in the clear map area (`framingOffset`). */
+  frame?: (s: StateAt, pose: DevsimCameraPose, now: number) => readonly [number, number] | null;
+}): CameraDriver {
+  return (now) => {
+    const st = o.state();
+    if (!st) return null;
+    const pose = o.pose(st);
+    const off = o.frame?.(st, pose, now) ?? null;
+    const out = off ? { ...pose, viewOffset: off } : pose;
+    return o.playing() ? { ...out, animating: true } : out;
+  };
+}
+
+/** A CSS px rectangle of the map stage (the clear area). */
+export interface ScreenRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** The site is kept this share of the clear area's size inside its edges (V2 fix B-a). */
+export const FRAME_INSET = 0.15;
+
+const _cam = new THREE.PerspectiveCamera();
+const _v = new THREE.Vector3();
+
+/** Pure-ish (a scratch camera): `p` projected by `pose` in a `size` view without a view offset. */
+export function projectPose(
+  pose: DevsimCameraPose,
+  size: readonly [number, number],
+  p: readonly [number, number, number],
+): [number, number] | null {
+  _cam.fov = pose.fovDeg;
+  _cam.aspect = size[0] / Math.max(1, size[1]);
+  _cam.near = 1;
+  _cam.far = 30000;
+  _cam.clearViewOffset();
+  _cam.updateProjectionMatrix();
+  _cam.position.set(...pose.position);
+  _cam.lookAt(pose.look[0], pose.look[1], pose.look[2]);
+  _cam.updateMatrixWorld(true);
+  _v.set(p[0], p[1], p[2]).applyMatrix4(_cam.matrixWorldInverse);
+  if (_v.z >= 0) return null;
+  _v.applyMatrix4(_cam.projectionMatrix);
+  return [((_v.x + 1) / 2) * size[0], ((1 - _v.y) / 2) * size[1]];
+}
+
+/**
+ * The view offset (CSS px, `DrivenCamera.viewOffset`) that frames a devsim camera beat's subject in
+ * the map area the overlays leave clear (V2 fix B-a): the beat's look point and, by `siteWeight`
+ * (`cameraSiteWeight`), the site, are centred in `clear` (their midpoint for a beat aimed between
+ * the site and someone), and the site is then pulled inside the clear area's inner part (inset by
+ * FRAME_INSET), so neither the hoarded site nor the tower is drawn under an overlay. Null without a
+ * clear area (no offset: the panel's applies).
+ */
+export function framingOffset(o: {
+  pose: DevsimCameraPose;
+  size: readonly [number, number];
+  clear: ScreenRect | null;
+  site: readonly [number, number, number];
+  siteWeight: number;
+}): [number, number] | null {
+  const { pose, size, clear } = o;
+  if (!clear || clear.w <= 0 || clear.h <= 0) return null;
+  const w = Math.max(0, Math.min(1, o.siteWeight));
+  const look: [number, number] = [size[0] / 2, size[1] / 2];
+  const s = w > 0 ? projectPose(pose, size, o.site) : null;
+  const k = s ? w / 2 : 0;
+  const f: [number, number] = s
+    ? [look[0] + (s[0] - look[0]) * k, look[1] + (s[1] - look[1]) * k]
+    : look;
+  const cx = clear.x + clear.w / 2;
+  const cy = clear.y + clear.h / 2;
+  let dx = f[0] - cx;
+  let dy = f[1] - cy;
+  if (s) {
+    // the site after the shift, pulled into the inner clear area (weighted, so it never jumps)
+    const ix = clear.w * FRAME_INSET;
+    const iy = clear.h * FRAME_INSET;
+    const pull = (v: number, lo: number, hi: number) => (v < lo ? v - lo : v > hi ? v - hi : 0);
+    dx += w * pull(s[0] - dx, clear.x + ix, clear.x + clear.w - ix);
+    dy += w * pull(s[1] - dy, clear.y + iy, clear.y + clear.h - iy);
+  }
+  return [dx, dy];
+}
+
+/**
+ * A clear area that glides (V2 fix B-a): while the playback plays, a new clear area (a card shows
+ * or goes) is eased toward over CLEAR_GLIDE_MS of wall time, so the camera framing never pops;
+ * paused or seeking, it snaps (a seek draws the same frame at any history).
+ */
+export const CLEAR_GLIDE_MS = 350;
+
+export function glideRect(
+  prev: ScreenRect | null,
+  next: ScreenRect | null,
+  dtMs: number,
+  playing: boolean,
+): ScreenRect | null {
+  if (!next || !prev || !playing || !(dtMs > 0)) return next ? { ...next } : null;
+  const k = 1 - Math.exp(-dtMs / CLEAR_GLIDE_MS);
+  return {
+    x: prev.x + (next.x - prev.x) * k,
+    y: prev.y + (next.y - prev.y) * k,
+    w: prev.w + (next.w - prev.w) * k,
+    h: prev.h + (next.h - prev.h) * k,
+  };
 }

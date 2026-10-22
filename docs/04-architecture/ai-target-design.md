@@ -54,7 +54,7 @@ Rule of thumb: **change the runbook (prompt) or add show commands (tools) before
 
 | Item | Planned in the design docs | Built on `main` |
 |---|---|---|
-| 10 tools + forced `final_answer` | Yes | ✅ |
+| 22 tools + forced `final_answer` | Yes | ✅ |
 | Validator + 2 retries + template fallback | Yes | ✅ English only |
 | Mock model for CI | Yes | ✅ English only |
 | Golden set | ~200 items across slices, including 80 multilingual ([evaluation-plan § 2](../03-product/evaluation-plan.md)) | ⚠️ 13 items, mock only |

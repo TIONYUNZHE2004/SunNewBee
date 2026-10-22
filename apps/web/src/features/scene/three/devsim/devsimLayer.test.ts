@@ -1,13 +1,22 @@
 import * as THREE from "three";
 import { afterEach, describe, expect, it } from "vitest";
 import { useDevsimAnchors } from "../../../devsim/anchors";
+import elmina from "../../../devsim/fixtures/plan.elmina.json";
 import plan from "../../../devsim/fixtures/plan.provisional.json";
+import { BUILD_CAM_KEYS } from "../../../devsim/timeline";
 import type { DevelopmentPlan } from "../../../devsim/types";
 import { createFrame } from "../frame";
-import { createDevsimLayer, type DevsimPart, labelFits, type TowerPart } from "./devsimLayer";
+import {
+  buildSubjectAt,
+  buildSubjectBreaks,
+  createDevsimLayer,
+  type DevsimPart,
+  labelFits,
+  type TowerPart,
+} from "./devsimLayer";
 import { stateAt } from "./state";
 
-const P = plan as DevelopmentPlan;
+const P = plan as unknown as DevelopmentPlan;
 const frame = createFrame([P.site.footprint[0]?.[0] as number, P.site.footprint[0]?.[1] as number]);
 
 function cameraAt(pos: [number, number, number], look: [number, number, number]) {
@@ -136,5 +145,61 @@ describe("createDevsimLayer", () => {
     expect(a.rects?.tower).toBeDefined();
     expect(l.probe()).toEqual(a);
     l.dispose();
+  });
+
+  it("publishes one anchor per speaker when two bubbles overlap (Zainab and Arjun at 36.5–37 s)", () => {
+    const B = elmina as unknown as DevelopmentPlan;
+    const l = createDevsimLayer({ plan: B, frame });
+    const [cx, cz] = l.geom.centre;
+    const at: Record<string, [number, number]> = {
+      zainab: [cx - 20, cz],
+      arjun: [cx + 20, cz],
+      halim: [cx, cz + 25],
+    };
+    l.add({
+      group: new THREE.Group(),
+      update() {},
+      personBox: (id) => (at[id] ? { x: at[id][0], z: at[id][1], h: 1.7 } : null),
+      dispose() {},
+    });
+    l.setT(36.7);
+    expect(l.state()?.bubbles.map((b) => b.who)).toEqual(["zainab", "arjun"]);
+    l.beforeRender(cameraAt([cx, 60, cz + 120], [cx, 0, cz]), [1440, 900], 0);
+    const a = useDevsimAnchors.getState();
+    expect(a.speakers.map((s) => s.id)).toEqual(["zainab", "arjun"]);
+    const [z, r] = a.speakers;
+    expect(z?.rect).toEqual(a.speaker);
+    // each rect is its own speaker's: Zainab left of Arjun on screen
+    expect((z?.rect.x ?? 0) + (z?.rect.w ?? 0)).toBeLessThan(r?.rect.x ?? 0);
+    // a speaker is not also a listener; Halim (not speaking) is
+    expect(a.others.map((o) => o.id)).toEqual(["halim"]);
+    l.dispose();
+    expect(useDevsimAnchors.getState().speakers).toEqual([]);
+  });
+});
+
+describe("buildSubject (45 s plan beat subjects)", () => {
+  it("derives its beat breaks from BUILD_CAM_KEYS", () => {
+    expect(buildSubjectBreaks()).toEqual([
+      { t: 0, subject: "site" },
+      { t: 3.4, subject: "halim" },
+      { t: 10.4, subject: "tower" },
+      { t: 13.6, subject: "farid" },
+      { t: 17, subject: "tower" },
+      { t: 28.2, subject: "door" },
+      { t: 33, subject: "tower" },
+    ]);
+    expect(buildSubjectBreaks(BUILD_CAM_KEYS)).toEqual(buildSubjectBreaks());
+  });
+
+  it("moves with the camera keys", () => {
+    const moved = BUILD_CAM_KEYS.map((k) => (k.t === 13.6 ? { ...k, t: 14.2 } : k));
+    const br = buildSubjectBreaks(moved);
+    expect(buildSubjectAt(13.9, br)).toBe("tower");
+    expect(buildSubjectAt(14.2, br)).toBe("farid");
+    expect(buildSubjectAt(3.39)).toBe("site");
+    expect(buildSubjectAt(3.4)).toBe("halim");
+    expect(buildSubjectAt(32.99)).toBe("door");
+    expect(buildSubjectAt(45)).toBe("tower");
   });
 });

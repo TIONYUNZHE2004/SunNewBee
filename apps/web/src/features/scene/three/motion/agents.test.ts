@@ -18,6 +18,7 @@ import {
   slerpAngle,
   smoothYaw,
   TURN_S,
+  WANDER_M,
   YAW_TAU_S,
 } from "./agents";
 
@@ -249,19 +250,21 @@ describe("planAgents", () => {
     expect(share("clinic")).toBeLessThan(0.62);
   });
 
-  it("each agent's path is a chunk of at most AGENT_CHUNK_M owned by its midpoint", () => {
+  it("each agent starts on a chunk owned by its midpoint and walks near it (A1: WANDER_M)", () => {
     const box: Box = { x0: -150, z0: -150, x1: 150, z1: 150 };
     const agents = plan({ area: { box, seed: "t" }, caps: { vehicles: 1e6, people: 1e6 } });
     expect(agents.length).toBeGreaterThan(5);
-    const m = AGENT_CHUNK_M / 2 + 3; // half a chunk past the box, plus the lane offset
+    const start = AGENT_CHUNK_M / 2 + 7; // half a chunk past the box, plus the lane / pavement offset
+    // Demo polish A1 (was: "a chunk of at most AGENT_CHUNK_M"): the walk goes on edge by edge while
+    // each next node lies within WANDER_M of the chunk; the first edge is walked to its end.
+    const reach = WANDER_M + AGENT_CHUNK_M + 10;
     for (const a of agents) {
-      // A vehicle drives its chunk out and back (ruling P4-O): two legs plus two lane-change
-      // U-turns of at most 2 x 2.5 m each (major road, quarter of 10 m either side).
-      if (a.kind === "vehicle") expect(a.length).toBeLessThanOrEqual(2 * (AGENT_CHUNK_M + 1) + 10);
-      else expect(a.length).toBeLessThanOrEqual(AGENT_CHUNK_M + 1);
+      expect(a.ends).toBe("fade");
+      expect(a.path[0]! >= box.x0 - start && a.path[0]! <= box.x1 + start).toBe(true);
+      expect(a.path[1]! >= box.z0 - start && a.path[1]! <= box.z1 + start).toBe(true);
       for (let i = 0; i < a.path.length; i += 2) {
-        expect(a.path[i]! >= box.x0 - m && a.path[i]! <= box.x1 + m).toBe(true);
-        expect(a.path[i + 1]! >= box.z0 - m && a.path[i + 1]! <= box.z1 + m).toBe(true);
+        expect(a.path[i]! >= box.x0 - reach && a.path[i]! <= box.x1 + reach).toBe(true);
+        expect(a.path[i + 1]! >= box.z0 - reach && a.path[i + 1]! <= box.z1 + reach).toBe(true);
       }
     }
   });
@@ -318,18 +321,16 @@ describe("planAgents per tile box", () => {
   });
 });
 
-describe("planAgents vehicles loop out and back on their own lane (ruling P4-O)", () => {
-  it("every vehicle path is closed (first point within CLOSED_LOOP_M of the last); people stay open", () => {
+describe("planAgents vehicles keep their own lane (ruling P4-O; demo polish A1)", () => {
+  it("planned paths fade at their ends (no closed out-and-back loop): poseAt never reverses them", () => {
+    // Demo polish A1 (was: "every vehicle path is closed"): the out-and-back loop U-turned mid-road.
     const agents = plan({ caps: { vehicles: 1e6, people: 1e6 } });
-    const cars = ofKind(agents, "vehicle");
-    expect(cars.length).toBeGreaterThan(5);
-    for (const a of cars) {
+    expect(ofKind(agents, "vehicle").length).toBeGreaterThan(5);
+    for (const a of agents) {
+      expect(a.ends).toBe("fade");
       const n = a.path.length;
-      const gap = Math.hypot(a.path[n - 2]! - a.path[0]!, a.path[n - 1]! - a.path[1]!);
-      expect(gap).toBeLessThanOrEqual(CLOSED_LOOP_M);
-    }
-    for (const a of ofKind(agents, "person")) {
-      const n = a.path.length;
+      // the fixture's lines are dead ends: a path turns back only on a half circle round one, so its
+      // ends are apart
       expect(Math.hypot(a.path[n - 2]! - a.path[0]!, a.path[n - 1]! - a.path[1]!)).toBeGreaterThan(
         CLOSED_LOOP_M,
       );

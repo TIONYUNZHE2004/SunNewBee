@@ -1,12 +1,16 @@
-import { DevsimHud } from "../../devsim/DevsimHud";
+import { BuildBanner, HoardingCard, TimedTagCard } from "../../devsim/BuildCards";
+import { bannersAt, hoardingCardOn, hudAt, tagsAt } from "../../devsim/buildModel";
+import { EstimateHud, MoveInCounter } from "../../devsim/DevsimHud";
 import { DevsimStatusNotice } from "../../devsim/DevsimStatus";
 import { useDevsim } from "../../devsim/devsimStore";
-import { EndCard } from "../../devsim/EndCard";
 import { HypotheticalLabel } from "../../devsim/HypotheticalLabel";
+import { ImpactBrief } from "../../devsim/ImpactBrief";
 import { PlaybackBar } from "../../devsim/PlaybackBar";
 import { RouteTag } from "../../devsim/RouteTag";
+import { ResidentsLayer } from "../../devsim/residents/ResidentsLayer";
+import { ScheduleBar } from "../../devsim/ScheduleBar";
 import { SimBadge } from "../../devsim/SimBadge";
-import { stateAt } from "../../devsim/timeline";
+import { isBuildPlan, stateAt } from "../../devsim/timeline";
 import { useDevsimDriver } from "../../devsim/useDevsimDriver";
 import { useScene } from "../sceneStore";
 import { devsimListModel } from "./devsimListModel";
@@ -19,12 +23,14 @@ const ACT_DOT: Record<string, string> = {
 
 /**
  * Development Simulation, text version (List view / no WebGL, spec §5.3, AC-H6): the labels, the
- * HUD and player, the acts, the bubbles as quotes with speaker and tag, and the end card.
+ * estimate HUD, schedule bar and player, the acts, the banners, cards and tags on now, the bubbles
+ * as quotes with speaker and tag, and from 33 s the simulated residents and the Impact Brief.
  */
 export function DevsimListSection() {
   useDevsimDriver();
   const plan = useDevsim((s) => s.plan);
   const t = useDevsim((s) => s.t);
+  const playing = useDevsim((s) => s.playing);
   const status = useDevsim((s) => s.status);
   if (status === "idle") return null;
   if (!plan)
@@ -39,6 +45,12 @@ export function DevsimListSection() {
     );
   const st = stateAt(t, plan);
   const { acts, quotes } = devsimListModel(plan, t);
+  // only the 45 s building plan has a schedule, brief and banners (a legacy plan plays bare)
+  const build = isBuildPlan(plan);
+  const hud = build ? hudAt(plan, t) : null;
+  const banners = build ? bannersAt(plan, t) : [];
+  const tags = build ? tagsAt(plan, t) : [];
+  const card = build && hoardingCardOn(plan, t);
   return (
     <section
       aria-labelledby="devsim-h"
@@ -52,7 +64,9 @@ export function DevsimListSection() {
         <SimBadge text={plan.labels.simulation} />
         <HypotheticalLabel text={plan.labels.hypothetical} />
       </div>
-      <DevsimHud state={st} />
+      {hud && <EstimateHud schedule={plan.schedule} at={hud.at} sources={plan.estimate_sources} />}
+      {hud?.moveIn && <MoveInCounter n={hud.moveIn.n} homes={hud.moveIn.homes} />}
+      {hud && <ScheduleBar schedule={plan.schedule} month={hud.month} />}
       <PlaybackBar onClose={() => useScene.getState().stopDevsim()} />
       <ol aria-label="Acts" className="m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0">
         {acts.map((a) => (
@@ -67,6 +81,17 @@ export function DevsimListSection() {
           </li>
         ))}
       </ol>
+      {(banners.length > 0 || tags.length > 0 || card) && (
+        <div className="flex flex-wrap items-start gap-2">
+          {banners.map((b) => (
+            <BuildBanner key={b.kind} banner={b} plan={plan} />
+          ))}
+          {card && <HoardingCard plan={plan} />}
+          {tags.map((g) => (
+            <TimedTagCard key={g.kind} tag={g} />
+          ))}
+        </div>
+      )}
       <div>
         <h3 className="m-0 text-base font-semibold">Simulated reactions</h3>
         <ol className="mt-2 space-y-2 p-0">
@@ -95,7 +120,8 @@ export function DevsimListSection() {
           ))}
         </ol>
       </div>
-      {st.endCard && <EndCard card={plan.end_card} inline />}
+      {build && st.brief && <ResidentsLayer data={plan.residents} t={t} playing={playing} />}
+      {build && st.brief && <ImpactBrief plan={plan} inline />}
     </section>
   );
 }

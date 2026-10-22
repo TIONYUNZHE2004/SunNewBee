@@ -1,14 +1,57 @@
 import * as THREE from "three";
 import { useDevsimAnchors } from "../../../devsim/anchors";
+import { BUILD_CAM_KEYS, type CamKey } from "../../../devsim/timeline";
 import type { DevelopmentPlan, Probe, Rect, StateAt } from "../../../devsim/types";
 import { setTreeCut } from "../assets/treeCut";
 import type { Clearance } from "../clearance";
 import type { DevsimOverlay } from "../engine";
 import type { LocalFrame } from "../frame";
+import { cameraRangeM, devsimAoWeight } from "./devsimView";
 import { dayness } from "./ease";
 import { inRing, type SiteGeom, siteGeom, TOWER_STOREY_M } from "./geom";
 import { onStage, screenRect, toScreen } from "./project";
+import { craneAt, moveInAoKeep, type SetPiecesAt, setPiecesAt, setPieceTiming } from "./setPieces";
 import { stateAt } from "./state";
+
+/** The subject of a 45 s plan camera beat (`buildSubject`). */
+export type BuildSubject = "site" | "halim" | "tower" | "farid" | "door";
+
+/**
+ * Pure: the 45 s plan's beat subjects from its camera keys (`BUILD_CAM_KEYS`), as the times each
+ * subject starts: the opening key frames the site's ground, a key aimed at Halim's mid point is
+ * Halim, Farid's is Farid, a key `path` metres out from the door is the door, any other is the
+ * tower. One source with the camera, so a key moved in `timeline.ts` moves the subject too.
+ */
+export function buildSubjectBreaks(
+  keys: readonly CamKey[] = BUILD_CAM_KEYS,
+): { t: number; subject: BuildSubject }[] {
+  const kind = (k: CamKey, i: number): BuildSubject => {
+    if (i === 0) return "site";
+    const a = k.targetAnchor;
+    if (typeof a === "string")
+      return a === "farid" ? "farid" : a === "halimMid" ? "halim" : "tower";
+    if ("path" in a) return "door";
+    return a.lerp.includes("halimMid") ? "halim" : a.lerp.includes("farid") ? "farid" : "tower";
+  };
+  const out: { t: number; subject: BuildSubject }[] = [];
+  keys.forEach((k, i) => {
+    const subject = kind(k, i);
+    if (out.at(-1)?.subject !== subject) out.push({ t: k.t, subject });
+  });
+  return out;
+}
+
+/** Pure: the subject at screen time t (the last break at or before t). */
+export function buildSubjectAt(
+  t: number,
+  breaks: readonly { t: number; subject: BuildSubject }[] = BUILD_SUBJECT_BREAKS,
+): BuildSubject {
+  let sub: BuildSubject = breaks[0]?.subject ?? "site";
+  for (const b of breaks) if (t >= b.t) sub = b.subject;
+  return sub;
+}
+
+const BUILD_SUBJECT_BREAKS = buildSubjectBreaks();
 
 /** Everything a part needs for one frame. */
 export interface DevsimFrame {
@@ -17,6 +60,8 @@ export interface DevsimFrame {
   t: number;
   /** 0 by day, 1 at night (from the sun elevation). */
   night: number;
+  /** Construction set pieces at t (`setPieces.ts`); the layer always sets it, tests may leave it out. */
+  sp?: SetPiecesAt;
 }
 
 /** A piece of the devsim scene (tower, site kit, cast): posed from the frame state. */
@@ -33,6 +78,8 @@ export interface DevsimPart {
   aoExcluded?(): readonly THREE.Object3D[];
   /** Per-frame screen work (name tags). */
   project?(camera: THREE.Camera, size: readonly [number, number]): void;
+  /** Fields for `window.__tl.demo.state()` ("bld"; spec §7, AC-W3/W4). */
+  demoState?(): object;
   dispose(): void;
 }
 
@@ -57,6 +104,8 @@ export interface DevsimLayer extends DevsimOverlay {
   towerTopM(): number;
   /** The scene part of `window.__devsim.probe()`. */
   probe(): SceneProbe;
+  /** Every part's demo-hook fields merged (`registerDemoState("bld", …)`). */
+  demoState(): Record<string, unknown>;
 }
 
 export interface DevsimLayerOpts {
@@ -117,6 +166,8 @@ export function labelFits(p: [number, number] | null, size: readonly [number, nu
  */
 export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
   const geom = siteGeom(o.plan, o.frame, o.closedEdge, o.roads);
+  // warm the per-plan set piece tables (crane slew) now, not on the first played frame
+  craneAt(o.plan, 0);
   const group = new THREE.Group();
   group.name = "devsim";
   group.userData.decorative = true;
@@ -131,6 +182,8 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
   let renderedT = Number.NaN;
   let lastTower: Rect | null = null;
   let lastSpeaker: Rect | null = null;
+  let lastWho: string | null = null;
+  let lastHeadOnStage = false;
   // the footprint's corners at the ground and the top (tops updated in place)
   const corners: [number, number, number][] = geom.ring.flatMap(
     ([x, z]): [number, number, number][] => [
@@ -170,9 +223,35 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
   const onStageOrNull = (p: [number, number] | null, size: readonly [number, number]) =>
     onStage(p, size) ? p : null;
 
+  /**
+   * Instanced meshes with no instances still cost a draw call per pass (C10p): hidden for the
+   * render, and shown again before parts pose the next frame, so a part's own `visible` is kept.
+   */
+  const emptyHidden: THREE.Object3D[] = [];
+  const restoreEmpty = () => {
+    for (const m of emptyHidden) m.visible = true;
+    emptyHidden.length = 0;
+  };
+  const hideEmpty = (root: THREE.Object3D) => {
+    if (!root.visible) return;
+    const m = root as THREE.InstancedMesh;
+    if (m.isInstancedMesh && m.count === 0) {
+      m.visible = false;
+      emptyHidden.push(m);
+      return;
+    }
+    for (const c of root.children) hideEmpty(c);
+  };
+
   const apply = () => {
     if (!s) return;
-    const f: DevsimFrame = { s, t, night: 1 - dayness(s.sun.elevation) };
+    restoreEmpty();
+    const f: DevsimFrame = {
+      s,
+      t,
+      night: 1 - dayness(s.sun.elevation),
+      sp: setPiecesAt(o.plan, t, s),
+    };
     for (const p of parts) p.update(f);
   };
 
@@ -192,14 +271,43 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
     }
     return null;
   };
+  const door: [number, number, number] = [
+    geom.door[0] + geom.out[0] * 5,
+    1.5,
+    geom.door[1] + geom.out[1] * 5,
+  ];
+  /**
+   * The 45 s plan's beat subject (`timeline.ts` BUILD_CAM_KEYS): the site, Halim on the detour,
+   * the tower (lorry route, Raya hold), Farid, the tower again (monsoon, the worker beside it,
+   * topping out), the door for the move-in, and the tower in the Daily Life wide shot.
+   */
+  const buildSubject = (
+    tt: number,
+    towerMid: [number, number, number],
+  ): [number, number, number] => {
+    switch (buildSubjectAt(tt)) {
+      case "site":
+        return [geom.centre[0], 0, geom.centre[1]];
+      case "halim":
+        return personAt("halim") ?? towerMid;
+      case "farid":
+        return personAt("farid") ?? [geom.farid[0], 1, geom.farid[1]];
+      case "door":
+        return door;
+      default:
+        return towerMid;
+    }
+  };
   /**
    * The world centre of the spec §4.4 subject of the camera beat at t (QA lane request: probe
    * `subject`): site, yard, tower, Halim, Farid, entrance, Mei Ling at the junction, Zainab, Arjun,
    * and the tower again for the wide shots.
    */
+  const build = setPieceTiming(o.plan).mode === "schedule";
   const subjectWorld = (tt: number): [number, number, number] | null => {
     const top = Math.max(tower?.topM() ?? 0, TOWER_STOREY_M);
     const towerMid: [number, number, number] = [geom.centre[0], top / 2, geom.centre[1]];
+    if (build) return buildSubject(tt, towerMid);
     if (tt < 3.6) return [geom.centre[0], 0, geom.centre[1]];
     // the yard's work area: the crew between the stacks (30 m behind the tower) and its foot
     if (tt < 10.4) return [geom.centre[0] - geom.out[0] * 18, 3, geom.centre[1] - geom.out[1] * 18];
@@ -253,6 +361,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
     },
     beforeRender(camera, size) {
       if (disposed || !s) return;
+      restoreEmpty();
       for (const p of parts) p.project?.(camera, size);
       const top = tower?.topM() ?? 0;
       if (top > 0) for (const c of corners) if (c[1] !== 0) c[1] = top;
@@ -264,6 +373,9 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       let head: [number, number] | null = null;
       let chest: [number, number, number] | null = null;
       const others: { id: string; rect: Rect; head: [number, number] }[] = [];
+      // every speaker of a bubble shown now, so each bubble anchors at its own speaker
+      const speaking = new Set(s.bubbles.map((x) => x.who));
+      const speakers: { id: string; rect: Rect; head: [number, number] | null }[] = [];
       for (const c of o.plan.cast) {
         for (const p of parts) {
           const b = p.personBox?.(c.id);
@@ -279,6 +391,9 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
             speaker = rect;
             head = hp;
             chest = [b.x, b.h * 0.6, b.z];
+          }
+          if (speaking.has(c.id)) {
+            if (rect) speakers.push({ id: c.id, rect, head: hp });
           } else if (rect && hp && onStage(hp, size)) others.push({ id: c.id, rect, head: hp });
           break;
         }
@@ -293,6 +408,7 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
           towerTop: shownTop,
           speaker,
           speakerHead: speaker ? head : null,
+          speakers,
           labelPoint: labelFits(topPt, size) ? topPt : null,
           siteLabel: t < SITE_LABEL_UNTIL ? onStageOrNull(siteCentre(camera, size), size) : null,
           others,
@@ -307,8 +423,26 @@ export function createDevsimLayer(o: DevsimLayerOpts): DevsimLayer {
       renderedT = t;
       lastTower = towerRect;
       lastSpeaker = speaker;
+      lastWho = who;
+      lastHeadOnStage = !!speaker && onStage(head, size);
+      hideEmpty(group);
     },
     aoExcluded: () => parts.flatMap((p) => p.aoExcluded?.() ?? []),
+    // One range source (C10p review minor): the beat camera's range, the same number the
+    // small-prop shadows switch on (`smallShadows`), so both change on the same frame; the
+    // engine's measured range only before the first frame state. Off through the 45 s move-in
+    // (AC-P2, `SET_PIECE_S.moveInAoOff`).
+    aoWeight: (rangeM) =>
+      devsimAoWeight(s ? cameraRangeM(s) : rangeM) * moveInAoKeep(setPieceTiming(o.plan), t),
+    demoState() {
+      const out: Record<string, unknown> = {};
+      for (const p of parts) if (p.demoState) Object.assign(out, p.demoState());
+      // the bubble's speaker in the last rendered frame: drawn (anchored bubble) and head on stage
+      out.speaker = lastWho
+        ? { who: lastWho, anchored: !!lastSpeaker, headOnStage: lastHeadOnStage }
+        : null;
+      return out;
+    },
     probe() {
       if (!seen || !s) return {};
       // One entry per agent in a stable order (index i is the same agent in every frame); an agent

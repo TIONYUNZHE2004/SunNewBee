@@ -3,6 +3,7 @@ import { useClosures, useLayer, useRoadLabels, useScenarios } from "../../../lib
 import { FloodImpactList } from "../../flood/FloodImpact";
 import { GapsLensSection } from "../../gaps/GapsSection";
 import { gapsApplicable } from "../../gaps/gapModel";
+import { CompareListSection } from "../../journey/compare/CompareListSection";
 import { useJourney } from "../../journey/journeyStore";
 import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
@@ -156,6 +157,7 @@ export function ListView() {
       </section>
 
       {journey && <JourneyStepList plan={journey} />}
+      <CompareListSection />
 
       <DayListSection />
       <MyTripListSection />

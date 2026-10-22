@@ -57,7 +57,7 @@ const road = (id: string, kind: Agent["kind"], z = 0): Agent => ({
 const layerOf = (agents: Agent[]) =>
   createMotionLayer(agents, lib(), manifest(), createRoleUniforms(), createMotionUniforms(), {});
 const camera = new THREE.Vector3(0, 50, 0);
-const P = plan as DevelopmentPlan;
+const P = plan as unknown as DevelopmentPlan;
 
 describe("motion flow input", () => {
   it("timeScale 8 moves agents 8x per second on the motion clock", () => {

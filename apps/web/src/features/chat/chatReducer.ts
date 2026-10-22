@@ -1,6 +1,7 @@
 import type { ChatEvent, components } from "@tl/api-client";
 import type { ClosureImpact, MarathonResult } from "../closures/closureSimModel";
 import type { TripMeta } from "../day/tripModel";
+import { asCompareIntent, type CompareIntent } from "../journey/compareTypes";
 import type { JourneyPlan } from "../journey/timeline";
 
 export type Citation = components["schemas"]["Citation"];
@@ -51,6 +52,8 @@ export interface AssistantMessage {
   closure?: ClosureImpact;
   /** A proposed marathon course (marathon.show): the course card under the answer. */
   marathon?: MarathonResult;
+  /** The answer came with a route.compare (fastest vs recommended); its Watch button plays the compare. */
+  compare?: CompareIntent;
   /** done.model; "...+template" means the checked data was worded without the AI. */
   model?: string;
   done: boolean;
@@ -155,6 +158,8 @@ export function reduceIntent(m: AssistantMessage, i: SceneIntent): AssistantMess
         plan: i.journey,
       },
     };
+  const cmp = asCompareIntent(i);
+  if (cmp) return { ...m, compare: cmp };
   if (i.kind === "day.trip" && i.geojson) {
     // a resident's own rehearsed trip: the strip shows the engine's departures (Cycle 20)
     const meta = (i.geojson as { meta?: TripMeta }).meta;

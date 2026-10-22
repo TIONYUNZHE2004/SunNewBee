@@ -16,6 +16,7 @@ from townshiplens_spatial.journey import JourneyEvidenceError, build_journey
 from townshiplens_spatial.models import (
     HHMM_PATTERN,
     BoundaryRef,
+    CompareResult,
     JourneyPlan,
     Route,
     RouteResult,
@@ -564,6 +565,19 @@ def routes(req: RouteRequest) -> RouteResult:
     data.setdefault("warnings", [])
     data["warnings"] = list(data["warnings"]) + [w for w in r.warnings if w not in data["warnings"]]
     return RouteResult.model_validate(data)
+
+
+@router.post("/routes/compare", response_model=CompareResult)
+def routes_compare(req: RouteRequest) -> CompareResult:
+    """Fastest route next to the profile's route (navigation compare, demo polish B3): stop
+    point, known-fact reasons, unchecked stretches, points of interest and `confirm_n`. Like
+    POST /routes it never files verification requests, so `vr` is always null."""
+    ctx = state.get_ctx()
+    require_selection(ctx.world, req.profile, req.scenario_id)
+    r = tools.compare_routes(ctx, req.from_, req.to, req.profile, req.scenario_id, file_vrs=False)
+    if not r.ok:
+        raise HTTPException(422, "; ".join(r.warnings) or "cannot compare these routes")
+    return CompareResult.model_validate(r.data)
 
 
 def _known_place(world, pid: str) -> bool:

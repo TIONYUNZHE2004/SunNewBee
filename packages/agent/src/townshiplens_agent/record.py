@@ -84,6 +84,12 @@ class TurnRecord:
     development_plan: DevelopmentPlan | None = None
     # affected_places counts this turn: places and path segments apart (Cycles 5-6 review B1).
     affected: list[dict] = field(default_factory=list)
+    # compare_routes results this turn (demo polish B4): the tool's data (fastest, recommended,
+    # stop, reasons, unchecked, pois, vr, confirm_n, and `closures` when any). The recommended
+    # route is also in `routes` (unless same_path); the fastest walk is not, it is only a
+    # measurement subject. The route.compare payload and every number a compare answer may
+    # state come from here (validate.compare_errors).
+    compares: list[dict] = field(default_factory=list)
     # simulate_event results this turn (T-025): the numbers an event answer may quote.
     events: list[dict] = field(default_factory=list)
     # T-028: each simulate_marathon result (course, impact, animation) for the marathon card;

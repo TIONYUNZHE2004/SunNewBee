@@ -8,16 +8,28 @@ import type { Probe, Rect } from "./types";
 export interface DevsimAnchorsState {
   tower: Rect | null;
   towerTop: [number, number] | null;
+  /** The first bubble's speaker (`bubbles[0]`): kept for the probe and the demo hook. */
   speaker: Rect | null;
   speakerHead: [number, number] | null;
+  /**
+   * Every speaker of a bubble shown now that the 3D view draws (rect and head point), by cast id:
+   * each bubble anchors at its own speaker when two overlap in time (e.g. Zainab and Arjun at
+   * 36.5–37 s). Empty when none.
+   */
+  speakers: readonly { id: string; rect: Rect; head: [number, number] | null }[];
   labelPoint: [number, number] | null;
   /** The parcel's centre on screen during the Brief overview (the site label hangs above it). */
   siteLabel: [number, number] | null;
   /**
-   * The other Spotlight Residents drawn now (rect and head point), so a bubble keeps off the
-   * listener too (e.g. Halim greeting Mei Ling). Empty when none.
+   * The other Spotlight Residents drawn now, not speaking (rect and head point), so a bubble keeps
+   * off the listener too (e.g. Halim greeting Mei Ling). Empty when none.
    */
   others: readonly { id: string; rect: Rect; head: [number, number] }[];
+  /**
+   * The plan's timed tags (`plan.tags[].at`, by kind) projected to the stage, when the 3D view
+   * projects them; absent: the overlay shows the tags in its stack.
+   */
+  tagPoints?: Partial<Record<"detour" | "lorry", [number, number] | null>>;
   set: (partial: Partial<Omit<DevsimAnchorsState, "set" | "clear">>) => void;
   clear: () => void;
 }
@@ -27,6 +39,7 @@ const none = {
   towerTop: null,
   speaker: null,
   speakerHead: null,
+  speakers: [],
   labelPoint: null,
   siteLabel: null,
   others: [],

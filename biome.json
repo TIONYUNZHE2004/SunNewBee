@@ -16,6 +16,7 @@
       "!packages/api-client/openapi.json",
       "!packages/spatial/tests/fixtures",
       "!apps/web/src/features/journey/fixtures",
+      "!apps/web/src/features/scene/three/motion/fixtures",
       "!apps/web/public/city",
       "!assets/blender/out",
       "!.superpowers",

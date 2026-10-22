@@ -1,22 +1,33 @@
+import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { useDevsim } from "../../../devsim/devsimStore";
 import elmina from "../../../devsim/fixtures/plan.elmina.json";
 import plan from "../../../devsim/fixtures/plan.provisional.json";
-import type { DevelopmentPlan } from "../../../devsim/types";
+import type { DevelopmentPlan, StateAt } from "../../../devsim/types";
 import { createClearance } from "../clearance";
 import { createFrame } from "../frame";
 import { LIGHT_PRESETS } from "../lighting";
 import { speakerGlow, spotBoost } from "./cast";
+import { createDevsimLayer } from "./devsimLayer";
 import {
+  cameraRangeM,
+  createShadowFade,
   DEVSIM_FOV_DEG,
+  DEVSIM_SMALL_SHADOW_M,
+  devsimAoWeight,
   devsimCamera,
+  devsimCameraDriver,
   devsimGrade,
   devsimMoodSource,
   devsimMoodWeights,
+  smallShadows,
+  smallShadowWeight,
 } from "./devsimView";
 import { inRing, siteGeom, TOWER_STOREY_M } from "./geom";
+import { moveInAoKeep, setPieceTiming } from "./setPieces";
 import { stateAt } from "./state";
 
-const P = plan as DevelopmentPlan;
+const P = plan as unknown as DevelopmentPlan;
 const frame = createFrame([101.5076, 3.1794]);
 const geom = siteGeom(P, frame);
 
@@ -144,5 +155,141 @@ describe("devsim camera (Q2)", () => {
       expect(at(24)).toEqual(want);
     }
     expect(want.fovDeg).toBe(DEVSIM_FOV_DEG);
+  });
+});
+
+describe("devsim AO and small-prop shadows by range (C10p)", () => {
+  it("AO is full in the close beats, off in the wide ones, smooth between", () => {
+    expect(devsimAoWeight(43)).toBe(1);
+    expect(devsimAoWeight(145)).toBe(1);
+    expect(devsimAoWeight(170)).toBe(1);
+    expect(devsimAoWeight(220)).toBe(0);
+    expect(devsimAoWeight(311)).toBe(0);
+    let prev = 1;
+    for (let r = 170; r <= 220; r += 1) {
+      const w = devsimAoWeight(r);
+      expect(w).toBeLessThanOrEqual(prev);
+      expect(prev - w).toBeLessThan(0.05);
+      prev = w;
+    }
+  });
+
+  it("small props cast shadows only nearer than the AO cut-off", () => {
+    const at = (offset: [number, number, number]) =>
+      ({ camera: { target: [0, 0, 0], offset } }) as unknown as StateAt;
+    expect(DEVSIM_SMALL_SHADOW_M).toBe(220);
+    expect(smallShadows(at([22, 26, 14]))).toBe(true);
+    expect(smallShadows(at([-150, -240, 130]))).toBe(false);
+  });
+
+  it("small-prop shadows fade with the range, no hard step (66 s plan 32 -> 34.6 s fly-in)", () => {
+    const at = (offset: [number, number, number]) =>
+      ({ camera: { target: [0, 0, 0], offset } }) as unknown as StateAt;
+    const fade = createShadowFade();
+    const mat = new THREE.MeshStandardMaterial();
+    const box = new THREE.InstancedMesh(new THREE.BoxGeometry(), mat, 1);
+    fade.attach(box);
+    const d = box.customDepthMaterial as THREE.MeshDepthMaterial;
+    expect(d.alphaHash).toBe(true);
+    expect(d.depthPacking).toBe(THREE.BasicDepthPacking);
+    expect(d.side).toBe(THREE.BackSide);
+    let prev = 1;
+    for (let r = 150; r <= 240; r += 1) {
+      const s = at([r, 0, 0]);
+      fade.set(s);
+      const w = fade.weight();
+      expect(w, `r=${r}`).toBe(smallShadowWeight(s));
+      expect(d.opacity).toBe(w);
+      // cast exactly while the fade is above 0 (the draw budget of the wide beats stands)
+      expect(box.castShadow, `r=${r}`).toBe(smallShadows(s));
+      expect(box.castShadow).toBe(w > 0);
+      expect(w).toBeLessThanOrEqual(prev);
+      expect(prev - w, `step at r=${r}`).toBeLessThan(0.05);
+      prev = w;
+    }
+    expect(smallShadowWeight(at([170, 0, 0]))).toBe(1);
+    expect(smallShadowWeight(at([220, 0, 0]))).toBe(0);
+    // the legacy fly from the wide shot to the door crosses the band over frames, not one step
+    const L = plan as unknown as DevelopmentPlan;
+    const ws: number[] = [];
+    for (let t = 32; t <= 34.6; t += 1 / 60) ws.push(smallShadowWeight(stateAt(t, L)));
+    for (let i = 1; i < ws.length; i++)
+      expect(Math.abs((ws[i] as number) - (ws[i - 1] as number)), `frame ${i}`).toBeLessThan(0.15);
+    fade.dispose();
+  });
+
+  it("one range source: the layer's AO weight and the small shadows switch on the same frame", () => {
+    const C7 = elmina as unknown as DevelopmentPlan;
+    const l = createDevsimLayer({
+      plan: C7,
+      frame: createFrame(C7.anchors.junction as [number, number]),
+      anchors: false,
+    });
+    for (let t = 0; t <= C7.total_s; t += 0.1) {
+      l.setT(t);
+      const s = l.state() as StateAt;
+      // the engine's measured range is ignored once there is a frame state
+      const w = l.aoWeight?.(5000) ?? 1;
+      const keep = moveInAoKeep(setPieceTiming(C7), t);
+      expect(w, `t=${t.toFixed(1)}`).toBe(devsimAoWeight(cameraRangeM(s)) * keep);
+      // outside the move-in's AO cut both switch on the same range
+      if (keep === 1) expect(smallShadows(s), `t=${t.toFixed(1)}`).toBe(w > 0);
+      // AC-P2: no AO through the move-in (27-33 s)
+      if (t >= 27 && t <= 33) expect(w, `t=${t.toFixed(1)}`).toBe(0);
+    }
+    l.dispose();
+  });
+});
+
+describe("devsim camera driver (C10p frame loop)", () => {
+  it("is animating only while the playback plays; idle at pause and at the end", () => {
+    const C7 = elmina as unknown as DevelopmentPlan;
+    const fr = createFrame(C7.anchors.junction as [number, number]);
+    const l = createDevsimLayer({ plan: C7, frame: fr, anchors: false });
+    const store = useDevsim.getState;
+    store().start(C7, "test");
+    l.setT(store().t);
+    const drive = devsimCameraDriver({
+      state: () => l.state(),
+      pose: (s) => devsimCamera(s, fr, l.geom, l.towerTopM(), null),
+      playing: () => store().playing,
+    });
+    const cur = {
+      position: [0, 0, 0] as [number, number, number],
+      look: [0, 0, 0] as [number, number, number],
+    };
+    const animating = () => drive(0, cur)?.animating === true;
+    expect(drive(0, cur)).not.toBeNull();
+    expect(animating()).toBe(false);
+    store().play();
+    expect(animating()).toBe(true);
+    store().advance(1);
+    l.setT(store().t);
+    expect(animating()).toBe(true);
+    store().pause();
+    expect(animating()).toBe(false);
+    // play to the end: the store stops playing at total_s, so the driver goes idle
+    store().play();
+    store().seek(C7.total_s - 0.5);
+    store().advance(1);
+    l.setT(store().t);
+    expect(store().t).toBe(C7.total_s);
+    expect(store().playing).toBe(false);
+    expect(animating()).toBe(false);
+    // the pose is the beat camera, pinned fov
+    expect(drive(0, cur)?.fovDeg).toBe(DEVSIM_FOV_DEG);
+    store().stop();
+    l.dispose();
+  });
+
+  it("no frame state: no pose (the rig keeps the camera)", () => {
+    const drive = devsimCameraDriver({
+      state: () => null,
+      pose: () => {
+        throw new Error("not called");
+      },
+      playing: () => true,
+    });
+    expect(drive(0, { position: [0, 0, 0], look: [0, 0, 0] })).toBeNull();
   });
 });

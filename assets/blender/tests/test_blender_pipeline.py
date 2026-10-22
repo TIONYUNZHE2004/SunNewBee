@@ -978,13 +978,14 @@ def test_people_vehicles_have_the_spec_variants():
         "child",
     ]
     assert [v.id for v in specs.ASSETS["vehicles"].variants] == [
-        "hatchback",
-        "city_car",
-        "sedan",
+        "compact_hatch",
+        "micro_hatch",
+        "small_sedan",
         "mpv",
         "pickup",
-        "motorcycle",
-        "delivery_motorcycle",
+        "kapchai",
+        "delivery_moto",
+        "bicycle",
         "bus",
         "lorry",
     ]
@@ -1024,12 +1025,12 @@ def test_people_vehicles(people_vehicles_built):
     for v in specs.ASSETS["vehicles"].variants:
         lo, hi = info.nodes[f"vehicles__{v.id}__LOD0"].bounds
         assert v.z_range[0] <= hi[2] - lo[2] <= v.z_range[1], (v.id, hi[2] - lo[2])
-        if v.id == "hatchback":
+        if v.id == "compact_hatch":
             assert 3.7 <= hi[2] - lo[2] <= 4.0
         assert {specs.ROLES.index(r) for r in ("primary", "dark", "metal", "light")} <= _roles(
             colors[v.id]
         ), v.id
-        if v.id not in ("motorcycle", "delivery_motorcycle"):
+        if not v.rider:
             assert specs.ROLES.index("glass") in _roles(colors[v.id]), v.id
         for lod in (0, 1):
             name = f"vehicles__{v.id}__LOD{lod}"
@@ -1040,8 +1041,17 @@ def test_people_vehicles(people_vehicles_built):
             ]
             heads = [b for b, z in lamps if z > 0]
             tails = [b for b, z in lamps if z < 0]
-            assert heads and all(b < 0.5 for b in heads), (name, "headlights at the front")
+            if v.id == "bicycle":  # a pedal bike: a rear lamp only
+                assert not heads, (name, "no headlight on a bicycle")
+            else:
+                assert heads and all(b < 0.5 for b in heads), (name, "headlights at the front")
             assert tails and all(b >= 0.5 for b in tails), (name, "tail lights at the rear")
+            # AC-L5: the rider (and the delivery box) are named parts before the join
+            parts = read_parts(raw)[name]
+            assert ("rider" in parts) is v.rider, (name, parts)
+            assert ("delivery_box" in parts) is (v.id == "delivery_moto"), (name, parts)
+            extras = info.nodes[name].extras.get("tl_parts", "")
+            assert ("rider" in extras.split(",")) is v.rider, (name, extras)
 
 
 # --- construction (Task 8) --------------------------------------------------------------------

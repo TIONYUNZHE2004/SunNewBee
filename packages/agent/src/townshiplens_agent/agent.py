@@ -233,7 +233,15 @@ def safe_vr_args(world, kwargs: dict, source: str = "chat") -> dict:
 _safe_vr_args = safe_vr_args  # backwards-compatible alias
 
 
-SCENARIO_TOOLS = ("plan_route", "list_evacuation_centres", "affected_places", "simulate_what_if")
+# compare_routes is not here (R46): a compare is a dry-day comparison, so the UI's scenario is
+# never injected into it, here or in call_tool's strict-selection block (a scenario the question
+# itself names still applies, and a compare under any scenario is refused: compare_for).
+SCENARIO_TOOLS = (
+    "plan_route",
+    "list_evacuation_centres",
+    "affected_places",
+    "simulate_what_if",
+)
 
 
 def ui_scenario(deps: Deps) -> str | None:
@@ -307,6 +315,75 @@ async def _file_journey_vrs(deps: Deps, data: dict, summary: str) -> None:
             data["verification_requests_truncated"] -= 1
 
 
+def _record_route(deps: Deps, r: dict, first: bool, warnings: list[str]) -> None:
+    """Record one route a routing tool returned (plan_route, compare_routes' recommended):
+    measurement subject, readable unknowns, crossing/road notes, journey plan, status."""
+    rec, world = deps.rec, deps.ctx.world
+    rec.measurement_subjects.append(
+        {
+            "place_ids": [canonical_id(world, r[k]) for k in ("from_place", "to_place")],
+            "route_id": r["id"],
+            "values": tool_values({"distance_m": r["distance_m"], "est_minutes": r["est_minutes"]}),
+        }
+    )
+    enrich_unknowns(world, r)  # readable element labels and notes
+    if note := crossing_note(r):
+        r["crossing_note"] = note  # the model copies it word for word (prompt 5h)
+    if (plan := plan_for(world, r)) is not None:
+        rec.journeys[r["id"]] = plan
+        r["journey"] = journey_facts(plan)  # counts the answer may state (prompt 9a)
+    if first and (note := road_note(warnings)):
+        # about the first route only (prompt 5j, T-019); "not verified" is not a
+        # demo-safe phrase, so the note uses the product's "not checked yet"
+        r["road_note"] = note.replace("is not verified", "is not checked yet")
+    if first:
+        rec.route_warnings[r["id"]] = list(warnings)
+    rec.routes[r["id"]] = r
+    rec.route_status[r["id"]] = r["status"]
+
+
+async def _record_compare(deps: Deps, res: sp.ToolResult, from_id: str, to_id: str) -> None:
+    """compare_routes (demo polish B4): the recommended route is recorded like a plan_route
+    route (the answer, route.highlight and journey.play are about it). The fastest walk is only
+    a comparison: its numbers are recorded (TurnRecord.compares, a measurement subject), but it
+    is not an answer route, so its own status and estimates never qualify the answer. The ticket
+    the tool filed is recorded and streamed like plan_route's."""
+    rec, d = deps.rec, res.data
+    d["from_id"], d["to_id"] = from_id, to_id  # the route.compare payload names both ends
+    world = deps.ctx.world
+    for k, pid in (("from_name", from_id), ("to_name", to_id)):
+        d[k] = world.places[pid].name if pid in world.places else pid
+    if (r := d.get("recommended")) is not None and not d.get("same_path"):
+        # Same path: nothing is compared; the answer comes from plan_route (prompt rule 3c).
+        _record_route(deps, r, True, res.warnings)
+    fast = d.get("fastest")
+    if fast is not None and not d.get("same_path"):
+        rec.measurement_subjects.append(
+            {
+                "place_ids": [
+                    canonical_id(deps.ctx.world, fast[k]) for k in ("from_place", "to_place")
+                ],
+                "values": tool_values(
+                    {"distance_m": fast["distance_m"], "est_minutes": fast["est_minutes"]}
+                ),
+            }
+        )
+    # Staff-reported closures that stop or reshape the recommended route (compare_routes adds
+    # `closures` only when there are any): named in the answer exactly as for plan_route.
+    for c in d.get("closures") or []:
+        rec.route_closures.append(c)
+        rec.closures[c["id"]] = c
+    d["verification_requests"] = []
+    if d.get("vr"):
+        vr = await asyncio.to_thread(deps.ctx.vrs.get, d["vr"]["id"])
+        if vr is not None:
+            row = {**vr.model_dump(mode="json"), "created": d["vr"]["created"]}
+            d["verification_requests"].append(row)
+            rec.vrs.append(row)
+            await _emit(deps, _vr_event(row))
+    rec.compares.append(d)
+
+
 async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
     """Run one spatial tool, record what it returned and stream its events."""
     rec = deps.rec
@@ -325,18 +402,27 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
                 context=rec.context_route,
                 strict=rec.strict_selection,
             )
-        if name in {"plan_route", "nearby_amenities", "list_evacuation_centres", "affected_places"}:
+        if name in {
+            "plan_route",
+            "compare_routes",
+            "nearby_amenities",
+            "list_evacuation_centres",
+            "affected_places",
+        }:
             kwargs["profile"] = effective_profile(
                 deps.request.message, deps.request.profile, kwargs.get("profile")
             )
         if rec.strict_selection and name in {
             "plan_route",
+            "compare_routes",
             "list_evacuation_centres",
             "affected_places",
             "nearby_amenities",
         }:
+            # R46: the scenario on screen never reaches compare_routes (dry-day comparison)
+            ui = None if name == "compare_routes" else ui_scenario(deps)
             kwargs["scenario_id"] = effective_scenario(
-                deps.request.message, deps.ctx.world, ui_scenario(deps), kwargs.get("scenario_id")
+                deps.request.message, deps.ctx.world, ui, kwargs.get("scenario_id")
             )
         if name in {"nearby_amenities", "list_evacuation_centres"}:
             origin = kwargs.get("origin_id") or kwargs.get("near_place")
@@ -356,7 +442,7 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
             raise RouteSelectionError(
                 "Keep the amenity search within the requested distance; do not widen its radius."
             )
-        if name == "plan_route":
+        if name in ("plan_route", "compare_routes"):
             await asyncio.to_thread(
                 guard_endpoints,
                 deps.ctx.world,
@@ -366,7 +452,13 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
                 strict=rec.strict_selection,
                 centre_options=rec.centre_options,
             )
-        if name in {"plan_route", "nearby_amenities", "list_evacuation_centres", "affected_places"}:
+        if name in {
+            "plan_route",
+            "compare_routes",
+            "nearby_amenities",
+            "list_evacuation_centres",
+            "affected_places",
+        }:
             rec.selection_error = None
     except RouteSelectionError as exc:
         rec.selection_error = str(exc)
@@ -402,7 +494,7 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
             kwargs.pop("day", None),
             deps.ctx.world.site.timezone,
         )
-    if name == "plan_route":
+    if name in ("plan_route", "compare_routes"):
         # Shown to staff on the VR: describe the request, never copy the user's words (PII).
         kwargs["question_summary"] = route_summary(
             deps.ctx.world, kwargs.get("profile"), kwargs.get("from_id"), kwargs.get("to_id")
@@ -430,31 +522,7 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
         rec.evidence[e.id] = e
     if name == "plan_route" and isinstance(res.data, dict):
         for i, r in enumerate(res.data.get("routes", [])):
-            rec.measurement_subjects.append(
-                {
-                    "place_ids": [
-                        canonical_id(deps.ctx.world, r[k]) for k in ("from_place", "to_place")
-                    ],
-                    "route_id": r["id"],
-                    "values": tool_values(
-                        {"distance_m": r["distance_m"], "est_minutes": r["est_minutes"]}
-                    ),
-                }
-            )
-            enrich_unknowns(deps.ctx.world, r)  # readable element labels and notes
-            if note := crossing_note(r):
-                r["crossing_note"] = note  # the model copies it word for word (prompt 5h)
-            if (plan := plan_for(deps.ctx.world, r)) is not None:
-                rec.journeys[r["id"]] = plan
-                r["journey"] = journey_facts(plan)  # counts the answer may state (prompt 9a)
-            if i == 0 and (note := road_note(res.warnings)):
-                # about the first route only (prompt 5j, T-019); "not verified" is not a
-                # demo-safe phrase, so the note uses the product's "not checked yet"
-                r["road_note"] = note.replace("is not verified", "is not checked yet")
-            if i == 0:
-                rec.route_warnings[r["id"]] = list(res.warnings)
-            rec.routes[r["id"]] = r
-            rec.route_status[r["id"]] = r["status"]
+            _record_route(deps, r, i == 0, res.warnings)
         for c in res.data.get("closures") or []:
             rec.route_closures.append(c)
             rec.closures[c["id"]] = c
@@ -664,6 +732,8 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
         rec.place_names |= {
             n for n in (res.data.get("from_name"), res.data.get("target_name")) if n
         }
+    if name == "compare_routes" and res.ok and isinstance(res.data, dict):
+        await _record_compare(deps, res, kwargs["from_id"], kwargs["to_id"])
     if name == "create_verification_request" and res.ok:
         rec.vrs.append(res.data)
         await _emit(deps, _vr_event(res.data))
@@ -817,6 +887,12 @@ def _for_model(name: str, out: dict) -> dict:
                 for r in imp.get("detour_roads") or []:
                     if isinstance(r, dict):
                         r.pop("segment_ids", None)
+        if name == "compare_routes":  # geometry and turn lists are for the map only
+            for k in ("fastest", "recommended"):
+                if isinstance(data.get(k), dict):
+                    data[k] = {
+                        f: v for f, v in data[k].items() if f not in ("geometry", "maneuvers")
+                    }
         if name in ("simulate_event", "simulate_closure"):  # per-trip rows, ids: map only
             data.pop("trips", None)
             if isinstance(data.get("event"), dict):
@@ -915,6 +991,28 @@ def build_agent(
         return await call_tool(
             ctx.deps,
             "plan_route",
+            from_id=from_id,
+            to_id=to_id,
+            profile=profile,
+            scenario_id=scenario_id,
+        )
+
+    @register_tool
+    async def compare_routes(
+        ctx: RunContext[Deps],
+        from_id: str,
+        to_id: str,
+        profile: str,
+        scenario_id: str | None = None,
+    ) -> dict:
+        """Fastest walk vs the recommended route for a mobility profile (wheelchair, stroller,
+        older_adult_rest). Returns status, same_path, fastest, recommended, stop (where the
+        fastest walk fails the profile), reasons (known facts only, null when not known),
+        extra_minutes, unchecked stretches, pois, vr (the survey ticket filed for the first
+        unchecked stretch) and confirm_n. Unknown facts never count for or against a route."""
+        return await call_tool(
+            ctx.deps,
+            "compare_routes",
             from_id=from_id,
             to_id=to_id,
             profile=profile,

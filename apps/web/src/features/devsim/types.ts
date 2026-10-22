@@ -2,9 +2,25 @@
  * Development Simulation contract (spec 2026-10-21 §4–§5, ADR 0014).
  *
  * Hand mirror of `townshiplens_spatial.devsim_models`, named and shaped as `pnpm gen` emits them
- * (fields with a non-null default are required, `None` defaults are optional and nullable), so
- * callers can later swap to `components["schemas"]["DevelopmentPlan"]`. Coordinates are [lon, lat].
+ * (fields with a non-null default are required, `None` defaults are optional and nullable); the 45 s
+ * plan's newer fields come from the generated schemas via `planTypes.ts`, and a type test in
+ * `timeline.build.test.ts` keeps the generated `components["schemas"]["DevelopmentPlan"]` assignable
+ * to this mirror. Coordinates are
+ * [lon, lat].
  */
+import type {
+  Banner,
+  DailyLifeMatrix,
+  EstimateSource,
+  FloodExposure,
+  HoardingImpact,
+  ImpactBrief,
+  LorryRoute,
+  PlanMonthKey,
+  Schedule,
+  SimResidents,
+  TimedTag,
+} from "./planTypes";
 
 /** Developer's brief (request side). */
 export interface DevelopmentBrief {
@@ -47,10 +63,12 @@ export interface DevsimWalk {
   m: number;
   min: number;
   path: number[][];
+  arrival_id?: string | null;
+  label?: string | null;
 }
 
 export interface DevsimFacts {
-  /** Null when no detour of at least 2 min exists (spec §13): bubble 1 has no tag, no end-card item 1. */
+  /** Null when no detour of at least 2 min exists (spec §13): bubble 1 has no tag. */
   detour?: DevsimDetour | null;
   park: DevsimWalk;
   mall: DevsimWalk;
@@ -58,9 +76,8 @@ export interface DevsimFacts {
   provenance: string;
 }
 
-export type CastHome = "tower" | "existing";
+export type CastHome = "tower" | "existing" | "site";
 export type BubbleTone = "pos" | "neg";
-export type EndCardBadge = "ROUTE ENGINE" | "SIMULATED";
 
 export interface SpotlightCast {
   id: string;
@@ -88,21 +105,12 @@ export interface Act {
   t1: number;
 }
 
-export interface EndCardItem {
-  text: string;
-  badges: EndCardBadge[];
-}
-
-export interface EndCard {
-  title: string;
-  subtitle: string;
-  items: EndCardItem[];
-  legend: string;
-}
-
 export interface DevsimAnchors {
   halim_path: number[][];
   farid: number[];
+  /** The site worker's spot inside the hoarding (C7; absent on the legacy 66 s fixture). */
+  worker?: number[];
+  /** Where the entrance path meets the street. */
   junction: number[];
   park: number[];
   mall: number[];
@@ -112,7 +120,8 @@ export interface DevsimLabels {
   simulation: string;
   decorative: string;
   hypothetical: string;
-  end_card_subtitle: string;
+  /** "Simulated reactions" (C7; absent on the legacy 66 s fixture). */
+  simulated?: string;
 }
 
 export interface DevelopmentPlan {
@@ -126,7 +135,20 @@ export interface DevelopmentPlan {
   acts: Act[];
   bubbles: Bubble[];
   anchors: DevsimAnchors;
-  end_card: EndCard;
+  tags: TimedTag[];
+  banners: Banner[];
+  impact: HoardingImpact;
+  lorry_route: LorryRoute;
+  schedule: Schedule;
+  estimate_sources: EstimateSource[];
+  /** Screen second -> project month keys (the backend applies the R25 rules). */
+  month_keys: PlanMonthKey[];
+  month_keys_mode: "baseline" | "data-order";
+  flood: FloodExposure;
+  access_matrix: DailyLifeMatrix;
+  residents: SimResidents;
+  /** The Impact Brief (spec §6.2), shown from 33 s. */
+  brief: ImpactBrief;
   labels: DevsimLabels;
   total_s: number;
 }
@@ -153,14 +175,11 @@ export interface StateAt {
   lorries: boolean;
   movers: { queueProgress: number };
   bubbles: { n: number; who: string; text: string; tag?: string | null }[];
-  /** End-card items filed so far (owner ruling: ends equal to `plan.end_card.items.length`). */
-  feedbackCount: number;
-  /** The envelope in flight: progress 0..1 and the bubble (n) whose speaker sent it. */
-  envelope: { progress: number; from?: number } | null;
   /** target: [lon, lat, h]; offset: [east, north, up] metres. */
   camera: { target: [number, number, number]; offset: [number, number, number] };
   flow: { timeScale: number; peopleDensity: number; vehicleDensity: number };
-  endCard: boolean;
+  /** The Impact Brief panel is on screen (45 s plan, from 33 s). */
+  brief: boolean;
 }
 
 /** A screen rectangle in CSS px relative to the stage. */
@@ -180,6 +199,8 @@ export interface Probe {
     bubble?: Rect;
     hypotheticalLabel?: Rect;
     simBadge?: Rect;
+    /** The Impact Brief panel (45 s plan, from 33 s). */
+    brief?: Rect;
   };
   people: [number, number][];
   vehicles: [number, number][];

@@ -1073,14 +1073,9 @@ def direction_evidence(world: World, edge_ids) -> list[Evidence]:
     return out
 
 
-def plan_route(
-    world: World, from_id: str, to_id: str, profile_id: str, scenario_id: str | None = None
-) -> RouteResult:
-    if error := selection_error(world, profile_id, scenario_id):
-        return RouteResult(status="no_data", routes=[], warnings=[error])
-    profile = world.profiles[profile_id]
-    result = _plan(world, from_id, to_id, profile, scenario_id)
-    endpoint_unknowns = [
+def endpoint_unknowns(world: World, from_id: str, to_id: str, profile, scenario_id) -> list:
+    """Flood unknowns at the two ends (origin, destination) of a route under the scenario."""
+    return [
         why
         for pid in dict.fromkeys((from_id, to_id))
         for state, reasons in [
@@ -1091,10 +1086,26 @@ def plan_route(
         if state == "UNKNOWN"
         for why in reasons
     ]
+
+
+def add_endpoint_unknowns(world: World, route: Route, from_id, to_id, profile, scenario_id):
+    """Add the endpoint flood unknowns to a built route: it is then at best partly_unverified.
+    Shared by plan_route and compare's own route search."""
+    extra = endpoint_unknowns(world, from_id, to_id, profile, scenario_id)
+    if extra:
+        route.unknowns.extend(extra)
+        route.status = "partly_unverified"
+
+
+def plan_route(
+    world: World, from_id: str, to_id: str, profile_id: str, scenario_id: str | None = None
+) -> RouteResult:
+    if error := selection_error(world, profile_id, scenario_id):
+        return RouteResult(status="no_data", routes=[], warnings=[error])
+    profile = world.profiles[profile_id]
+    result = _plan(world, from_id, to_id, profile, scenario_id)
     for route in result.routes:
-        if endpoint_unknowns:
-            route.unknowns.extend(endpoint_unknowns)
-            route.status = "partly_unverified"
+        add_endpoint_unknowns(world, route, from_id, to_id, profile, scenario_id)
     if result.routes:
         result.status = result.routes[0].status
         route = result.routes[0]

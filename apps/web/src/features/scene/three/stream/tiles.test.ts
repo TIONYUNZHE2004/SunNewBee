@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Tier } from "../../shared/quality";
 import { HERO_CENTRE } from "../bookmarks";
 import { createFrame } from "../frame";
+import { MAJOR_MIX, STREET_MIX } from "../motion/agents";
 import {
   HERO_BOOST,
   type StreamKind,
@@ -146,5 +147,35 @@ describe("verge accounting", () => {
     expect(TRIS_PER.verges[0]).toBeGreaterThanOrEqual(strips + VERGE_SHRUBS_PER_CAP * shrub);
     expect(TRIS_PER.verges[1]).toBeGreaterThanOrEqual(strips);
     expect(TRIS_PER.verges[2]).toBeGreaterThanOrEqual(strips);
+  });
+});
+
+// A4w (review carry-over): the vehicles price must cover the kit with riders, as the traffic mixes
+// draw it.
+describe("vehicle accounting", () => {
+  const manifest = JSON.parse(
+    readFileSync(new URL("../../../../../public/city/manifest.json", import.meta.url), "utf8"),
+  );
+  const variants = manifest.assets.vehicles.variants as Record<
+    string,
+    { lods: { tris: number }[] }
+  >;
+  const tris = (v: string, lod: number) => {
+    const l = variants[v]!.lods;
+    return l[Math.min(lod, l.length - 1)]!.tris;
+  };
+  const mean = (mix: Readonly<Record<string, number>>, lod: number) => {
+    const ids = Object.keys(mix);
+    const sum = ids.reduce((n, v) => n + (mix[v] as number), 0);
+    return ids.reduce((n, v) => n + (mix[v] as number) * tris(v, lod), 0) / sum;
+  };
+  it("TRIS_PER.vehicles bounds the kit mean and both weighted mixes at every ring", () => {
+    const uniform = Object.fromEntries(Object.keys(variants).map((v) => [v, 1]));
+    for (const ring of [0, 1, 2] as const)
+      for (const mix of [uniform, STREET_MIX, MAJOR_MIX])
+        expect(TRIS_PER.vehicles[ring]).toBeGreaterThanOrEqual(mean(mix, ring));
+    // and is not padded far beyond it (re-measure when the kit changes)
+    expect(TRIS_PER.vehicles[0]).toBeLessThan(mean(uniform, 0) + 5);
+    expect(TRIS_PER.vehicles[1]).toBeLessThan(mean(uniform, 1) + 5);
   });
 });

@@ -349,6 +349,59 @@
         "title": "AttributeBody",
         "type": "object"
       },
+      "Banner": {
+        "description": "The set-piece banners: Hari Raya hold, monsoon stretch, handover.",
+        "properties": {
+          "badges": {
+            "default": [],
+            "items": {
+              "enum": [
+                "ROUTE",
+                "FLOOD",
+                "ESTIMATE",
+                "CALENDAR"
+              ],
+              "type": "string"
+            },
+            "title": "Badges",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "raya",
+              "monsoon",
+              "handover"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "t0": {
+            "title": "T0",
+            "type": "number"
+          },
+          "t1": {
+            "title": "T1",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "t0",
+          "t1",
+          "title",
+          "text"
+        ],
+        "title": "Banner",
+        "type": "object"
+      },
       "BeliefRow": {
         "properties": {
           "alpha": {
@@ -409,6 +462,82 @@
           "note"
         ],
         "title": "BeliefTable",
+        "type": "object"
+      },
+      "BriefRow": {
+        "properties": {
+          "badges": {
+            "items": {
+              "enum": [
+                "ROUTE",
+                "FLOOD",
+                "ESTIMATE",
+                "CALENDAR"
+              ],
+              "type": "string"
+            },
+            "title": "Badges",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "badges"
+        ],
+        "title": "BriefRow",
+        "type": "object"
+      },
+      "BriefSection": {
+        "properties": {
+          "key": {
+            "enum": [
+              "construction",
+              "handover",
+              "daily_life"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "notes": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BriefRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "rows"
+        ],
+        "title": "BriefSection",
         "type": "object"
       },
       "Bubble": {
@@ -1339,6 +1468,266 @@
         "title": "ClosureWindow",
         "type": "object"
       },
+      "CompareEnd": {
+        "description": "A route end of a compare: the place id and its name.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "CompareEnd",
+        "type": "object"
+      },
+      "CompareResult": {
+        "properties": {
+          "confirm_n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm N"
+          },
+          "extra_minutes": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Minutes"
+          },
+          "fastest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Route"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pois": {
+            "items": {
+              "$ref": "#/components/schemas/Poi"
+            },
+            "title": "Pois",
+            "type": "array"
+          },
+          "profile": {
+            "enum": [
+              "default",
+              "stroller",
+              "wheelchair",
+              "older_adult_rest",
+              "drive"
+            ],
+            "title": "Profile",
+            "type": "string"
+          },
+          "reasons": {
+            "$ref": "#/components/schemas/RouteReasons"
+          },
+          "recommended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Route"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "same_path": {
+            "title": "Same Path",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "likely_ok",
+              "partly_unverified",
+              "blocked",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "stop": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unchecked": {
+            "items": {
+              "$ref": "#/components/schemas/UncheckedStretch"
+            },
+            "title": "Unchecked",
+            "type": "array"
+          },
+          "vr": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompareVr"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "profile",
+          "same_path",
+          "fastest",
+          "recommended",
+          "stop",
+          "reasons",
+          "extra_minutes",
+          "unchecked",
+          "pois",
+          "vr",
+          "confirm_n"
+        ],
+        "title": "CompareResult",
+        "type": "object"
+      },
+      "CompareRoute": {
+        "description": "One route of a compare, trimmed for the scene: geometry as [lon, lat] points in travel\norder and the edge sequence with its evaluation.",
+        "properties": {
+          "coordinates": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "number"
+          },
+          "est_minutes": {
+            "title": "Est Minutes",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/CompareSegment"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "likely_ok",
+              "partly_unverified",
+              "blocked",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "distance_m",
+          "est_minutes",
+          "coordinates",
+          "segments"
+        ],
+        "title": "CompareRoute",
+        "type": "object"
+      },
+      "CompareSegment": {
+        "properties": {
+          "edge_id": {
+            "title": "Edge Id",
+            "type": "string"
+          },
+          "eval": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "UNKNOWN"
+            ],
+            "title": "Eval",
+            "type": "string"
+          },
+          "length_m": {
+            "title": "Length M",
+            "type": "number"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "edge_id",
+          "eval",
+          "type",
+          "length_m"
+        ],
+        "title": "CompareSegment",
+        "type": "object"
+      },
+      "CompareVr": {
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "created",
+          "target_id",
+          "attribute"
+        ],
+        "title": "CompareVr",
+        "type": "object"
+      },
       "Course": {
         "properties": {
           "disclaimer": {
@@ -1596,6 +1985,31 @@
           "attribute"
         ],
         "title": "CreateVRBody",
+        "type": "object"
+      },
+      "DailyLifeMatrix": {
+        "description": "Walks from the tower entrance to the four daily-life targets, per profile.",
+        "properties": {
+          "profiles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Profiles",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/MatrixRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "profiles",
+          "rows"
+        ],
+        "title": "DailyLifeMatrix",
         "type": "object"
       },
       "DayChanges": {
@@ -2292,8 +2706,11 @@
         "type": "object"
       },
       "DevelopmentPlan": {
-        "description": "Everything the Development Simulation player needs (spec \u00a74\u2013\u00a75).",
+        "description": "Everything the Development Simulation player needs (spec 2026-10-21 \u00a76).",
         "properties": {
+          "access_matrix": {
+            "$ref": "#/components/schemas/DailyLifeMatrix"
+          },
           "acts": {
             "items": {
               "$ref": "#/components/schemas/Act"
@@ -2303,6 +2720,16 @@
           },
           "anchors": {
             "$ref": "#/components/schemas/DevsimAnchors"
+          },
+          "banners": {
+            "items": {
+              "$ref": "#/components/schemas/Banner"
+            },
+            "title": "Banners",
+            "type": "array"
+          },
+          "brief": {
+            "$ref": "#/components/schemas/ImpactBrief"
           },
           "bubbles": {
             "items": {
@@ -2318,29 +2745,90 @@
             "title": "Cast",
             "type": "array"
           },
-          "end_card": {
-            "$ref": "#/components/schemas/EndCard"
+          "estimate_sources": {
+            "items": {
+              "$ref": "#/components/schemas/EstimateSource"
+            },
+            "title": "Estimate Sources",
+            "type": "array"
           },
           "facts": {
             "$ref": "#/components/schemas/DevsimFacts"
+          },
+          "flood": {
+            "$ref": "#/components/schemas/FloodExposure"
           },
           "households": {
             "title": "Households",
             "type": "integer"
           },
+          "impact": {
+            "$ref": "#/components/schemas/HoardingImpact"
+          },
           "labels": {
             "$ref": "#/components/schemas/DevsimLabels"
+          },
+          "lorry_route": {
+            "$ref": "#/components/schemas/LorryRoute"
+          },
+          "month_keys": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Month Keys",
+            "type": "array"
+          },
+          "month_keys_mode": {
+            "enum": [
+              "baseline",
+              "data-order"
+            ],
+            "title": "Month Keys Mode",
+            "type": "string"
+          },
+          "playground": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DevsimPlayground"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "provisional": {
             "default": false,
             "title": "Provisional",
             "type": "boolean"
           },
+          "residents": {
+            "$ref": "#/components/schemas/SimResidents"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/Schedule"
+          },
           "site": {
             "$ref": "#/components/schemas/DevelopmentSite"
           },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TimedTag"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
           "total_s": {
-            "default": 66,
+            "default": 45,
             "title": "Total S",
             "type": "number"
           },
@@ -2357,8 +2845,19 @@
           "households",
           "acts",
           "bubbles",
+          "tags",
+          "banners",
           "anchors",
-          "end_card",
+          "impact",
+          "lorry_route",
+          "schedule",
+          "estimate_sources",
+          "month_keys",
+          "month_keys_mode",
+          "flood",
+          "access_matrix",
+          "residents",
+          "brief",
           "labels"
         ],
         "title": "DevelopmentPlan",
@@ -2446,11 +2945,19 @@
             },
             "title": "Park",
             "type": "array"
+          },
+          "worker": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Worker",
+            "type": "array"
           }
         },
         "required": [
           "halim_path",
           "farid",
+          "worker",
           "junction",
           "park",
           "mall"
@@ -2519,6 +3026,56 @@
         "title": "DevsimDetour",
         "type": "object"
       },
+      "DevsimEvacuation": {
+        "description": "The nearest reachable evacuation centre from the tower entrance (default walk).",
+        "properties": {
+          "centre_id": {
+            "title": "Centre Id",
+            "type": "string"
+          },
+          "m": {
+            "title": "M",
+            "type": "integer"
+          },
+          "min": {
+            "title": "Min",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "official_pps",
+              "osm_candidate"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "likely_ok",
+              "partly_unverified",
+              "blocked",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "centre_id",
+          "name",
+          "source",
+          "m",
+          "min",
+          "status"
+        ],
+        "title": "DevsimEvacuation",
+        "type": "object"
+      },
       "DevsimFacts": {
         "properties": {
           "detour": {
@@ -2562,14 +3119,14 @@
             "title": "Decorative",
             "type": "string"
           },
-          "end_card_subtitle": {
-            "default": "Simulated reactions \u00b7 Hypothetical development \u00b7 not an SDP project",
-            "title": "End Card Subtitle",
+          "hypothetical": {
+            "default": "Hypothetical tower \u00b7 not an SDP project \u00b7 30 storeys \u00b7 ~500 homes",
+            "title": "Hypothetical",
             "type": "string"
           },
-          "hypothetical": {
-            "default": "Hypothetical development \u00b7 not an SDP project \u00b7 30 storeys \u00b7 ~500 homes",
-            "title": "Hypothetical",
+          "simulated": {
+            "default": "Simulated reactions",
+            "title": "Simulated",
             "type": "string"
           },
           "simulation": {
@@ -2581,8 +3138,74 @@
         "title": "DevsimLabels",
         "type": "object"
       },
+      "DevsimPlayground": {
+        "description": "The playground nearest the tower entrance on foot (routing engine, default profile): where\nthe move-in children play (spec \u00a76.2, AC-W5). Decorative figures stand there; no copy quotes\nit today.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "m": {
+            "title": "M",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "walk_min": {
+            "title": "Walk Min",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "lon",
+          "lat",
+          "node_id",
+          "m",
+          "walk_min"
+        ],
+        "title": "DevsimPlayground",
+        "type": "object"
+      },
       "DevsimWalk": {
         "properties": {
+          "arrival_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arrival Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
           "m": {
             "title": "M",
             "type": "integer"
@@ -2677,62 +3300,6 @@
         "title": "Done",
         "type": "object"
       },
-      "EndCard": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/EndCardItem"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "legend": {
-            "title": "Legend",
-            "type": "string"
-          },
-          "subtitle": {
-            "title": "Subtitle",
-            "type": "string"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "title",
-          "subtitle",
-          "items",
-          "legend"
-        ],
-        "title": "EndCard",
-        "type": "object"
-      },
-      "EndCardItem": {
-        "properties": {
-          "badges": {
-            "items": {
-              "enum": [
-                "ROUTE ENGINE",
-                "SIMULATED"
-              ],
-              "type": "string"
-            },
-            "title": "Badges",
-            "type": "array"
-          },
-          "text": {
-            "title": "Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "text",
-          "badges"
-        ],
-        "title": "EndCardItem",
-        "type": "object"
-      },
       "ErrorEvent": {
         "properties": {
           "code": {
@@ -2755,6 +3322,46 @@
           "message"
         ],
         "title": "ErrorEvent",
+        "type": "object"
+      },
+      "EstimateSource": {
+        "description": "A row of docs/04-architecture/devsim-estimates-sources.md (`devsim_schedule.SOURCES`).",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "gazetted",
+              "benchmark",
+              "climatology",
+              "assumption"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "value",
+          "unit",
+          "kind",
+          "label"
+        ],
+        "title": "EstimateSource",
         "type": "object"
       },
       "EvacCentre": {
@@ -3507,6 +4114,77 @@
         "title": "FactImpact",
         "type": "object"
       },
+      "FloodExposure": {
+        "description": "At handover: the river-rise scenario from which the entrance's usual walk to the main road\ncrosses a likely-flooded stretch. Indicative scenario, not a forecast; no depths.",
+        "properties": {
+          "cut_edges": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cut Edges",
+            "type": "array"
+          },
+          "cut_from_scenario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cut From Scenario"
+          },
+          "disclaimer": {
+            "default": "Indicative scenario, not a forecast.",
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "evacuation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DevsimEvacuation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profile": {
+            "default": "default",
+            "title": "Profile",
+            "type": "string"
+          },
+          "road_node": {
+            "title": "Road Node",
+            "type": "string"
+          },
+          "route_edges": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Route Edges",
+            "type": "array"
+          },
+          "scenarios_checked": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenarios Checked",
+            "type": "array"
+          }
+        },
+        "required": [
+          "road_node",
+          "route_edges",
+          "scenarios_checked",
+          "cut_from_scenario",
+          "cut_edges",
+          "evacuation"
+        ],
+        "title": "FloodExposure",
+        "type": "object"
+      },
       "FloodPlace": {
         "properties": {
           "id": {
@@ -3675,6 +4353,247 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HoardingHome": {
+        "description": "One residential building within the radius, before vs after the hoarding (default walk).",
+        "properties": {
+          "cut_off": {
+            "default": false,
+            "title": "Cut Off",
+            "type": "boolean"
+          },
+          "extra_arrival": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Arrival"
+          },
+          "extra_min": {
+            "title": "Extra Min",
+            "type": "integer"
+          },
+          "extra_target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Target"
+          },
+          "home_id": {
+            "title": "Home Id",
+            "type": "string"
+          },
+          "wheelchair_cut": {
+            "default": false,
+            "title": "Wheelchair Cut",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "home_id",
+          "extra_min"
+        ],
+        "title": "HoardingHome",
+        "type": "object"
+      },
+      "HoardingImpact": {
+        "description": "Every nearby home's walks to the four targets before and after the hoarding closes the\nfrontage paths (routing engine; default profile for minutes, wheelchair for links cut).",
+        "properties": {
+          "best_side": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Side"
+          },
+          "closed_edges": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Closed Edges",
+            "type": "array"
+          },
+          "homes": {
+            "items": {
+              "$ref": "#/components/schemas/HoardingHome"
+            },
+            "title": "Homes",
+            "type": "array"
+          },
+          "homes_2min_plus": {
+            "title": "Homes 2Min Plus",
+            "type": "integer"
+          },
+          "homes_considered": {
+            "title": "Homes Considered",
+            "type": "integer"
+          },
+          "max_extra_min": {
+            "title": "Max Extra Min",
+            "type": "integer"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/HoardingOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "profile": {
+            "default": "default",
+            "title": "Profile",
+            "type": "string"
+          },
+          "provenance": {
+            "default": "routing engine, default profile (wheelchair profile for links cut)",
+            "title": "Provenance",
+            "type": "string"
+          },
+          "radius_m": {
+            "title": "Radius M",
+            "type": "integer"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactTarget"
+            },
+            "title": "Targets",
+            "type": "array"
+          },
+          "wheelchair_links_cut": {
+            "title": "Wheelchair Links Cut",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "radius_m",
+          "homes_considered",
+          "homes_2min_plus",
+          "max_extra_min",
+          "wheelchair_links_cut",
+          "targets",
+          "closed_edges",
+          "options",
+          "best_side",
+          "homes"
+        ],
+        "title": "HoardingImpact",
+        "type": "object"
+      },
+      "HoardingOption": {
+        "description": "The impact with only one side of the site hoarded (its frontage walk paths closed).",
+        "properties": {
+          "edge_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Edge Ids",
+            "type": "array"
+          },
+          "homes_2min_plus": {
+            "title": "Homes 2Min Plus",
+            "type": "integer"
+          },
+          "max_extra_min": {
+            "title": "Max Extra Min",
+            "type": "integer"
+          },
+          "side": {
+            "title": "Side",
+            "type": "string"
+          },
+          "wheelchair_links_cut": {
+            "title": "Wheelchair Links Cut",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "side",
+          "edge_ids",
+          "homes_2min_plus",
+          "max_extra_min",
+          "wheelchair_links_cut"
+        ],
+        "title": "HoardingOption",
+        "type": "object"
+      },
+      "ImpactBrief": {
+        "description": "The Impact Brief panel (from 33 s). Replaces the 66 s end card: every value is a computed\nfact (ROUTE, FLOOD) or a labelled ESTIMATE / CALENDAR figure; check_plan reads every digit.",
+        "properties": {
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/BriefSection"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "subtitle": {
+            "title": "Subtitle",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "subtitle",
+          "sections"
+        ],
+        "title": "ImpactBrief",
+        "type": "object"
+      },
+      "ImpactTarget": {
+        "description": "A daily-life destination: Lakeside Mall, Urban Park, and the school and clinic nearest the\ntower entrance on foot (default profile). Every home uses the same four.",
+        "properties": {
+          "arrive_at": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Arrive At",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "mall",
+              "park",
+              "school",
+              "clinic"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind"
+        ],
+        "title": "ImpactTarget",
+        "type": "object"
+      },
       "JourneyEvent": {
         "description": "One stop of a journey (spec \u00a76.1), derived by journey.build_journey from world data only.",
         "properties": {
@@ -3821,6 +4740,13 @@
             "title": "Route Id",
             "type": "string"
           },
+          "span_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Span Types",
+            "type": "array"
+          },
           "spans": {
             "items": {
               "maxItems": 3,
@@ -3939,6 +4865,124 @@
           "open_vrs"
         ],
         "title": "Kpis",
+        "type": "object"
+      },
+      "LorryRoute": {
+        "description": "Construction lorries: `drive` route from the nearest major road to the site gate.",
+        "properties": {
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "from_node": {
+            "title": "From Node",
+            "type": "string"
+          },
+          "gate_node": {
+            "title": "Gate Node",
+            "type": "string"
+          },
+          "minutes": {
+            "title": "Minutes",
+            "type": "integer"
+          },
+          "path": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Path",
+            "type": "array"
+          },
+          "profile": {
+            "default": "drive",
+            "title": "Profile",
+            "type": "string"
+          },
+          "school_run_note": {
+            "default": "School run assumed 7\u20138 am (typical); not from data",
+            "title": "School Run Note",
+            "type": "string"
+          },
+          "sensitive": {
+            "items": {
+              "$ref": "#/components/schemas/LorrySensitive"
+            },
+            "title": "Sensitive",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "likely_ok",
+              "partly_unverified",
+              "blocked",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "from_node",
+          "gate_node",
+          "path",
+          "distance_m",
+          "minutes",
+          "status",
+          "sensitive"
+        ],
+        "title": "LorryRoute",
+        "type": "object"
+      },
+      "LorrySensitive": {
+        "description": "A school, kindergarten, park or playground within 50 m of the lorry route.",
+        "properties": {
+          "along_m": {
+            "title": "Along M",
+            "type": "integer"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "place_id": {
+            "title": "Place Id",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "school",
+              "kindergarten",
+              "park",
+              "playground"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "place_id",
+          "name",
+          "type",
+          "distance_m",
+          "along_m"
+        ],
+        "title": "LorrySensitive",
         "type": "object"
       },
       "Maneuver": {
@@ -4322,6 +5366,172 @@
         "title": "MarathonResult",
         "type": "object"
       },
+      "MatrixCell": {
+        "properties": {
+          "arrival_id": {
+            "title": "Arrival Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "M"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "likely_ok",
+              "partly_unverified",
+              "blocked",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "enum": [
+                  "?",
+                  "gap",
+                  "blocked"
+                ],
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "profile",
+          "status",
+          "value",
+          "arrival_id",
+          "label"
+        ],
+        "title": "MatrixCell",
+        "type": "object"
+      },
+      "MatrixRow": {
+        "properties": {
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/MatrixCell"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ImpactTarget"
+          }
+        },
+        "required": [
+          "target",
+          "cells"
+        ],
+        "title": "MatrixRow",
+        "type": "object"
+      },
+      "MonsoonBand": {
+        "properties": {
+          "end_index": {
+            "title": "End Index",
+            "type": "integer"
+          },
+          "end_month": {
+            "title": "End Month",
+            "type": "string"
+          },
+          "start_index": {
+            "title": "Start Index",
+            "type": "integer"
+          },
+          "start_month": {
+            "title": "Start Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_month",
+          "end_month",
+          "start_index",
+          "end_index"
+        ],
+        "title": "MonsoonBand",
+        "type": "object"
+      },
+      "MonsoonMonth": {
+        "properties": {
+          "days_lost": {
+            "title": "Days Lost",
+            "type": "number"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "month_index": {
+            "title": "Month Index",
+            "type": "integer"
+          },
+          "wet_days": {
+            "title": "Wet Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "month_index",
+          "wet_days",
+          "days_lost"
+        ],
+        "title": "MonsoonMonth",
+        "type": "object"
+      },
+      "MonsoonSetPiece": {
+        "description": "The northeast-monsoon stretch the playback stages (ruling R25): the first band that starts\nafter the Hari Raya set piece and before handover, else the band containing Hari Raya.\n`days_lost` per month counts structure work only, so it is 0 in a fit-out month.",
+        "properties": {
+          "end_month": {
+            "title": "End Month",
+            "type": "string"
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/MonsoonMonth"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "start_month": {
+            "title": "Start Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_month",
+          "end_month",
+          "months"
+        ],
+        "title": "MonsoonSetPiece",
+        "type": "object"
+      },
       "NoJourney": {
         "description": "Why there is no journey to play: the route status and a plain message.",
         "properties": {
@@ -4435,6 +5645,50 @@
           "q"
         ],
         "title": "PlanFact",
+        "type": "object"
+      },
+      "Poi": {
+        "properties": {
+          "at_m": {
+            "title": "At M",
+            "type": "number"
+          },
+          "demo": {
+            "default": false,
+            "title": "Demo",
+            "type": "boolean"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "kerb",
+              "covered_start",
+              "incline",
+              "seating",
+              "unknown",
+              "arrival"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "kind",
+          "at_m",
+          "value",
+          "evidence_ids",
+          "demo"
+        ],
+        "title": "Poi",
         "type": "object"
       },
       "ProfileImpact": {
@@ -4622,6 +5876,131 @@
         "title": "RaisePaths",
         "type": "object"
       },
+      "RayaSetPiece": {
+        "description": "The one Hari Raya Aidilfitri site shutdown the playback stages (the first during structure\nwork). `days` is the assumed shutdown length in working days, beyond the gazetted holidays.",
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "month_index": {
+            "title": "Month Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "month_index",
+          "days"
+        ],
+        "title": "RayaSetPiece",
+        "type": "object"
+      },
+      "ReasonSet": {
+        "description": "Per-route reasons from known facts only (spec D2): a field is None when no edge on the\nroute has a known value for it. Unknown values never count for or against a route.\n`steps` is stricter (R44): None (\"not checked yet\") unless every edge's step count is known,\nso 0 means every edge is known to have no steps, never a partly known route.",
+        "properties": {
+          "covered_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Covered Share"
+          },
+          "demo_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Demo Fields",
+            "type": "array"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "max_incline_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Incline Pct"
+          },
+          "min_width_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Width M"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          },
+          "rest_stops": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Stops"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          }
+        },
+        "required": [
+          "steps",
+          "max_incline_pct",
+          "min_width_m",
+          "covered_share",
+          "rest_stops",
+          "distance_m",
+          "minutes",
+          "demo_fields"
+        ],
+        "title": "ReasonSet",
+        "type": "object"
+      },
       "Resident": {
         "properties": {
           "demo_evidence": {
@@ -4707,6 +6086,147 @@
           "route_ids"
         ],
         "title": "Resident",
+        "type": "object"
+      },
+      "ResidentFacts": {
+        "description": "The only facts a resident's lines may quote (routing engine, their own profile).",
+        "properties": {
+          "extra_walk_arrival": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Walk Arrival"
+          },
+          "extra_walk_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Walk Min"
+          },
+          "extra_walk_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Walk To"
+          },
+          "home_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Id"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "walks": {
+            "items": {
+              "$ref": "#/components/schemas/ResidentWalk"
+            },
+            "title": "Walks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "profile",
+          "home_id",
+          "walks"
+        ],
+        "title": "ResidentFacts",
+        "type": "object"
+      },
+      "ResidentLines": {
+        "properties": {
+          "construction": {
+            "title": "Construction",
+            "type": "string"
+          },
+          "daily_life": {
+            "title": "Daily Life",
+            "type": "string"
+          },
+          "handover": {
+            "title": "Handover",
+            "type": "string"
+          }
+        },
+        "required": [
+          "construction",
+          "handover",
+          "daily_life"
+        ],
+        "title": "ResidentLines",
+        "type": "object"
+      },
+      "ResidentWalk": {
+        "properties": {
+          "arrival_id": {
+            "title": "Arrival Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "mall",
+              "park",
+              "school",
+              "clinic"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "enum": [
+                  "?",
+                  "gap",
+                  "blocked"
+                ],
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "value",
+          "arrival_id",
+          "label"
+        ],
+        "title": "ResidentWalk",
         "type": "object"
       },
       "ResolveBody": {
@@ -5108,6 +6628,170 @@
         "title": "Route",
         "type": "object"
       },
+      "RouteCompare": {
+        "description": "The `route.compare` payload: compare_routes' result as recorded this turn (run.py builds\nit from TurnRecord.compares; the model never writes any of it). `fastest` is the shortest\nwalk, `recommended` the profile's route; with `same_path` both are the same route.",
+        "properties": {
+          "confirm_n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm N"
+          },
+          "extra_minutes": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Minutes"
+          },
+          "fastest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompareRoute"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "from_place": {
+            "$ref": "#/components/schemas/CompareEnd"
+          },
+          "pois": {
+            "items": {
+              "$ref": "#/components/schemas/Poi"
+            },
+            "title": "Pois",
+            "type": "array"
+          },
+          "profile": {
+            "enum": [
+              "default",
+              "stroller",
+              "wheelchair",
+              "older_adult_rest",
+              "drive"
+            ],
+            "title": "Profile",
+            "type": "string"
+          },
+          "reasons": {
+            "$ref": "#/components/schemas/RouteReasons"
+          },
+          "recommended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompareRoute"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "same_path": {
+            "title": "Same Path",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "likely_ok",
+              "partly_unverified",
+              "blocked",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "stop": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to_place": {
+            "$ref": "#/components/schemas/CompareEnd"
+          },
+          "unchecked": {
+            "items": {
+              "$ref": "#/components/schemas/UncheckedStretch"
+            },
+            "title": "Unchecked",
+            "type": "array"
+          },
+          "vr": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompareVr"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "from_place",
+          "to_place",
+          "profile",
+          "status",
+          "same_path",
+          "fastest",
+          "recommended",
+          "stop",
+          "reasons",
+          "extra_minutes",
+          "unchecked",
+          "pois",
+          "vr",
+          "confirm_n"
+        ],
+        "title": "RouteCompare",
+        "type": "object"
+      },
+      "RouteReasons": {
+        "properties": {
+          "fastest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReasonSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recommended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReasonSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "fastest",
+          "recommended"
+        ],
+        "title": "RouteReasons",
+        "type": "object"
+      },
       "RouteRequest": {
         "properties": {
           "from": {
@@ -5448,6 +7132,16 @@
               }
             ]
           },
+          "compare": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RouteCompare"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "day": {
             "anyOf": [
               {
@@ -5517,7 +7211,8 @@
               "journey.play",
               "development.play",
               "closure.show",
-              "marathon.show"
+              "marathon.show",
+              "route.compare"
             ],
             "title": "Kind",
             "type": "string"
@@ -5677,6 +7372,239 @@
           "intent"
         ],
         "title": "SceneIntentEvent",
+        "type": "object"
+      },
+      "Schedule": {
+        "description": "ESTIMATE: an indicative schedule and cost for the Hypothetical Development, from the\npublished benchmarks and labelled assumptions in the sources doc\n(docs/04-architecture/devsim-estimates-sources.md, `devsim_schedule.SOURCES`). Not an SDP\nfigure, a quotation or a forecast.",
+        "properties": {
+          "cost_by_month": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Cost By Month",
+            "type": "array"
+          },
+          "cost_total_rm": {
+            "title": "Cost Total Rm",
+            "type": "integer"
+          },
+          "days_lost_by_month": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Days Lost By Month",
+            "type": "array"
+          },
+          "floors_by_month": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Floors By Month",
+            "type": "array"
+          },
+          "gfa_m2": {
+            "title": "Gfa M2",
+            "type": "integer"
+          },
+          "handover": {
+            "title": "Handover",
+            "type": "string"
+          },
+          "holiday_days_lost": {
+            "title": "Holiday Days Lost",
+            "type": "integer"
+          },
+          "holidays": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduleHoliday"
+            },
+            "title": "Holidays",
+            "type": "array"
+          },
+          "holidays_lost": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Holidays Lost",
+            "type": "array"
+          },
+          "homes": {
+            "title": "Homes",
+            "type": "integer"
+          },
+          "label": {
+            "default": "ESTIMATE",
+            "title": "Label",
+            "type": "string"
+          },
+          "monsoon_bands": {
+            "items": {
+              "$ref": "#/components/schemas/MonsoonBand"
+            },
+            "title": "Monsoon Bands",
+            "type": "array"
+          },
+          "monsoon_set_piece": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MonsoonSetPiece"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "months_total": {
+            "title": "Months Total",
+            "type": "integer"
+          },
+          "phases": {
+            "items": {
+              "$ref": "#/components/schemas/SchedulePhase"
+            },
+            "title": "Phases",
+            "type": "array"
+          },
+          "rain_days_lost": {
+            "title": "Rain Days Lost",
+            "type": "integer"
+          },
+          "rate_rm_per_m2": {
+            "title": "Rate Rm Per M2",
+            "type": "integer"
+          },
+          "raya_set_piece": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RayaSetPiece"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "raya_shutdown_days": {
+            "title": "Raya Shutdown Days",
+            "type": "integer"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Ids",
+            "type": "array"
+          },
+          "source_line": {
+            "title": "Source Line",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "string"
+          },
+          "storeys": {
+            "title": "Storeys",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "storeys",
+          "homes",
+          "start",
+          "handover",
+          "months_total",
+          "months",
+          "phases",
+          "floors_by_month",
+          "gfa_m2",
+          "rate_rm_per_m2",
+          "cost_total_rm",
+          "cost_by_month",
+          "holidays",
+          "holiday_days_lost",
+          "holidays_lost",
+          "rain_days_lost",
+          "raya_shutdown_days",
+          "monsoon_bands",
+          "raya_set_piece",
+          "monsoon_set_piece",
+          "days_lost_by_month",
+          "source_ids",
+          "source_line"
+        ],
+        "title": "Schedule",
+        "type": "object"
+      },
+      "ScheduleHoliday": {
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "month_index": {
+            "title": "Month Index",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "gazetted",
+              "expected"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "working_day": {
+            "title": "Working Day",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "date",
+          "name",
+          "status",
+          "month_index",
+          "working_day"
+        ],
+        "title": "ScheduleHoliday",
+        "type": "object"
+      },
+      "SchedulePhase": {
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "string"
+          },
+          "name": {
+            "enum": [
+              "foundation",
+              "structure",
+              "fit-out"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "start",
+          "end"
+        ],
+        "title": "SchedulePhase",
         "type": "object"
       },
       "SetRiverStage": {
@@ -5939,6 +7867,113 @@
           }
         },
         "title": "SimRequest",
+        "type": "object"
+      },
+      "SimResident": {
+        "properties": {
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "colour": {
+            "title": "Colour",
+            "type": "string"
+          },
+          "facts": {
+            "$ref": "#/components/schemas/ResidentFacts"
+          },
+          "group": {
+            "enum": [
+              "older",
+              "parent",
+              "commuter",
+              "wheelchair",
+              "general"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lines": {
+            "$ref": "#/components/schemas/ResidentLines"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "tower",
+              "neighbour"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "tags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role",
+          "side",
+          "group",
+          "colour",
+          "facts",
+          "lines"
+        ],
+        "title": "SimResident",
+        "type": "object"
+      },
+      "SimResidents": {
+        "properties": {
+          "label": {
+            "default": "Simulated reactions",
+            "title": "Label",
+            "type": "string"
+          },
+          "note": {
+            "default": "Lines are written for the simulation; every number comes from the world model.",
+            "title": "Note",
+            "type": "string"
+          },
+          "residents": {
+            "items": {
+              "$ref": "#/components/schemas/SimResident"
+            },
+            "title": "Residents",
+            "type": "array"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "residents",
+          "seed"
+        ],
+        "title": "SimResidents",
         "type": "object"
       },
       "SimResult": {
@@ -6450,7 +8485,8 @@
           "home": {
             "enum": [
               "tower",
-              "existing"
+              "existing",
+              "site"
             ],
             "title": "Home",
             "type": "string"
@@ -6499,6 +8535,64 @@
           "label"
         ],
         "title": "Stage",
+        "type": "object"
+      },
+      "StopPoint": {
+        "description": "The first known FAIL along the fastest route under the requested profile.",
+        "properties": {
+          "at_m": {
+            "title": "At M",
+            "type": "number"
+          },
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "demo": {
+            "default": false,
+            "title": "Demo",
+            "type": "boolean"
+          },
+          "edge_id": {
+            "title": "Edge Id",
+            "type": "string"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "edge_id",
+          "at_m",
+          "attribute",
+          "value",
+          "limit",
+          "evidence_id",
+          "demo"
+        ],
+        "title": "StopPoint",
         "type": "object"
       },
       "StoredEvent": {
@@ -6609,6 +8703,52 @@
           "delta"
         ],
         "title": "TextDelta",
+        "type": "object"
+      },
+      "TimedTag": {
+        "description": "A map tag shown for a window: the detour (hoarding impact) and the lorry route (R16).",
+        "properties": {
+          "at": {
+            "items": {
+              "type": "number"
+            },
+            "title": "At",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "detour",
+              "lorry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "t0": {
+            "title": "T0",
+            "type": "number"
+          },
+          "t1": {
+            "title": "T1",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "t0",
+          "t1",
+          "title",
+          "text",
+          "at"
+        ],
+        "title": "TimedTag",
         "type": "object"
       },
       "ToolCall": {
@@ -6732,6 +8872,40 @@
           "level"
         ],
         "title": "Uncertainty",
+        "type": "object"
+      },
+      "UncheckedStretch": {
+        "description": "A contiguous run of recommended-route edges whose `attribute` is not checked yet.",
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "edge_id": {
+            "title": "Edge Id",
+            "type": "string"
+          },
+          "end_m": {
+            "title": "End M",
+            "type": "number"
+          },
+          "length_m": {
+            "title": "Length M",
+            "type": "number"
+          },
+          "start_m": {
+            "title": "Start M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "edge_id",
+          "attribute",
+          "start_m",
+          "end_m",
+          "length_m"
+        ],
+        "title": "UncheckedStretch",
         "type": "object"
       },
       "VRRow": {
@@ -8068,7 +10242,7 @@
     },
     "/developments/simulate": {
       "post": {
-        "description": "The Development Simulation plan for the loaded world: site, routed facts (detour, park and\nmall walks), cast, timeline, bubbles and end card. Illustrative, not a forecast; 404 when the\nworld lacks the parcel (e.g. the tiny fixture).",
+        "description": "The Development Simulation plan for the loaded world (the 45 s building timeline): site,\nrouted facts (detour, park and mall walks), cast, acts, bubbles, tags, banners, the hoarding\nimpact over every nearby home, the lorry route, the ESTIMATE schedule and cost with its\nsources and month keys, flood exposure at handover, the daily-life access matrix, 40\nsimulated residents and the Impact Brief. Illustrative, not a forecast; 404 when the world\nlacks the parcel (e.g. the tiny fixture).",
         "operationId": "simulate_development_developments_simulate_post",
         "requestBody": {
           "content": {
@@ -9104,6 +11278,45 @@
           }
         },
         "summary": "Routes"
+      }
+    },
+    "/routes/compare": {
+      "post": {
+        "description": "Fastest route next to the profile's route (navigation compare, demo polish B3): stop\npoint, known-fact reasons, unchecked stretches, points of interest and `confirm_n`. Like\nPOST /routes it never files verification requests, so `vr` is always null.",
+        "operationId": "routes_compare_routes_compare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RouteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompareResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Routes Compare"
       }
     },
     "/scenarios": {

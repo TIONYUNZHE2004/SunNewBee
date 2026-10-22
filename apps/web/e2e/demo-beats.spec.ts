@@ -1,0 +1,1048 @@
+/**
+ * Demo beats through the dev/e2e hook `window.__tl.demo` (demo polish spec §5.4, §7).
+ *
+ * Navigation compare (B11; AC-N1, N2, N3, N5, N7, N9):
+ * - Stylised 3D (SwiftShader, stubbed buildings as in three.spec.ts) with `/api/chat` stubbed to
+ *   stream the mock's real Elmina answer intents in its order (`fixtures/nav-answer-intents.json`:
+ *   `route.compare`, `route.highlight`, `journey.play`; V2 fix N-a), whose compare is the recorded
+ *   `fixtures/compare-intent.json` (B6): the left pill is never covered (no route legend or trip
+ *   chrome over it), the reasons card sits clear of the map notes, and every
+ *   §5.4 row is checked by `data-beat` at its midpoint and 0.5 s outside it, the chip counter at
+ *   19.3 / 19.5 s, the walkers, and the routes' box above the reasons card at ≥ 32 s.
+ * - List view on the tiny world with the real mock assistant: Watch the trip shows the toast and
+ *   the reasons card without 3D or a split, the Rail badge goes up by one and `/tickets` lists the
+ *   compare's VR (the recorded fixture's VR does not exist in the e2e database).
+ *
+ * Building impact (C13; AC-W2…W8): Stylised 3D with stubbed buildings, the mock assistant's
+ * starter, and POST /api/developments/simulate stubbed with `fixtures/devsim-plan.json` (the 45 s
+ * Elmina plan). Every §6.3 row's window is measured through the `bld` hook and checked against the
+ * table and the plan, then shown at its midpoint and gone 0.5 s outside it; HUD, set pieces,
+ * move-in, the brief beside the tower, the residents script and the bubble windows follow.
+ *
+ * Coordinator rulings on the corridor: the kerb beat's raw time is ~10.4 s and is clamped into its
+ * window (R28); there is no seating POI, so no rest beat (R29); N = 0 keeps only the toast's first
+ * sentence (R30). Each beat's raw and clamped times are attached to the test report.
+ */
+
+import { readFileSync } from "node:fs";
+import { expect, type Page, test } from "@playwright/test";
+import { DEVSIM_BRIEF } from "../src/features/assistant/starters";
+import { OBSTACLE_SELECTORS } from "../src/features/devsim/clearArea";
+import type { DevelopmentPlan } from "../src/features/devsim/types";
+
+/** The mock assistant's scene intents for the corridor question on Elmina, in its order. */
+const answerIntents = JSON.parse(
+  readFileSync(new URL("./fixtures/nav-answer-intents.json", import.meta.url), "utf8"),
+) as { kind: string; route_id: string }[];
+const intent = JSON.parse(
+  readFileSync(new URL("./fixtures/compare-intent.json", import.meta.url), "utf8"),
+) as {
+  kind: string;
+  route_id: string;
+  compare: {
+    from_place: { name: string };
+    to_place: { name: string };
+    stop: { at_m: number } | null;
+    reasons: { fastest: { minutes: number }; recommended: { minutes: number; steps: number } };
+    unchecked: { attribute: string; length_m: number }[];
+    pois: { kind: string }[];
+    confirm_n: number | null;
+  };
+};
+
+// Headless Chromium no longer falls back to SwiftShader on its own (as three.spec.ts).
+test.use({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] } });
+const COLD = { timeout: 30_000 };
+
+const ring = (x: number, y: number, d = 0.0001) => [
+  [
+    [x, y],
+    [x + d, y],
+    [x + d, y + d],
+    [x, y + d],
+    [x, y],
+  ],
+];
+const BUILDINGS = {
+  buildings: {
+    type: "FeatureCollection",
+    features: [0, 1, 2].map((i) => ({
+      type: "Feature",
+      properties: { id: `t${i}`, height_m: 9 + i * 6, kind: "residential" },
+      geometry: { type: "Polygon", coordinates: ring(101.5095 + i * 0.0004, 3.1808) },
+    })),
+  },
+  trees: { type: "FeatureCollection", features: [] },
+  as_of: "2026-10-17",
+  attribution: [],
+};
+
+/** Spec §5.4 rows as beat ids and baseline windows. */
+const TABLE: [string, number, number][] = [
+  ["intro", 0, 3],
+  ["split", 0, 31.5],
+  ["tag-kerb", 3, 5.5],
+  ["tag-covered", 4.5, 7],
+  ["greeting", 7, 10],
+  ["tag-fastest", 10, 14],
+  ["tag-incline", 10.3, 13.3],
+  ["tag-unchecked", 13.6, 18],
+  ["tag-stop", 16.7, 31],
+  ["ticket-flight", 17.6, 19.4],
+  ["tickets-chip", 0, 45],
+  ["ticket-toast", 19.4, 25],
+  ["tag-rest", 19.5, 23],
+  ["arrive", 29, 31.5],
+  ["overview", 31.5, 45],
+  ["reasons", 32, 45],
+];
+const ROUTE_TIED = [
+  "tag-kerb",
+  "tag-covered",
+  "tag-incline",
+  "tag-unchecked",
+  "tag-stop",
+  "ticket-flight",
+  "ticket-toast", // follows the flight
+  "tag-rest",
+];
+/** Fixed beats play exactly the table window (±0.05 s); route-tied ones within ±1.5 s. */
+const FIXED_TOL_S = 0.05;
+const TIED_TOL_S = 1.5;
+/** Route-tied beats whose end the table fixes (the stop tag stays until 31 s). */
+const FIXED_END = ["tag-stop"];
+/** R28: known off-baseline on the corridor, clamped instead. */
+const OFF_BASELINE = ["tag-kerb"];
+/** No DOM element: a camera state read from the hook. */
+const CAMERA_ONLY = ["overview"];
+const T_END = 45;
+
+type TimelineBeat = {
+  id: string;
+  t0: number;
+  t1: number;
+  raw: number | null;
+  baseline: [number, number];
+  /** ticket-flight only: the walker's unfloored arrival at unchecked[0].start_m (R32). */
+  reach?: number;
+};
+type NavState = {
+  key: string;
+  loaded: boolean;
+  t: number;
+  beats: string[];
+  timeline: TimelineBeat[];
+  counters: { tickets: number };
+  camera: "split" | "overview" | null;
+  walkers: { fastest: number; recommended: number } | null;
+  recommendedM: number | null;
+  stopAtM: number | null;
+  routesBbox: { x0: number; y0: number; x1: number; y1: number } | null;
+  cardTop: number | null;
+  viewports: { left: { x: number; w: number }; right: { x: number; w: number } } | null;
+};
+
+const navState = (page: Page) =>
+  page.evaluate(() => {
+    const d = (window as unknown as { __tl: { demo: { state: () => unknown } } }).__tl.demo;
+    return d.state();
+  }) as Promise<NavState>;
+
+/** Pauses the nav playback at t and waits until the store is there. */
+async function seek(page: Page, t: number) {
+  await page.evaluate((s) => {
+    const d = (
+      window as unknown as {
+        __tl: { demo: { set: (k: string) => void; pause: () => void; seek: (x: number) => void } };
+      }
+    ).__tl.demo;
+    d.set("nav");
+    d.pause();
+    d.seek(s);
+  }, t);
+  await expect.poll(async () => (await navState(page)).t, COLD).toBeCloseTo(t, 5);
+}
+
+const beat = (page: Page, id: string) => page.locator(`[data-beat="${id}"]`);
+
+async function openAssistant(page: Page) {
+  const show = page.getByRole("button", { name: "Show assistant" });
+  if (await show.isVisible()) await show.click();
+  await expect(page.getByRole("textbox", { name: "Your question" })).toBeVisible(COLD);
+}
+
+async function ask(page: Page, q: string) {
+  await page.getByRole("textbox", { name: "Your question" }).fill(q);
+  await page.getByRole("button", { name: "Ask", exact: true }).click();
+  const last = page.getByRole("log").getByRole("article").last();
+  await expect(last).toHaveAttribute("data-done", "true", COLD);
+  return last;
+}
+
+const sse = (events: object[]) => events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
+
+test.describe("navigation compare beats, Stylised 3D, recorded Elmina intent", () => {
+  test.setTimeout(240_000);
+
+  test("every §5.4 row by data-beat, chip counter, walkers, overview above the card (AC-N1/N2/N3/N5/N7)", async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
+    await page.route("**/api/chat", (r) =>
+      r.fulfill({
+        headers: { "Content-Type": "text/event-stream" },
+        body: sse([
+          { type: "text.delta", delta: "Recommended route (demo values, not yet surveyed)." },
+          ...answerIntents.map((i) => ({ type: "scene.intent", intent: i })),
+          { type: "done", message_id: "m", answer_status: "answered", model: "stub" },
+        ]),
+      }),
+    );
+    expect(answerIntents.map((i) => i.kind)).toEqual([
+      "route.compare",
+      "route.highlight",
+      "journey.play",
+    ]);
+    expect(answerIntents[0]).toEqual(intent);
+    await page.goto("/");
+    const scene = page.getByTestId("three-scene");
+    await expect(scene).toBeVisible(COLD);
+    await expect
+      .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
+      .toBeGreaterThan(0);
+    await openAssistant(page);
+    const answer = await ask(page, "Wheelchair route from Elmina Lakeside Mall to Surau Kiambang?");
+    // the answer's own route is on the map with its legend before the trip
+    await expect(page.getByRole("button", { name: "Clear route from map" })).toBeVisible(COLD);
+
+    // AC-N1: Watch the trip starts the compare playback (not the journey)
+    await answer.getByRole("button", { name: "Watch the trip" }).click();
+    await expect(page.getByTestId("compare-stage")).toBeVisible(COLD);
+    await expect.poll(async () => (await navState(page)).loaded, COLD).toBe(true);
+    await seek(page, 0.5);
+    const st0 = await navState(page);
+    expect(st0.key).toBe("nav");
+
+    // AC-N3 (data): every §5.4 row's played window against the table, raw route times, and the
+    // stated exceptions: R28 kerb raw off baseline (clamped), R29 no rest beat without a seating
+    // POI, R32 flight raw floored at 17.6 s (the walker's own arrival `reach` is checked instead).
+    const byId = new Map(st0.timeline.map((b) => [b.id, b]));
+    const report: string[] = ["beat | baseline | raw | reach | played (clamped)"];
+    for (const [id, a, b] of TABLE) {
+      const x = byId.get(id);
+      report.push(
+        `${id} | ${a}–${b} | ${x?.raw == null ? "—" : x.raw.toFixed(2)} | ${x?.reach == null ? "—" : x.reach.toFixed(2)} | ${x ? `${x.t0.toFixed(2)}–${x.t1.toFixed(2)}` : "absent"}`,
+      );
+    }
+    await info.attach("beat-times.txt", { body: report.join("\n"), contentType: "text/plain" });
+    console.log(report.join("\n"));
+    const seating = intent.compare.pois.some((p) => p.kind === "seating");
+    for (const [id, a, b] of TABLE) {
+      const x = byId.get(id);
+      if (id === "tag-rest" && !seating) {
+        expect(x, "R29: no seating POI, no rest beat").toBeUndefined();
+        continue;
+      }
+      expect(x, id).toBeDefined();
+      if (!x) continue;
+      if (!ROUTE_TIED.includes(id)) {
+        expect(Math.abs(x.t0 - a), `${id} t0 ${x.t0}`).toBeLessThanOrEqual(FIXED_TOL_S);
+        expect(Math.abs(x.t1 - b), `${id} t1 ${x.t1}`).toBeLessThanOrEqual(FIXED_TOL_S);
+        continue;
+      }
+      expect(Math.abs(x.t0 - a), `${id} t0 ${x.t0}`).toBeLessThanOrEqual(TIED_TOL_S + 1e-9);
+      const endTol = FIXED_END.includes(id) ? FIXED_TOL_S : TIED_TOL_S + 1e-9;
+      expect(Math.abs(x.t1 - b), `${id} t1 ${x.t1}`).toBeLessThanOrEqual(endTol);
+      if (OFF_BASELINE.includes(id)) {
+        expect(Math.abs((x.raw ?? a) - a), `R28 ${id} raw ${x.raw}`).toBeGreaterThan(TIED_TOL_S);
+        expect(Math.abs(x.t0 - a), `R28 ${id} clamped`).toBeCloseTo(TIED_TOL_S, 5);
+      } else {
+        expect(Math.abs((x.raw ?? Number.NaN) - a), `${id} raw ${x.raw}`).toBeLessThanOrEqual(
+          TIED_TOL_S,
+        );
+      }
+      if (id === "ticket-flight") {
+        // R32: the walker reaches the stretch within ±1.5 s of the unchecked tag's 13.6 s, before
+        // the card flies
+        expect(Math.abs((x.reach ?? Number.NaN) - 13.6), `reach ${x.reach}`).toBeLessThanOrEqual(
+          TIED_TOL_S,
+        );
+        expect(x.reach ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(x.t0);
+      }
+    }
+
+    // AC-N2: two halves of equal width, divider, pills from the payload
+    await seek(page, 5);
+    await expect.poll(async () => (await navState(page)).viewports !== null, COLD).toBe(true);
+    const vp = (await navState(page)).viewports;
+    expect(Math.abs((vp?.left.w ?? 0) - (vp?.right.w ?? -9))).toBeLessThanOrEqual(1);
+    await expect(beat(page, "split-divider")).toBeAttached();
+    const r = intent.compare.reasons;
+    await expect(beat(page, "split-pill-fastest")).toHaveText(
+      `Fastest route · ${r.fastest.minutes} min walking`,
+    );
+    await expect(beat(page, "split-pill-recommended")).toHaveText(
+      r.recommended.steps === 0
+        ? `Recommended · step-free · ${r.recommended.minutes} min`
+        : `Recommended · ${r.recommended.minutes} min`,
+    );
+    await expect(beat(page, "intro")).toHaveCount(0); // the query chip is a 0–3 s beat
+
+    // V2 fix N-a: while the compare plays the only chrome is its own: no route legend, no journey
+    // trip bar, one player; both pills are uncovered (the element at each pill's centre is the
+    // pill), at the start, mid-way and at the stop
+    for (const t of [1.5, 5, 17, 25]) {
+      await seek(page, t);
+      await expect(page.getByRole("button", { name: "Clear route from map" })).toHaveCount(0);
+      await expect(page.getByTestId("journey-trip-bar")).toHaveCount(0);
+      await expect(
+        page.getByTestId("compare-dock").getByRole("button", { name: "Exit trip" }),
+      ).toHaveCount(1);
+      await expect(
+        page.getByTestId("top-stack").getByRole("button", { name: "Exit trip" }),
+      ).toHaveCount(0);
+      for (const id of ["split-pill-fastest", "split-pill-recommended"]) {
+        const pill = beat(page, id);
+        await expect(pill, `${id} @${t}`).toBeVisible();
+        // the compare stage is pointer-transparent: the pill takes hits for the probe only
+        const top = await pill.evaluate((el) => {
+          const e = el as HTMLElement;
+          const was = e.style.pointerEvents;
+          e.style.pointerEvents = "auto";
+          const r = e.getBoundingClientRect();
+          const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          e.style.pointerEvents = was;
+          return !!hit && (hit === e || e.contains(hit));
+        });
+        expect(top, `${id} uncovered @${t}`).toBe(true);
+      }
+    }
+    await seek(page, 1.5);
+    await expect(beat(page, "intro")).toHaveText(
+      `Wheelchair · ${intent.compare.from_place.name} → ${intent.compare.to_place.name}`,
+    );
+
+    // AC-N3 (screen): each row visible at its played midpoint, hidden 0.5 s outside it
+    for (const x of st0.timeline) {
+      if (!TABLE.some(([id]) => id === x.id)) continue;
+      const mid = (x.t0 + x.t1) / 2;
+      await seek(page, mid);
+      if (CAMERA_ONLY.includes(x.id)) {
+        expect((await navState(page)).camera, `${x.id} @${mid}`).toBe("overview");
+      } else {
+        await expect(beat(page, x.id).first(), `${x.id} @${mid}`).toBeVisible(COLD);
+      }
+      expect((await navState(page)).beats).toContain(x.id);
+      for (const t of [x.t0 - 0.5, x.t1 + 0.5]) {
+        if (t < 0 || t > T_END) continue;
+        await seek(page, t);
+        if (CAMERA_ONLY.includes(x.id)) {
+          expect((await navState(page)).camera, `${x.id} @${t}`).toBe("split");
+        } else {
+          await expect(beat(page, x.id), `${x.id} hidden @${t}`).toHaveCount(0);
+        }
+      }
+    }
+    if (!seating) {
+      for (const t of [19.5, 21.25, 23]) {
+        await seek(page, t);
+        await expect(beat(page, "tag-rest")).toHaveCount(0);
+      }
+    }
+
+    // AC-N5: counter 0 before 19.4 s, 1 after; the toast copy (R30: N = 0 -> first sentence only)
+    await seek(page, 19.3);
+    await expect(page.getByTestId("tickets-count")).toHaveText("0");
+    await seek(page, 19.5);
+    await expect(page.getByTestId("tickets-count")).toHaveText("1");
+    const u = intent.compare.unchecked[0];
+    if (u) {
+      const attr = u.attribute === "incline_pct" ? "Incline" : u.attribute;
+      const first = `Survey ticket queued for staff · ${attr} on ${Math.round(u.length_m)} m of the recommended path is not checked yet.`;
+      await seek(page, 21);
+      await expect(beat(page, "ticket-toast")).toHaveText(
+        intent.compare.confirm_n
+          ? `${first} Checking it would confirm ${intent.compare.confirm_n} wheelchair trips.`
+          : first,
+      );
+    }
+
+    // AC-N3 walkers: the recommended walker arrives at 29.0 ± 0.2 s; the fastest stops at stop.at_m
+    await seek(page, 28.8);
+    const before = await navState(page);
+    expect(before.walkers?.recommended ?? 0).toBeLessThan(before.recommendedM ?? 0);
+    await seek(page, 29.2);
+    const after = await navState(page);
+    expect(after.walkers?.recommended).toBeCloseTo(after.recommendedM ?? -1, 5);
+    await seek(page, 30);
+    const s30 = await navState(page);
+    expect(Math.abs((s30.walkers?.fastest ?? 0) - (s30.stopAtM ?? 1e9))).toBeLessThanOrEqual(2);
+
+    // AC-N7: after the merge (settled from 32 s, B8), both routes lie above the card with ≥ 24 px;
+    // V2 fix N-b: they fill the clear area above it (≥ 35 % of its width or height), not a few px
+    // of a township-wide view; N-c: the card is whole and clear of the map's notes
+    const stageBox = (await page.getByTestId("compare-stage").boundingBox()) as {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+    const topStack = (await page.getByTestId("top-stack").boundingBox()) as {
+      y: number;
+      height: number;
+    };
+    for (const t of [32.5, 33, 38]) {
+      await seek(page, t);
+      await expect
+        .poll(async () => {
+          const s = await navState(page);
+          return s.routesBbox !== null && s.cardTop !== null;
+        }, COLD)
+        .toBe(true);
+      const s = await navState(page);
+      console.log(`AC-N7 @${t}s routesBbox ${JSON.stringify(s.routesBbox)} cardTop ${s.cardTop}`);
+      expect(s.camera).toBe("overview");
+      expect((s.routesBbox?.y1 ?? 1e9) + 24).toBeLessThanOrEqual(s.cardTop ?? -1);
+      expect(s.routesBbox?.y0 ?? -1).toBeGreaterThanOrEqual(0);
+      const b = s.routesBbox as { x0: number; y0: number; x1: number; y1: number };
+      const clearTop = topStack.y + topStack.height - stageBox.y;
+      const clearH = (s.cardTop as number) - clearTop;
+      const share = Math.max((b.y1 - b.y0) / clearH, (b.x1 - b.x0) / stageBox.width);
+      console.log(`V2 N-b @${t}s routes fill ${(share * 100).toFixed(0)} % of the clear area`);
+      expect(share, `routes fill the clear area @${t}`).toBeGreaterThanOrEqual(0.35);
+      const card = beat(page, "reasons");
+      const cb = (await card.boundingBox()) as {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      };
+      const fits = await card.evaluate((el) => el.scrollHeight <= el.clientHeight + 1);
+      expect(fits, "the card's lines are not clipped").toBe(true);
+      expect(cb.y).toBeGreaterThanOrEqual(stageBox.y);
+      expect(cb.y + cb.height).toBeLessThanOrEqual(stageBox.y + stageBox.height);
+      // the map notes under it (the decorative note when the renderer shows one)
+      const notes = page.locator('[data-testid="bottom-stack"] [data-slot="notes"] > *');
+      for (let i = 0; i < (await notes.count()); i++) {
+        const nb = await notes.nth(i).boundingBox();
+        if (nb) expect(cb.y + cb.height, "card above the map notes").toBeLessThanOrEqual(nb.y);
+      }
+      // the card's slot shows all of it (it scrolls there only when the map is too short)
+      const whole = await card.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const slot = el.closest('[data-slot="card"]')?.getBoundingClientRect();
+        return !!slot && r.top >= slot.top - 1 && r.bottom <= slot.bottom + 1;
+      });
+      expect(whole, "card whole inside its slot").toBe(true);
+    }
+    // Exit trip restores the answer's route and its legend
+    await page.getByTestId("compare-dock").getByRole("button", { name: "Exit trip" }).click();
+    await expect(page.getByTestId("compare-stage")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Clear route from map" })).toBeVisible(COLD);
+  });
+});
+
+test.describe("navigation compare, List view, real mock assistant (tiny world)", () => {
+  // The suite's database starts empty and this spec files a ticket: a retry would see it twice.
+  test.describe.configure({ retries: 0 });
+
+  test("Watch the trip shows the toast and reasons card; the Rail badge and /tickets get the VR (AC-N1/N5/N9)", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await openAssistant(page);
+    await page.getByRole("radio", { name: "Management" }).click();
+    const badge = page.getByRole("link", { name: /^Tickets, \d+ open$/ });
+    await expect(badge).toBeVisible(COLD);
+    const count = async () =>
+      Number((await badge.getAttribute("aria-label"))?.match(/(\d+) open/)?.[1] ?? Number.NaN);
+    const n0 = await count();
+
+    // read the SSE body as soon as it arrives: later navigation can evict it from the browser
+    const chat = page.waitForResponse((r) => r.url().endsWith("/api/chat")).then((r) => r.text());
+    const answer = await ask(page, "Wheelchair route from Car Park B to the toilet?");
+    const body = await chat;
+    const vr = body
+      .split("\n")
+      .filter((l) => l.startsWith("data: "))
+      .map(
+        (l) => JSON.parse(l.slice(6)) as { type: string; request_id?: string; created?: boolean },
+      )
+      .find((e) => e.type === "verification.requested");
+    expect(vr?.request_id, "the compare files a survey ticket").toBeTruthy();
+    expect(body).toContain('"kind":"route.compare"');
+
+    // AC-N1 + AC-N9: the compare loads; the List view shows the toast and reasons, no 3D, no split
+    await answer.getByRole("button", { name: "Watch the trip" }).click();
+    const list = page.getByTestId("compare-list");
+    await expect(list).toBeVisible(COLD);
+    await expect.poll(async () => (await navState(page)).loaded).toBe(true);
+    await expect(list.locator('[data-beat="ticket-toast"]')).toContainText(
+      "Survey ticket queued for staff · Incline on",
+    );
+    const reasons = list.locator('[data-beat="reasons"]');
+    await expect(reasons).toContainText("Steps");
+    await expect(reasons).toContainText("Rest stop on the way");
+    await expect(reasons).toContainText("Reasons use checked facts only.");
+    await expect(page.getByTestId("three-scene")).toHaveCount(0);
+    await expect(page.locator("canvas")).toHaveCount(0);
+    await expect(beat(page, "split")).toHaveCount(0);
+
+    // AC-N5: the Rail open-ticket badge goes up by one, and /tickets lists the VR
+    if (vr?.created) {
+      await expect.poll(count, COLD).toBe(n0 + 1);
+    } else {
+      // an existing ticket was upvoted, so the open count does not change
+      const note = `Rail badge +1 check skipped: ${vr?.request_id} was not newly created`;
+      test.info().annotations.push({ type: "skipped-check", description: note });
+      console.log(note);
+    }
+    const rows = (await (await page.request.get("/api/verification-requests")).json()) as {
+      id: string;
+    }[];
+    expect(rows.map((x) => x.id)).toContain(vr?.request_id);
+    await badge.click();
+    await expect(page.getByRole("heading", { name: "Gaps to close" })).toBeVisible(COLD);
+    await expect(
+      page.getByRole("region", { name: "Ticket list" }).getByRole("button", { name: /Incline/ }),
+    ).toBeVisible(COLD);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Building impact (C13; spec §6.3, §7; AC-W2…W8)
+// ---------------------------------------------------------------------------------------------
+
+const plan = JSON.parse(
+  readFileSync(new URL("./fixtures/devsim-plan.json", import.meta.url), "utf8"),
+) as DevelopmentPlan;
+
+/**
+ * Spec §6.3 rows as `bld` beat ids and windows (s); 45 is the end of the run. Rows the plan also
+ * carries (bubbles, banners, tags) are checked against the plan too.
+ */
+const BLD_END = 45;
+const BLD_TABLE: [string, number, number][] = [
+  ["brief-overview", 0, 3],
+  ["hoarding-card", 4, 9.5],
+  ["detour-tag", 4, 9.5],
+  ["bubble-1", 5.5, 9],
+  ["lorry-tag", 8.5, 12.5],
+  ["construction", 3, 27],
+  ["banner-raya", 11, 13],
+  ["bubble-2", 14, 16.5],
+  ["banner-monsoon", 18.5, 23],
+  ["bubble-3", 19.5, 22.5],
+  ["banner-handover", 27, 30.5],
+  ["move-in", 27, 33],
+  ["bubble-4", 28.5, 31.5],
+  ["bubble-5", 31, 33],
+  ["impact-brief", 33, BLD_END],
+  ["residents-button", 33, BLD_END],
+  ["bubble-6", 34, 37],
+  ["bubble-7", 36.5, 39],
+  ["residents-panel-tap", 39, BLD_END],
+  ["resident-detail-tap", 41, BLD_END],
+];
+/**
+ * "3.5 Hoarding up" starts exactly; it comes down inside the 27–30.5 s handover row ("hoarding,
+ * crane and scaffold go"), so its end is checked against that window, not to ±0.05 s.
+ */
+const HOARDING = { start: 3.5, downIn: [27, 30.5] as const };
+/** Beats with no overlay element: checked through `state().beats` only. */
+const STATE_ONLY = [
+  "construction",
+  "move-in",
+  "hoarding",
+  "residents-panel-tap",
+  "resident-detail-tap",
+];
+const SCAN_STEP = 0.025;
+
+type BldHook = {
+  set: (k: string) => void;
+  seek: (x: number) => void;
+  play: () => void;
+  pause: () => void;
+  state: () => unknown;
+};
+type BldState = {
+  plan: boolean;
+  t: number;
+  total: number;
+  beats: string[];
+  overlays: string[];
+  bubbles: number[];
+  hud: { monthIndex: number; ym: string; floors: number; costRm: number; daysLost: number } | null;
+  floorsBuilt: number;
+  viewShiftPx: number;
+  towerBbox: { x: number; y: number; w: number; h: number } | null;
+  panelLeft: number | null;
+  // 3D lane fields (registerDemoState("bld"))
+  crane?: { yaw: number; yawDeg: number; stopped: boolean; wetBeat: boolean; hold: boolean };
+  rain?: boolean;
+  workers?: number;
+  lorries?: { kind: string; distToRoute: number | null }[];
+  lorryRoute?: { drawn: boolean; points: number; mode: string };
+  rig?: { visible: boolean };
+  scaffoldTop?: number;
+  topFloor?: number;
+  netting?: boolean;
+  movingLorries?: number;
+  boxes?: number;
+  parkedCars?: number;
+  movers?: { walking: number; entered: number };
+  kidsAtPlayground?: number;
+  litShare?: number;
+  speaker?: { who: string; anchored: boolean; headOnStage: boolean } | null;
+  /** Where the site (hoarding, tower) is drawn, CSS px of the map stage (V2 B-a). */
+  siteScreen?: { x: number; y: number } | null;
+};
+
+/** Pause, seek, then let the 3D layer pose and project at t (three frames) and read the state. */
+const bldAt = (page: Page, t: number): Promise<BldState> =>
+  page.evaluate(async (x) => {
+    const d = (window as unknown as { __tl: { demo: BldHook } }).__tl.demo;
+    d.set("bld");
+    d.pause();
+    d.seek(x);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise((r) => requestAnimationFrame(r));
+    return d.state();
+  }, t) as Promise<BldState>;
+
+/**
+ * Every beat id's played windows, measured by seeking 0…45 s in SCAN_STEP steps and reading
+ * `state().beats` (the timeline's own ids; no frame needed). A window is [first on, first off).
+ */
+const scanBeats = (page: Page) =>
+  page.evaluate(
+    ({ step, end }) => {
+      const d = (window as unknown as { __tl: { demo: BldHook } }).__tl.demo;
+      d.set("bld");
+      d.pause();
+      const runs: Record<string, [number, number][]> = {};
+      const close = (id: string, t: number) => {
+        runs[id] = [...(runs[id] ?? []), [open[id] as number, t]];
+      };
+      const open: Record<string, number> = {};
+      const n = Math.round(end / step);
+      let prev = new Set<string>();
+      for (let i = 0; i <= n; i++) {
+        const t = Math.round(i * step * 1000) / 1000;
+        d.seek(t);
+        const now = new Set((d.state() as { beats: string[] }).beats);
+        for (const id of now) if (!prev.has(id)) open[id] = t;
+        for (const id of prev) if (!now.has(id)) close(id, t);
+        prev = now;
+      }
+      for (const id of prev) close(id, end);
+      return runs;
+    },
+    { step: SCAN_STEP, end: BLD_END },
+  );
+
+const bldEl = (page: Page, id: string) => {
+  const m = /^bubble-(\d+)$/.exec(id);
+  return m
+    ? page.locator(`[data-testid="devsim-bubble"][data-n="${m[1]}"]`)
+    : page.locator(`[data-beat="${id}"]`);
+};
+
+const fmtRuns = (r: [number, number][] | undefined) =>
+  r ? r.map(([x, y]) => `${x}–${y}`).join(", ") : "absent";
+
+test.describe("building impact beats, Stylised 3D, 45 s Elmina plan", () => {
+  test.setTimeout(420_000);
+
+  test("§6.3 windows, HUD, set pieces, move-in, brief beside the tower, residents, bubbles (AC-W2…W8)", async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
+    await page.route("**/api/developments/simulate", (r) => r.fulfill({ json: plan }));
+    await page.goto("/");
+    const scene = page.getByTestId("three-scene");
+    await expect(scene).toBeVisible(COLD);
+    await expect
+      .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
+      .toBeGreaterThan(0);
+    await openAssistant(page);
+    await page.getByRole("radio", { name: "Management" }).click();
+    await page.getByRole("button", { name: DEVSIM_BRIEF }).click();
+    const last = page.getByRole("log").getByRole("article").last();
+    await expect(last).toHaveAttribute("data-done", "true", COLD);
+    // the 3D part of the hook is registered (Stylised devsim mount) and the 45 s plan is loaded
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const d = (window as unknown as { __tl?: { demo?: BldHook } }).__tl?.demo;
+            if (!d) return false;
+            d.set("bld");
+            const s = d.state() as { total?: number };
+            return "crane" in s && s.total === 45;
+          }),
+        { timeout: 90_000 },
+      )
+      .toBe(true);
+    await expect(page.getByTestId("devsim-list")).toHaveCount(0); // 3D, not the List view
+    const log: string[] = [];
+    const note = (s: string) => {
+      log.push(s);
+      console.log(s);
+    };
+
+    await test.step("§6.3 windows against the table and the plan (AC-W8 windows ±0.05 s)", async () => {
+      const runs = await scanBeats(page);
+      note("beat | table | played");
+      for (const [id, a, b] of BLD_TABLE) {
+        const r = runs[id];
+        note(`${id} | ${a}–${b} | ${fmtRuns(r)}`);
+        expect(r, `${id} played`).toBeDefined();
+        expect(r?.length, `${id} one window`).toBe(1);
+        const [t0, t1] = r?.[0] ?? [Number.NaN, Number.NaN];
+        expect(Math.abs(t0 - a), `${id} t0 ${t0}`).toBeLessThanOrEqual(FIXED_TOL_S);
+        expect(Math.abs(t1 - b), `${id} t1 ${t1}`).toBeLessThanOrEqual(FIXED_TOL_S);
+      }
+      const h = runs.hoarding;
+      note(`hoarding | 3.5–(27…30.5) | ${fmtRuns(h)}`);
+      expect(h?.length).toBe(1);
+      const [h0, h1] = h?.[0] ?? [Number.NaN, Number.NaN];
+      expect(Math.abs(h0 - HOARDING.start)).toBeLessThanOrEqual(FIXED_TOL_S);
+      expect(h1).toBeGreaterThanOrEqual(HOARDING.downIn[0] - FIXED_TOL_S);
+      expect(h1).toBeLessThanOrEqual(HOARDING.downIn[1] + FIXED_TOL_S);
+      // the plan's own windows (bubbles, banners, tags) are what plays (AC-W8: ±0.05 s)
+      const planned: [string, number, number][] = [
+        ...plan.bubbles.map((x): [string, number, number] => [`bubble-${x.n}`, x.t0, x.t1]),
+        ...plan.banners.map((x): [string, number, number] => [`banner-${x.kind}`, x.t0, x.t1]),
+        ...plan.tags.map((x): [string, number, number] => [`${x.kind}-tag`, x.t0, x.t1]),
+      ];
+      for (const [id, a, b] of planned) {
+        const [t0, t1] = runs[id]?.[0] ?? [Number.NaN, Number.NaN];
+        expect(Math.abs(t0 - a), `plan ${id} t0`).toBeLessThanOrEqual(FIXED_TOL_S);
+        expect(Math.abs(t1 - b), `plan ${id} t1`).toBeLessThanOrEqual(FIXED_TOL_S);
+      }
+      expect((await bldAt(page, 0)).total).toBe(BLD_END);
+    });
+
+    await test.step("each row visible at its midpoint, gone 0.5 s outside", async () => {
+      const rows: [string, number, number][] = [...BLD_TABLE, ["hoarding", HOARDING.start, 28]];
+      for (const [id, a, b] of rows) {
+        const mid = (a + b) / 2;
+        const s = await bldAt(page, mid);
+        expect(s.beats, `${id} @${mid}`).toContain(id);
+        if (!STATE_ONLY.includes(id))
+          await expect(bldEl(page, id).first(), `${id} @${mid}`).toBeVisible(COLD);
+        for (const t of [a - 0.5, b + 0.5]) {
+          if (t < 0 || t > BLD_END) continue;
+          const o = await bldAt(page, t);
+          expect(o.beats, `${id} off @${t}`).not.toContain(id);
+          if (!STATE_ONLY.includes(id))
+            await expect(bldEl(page, id), `${id} hidden @${t}`).toHaveCount(0);
+        }
+      }
+      // AC-W8 on screen: each bubble is shown just inside its plan window and gone just outside
+      for (const b of plan.bubbles) {
+        for (const t of [b.t0 + 0.05, b.t1 - 0.05]) {
+          await bldAt(page, t);
+          await expect(bldEl(page, `bubble-${b.n}`), `bubble ${b.n} @${t}`).toBeVisible(COLD);
+        }
+        for (const t of [b.t0 - 0.05, b.t1 + 0.05]) {
+          if (t < 0 || t > BLD_END) continue;
+          await bldAt(page, t);
+          await expect(bldEl(page, `bubble-${b.n}`), `bubble ${b.n} off @${t}`).toHaveCount(0);
+        }
+      }
+      // 3–27 s: months advance from the first month to the handover month; floors only rise
+      const sch = plan.schedule;
+      expect((await bldAt(page, 3)).hud?.monthIndex).toBe(0);
+      expect((await bldAt(page, 27)).hud?.monthIndex).toBe(sch.months_total - 1);
+      let floors = -1;
+      for (let t = 3; t <= 27; t += 1) {
+        const f = (await bldAt(page, t)).hud?.floors ?? -1;
+        expect(f, `floors @${t}`).toBeGreaterThanOrEqual(floors);
+        floors = f;
+      }
+      expect(floors).toBe(sch.storeys);
+    });
+
+    await test.step("HUD at 8, 21 and 30 s equals the plan (AC-W2)", async () => {
+      const sch = plan.schedule;
+      const hud = page.getByTestId("devsim-estimate-hud");
+      for (const t of [8, 21, 30]) {
+        const s = await bldAt(page, t);
+        const i = s.hud?.monthIndex as number;
+        expect(i, `month @${t}`).toBeGreaterThanOrEqual(0);
+        const ym = sch.months[i] as string;
+        expect(s.hud?.ym).toBe(ym);
+        expect(s.hud?.floors).toBe(sch.floors_by_month[i]);
+        expect(s.hud?.costRm).toBe(sch.cost_by_month[i]);
+        expect(s.hud?.daysLost).toBe(sch.days_lost_by_month[i]);
+        const [y, m] = ym.split("-").map(Number) as [number, number];
+        const mon = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ")[m - 1];
+        await expect(hud.getByTestId("devsim-hud-month")).toHaveText(`${mon} ${y}`);
+        await expect(hud).toContainText(`Month ${i + 1} of ${sch.months_total}`);
+        await expect(hud.getByTestId("devsim-hud-floors")).toHaveText(
+          `${sch.floors_by_month[i]}/${sch.storeys}`,
+        );
+        await expect(hud.getByTestId("devsim-hud-cost")).toHaveText(
+          `RM ${Math.round((sch.cost_by_month[i] as number) / 1_000_000)} M`,
+        );
+        await expect(hud.getByTestId("devsim-hud-lost")).toHaveText(
+          `${Math.round(sch.days_lost_by_month[i] as number)} d`,
+        );
+        await expect(hud.getByTestId("devsim-hud-footnote")).toContainText(
+          "Estimate from published benchmarks",
+        );
+        note(
+          `AC-W2 @${t}s ${ym} (#${i}) floors ${s.hud?.floors} cost ${s.hud?.costRm} lost ${s.hud?.daysLost}`,
+        );
+      }
+    });
+
+    await test.step("Hari Raya hold at 12 s, monsoon at 21 s (AC-W3)", async () => {
+      const s12 = await bldAt(page, 12);
+      expect(s12.overlays).toContain("banner-raya");
+      await expect(bldEl(page, "banner-raya")).toBeVisible();
+      const yaw: number[] = [];
+      for (const t of [11.5, 12, 12.5])
+        yaw.push((await bldAt(page, t)).crane?.yawDeg ?? Number.NaN);
+      const delta = Math.max(...yaw) - Math.min(...yaw);
+      note(
+        `AC-W3 @12s yaw ${yaw.map((x) => x.toFixed(3)).join(" / ")} (Δ ${delta.toFixed(3)}°) workers ${s12.workers} lorries ${s12.lorries?.length} rain ${s12.rain} hold ${s12.crane?.hold}`,
+      );
+      expect(delta, "crane yaw Δ over 11.5–12.5 s").toBeLessThan(0.5);
+      expect(s12.crane?.hold).toBe(true);
+      expect(s12.workers).toBe(0);
+      expect(s12.lorries?.length).toBe(0);
+      expect(s12.rain).toBe(false);
+      const s21 = await bldAt(page, 21);
+      note(`AC-W3 @21s rain ${s21.rain} crane ${JSON.stringify(s21.crane)}`);
+      expect(s21.overlays).toContain("banner-monsoon");
+      await expect(bldEl(page, "banner-monsoon")).toBeVisible();
+      expect(s21.rain).toBe(true);
+      expect(s21.crane?.wetBeat).toBe(true);
+      expect(s21.crane?.stopped).toBe(true);
+    });
+
+    await test.step("rig, lorries on the route, scaffold and netting (AC-W4)", async () => {
+      const rig: Record<string, boolean | undefined> = {};
+      for (const t of [3.4, 3.6, 6, 8.4, 8.6]) rig[String(t)] = (await bldAt(page, t)).rig?.visible;
+      note(`AC-W4 rig ${JSON.stringify(rig)}`);
+      expect(rig).toEqual({ "3.4": false, "3.6": true, "6": true, "8.4": true, "8.6": false });
+      let seen = 0;
+      let maxD = 0;
+      const rows: string[] = [];
+      for (let t = 4; t < 27; t += 1) {
+        const s = await bldAt(page, t);
+        for (const v of s.lorries ?? []) {
+          seen++;
+          maxD = Math.max(maxD, v.distToRoute ?? Number.POSITIVE_INFINITY);
+        }
+        rows.push(`${t}:${s.floorsBuilt}/${s.topFloor}/${s.scaffoldTop}/${s.netting ? "N" : "-"}`);
+        if ((s.topFloor ?? 0) > 0)
+          expect(
+            Math.abs((s.scaffoldTop ?? 0) - ((s.topFloor ?? 0) + 1) * 3.2),
+            `scaffold top @${t} (floor ${s.topFloor}, top ${s.scaffoldTop})`,
+          ).toBeLessThanOrEqual(0.5);
+        if (s.floorsBuilt > 0 && s.floorsBuilt < plan.site.storeys)
+          expect(s.netting, `netting @${t} (${s.floorsBuilt} floors)`).toBe(true);
+      }
+      note(`AC-W4 t:floors/topFloor/scaffoldTop/netting ${rows.join(" ")}`);
+      note(`AC-W4 lorries seen ${seen}, max ${maxD.toFixed(2)} m from lorry_route`);
+      expect(seen).toBeGreaterThan(0);
+      expect(maxD).toBeLessThanOrEqual(3);
+    });
+
+    // spec AC-W5: "between 27 and 33 s … to at least 0.85 by 33 s": sampled at the bound itself
+    await test.step("move-in counts by 33 s (AC-W5)", async () => {
+      let prev = -1;
+      for (const t of [27, 27.5, 28, 28.5, 29, 29.5, 30, 30.5, 31, 31.5, 32, 32.5, 33]) {
+        const lit = (await bldAt(page, t)).litShare ?? -1;
+        expect(lit, `lit share @${t}`).toBeGreaterThanOrEqual(prev - 1e-9);
+        prev = lit;
+      }
+      const s = await bldAt(page, 33);
+      note(
+        `AC-W5 @33s lorries ${s.movingLorries} boxes ${s.boxes} movers ${JSON.stringify(s.movers)} lit ${s.litShare} cars ${s.parkedCars} kids ${s.kidsAtPlayground}`,
+      );
+      expect(s.movingLorries ?? 0).toBeGreaterThanOrEqual(2);
+      expect(s.boxes ?? 0).toBeGreaterThanOrEqual(8);
+      expect(s.movers?.entered ?? 0).toBeGreaterThanOrEqual(10);
+      expect(s.litShare ?? 0).toBeGreaterThanOrEqual(0.85);
+      expect(s.parkedCars ?? 0).toBeGreaterThanOrEqual(6);
+      expect(s.kidsAtPlayground ?? 0).toBeGreaterThanOrEqual(4);
+    });
+
+    await test.step("the site and the tower are framed in the clear map area at 7, 21 and 36 s (V2 B-a)", async () => {
+      for (const t of [7, 21, 36]) {
+        await expect.poll(async () => (await bldAt(page, t)).siteScreen != null, COLD).toBe(true);
+        const s = await bldAt(page, t);
+        const p = s.siteScreen as { x: number; y: number };
+        // every overlay box, measured here from the DOM (stage-relative), and the visible map
+        const { boxes, w, h } = await page.evaluate(
+          (sels) => {
+            const stage = document.querySelector('[data-testid="three-scene"]') as HTMLElement;
+            const o = stage.getBoundingClientRect();
+            const css = (n: string) =>
+              Number.parseFloat(getComputedStyle(stage).getPropertyValue(n)) || 0;
+            const out: { sel: string; x: number; y: number; w: number; h: number }[] = [];
+            for (const sel of sels)
+              for (const el of document.querySelectorAll(sel)) {
+                const r = el.getBoundingClientRect();
+                if (r.width > 0 && r.height > 0)
+                  out.push({ sel, x: r.left - o.left, y: r.top - o.top, w: r.width, h: r.height });
+              }
+            return {
+              boxes: out,
+              w: o.width - css("--panel-w"),
+              h: o.height - css("--sheet-h") - css("--attr-h"),
+            };
+          },
+          OBSTACLE_SELECTORS as unknown as string[],
+        );
+        note(`V2 B-a @${t}s site ${JSON.stringify(p)} map ${w}x${h} overlays ${boxes.length}`);
+        expect(p.x, `site on the map @${t}`).toBeGreaterThanOrEqual(0);
+        expect(p.x).toBeLessThanOrEqual(w);
+        expect(p.y, `site on the map @${t}`).toBeGreaterThanOrEqual(0);
+        expect(p.y).toBeLessThanOrEqual(h);
+        for (const b of boxes) {
+          const under = p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
+          expect(under, `site under ${b.sel} ${JSON.stringify(b)} @${t}`).toBe(false);
+        }
+      }
+    });
+
+    await test.step("Impact Brief from 34 s with the tower left of it (AC-W6)", async () => {
+      const brief = page.getByTestId("devsim-impact-brief");
+      for (const t of [34, 36, 40]) {
+        await bldAt(page, t);
+        await expect(brief).toBeVisible();
+        await expect
+          .poll(async () => {
+            const s = await bldAt(page, t);
+            return s.towerBbox !== null && s.panelLeft !== null;
+          }, COLD)
+          .toBe(true);
+        const s = await bldAt(page, t);
+        note(
+          `AC-W6 @${t}s towerBbox ${JSON.stringify(s.towerBbox)} panelLeft ${s.panelLeft} viewShift ${s.viewShiftPx}`,
+        );
+        const tb = s.towerBbox as { x: number; y: number; w: number; h: number };
+        // the hook's panelLeft is the DOM brief's own left edge, relative to the map stage
+        const stageBox = await scene.boundingBox();
+        const briefBox = await brief.boundingBox();
+        expect(stageBox && briefBox, "stage and brief boxes").toBeTruthy();
+        const stage = stageBox as { x: number; y: number; width: number; height: number };
+        const domLeft = (briefBox as { x: number }).x - stage.x;
+        note(`AC-W6 @${t}s DOM brief left ${domLeft.toFixed(1)} stage ${JSON.stringify(stage)}`);
+        expect(
+          Math.abs((s.panelLeft as number) - domLeft),
+          "panelLeft = DOM brief x",
+        ).toBeLessThanOrEqual(1);
+        expect(tb.w, "tower on screen").toBeGreaterThan(0);
+        expect(tb.x, "tower on screen").toBeGreaterThanOrEqual(0);
+        expect(tb.h, "tower on screen").toBeGreaterThan(0);
+        expect(tb.y, `tower top on screen @${t}`).toBeGreaterThanOrEqual(0);
+        expect(tb.y + tb.h, `tower foot on screen @${t}`).toBeLessThanOrEqual(stage.height);
+        expect(tb.x + tb.w, `tower left of the brief @${t}`).toBeLessThanOrEqual(
+          s.panelLeft as number,
+        );
+      }
+      await bldAt(page, 34);
+      const sections = brief.getByTestId("devsim-brief-section");
+      await expect(sections).toHaveCount(3);
+      await expect(sections.nth(0)).toContainText("During construction");
+      await expect(sections.nth(1)).toContainText("At handover");
+      await expect(sections.nth(2)).toContainText("Daily life");
+      for (const k of ["ROUTE", "FLOOD", "ESTIMATE", "CALENDAR"])
+        await expect(brief.locator(`[data-badge="${k}"]`).first()).toBeVisible();
+    });
+
+    await test.step("residents: button 33 s, panel 39 s, Mei Ling 41 s, Back, Escape, Close (AC-W7)", async () => {
+      const button = page.getByRole("button", { name: /Simulated residents · 40/ });
+      await bldAt(page, 32.95);
+      await expect(button).toHaveCount(0);
+      await bldAt(page, 33.05);
+      await expect(button).toBeVisible();
+      await bldAt(page, 38.9);
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      // while playing, seek just past each scripted tap (deterministic: no real-time wait)
+      const playAndSeek = (x: number) =>
+        page.evaluate((s) => {
+          const d = (window as unknown as { __tl: { demo: BldHook } }).__tl.demo;
+          d.set("bld");
+          d.play();
+          d.seek(s);
+        }, x);
+      await playAndSeek(39.05);
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByTestId("devsim-resident-item")).toHaveCount(40);
+      await expect(dialog.getByTestId("devsim-resident-detail")).toHaveCount(0);
+      const b39 = await dialog.boundingBox();
+      note(`AC-W7 @39.05s dialog ${JSON.stringify(b39)}`);
+      expect(b39?.y ?? -1, "scripted panel top on screen").toBeGreaterThanOrEqual(0);
+      await playAndSeek(41.05);
+      const detail = dialog.getByTestId("devsim-resident-detail");
+      await expect(detail).toBeVisible();
+      await expect(detail.getByRole("heading", { name: "Mei Ling" })).toBeVisible();
+      await expect(detail.getByTestId("devsim-resident-facts")).toBeVisible();
+      await expect(detail.getByTestId("devsim-resident-phase")).toHaveCount(3);
+      await expect(dialog).toContainText(plan.residents.label);
+      await expect(dialog).toContainText(plan.residents.note);
+      await page.evaluate(() =>
+        (window as unknown as { __tl: { demo: BldHook } }).__tl.demo.pause(),
+      );
+      // Back returns to the list of 40
+      await dialog.getByRole("button", { name: "All 40 residents" }).click();
+      await expect(dialog.getByTestId("devsim-resident-detail")).toHaveCount(0);
+      await expect(dialog.getByTestId("devsim-resident-item")).toHaveCount(40);
+      // Escape closes it and focus returns to the button
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(button).toBeFocused();
+      // keyboard: Enter on the focused button opens it (focus moves in, to the heading); Tab past
+      // Close to the first resident; Enter opens their detail (focus on Back); Escape closes the
+      // panel and focus returns to the button
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await page.keyboard.press("Tab");
+      await expect(page.getByTestId("devsim-residents-close")).toBeFocused();
+      await page.keyboard.press("Tab");
+      const first = page.getByRole("dialog").getByTestId("devsim-resident-item").first();
+      await expect(first).toBeFocused();
+      const firstName = (await first.textContent()) ?? "";
+      await page.keyboard.press("Enter");
+      const kbDetail = page.getByRole("dialog").getByTestId("devsim-resident-detail");
+      await expect(kbDetail).toBeVisible();
+      note(`AC-W7 keyboard: Tab, Tab, Enter on "${firstName}" opened the detail`);
+      await expect(
+        page.getByRole("dialog").getByRole("button", { name: "All 40 residents" }),
+      ).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(button).toBeFocused();
+      // Enter again; Close closes it and focus returns
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("dialog")).toBeVisible();
+      const close = page.getByTestId("devsim-residents-close");
+      note(
+        `AC-W7 reopened: dialog ${JSON.stringify(await page.getByRole("dialog").boundingBox())} close ${JSON.stringify(await close.boundingBox())}`,
+      );
+      // the whole panel is on screen (it scrolls inside its slot) and Close takes a real click
+      const box = await page.getByRole("dialog").boundingBox();
+      expect(box?.y ?? -1, "dialog top on screen").toBeGreaterThanOrEqual(0);
+      expect((box?.y ?? 0) + (box?.height ?? 1e9), "dialog bottom on screen").toBeLessThanOrEqual(
+        900,
+      );
+      await close.click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(button).toBeFocused();
+    });
+
+    await info.attach("building-beats.txt", { body: log.join("\n"), contentType: "text/plain" });
+  });
+});
