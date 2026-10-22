@@ -64,3 +64,59 @@ def test_api_warmup_uses_the_closure_baseline_cache(world, monkeypatch):
 
     with pytest.raises(AssertionError, match="baseline should be cached"):
         events.warm_baselines(world)
+
+
+def test_public_unnamed_labels_have_landmarks_and_lengths_not_internal_ids(world):
+    import re
+
+    for edge in world.edges.values():
+        edge.name = "Main Road"
+    world.edges["seg-ab"].name = None
+    world.edges["seg-fd"].name = None
+    groups = events._unnamed_stretches(world)
+    assert len(set(groups.values())) == 2
+    assert all("m path" in name and "Main Road" in name for name in groups.values())
+    assert all(not re.search(r"stretch\s+\d|seg-|osm-", name) for name in groups.values())
+
+
+def test_bins_and_benches_do_not_trigger_resident_cutoff_suggestions(world):
+    from datetime import UTC, datetime, timedelta
+
+    for kind in ("seating", "waste_basket", "shelter", "residential", "school", "park"):
+        world.places[kind] = world.places["park-b"].model_copy(
+            update={"id": kind, "name": kind, "type": kind}
+        )
+    start = datetime(2030, 1, 1, tzinfo=UTC)
+    spec = events.ClosureScenario(
+        name="Test",
+        reason="event",
+        closures=[
+            events.ClosureWindow(
+                segment_ids=["seg-ab"], starts_at=start, ends_at=start + timedelta(hours=1)
+            )
+        ],
+    )
+    result = events.simulate_closure(world, spec, ("default",))
+    assert {p.id for p in result.places_cut_off} == {"residential", "school", "park"}
+    assert any(
+        "3 mapped places" in s.text for s in result.suggestions if s.kind == "crossing_point"
+    )
+
+
+def test_small_world_has_one_diversity_warning_for_all_profiles(world):
+    from datetime import UTC, datetime, timedelta
+
+    start = datetime(2030, 1, 1, tzinfo=UTC)
+    result = events.simulate_closure(
+        world,
+        events.ClosureScenario(
+            name="Test",
+            reason="event",
+            closures=[
+                events.ClosureWindow(
+                    segment_ids=["seg-ab"], starts_at=start, ends_at=start + timedelta(hours=1)
+                )
+            ],
+        ),
+    )
+    assert len([w for w in result.warnings if "Sample diversity:" in w]) <= 1

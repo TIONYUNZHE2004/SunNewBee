@@ -11,6 +11,7 @@ from townshiplens_spatial.evaluate import (
     is_demo,
     relevant_attributes,
 )
+from townshiplens_spatial.lowlying import terrain_only
 from townshiplens_spatial.models import active_closures
 from townshiplens_spatial.world import World
 
@@ -38,6 +39,10 @@ def _layer(
             if lens == "flood" and fc not in _FLOOD and not coverage:
                 continue
             live = active_closures(e.closures, now)
+            terrain = bool(scenario_id) and terrain_only(world, scenario_id, e.id)
+            factual = evaluate_edge(
+                e, prof, fc, now=now, flood_coverage=coverage, terrain_only=terrain
+            )
             access = assess_access(
                 e,
                 prof,
@@ -45,14 +50,10 @@ def _layer(
                 flood_coverage=coverage,
                 now=now,
                 urban=urban_context(world, e),
+                factual=factual,
             )
             # A reported closure is shown as Not passable even where a flood class also applies.
-            status = (
-                "blocked"
-                if live
-                else _FLOOD.get(fc or "")
-                or _MAP[evaluate_edge(e, prof, fc, flood_coverage=coverage)[0]]
-            )
+            status = "blocked" if live else _FLOOD.get(fc or "") or _MAP[factual[0]]
             if lens == "access":
                 status = {
                     "verified": "verified",
@@ -61,7 +62,12 @@ def _layer(
                     "barrier": "blocked",
                     "not_a_road": "not_a_road",
                 }[access.level]
-                if access.level != "not_a_road" and not live and fc in _FLOOD:
+                if (
+                    access.level != "not_a_road"
+                    and not live
+                    and fc in _FLOOD
+                    and not (terrain and factual[0] == "FAIL")
+                ):
                     status = _FLOOD[fc]
             props = {
                 "id": e.id,

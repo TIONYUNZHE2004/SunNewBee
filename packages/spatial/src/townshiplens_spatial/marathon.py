@@ -9,15 +9,17 @@ from __future__ import annotations
 import threading
 from collections import Counter, OrderedDict, deque
 from datetime import UTC, datetime
-from math import isfinite
+from functools import cache
+from math import atan2, isfinite
 from typing import Literal
 
 import networkx as nx
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from . import closure_roads, events, flood, place_search
+from .direction import allows_direction
 from .models import active_closures
-from .routing import CENTRE_PREFIX, _targets, make_weight, route_batch
+from .routing import CENTRE_PREFIX, _evaluate, _targets, route_batch
 from .world import World
 
 PROPOSAL = "Proposed course on mapped roads, not an approved route."
@@ -100,8 +102,12 @@ def _place(world, query):
         for p in world.places.values()
         if place_search.match(query, [p.name, *p.aliases]) == place_search.EXACT
     ]
+    if not matches:
+        raise ValueError(
+            f"No mapped place matches {query!r}. Choose a mapped place id or full name."
+        )
     if len(matches) != 1:
-        raise ValueError(f"Use a mapped place id or an unambiguous full place name for {query!r}.")
+        raise ValueError(f"Ambiguous mapped place {query!r}. Choose a specific mapped place id.")
     return matches[0]
 
 
@@ -116,7 +122,11 @@ def _graph(world, avoid, prefer):
         raise ValueError("A road cannot be both avoided and preferred.")
     graph = nx.Graph()
     for edge in sorted(world.edges.values(), key=lambda e: e.id):
-        if edge.name in avoided or edge.type == "steps" or active_closures(edge.closures):
+        if (
+            edge.name in avoided
+            or edge.type == "steps"
+            or (edge.closures and active_closures(edge.closures))
+        ):
             continue
         if edge.type == "major_road" and edge.name not in preferred:
             continue
@@ -134,16 +144,16 @@ def _ids(graph, nodes):
     return tuple(graph[a][b]["eid"] for a, b in zip(nodes, nodes[1:], strict=False))
 
 
-def _ranking_context(world):
+def _ranking_context(world, profile_id="default"):
     """Use the existing default profile weights; preserve direction and parallel edges."""
-    prof = world.profiles["default"]
-    weight = make_weight(world, prof, None, True)
+    prof = world.profiles[profile_id]
     reverse = {}
     for a, b, eid in world.graph.edges(keys=True):
-        data = {eid: world.graph[a][b][eid]}
-        if weight(a, b, data) is not None:
+        if _evaluate(world, prof, None, eid)[0] == "FAIL":
+            continue
+        if allows_direction(world.edges[eid], prof.id, a):
             reverse.setdefault(b, []).append((a, eid))
-        if weight(b, a, data) is not None:
+        if allows_direction(world.edges[eid], prof.id, b):
             reverse.setdefault(a, []).append((b, eid))
     centres = {
         n
@@ -151,7 +161,11 @@ def _ranking_context(world):
         if flood.centre_closure(world, c) is None
         for n in _targets(world, f"{CENTRE_PREFIX}{c.id}", prof)
     }
-    places = {p.id: set(_targets(world, p.id, prof)) for p in world.places.values()}
+    places = {
+        p.id: set(_targets(world, p.id, prof))
+        for p in world.places.values()
+        if events.resident_destination(world, p.id)
+    }
     return reverse, centres, places
 
 
@@ -204,6 +218,144 @@ def plan_course(
     return result
 
 
+def _road_revisits(world, ids, loop):
+    names = []
+    for eid in ids:
+        name = world.edges[eid].name
+        if not names or names[-1] != name:
+            names.append(name)
+    if loop and len(names) > 1 and names[0] == names[-1]:
+        names.pop()  # One road split by the start line is a continuous visit.
+    return sum(n - 1 for name, n in Counter(names).items() if name is not None)
+
+
+def _candidates(world, graph, from_start, to_finish, root, goal, target, preferred):
+    candidates = {}
+
+    def add(nodes):
+        ids = _ids(graph, nodes)
+        if not ids or len(ids) > events.MAX_COURSE_SEGMENTS:
+            return
+        length = sum(world.edges[e].length_m for e in ids)
+        if length <= 0:
+            return
+        counts = Counter(ids)
+        repeated = sum(world.edges[e].length_m * (n - 1) for e, n in counts.items())
+        unnamed = sum(world.edges[e].length_m for e in ids if not world.edges[e].name)
+        preferred_m = sum(world.edges[e].length_m for e in ids if world.edges[e].name in preferred)
+        candidates[ids] = (length, repeated, unnamed, -preferred_m)
+
+    def physical_lengths(paths):
+        result = {}
+        for node, path in sorted(paths.items(), key=lambda item: len(item[1])):
+            result[node] = (
+                0
+                if len(path) == 1
+                else result[path[-2]] + world.edges[graph[path[-2]][node]["eid"]].length_m
+            )
+        return result
+
+    lengths = physical_lengths(from_start)
+    remaining = lengths if root == goal else physical_lengths(to_finish)
+    if root != goal:
+        add(from_start[goal])
+    candidates_nodes = [
+        n
+        for n in from_start
+        if n in to_finish and n not in (root, goal) and 0 < lengths[n] < target * 0.95
+    ]
+    # Several radii avoid sampling only far dead ends or only one return-road layout.
+    origin = world.node_coords[root]
+
+    def sector(node):
+        coord = world.node_coords[node]
+        return (
+            int(
+                (atan2(coord[1] - origin[1], coord[0] - origin[0]) + 3.141592653589793)
+                * 4
+                / 3.141592653589793
+            )
+            % 8
+        )
+
+    points = []
+    for fraction in (0.2, 0.35, 0.5):
+        buckets = set()
+        for node in sorted(
+            candidates_nodes, key=lambda n: (abs(lengths[n] - target * fraction), n)
+        ):
+            direction = sector(node)
+            if direction not in buckets and node not in points:
+                buckets.add(direction)
+                points.append(node)
+    candidates_nodes.sort(key=lambda n: (abs(lengths[n] + remaining[n] - target), n))
+    # Include preferred-road anchors even if their sector already supplied three points.
+    for node in candidates_nodes:
+        if len(points) >= 32:
+            break
+        if node not in points and any(
+            world.edges[d["eid"]].name in preferred for d in graph[node].values()
+        ):
+            points.append(node)
+    returns = []
+    for node in points:
+        outbound = from_start[node]
+        if goal in outbound[:-1] and goal != root:
+            continue
+        used = set(_ids(graph, outbound))
+        view = nx.subgraph_view(
+            graph,
+            filter_edge=lambda a, b, used=used: graph[a][b]["eid"] not in used,
+        )
+        try:
+            # One shortest return per spatial anchor bounds work. Enumerating a
+            # second simple path runs many spur searches for near-identical loops.
+            back = nx.shortest_path(view, node, goal, weight="weight")
+            add(outbound + back[1:])
+            returns.append((node, outbound, view))
+        except nx.NetworkXNoPath:
+            pass
+    if not any(target * 0.9 <= v[0] <= target * 1.1 and not v[1] for v in candidates.values()):
+        # A second return is needed on small maps with a shortcut (e.g. a square
+        # with a diagonal). Pay for spur enumeration only if first returns miss.
+        for node, outbound, view in returns:
+            paths = nx.shortest_simple_paths(view, node, goal, weight="weight")
+            next(paths, None)
+            back = next(paths, None)
+            if back is not None:
+                add(outbound + back[1:])
+    # Retain bounded repeated-path fallbacks for maps without a suitable simple loop.
+    alternatives = []
+    for a, b, data in graph.edges(data=True):
+        if a not in lengths or b not in remaining:
+            continue
+        for u, v in ((a, b), (b, a)):
+            estimate = lengths[u] + world.edges[data["eid"]].length_m + remaining[v]
+            alternatives.append((abs(estimate - target), u, v))
+    for _, u, v in sorted(alternatives)[:96]:
+        add(from_start[u] + list(reversed(to_finish[v])))
+    if root == goal and not any(
+        target * 0.9 <= value[0] <= target * 1.1 for value in candidates.values()
+    ):
+        # An explicit multi-lap proposal is preferable to silently missing a long
+        # requested distance on a small mapped field. Every repeated metre is retained.
+        for ids, (length, _, unnamed, pref) in list(candidates.items()):
+            laps = round(target / length)
+            for count in (laps - 1, laps, laps + 1):
+                if count < 2 or len(ids) * count > events.MAX_COURSE_SEGMENTS:
+                    continue
+                actual = length * count
+                if target * 0.9 <= actual <= target * 1.1:
+                    unique = sum(world.edges[e].length_m for e in set(ids))
+                    candidates[ids * count] = (
+                        actual,
+                        actual - unique,
+                        unnamed * count,
+                        pref * count,
+                    )
+    return candidates
+
+
 def _plan_course(world, start, distance_km, shape, finish, avoid_roads, prefer_roads):
     if not isfinite(distance_km) or not 0 < distance_km <= 50:
         raise ValueError("distance_km must be greater than zero and at most 50")
@@ -244,62 +396,68 @@ def _plan_course(world, start, distance_km, shape, finish, avoid_roads, prefer_r
     )
     to_finish = from_start if goal == root else nx.single_source_dijkstra(graph, goal)[1]
     target = distance_km * 1000
-    candidates = {}
-
-    def add(nodes):
-        ids = _ids(graph, nodes)
-        if not ids or len(ids) > events.MAX_COURSE_SEGMENTS:
-            return
-        length = sum(world.edges[e].length_m for e in ids)
-        if length <= 0:
-            return
-        # Do not call an out-and-back a loop when a simple cycle is available.
-        repeated = len(ids) - len(set(ids))
-        unnamed = sum(world.edges[e].length_m for e in ids if not world.edges[e].name)
-        pref = sum(world.edges[e].length_m for e in ids if world.edges[e].name in preferred)
-        candidates[ids] = (length, repeated, unnamed, -pref)
-
-    if goal != root:
-        add(from_start[goal])
-    for a, b in sorted(graph.edges):
-        if a not in from_start or b not in to_finish:
-            continue
-        for u, v in ((a, b), (b, a)):
-            nodes = from_start[u] + list(reversed(to_finish[v]))
-            add(nodes)
+    candidates = _candidates(world, graph, from_start, to_finish, root, goal, target, preferred)
+    if root == goal and not any(target * 0.9 <= v[0] <= target * 1.1 for v in candidates.values()):
+        for laps in range(2, 7):
+            smaller = _candidates(
+                world, graph, from_start, to_finish, root, goal, target / laps, preferred
+            )
+            for ids, (length, _, unnamed, pref) in smaller.items():
+                actual = length * laps
+                if (
+                    len(ids) * laps <= events.MAX_COURSE_SEGMENTS
+                    and target * 0.9 <= actual <= target * 1.1
+                ):
+                    unique = sum(world.edges[e].length_m for e in set(ids))
+                    candidates[ids * laps] = actual, actual - unique, unnamed * laps, pref * laps
+            if any(target * 0.9 <= v[0] <= target * 1.1 for v in candidates.values()):
+                break
     if not candidates:
         raise ValueError("No course fits the 400-segment bound on these mapped connections.")
 
-    # A bounded heuristic, not a claim of a globally optimal event layout. Compare
-    # the best 24 distance/repetition/name candidates using mapped centre access.
+    @cache
     def preliminary(ids):
         length, repeats, unnamed, pref = candidates[ids]
         return (
             abs(length - target) > target * 0.1,
-            repeats,
-            unnamed / length,
+            bool(repeats),
+            _road_revisits(world, ids, root == goal),
             pref,
+            unnamed / length,
             abs(length - target),
             ids,
         )
 
     within = [ids for ids in candidates if abs(candidates[ids][0] - target) <= target * 0.1]
-    pool = sorted(within or candidates, key=preliminary)[:24]
+    pool = within or list(candidates)
+    if not within:
+        nearest_error = min(abs(candidates[ids][0] - target) for ids in pool)
+        pool = [ids for ids in pool if abs(candidates[ids][0] - target) <= nearest_error + 0.01]
+    # A repeat-free proposal wins over reusing a road merely to lower the cutoff score.
+    best_repeat = min(preliminary(ids)[1] for ids in pool)
+    pool = sorted((ids for ids in pool if preliminary(ids)[1] == best_repeat), key=preliminary)[:24]
     with route_batch():
-        arcs, centres, places = _ranking_context(world)
-        before = _connected(arcs, centres, set())
-        baseline_places = {pid for pid, nodes in places.items() if nodes & before}
+        contexts = []
+        for profile in events.DEFAULT_PROFILES:
+            if profile not in world.profiles or world.profiles[profile].stub:
+                continue
+            arcs, centres, places = _ranking_context(world, profile)
+            before = _connected(arcs, centres, set())
+            baseline_places = {pid for pid, nodes in places.items() if nodes & before}
+            contexts.append((arcs, centres, places, baseline_places))
 
         def rank(ids):
-            connected = _connected(arcs, centres, set(ids))
-            lost = sum(not places[pid] & connected for pid in baseline_places)
-            return (lost, *preliminary(ids))
+            lost = set()
+            for arcs, centres, places, baseline_places in contexts:
+                connected = _connected(arcs, centres, set(ids))
+                lost.update(pid for pid in baseline_places if not places[pid] & connected)
+            return (candidates[ids][3], len(lost), *preliminary(ids))
 
         chosen = min(pool, key=rank)
     length, repeats, unnamed, _ = candidates[chosen]
     warnings = [
         "Bounded proposal search: compares up to 24 candidates for newly lost mapped centre "
-        "access (default profile); not a global optimum.",
+        "access (default, wheelchair and driving profiles); not a global optimum.",
         "Course access, road direction, crossings and event approval need review; "
         "this proposal is not a profile access assessment.",
     ]
@@ -311,9 +469,17 @@ def _plan_course(world, start, distance_km, shape, finish, avoid_roads, prefer_r
         )
     if repeats:
         warnings.append(
-            "Some segments repeat to connect the start/finish to the available course; "
-            "review the repeated stretches."
+            "The bounded search found no repeat-free candidate in the distance band; "
+            "some segments repeat. Review the repeated stretches."
         )
+    if repeats and root == goal:
+        for laps in range(len(chosen), 1, -1):
+            if len(chosen) % laps == 0 and chosen == chosen[: len(chosen) // laps] * laps:
+                warnings.append(
+                    f"Multi-lap proposal: {laps} repeats of the same mapped loop. "
+                    "No single-loop candidate in the distance band was found."
+                )
+                break
     roads = []
     unnamed_labels = events._unnamed_stretches(world)
     for eid in chosen:
@@ -323,7 +489,7 @@ def _plan_course(world, start, distance_km, shape, finish, avoid_roads, prefer_r
             roads[-1].length_m += edge.length_m
         else:
             roads.append(CourseRoad(name=name, length_m=edge.length_m, order=len(roads) + 1))
-    if any(count > 1 for count in Counter(r.name for r in roads).values()):
+    if _road_revisits(world, chosen, root == goal):
         warnings.append(
             "Some roads are revisited to meet the mapped start/finish and distance constraints."
         )
@@ -351,7 +517,12 @@ def _plan_course(world, start, distance_km, shape, finish, avoid_roads, prefer_r
 
 
 def simulate_marathon(world: World, request: MarathonRequest) -> MarathonResult:
-    baseline, _ = events._frozen_baseline(world, request.starts_at)
+    with route_batch():
+        return _simulate_marathon(world, request)
+
+
+def _simulate_marathon(world, request):
+    baseline, digest = events._frozen_baseline(world, request.starts_at)
     course = plan_course(
         baseline, **request.model_dump(exclude={"starts_at", "ends_at", "profiles"})
     )
@@ -373,11 +544,12 @@ def simulate_marathon(world: World, request: MarathonRequest) -> MarathonResult:
         request.starts_at,
         legacy=None,
         max_segments=events.MAX_COURSE_SEGMENTS,
+        frozen_baseline=(baseline, digest),
     )
     return MarathonResult(
         course=course,
         impact=MarathonImpact.model_validate(impact.model_dump()),
-        animation=_animation(baseline, course, impact),
+        animation=_animation(baseline, course, impact, frozen_baseline=(baseline, digest)),
     )
 
 
@@ -406,13 +578,13 @@ def _trip_coordinates(world, ids, place_id, profile):
     return []
 
 
-def _animation(world, course, impact):
-    baseline, digest = events._frozen_baseline(world, impact.at)
+def _animation(world, course, impact, frozen_baseline=None):
+    baseline, digest = frozen_baseline or events._frozen_baseline(world, impact.at)
     examples = []
     with route_batch():
         for profile in impact.per_profile:
             journeys = events._journeys(baseline, profile, impact.sample_limit_per_profile, True)
-            states, _ = events._baseline(baseline, digest, profile, journeys)
+            states = events._baseline(baseline, digest, profile, journeys)
             before = {
                 (j.from_id, j.to_id): state for j, state in zip(journeys, states, strict=True)
             }
