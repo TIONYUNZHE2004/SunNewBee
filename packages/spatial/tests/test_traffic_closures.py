@@ -263,6 +263,12 @@ def test_management_closure_tool_returns_weights_pressure_and_evidence_without_w
     assert result.data["event"]["reason"] == "works" and result.data["detour_roads"]
     assert result.data["reason"] == "works"
     assert result.data["weights_note"] in result.warnings
+    # managers read this warning: plain words, never the field name `at` (audit round 2, Q6)
+    moment = [w for w in result.warnings if w.startswith("Closures are assessed")]
+    assert moment == [
+        "Closures are assessed only at one moment (by default the first closure start); later "
+        "changes in the window are not modelled."
+    ]
     assert world.closures == [] and ctx.vrs.list("all") == []
     assert not tools.simulate_closure(ctx, **(kwargs | {"reason": "invented"})).ok
     assert not tools.simulate_closure(ctx, **kwargs, at="bad-date").ok

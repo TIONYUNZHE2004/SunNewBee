@@ -29,6 +29,8 @@ from .template import (
     greeting_answer,
     marathon_answer,
     my_trip_answer,
+    path_length,
+    place_list,
     plan_answer,
     rollout_answer,
     scope_answer,
@@ -264,14 +266,6 @@ def _route_places(rets, ends: list[tuple[str, str | None]]):
 def _ui(info: AgentInfo, key: str) -> str | None:
     m = re.search(rf"{key}=(\w+)", info.instructions or "")
     return m.group(1) if m else None
-
-
-def _few(rows, n: int = 3) -> str:
-    """ "A, B, C and 4 more" from marker rows, distinct names in tool order."""
-    names = list(dict.fromkeys(r["name"] for r in rows or [] if r.get("name")))
-    more = len(rows or []) - len([r for r in rows or [] if r.get("name") in names[:n]])
-    shown = ", ".join(names[:n])
-    return f"{shown} and {more} more" if more > 0 and shown else shown
 
 
 def _no_answer(info: AgentInfo) -> str:
@@ -556,7 +550,10 @@ def _lowlying(q: str, rets, info: AgentInfo) -> ModelResponse:
         )
 
     named = ""
-    if cut := _few(a.get("cut_off_places")):
+    # a combined screen counts river-flooded places, so it names them too (validator)
+    if sid != "lowlying" and (flooded := place_list(a.get("flooded_places"))):
+        named += f" Likely flooded by the river rise (indicative): {flooded}."
+    if cut := place_list(a.get("cut_off_places")):
         named += f" Cut off, no mapped way in or out (indicative): {cut}."
     label = next(s.get("label") for s in _data(rets[0][1]) if s.get("id") == sid)
     return _final(
@@ -949,10 +946,10 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         # T-024: the marker lists, by name, and the metres of likely flooded paths
         named = ""
         if (metres := a.get("flooded_path_m")) is not None:
-            named += f" About {round(metres)} m of mapped paths are likely flooded."
-        if flooded := _few(a.get("flooded_places")):
+            named += f" About {path_length(metres)} of mapped paths are likely flooded."
+        if flooded := place_list(a.get("flooded_places")):
             named += f" Likely flooded (indicative): {flooded}."
-        if cut := _few(a.get("cut_off_places")):
+        if cut := place_list(a.get("cut_off_places")):
             named += f" Cut off, no mapped way in or out (indicative): {cut}."
         return _final(
             answer_status="answered",

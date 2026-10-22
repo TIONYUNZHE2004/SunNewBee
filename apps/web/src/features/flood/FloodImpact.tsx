@@ -7,6 +7,7 @@ import {
   type ImpactMarker,
   INDICATIVE_NOTE,
   impactSummary,
+  listRows,
   placesWord,
   possibleOnly,
 } from "./impactModel";
@@ -81,11 +82,12 @@ export function FloodImpactCard({ notes = true }: { notes?: boolean }) {
 
 function MarkerRows({ title, rows }: { title: string; rows: ImpactMarker[] }) {
   if (rows.length === 0) return null;
+  const { places, small } = listRows(rows);
   return (
     <div className="mt-3">
       <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-soft">{title}</h3>
       <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-        {rows.map((m) => (
+        {places.map((m) => (
           <li
             key={`${m.kind}:${m.id}`}
             className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-sm"
@@ -95,6 +97,15 @@ function MarkerRows({ title, rows }: { title: string; rows: ImpactMarker[] }) {
             <span className="sr-only">: {IMPACT_STYLE[m.kind].label}</span>
           </li>
         ))}
+        {small > 0 && (
+          <li
+            data-testid="impact-small-features"
+            className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink-soft"
+          >
+            + {small} small mapped {small === 1 ? "feature" : "features"} (shelters, seats, bins,
+            toilets)
+          </li>
+        )}
       </ul>
     </div>
   );

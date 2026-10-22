@@ -605,11 +605,92 @@ def event_answer(d: dict, evidence_ids: list[str]) -> dict:
     }
 
 
+# Street furniture: counted after the named places in flood lists, never left out (demo text).
+SMALL_FEATURE_TYPES = frozenset({"shelter", "seating", "bench", "waste_basket", "toilet"})
+
+
+def place_list(rows, n: int = 3) -> str:
+    """Flooded / cut-off places for an answer: up to n place names (named before "(unnamed, OSM)"
+    ones, tool order otherwise), "and N more places", then street furniture as one count, so
+    every row is still counted. Only furniture: its names, as before."""
+    rows = [r for r in rows or [] if r.get("name")]
+    small = [r for r in rows if r.get("type") in SMALL_FEATURE_TYPES]
+    big = sorted(
+        (r for r in rows if r.get("type") not in SMALL_FEATURE_TYPES),
+        key=lambda r: "(unnamed" in r["name"],
+    )
+    if not big:
+        big, small = rows, []
+    names = list(dict.fromkeys(r["name"] for r in big))[:n]
+    more = len([r for r in big if r["name"] not in names])
+    out = ", ".join(names)
+    if more:
+        out += f" and {more} more {'place' if more == 1 else 'places'}"
+    if small:
+        k = len(small)
+        out += (
+            f", plus {k} small mapped {'feature' if k == 1 else 'features'} "
+            "(shelters, seats, bins, toilets)"
+        )
+    return out
+
+
+def path_length(m: float) -> str:
+    """Metres of mapped paths for an answer: "320 m" under a kilometre, else "141.6 km"."""
+    return f"{round(m)} m" if m < 1000 else f"{m / 1000:.1f} km"
+
+
+# Unnamed course stretches shorter than this (after merging neighbours) fold into one line.
+SHORT_PATH_M = 50
+_UNNAMED = re.compile(r"^unnamed path near (.+?) \(")
+
+
+def course_rows(roads: list[dict]) -> tuple[list[dict], dict]:
+    """The course roads for an answer, as on the card (web `courseRows`): consecutive stretches
+    of one road merge (unnamed ones by their landmark), and unnamed runs under 50 m fold into
+    one short-paths count. Every engine metre lands in one row or the short count."""
+    runs: list[dict] = []
+    for r in sorted(roads, key=lambda r: r.get("order", 0)):
+        m = _UNNAMED.match(r["name"])
+        name = f"unnamed paths near {m.group(1)}" if m else r["name"]
+        if runs and runs[-1]["name"] == name:
+            runs[-1]["length_m"] += r["length_m"]
+            runs[-1]["stretches"] += 1
+        else:
+            runs.append(
+                {"name": name, "length_m": r["length_m"], "stretches": 1, "unnamed": bool(m)}
+            )
+    short = {"stretches": 0, "length_m": 0.0}
+    rows: list[dict] = []
+    for run in runs:
+        if run["unnamed"] and run["length_m"] < SHORT_PATH_M:
+            short["stretches"] += run["stretches"]
+            short["length_m"] += run["length_m"]
+        elif rows and rows[-1]["name"] == run["name"]:
+            rows[-1]["length_m"] += run["length_m"]
+            rows[-1]["stretches"] += run["stretches"]
+        else:
+            rows.append({k: run[k] for k in ("name", "length_m", "stretches")})
+    return rows, short
+
+
+# Course roads named in an answer before "and N more roads" (the card shows the same 8).
+COURSE_ROWS = 8
+
+
 def marathon_answer(d: dict, evidence_ids: list[str], start_name: str | None = None) -> dict:
     """T-028: a proposed course and its closure impact, every number from the tool. The course
     is a proposal on mapped roads, never an approved route; the roads are named in order."""
     course, impact = d.get("course") or {}, d.get("impact") or {}
-    roads = list(dict.fromkeys(r["name"] for r in course.get("roads") or []))
+    rows, short = course_rows(course.get("roads") or [])
+    roads = [r["name"] for r in rows[:COURSE_ROWS]]
+    if hidden := rows[COURSE_ROWS:]:
+        n = len(hidden)
+        roads.append(f"and {n} more {'road' if n == 1 else 'roads'}")
+    # summed metres are not a tool's numbers (the validator's fact check), so only counts here;
+    # the card shows the metres
+    if k := short["stretches"]:
+        roads.append(f"plus {k} short connecting {'stretch' if k == 1 else 'stretches'}")
     km = round((course.get("length_m") or 0) / 1000, 1)
     shape = "loop" if course.get("shape") == "loop" else "point-to-point"
     where = f" from {start_name}" if start_name else ""
