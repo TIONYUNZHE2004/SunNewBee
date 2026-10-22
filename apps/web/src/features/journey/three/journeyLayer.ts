@@ -9,7 +9,7 @@ import {
   setDashScale,
 } from "../../scene/three/overlays/lines";
 import { KIND_COLOUR, KIND_GLYPH } from "../kindStyle";
-import { createRoutePath, type RoutePath, type SpanEval } from "../routePath";
+import { createRoutePath, type RoutePath, roadsideRuns, type SpanEval } from "../routePath";
 import type { JourneyEventKind, JourneyPlan } from "../timeline";
 
 /** Metres the ribbon floats above the ground (under the 0.6 m status lines, above road decals). */
@@ -159,7 +159,9 @@ export function warmPinDrawings(): void {
 }
 
 export function createJourneyLayer(plan: JourneyPlan, frame: LocalFrame): JourneyLayer {
-  const path = createRoutePath(plan, (lon, lat) => frame.toLocal(lon, lat));
+  const path = createRoutePath(plan, (lon, lat) => frame.toLocal(lon, lat), {
+    roadside: roadsideRuns(plan.spans, plan.span_types),
+  });
 
   const ribbon = new THREE.Group();
   ribbon.name = "journey-ribbon";

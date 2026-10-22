@@ -19,8 +19,14 @@
     "plan": null,
     "brief_text": null,
     "compare": {
-      "from_place": { "id": "lakeside-mall", "name": "Elmina Lakeside Mall" },
-      "to_place": { "id": "osm-way-910487880", "name": "Surau Kiambang" },
+      "from_place": {
+        "id": "lakeside-mall",
+        "name": "Elmina Lakeside Mall"
+      },
+      "to_place": {
+        "id": "osm-way-910487880",
+        "name": "Surau Kiambang"
+      },
       "profile": "wheelchair",
       "status": "partly_unverified",
       "same_path": false,
@@ -122,44 +128,234 @@
           [101.516076, 3.170863]
         ],
         "segments": [
-          { "edge_id": "seg-1346154591-1", "eval": "PASS" },
-          { "edge_id": "seg-1346154591-0", "eval": "PASS" },
-          { "edge_id": "seg-1346147882-1", "eval": "PASS" },
-          { "edge_id": "seg-1318133037-0", "eval": "PASS" },
-          { "edge_id": "seg-1242852915-4", "eval": "PASS" },
-          { "edge_id": "seg-1306543784-0", "eval": "PASS" },
-          { "edge_id": "seg-1306543783-0", "eval": "PASS" },
-          { "edge_id": "seg-610123407-1", "eval": "UNKNOWN" },
-          { "edge_id": "seg-610123407-2", "eval": "UNKNOWN" },
-          { "edge_id": "seg-610123407-3", "eval": "UNKNOWN" },
-          { "edge_id": "seg-606246877-0", "eval": "UNKNOWN" },
-          { "edge_id": "seg-606246877-1", "eval": "UNKNOWN" },
-          { "edge_id": "seg-606246877-2", "eval": "UNKNOWN" },
-          { "edge_id": "seg-1286251752-0", "eval": "UNKNOWN" },
-          { "edge_id": "seg-240136673-0", "eval": "UNKNOWN" },
-          { "edge_id": "seg-1030433998-0", "eval": "PASS" },
-          { "edge_id": "seg-1030433998-1", "eval": "PASS" },
-          { "edge_id": "seg-1238782839-0", "eval": "PASS" },
-          { "edge_id": "seg-1346147887-0", "eval": "PASS" },
-          { "edge_id": "seg-1346147889-1", "eval": "PASS" },
-          { "edge_id": "seg-1346147888-0", "eval": "PASS" },
-          { "edge_id": "seg-240136713-1", "eval": "PASS" },
-          { "edge_id": "seg-240136688-2", "eval": "PASS" },
-          { "edge_id": "seg-240136688-3", "eval": "PASS" },
-          { "edge_id": "seg-240136688-4", "eval": "PASS" },
-          { "edge_id": "seg-240136688-5", "eval": "PASS" },
-          { "edge_id": "seg-240136688-6", "eval": "PASS" },
-          { "edge_id": "seg-240136688-7", "eval": "PASS" },
-          { "edge_id": "seg-240136688-8", "eval": "PASS" },
-          { "edge_id": "seg-240136688-9", "eval": "PASS" },
-          { "edge_id": "seg-240136688-10", "eval": "PASS" },
-          { "edge_id": "seg-240136688-11", "eval": "PASS" },
-          { "edge_id": "seg-240136688-12", "eval": "PASS" },
-          { "edge_id": "seg-240136688-13", "eval": "PASS" },
-          { "edge_id": "seg-240136688-14", "eval": "PASS" },
-          { "edge_id": "seg-240136688-15", "eval": "PASS" },
-          { "edge_id": "seg-240136714-3", "eval": "PASS" },
-          { "edge_id": "seg-240136709-0", "eval": "PASS" }
+          {
+            "edge_id": "seg-1346154591-1",
+            "eval": "PASS",
+            "type": "footway",
+            "length_m": 36.6
+          },
+          {
+            "edge_id": "seg-1346154591-0",
+            "eval": "PASS",
+            "type": "footway",
+            "length_m": 166.7
+          },
+          {
+            "edge_id": "seg-1346147882-1",
+            "eval": "PASS",
+            "type": "footway",
+            "length_m": 26.2
+          },
+          {
+            "edge_id": "seg-1318133037-0",
+            "eval": "PASS",
+            "type": "footway",
+            "length_m": 90.0
+          },
+          {
+            "edge_id": "seg-1242852915-4",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 128.9
+          },
+          {
+            "edge_id": "seg-1306543784-0",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 56.2
+          },
+          {
+            "edge_id": "seg-1306543783-0",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 46.6
+          },
+          {
+            "edge_id": "seg-610123407-1",
+            "eval": "UNKNOWN",
+            "type": "major_road",
+            "length_m": 13.7
+          },
+          {
+            "edge_id": "seg-610123407-2",
+            "eval": "UNKNOWN",
+            "type": "major_road",
+            "length_m": 46.5
+          },
+          {
+            "edge_id": "seg-610123407-3",
+            "eval": "UNKNOWN",
+            "type": "major_road",
+            "length_m": 18.5
+          },
+          {
+            "edge_id": "seg-606246877-0",
+            "eval": "UNKNOWN",
+            "type": "major_road",
+            "length_m": 66.2
+          },
+          {
+            "edge_id": "seg-606246877-1",
+            "eval": "UNKNOWN",
+            "type": "major_road",
+            "length_m": 6.9
+          },
+          {
+            "edge_id": "seg-606246877-2",
+            "eval": "UNKNOWN",
+            "type": "major_road",
+            "length_m": 183.7
+          },
+          {
+            "edge_id": "seg-1286251752-0",
+            "eval": "UNKNOWN",
+            "type": "major_road",
+            "length_m": 40.9
+          },
+          {
+            "edge_id": "seg-240136673-0",
+            "eval": "UNKNOWN",
+            "type": "major_road",
+            "length_m": 96.2
+          },
+          {
+            "edge_id": "seg-1030433998-0",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 9.5
+          },
+          {
+            "edge_id": "seg-1030433998-1",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 22.6
+          },
+          {
+            "edge_id": "seg-1238782839-0",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 96.9
+          },
+          {
+            "edge_id": "seg-1346147887-0",
+            "eval": "PASS",
+            "type": "steps",
+            "length_m": 7.6
+          },
+          {
+            "edge_id": "seg-1346147889-1",
+            "eval": "PASS",
+            "type": "sidewalk",
+            "length_m": 90.5
+          },
+          {
+            "edge_id": "seg-1346147888-0",
+            "eval": "PASS",
+            "type": "crossing",
+            "length_m": 10.3
+          },
+          {
+            "edge_id": "seg-240136713-1",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 6.0
+          },
+          {
+            "edge_id": "seg-240136688-2",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 76.3
+          },
+          {
+            "edge_id": "seg-240136688-3",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 65.5
+          },
+          {
+            "edge_id": "seg-240136688-4",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 36.1
+          },
+          {
+            "edge_id": "seg-240136688-5",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 20.2
+          },
+          {
+            "edge_id": "seg-240136688-6",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 32.3
+          },
+          {
+            "edge_id": "seg-240136688-7",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 30.8
+          },
+          {
+            "edge_id": "seg-240136688-8",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 84.8
+          },
+          {
+            "edge_id": "seg-240136688-9",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 19.3
+          },
+          {
+            "edge_id": "seg-240136688-10",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 28.4
+          },
+          {
+            "edge_id": "seg-240136688-11",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 23.7
+          },
+          {
+            "edge_id": "seg-240136688-12",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 31.4
+          },
+          {
+            "edge_id": "seg-240136688-13",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 82.3
+          },
+          {
+            "edge_id": "seg-240136688-14",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 70.4
+          },
+          {
+            "edge_id": "seg-240136688-15",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 44.3
+          },
+          {
+            "edge_id": "seg-240136714-3",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 29.6
+          },
+          {
+            "edge_id": "seg-240136709-0",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 133.3
+          }
         ]
       },
       "recommended": {
@@ -282,48 +478,258 @@
           [101.516076, 3.170863]
         ],
         "segments": [
-          { "edge_id": "seg-1346154591-1", "eval": "PASS" },
-          { "edge_id": "seg-1346154591-0", "eval": "PASS" },
-          { "edge_id": "seg-1346147882-1", "eval": "PASS" },
-          { "edge_id": "seg-1318133037-0", "eval": "PASS" },
-          { "edge_id": "seg-1318133035-0", "eval": "PASS" },
-          { "edge_id": "seg-1343835668-1", "eval": "PASS" },
-          { "edge_id": "seg-1343835668-0", "eval": "PASS" },
-          { "edge_id": "seg-1343835669-0", "eval": "PASS" },
-          { "edge_id": "seg-1290465379-0", "eval": "PASS" },
-          { "edge_id": "seg-909875982-0", "eval": "PASS" },
-          { "edge_id": "seg-926275996-2", "eval": "PASS" },
-          { "edge_id": "seg-926275996-1", "eval": "PASS" },
-          { "edge_id": "seg-926275996-0", "eval": "PASS" },
-          { "edge_id": "seg-926275997-0", "eval": "PASS" },
-          { "edge_id": "seg-909868196-2", "eval": "PASS" },
-          { "edge_id": "seg-909868196-3", "eval": "PASS" },
-          { "edge_id": "seg-909868196-4", "eval": "UNKNOWN" },
-          { "edge_id": "seg-1346147884-0", "eval": "PASS" },
-          { "edge_id": "seg-1346147884-1", "eval": "PASS" },
-          { "edge_id": "seg-1346147883-1", "eval": "PASS" },
-          { "edge_id": "seg-1346147890-0", "eval": "PASS" },
-          { "edge_id": "seg-1346147890-1", "eval": "PASS" },
-          { "edge_id": "seg-1346147889-0", "eval": "PASS" },
-          { "edge_id": "seg-1346147889-1", "eval": "PASS" },
-          { "edge_id": "seg-1346147888-0", "eval": "PASS" },
-          { "edge_id": "seg-240136713-1", "eval": "PASS" },
-          { "edge_id": "seg-240136688-2", "eval": "PASS" },
-          { "edge_id": "seg-240136688-3", "eval": "PASS" },
-          { "edge_id": "seg-240136688-4", "eval": "PASS" },
-          { "edge_id": "seg-240136688-5", "eval": "PASS" },
-          { "edge_id": "seg-240136688-6", "eval": "PASS" },
-          { "edge_id": "seg-240136688-7", "eval": "PASS" },
-          { "edge_id": "seg-240136688-8", "eval": "PASS" },
-          { "edge_id": "seg-240136688-9", "eval": "PASS" },
-          { "edge_id": "seg-240136688-10", "eval": "PASS" },
-          { "edge_id": "seg-240136688-11", "eval": "PASS" },
-          { "edge_id": "seg-240136688-12", "eval": "PASS" },
-          { "edge_id": "seg-240136688-13", "eval": "PASS" },
-          { "edge_id": "seg-240136688-14", "eval": "PASS" },
-          { "edge_id": "seg-240136688-15", "eval": "PASS" },
-          { "edge_id": "seg-240136714-3", "eval": "PASS" },
-          { "edge_id": "seg-240136709-0", "eval": "PASS" }
+          {
+            "edge_id": "seg-1346154591-1",
+            "eval": "PASS",
+            "type": "footway",
+            "length_m": 36.6
+          },
+          {
+            "edge_id": "seg-1346154591-0",
+            "eval": "PASS",
+            "type": "footway",
+            "length_m": 166.7
+          },
+          {
+            "edge_id": "seg-1346147882-1",
+            "eval": "PASS",
+            "type": "footway",
+            "length_m": 26.2
+          },
+          {
+            "edge_id": "seg-1318133037-0",
+            "eval": "PASS",
+            "type": "footway",
+            "length_m": 90.0
+          },
+          {
+            "edge_id": "seg-1318133035-0",
+            "eval": "PASS",
+            "type": "footway",
+            "length_m": 25.4
+          },
+          {
+            "edge_id": "seg-1343835668-1",
+            "eval": "PASS",
+            "type": "sidewalk",
+            "length_m": 45.0
+          },
+          {
+            "edge_id": "seg-1343835668-0",
+            "eval": "PASS",
+            "type": "sidewalk",
+            "length_m": 67.2
+          },
+          {
+            "edge_id": "seg-1343835669-0",
+            "eval": "PASS",
+            "type": "sidewalk",
+            "length_m": 54.5
+          },
+          {
+            "edge_id": "seg-1290465379-0",
+            "eval": "PASS",
+            "type": "sidewalk",
+            "length_m": 97.8
+          },
+          {
+            "edge_id": "seg-909875982-0",
+            "eval": "PASS",
+            "type": "sidewalk",
+            "length_m": 10.4
+          },
+          {
+            "edge_id": "seg-926275996-2",
+            "eval": "PASS",
+            "type": "crossing",
+            "length_m": 7.0
+          },
+          {
+            "edge_id": "seg-926275996-1",
+            "eval": "PASS",
+            "type": "crossing",
+            "length_m": 17.1
+          },
+          {
+            "edge_id": "seg-926275996-0",
+            "eval": "PASS",
+            "type": "crossing",
+            "length_m": 7.5
+          },
+          {
+            "edge_id": "seg-926275997-0",
+            "eval": "PASS",
+            "type": "sidewalk",
+            "length_m": 8.4
+          },
+          {
+            "edge_id": "seg-909868196-2",
+            "eval": "PASS",
+            "type": "sidewalk",
+            "length_m": 124.8
+          },
+          {
+            "edge_id": "seg-909868196-3",
+            "eval": "PASS",
+            "type": "sidewalk",
+            "length_m": 121.5
+          },
+          {
+            "edge_id": "seg-909868196-4",
+            "eval": "UNKNOWN",
+            "type": "sidewalk",
+            "length_m": 59.8
+          },
+          {
+            "edge_id": "seg-1346147884-0",
+            "eval": "PASS",
+            "type": "crossing",
+            "length_m": 13.8
+          },
+          {
+            "edge_id": "seg-1346147884-1",
+            "eval": "PASS",
+            "type": "crossing",
+            "length_m": 11.6
+          },
+          {
+            "edge_id": "seg-1346147883-1",
+            "eval": "PASS",
+            "type": "sidewalk",
+            "length_m": 123.8
+          },
+          {
+            "edge_id": "seg-1346147890-0",
+            "eval": "PASS",
+            "type": "crossing",
+            "length_m": 3.8
+          },
+          {
+            "edge_id": "seg-1346147890-1",
+            "eval": "PASS",
+            "type": "crossing",
+            "length_m": 5.5
+          },
+          {
+            "edge_id": "seg-1346147889-0",
+            "eval": "PASS",
+            "type": "sidewalk",
+            "length_m": 128.8
+          },
+          {
+            "edge_id": "seg-1346147889-1",
+            "eval": "PASS",
+            "type": "sidewalk",
+            "length_m": 90.5
+          },
+          {
+            "edge_id": "seg-1346147888-0",
+            "eval": "PASS",
+            "type": "crossing",
+            "length_m": 10.3
+          },
+          {
+            "edge_id": "seg-240136713-1",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 6.0
+          },
+          {
+            "edge_id": "seg-240136688-2",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 76.3
+          },
+          {
+            "edge_id": "seg-240136688-3",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 65.5
+          },
+          {
+            "edge_id": "seg-240136688-4",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 36.1
+          },
+          {
+            "edge_id": "seg-240136688-5",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 20.2
+          },
+          {
+            "edge_id": "seg-240136688-6",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 32.3
+          },
+          {
+            "edge_id": "seg-240136688-7",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 30.8
+          },
+          {
+            "edge_id": "seg-240136688-8",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 84.8
+          },
+          {
+            "edge_id": "seg-240136688-9",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 19.3
+          },
+          {
+            "edge_id": "seg-240136688-10",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 28.4
+          },
+          {
+            "edge_id": "seg-240136688-11",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 23.7
+          },
+          {
+            "edge_id": "seg-240136688-12",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 31.4
+          },
+          {
+            "edge_id": "seg-240136688-13",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 82.3
+          },
+          {
+            "edge_id": "seg-240136688-14",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 70.4
+          },
+          {
+            "edge_id": "seg-240136688-15",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 44.3
+          },
+          {
+            "edge_id": "seg-240136714-3",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 29.6
+          },
+          {
+            "edge_id": "seg-240136709-0",
+            "eval": "PASS",
+            "type": "street",
+            "length_m": 133.3
+          }
         ]
       },
       "stop": {
@@ -729,6 +1135,50 @@
         [2001.4, 2031.0, "PASS"],
         [2031.0, 2164.0, "PASS"]
       ],
+      "span_types": [
+        "footway",
+        "footway",
+        "footway",
+        "footway",
+        "footway",
+        "sidewalk",
+        "sidewalk",
+        "sidewalk",
+        "sidewalk",
+        "sidewalk",
+        "crossing",
+        "crossing",
+        "crossing",
+        "sidewalk",
+        "sidewalk",
+        "sidewalk",
+        "sidewalk",
+        "crossing",
+        "crossing",
+        "sidewalk",
+        "crossing",
+        "crossing",
+        "sidewalk",
+        "sidewalk",
+        "crossing",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street",
+        "street"
+      ],
       "events": [
         {
           "kind": "verified",
@@ -740,7 +1190,7 @@
           "demo": true,
           "evidence_id": "ev-seg-1346154591-1.step_count",
           "title": "Step-free path",
-          "body": "No steps, slope 2.5%, 2 m wide. Demo value \u00b7 not surveyed.",
+          "body": "No steps, slope 2.5%, 2 m wide. Demo value · not surveyed.",
           "hold_s": 3.0
         },
         {
@@ -753,7 +1203,7 @@
           "demo": true,
           "evidence_id": "ev-seg-1346147882-1.covered",
           "title": "Covered walkway",
-          "body": "A roof over this stretch. Demo value \u00b7 not surveyed.",
+          "body": "A roof over this stretch. Demo value · not surveyed.",
           "hold_s": 3.0
         },
         {

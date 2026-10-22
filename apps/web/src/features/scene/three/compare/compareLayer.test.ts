@@ -9,6 +9,7 @@ import {
   ribbonGeometry,
   SHIRTS,
   STOP_EDGE_M,
+  segmentMetres,
   spansWith,
   stopEdgeM,
   tintVertexColours,
@@ -234,5 +235,42 @@ describe("stop edge length", () => {
     expect(stopEdgeM(c.fastest, "rt-fast-e2")).toBe(STOP_EDGE_M);
     const withLen = { ...c.fastest, segments: segs.map((s) => ({ ...s, length_m: 7.5 })) };
     expect(stopEdgeM(withLen, "rt-fast-e2")).toBe(7.5);
+  });
+});
+
+describe("segment metres (roadside offset)", () => {
+  it("places each segment along the route by its length, scaled to the route length", () => {
+    const c = playable();
+    const n = c.fastest.segments.length;
+    const segs = c.fastest.segments.map((s) => ({ ...s, length_m: 10, type: "street" }));
+    const m = segmentMetres({ ...c.fastest, segments: segs }, 20 * n);
+    expect(m?.[0]).toEqual([0, 20]);
+    expect(m?.at(-1)?.[1]).toBeCloseTo(20 * n);
+  });
+
+  it("an older payload without lengths gets no offset", () => {
+    expect(segmentMetres(playable().fastest, 100)).toBeNull();
+  });
+
+  it("a hero walking a street segment stands off the centre line", () => {
+    const c = playable();
+    const typed = (r: typeof c.fastest) => ({
+      ...r,
+      segments: r.segments.map((s) => ({ ...s, length_m: 10, type: "street" })),
+    });
+    const frame = createFrame(c.recommended.coordinates[0] as [number, number]);
+    const base = createCompareLayer({ payload: c, timeline: buildCompareTimeline(c), frame });
+    const off = createCompareLayer({
+      payload: { ...c, fastest: typed(c.fastest), recommended: typed(c.recommended) },
+      timeline: buildCompareTimeline(c),
+      frame,
+    });
+    base.update(5, { fastest: 20, recommended: 20 });
+    off.update(5, { fastest: 20, recommended: 20 });
+    const a = base.anchors().walkers.recommended;
+    const b = off.anchors().walkers.recommended;
+    expect(Math.hypot(b[0] - a[0], b[2] - a[2])).toBeGreaterThan(3);
+    base.dispose();
+    off.dispose();
   });
 });

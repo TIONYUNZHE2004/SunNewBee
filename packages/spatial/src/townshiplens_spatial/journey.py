@@ -126,6 +126,7 @@ def build_journey(
         pace_m_per_s=routing._pace_m_per_min(prof) / 60,
         polyline=polyline,
         spans=[(round(s.start, 1), round(s.end, 1), s.eval) for s in segs],
+        span_types=[s.edge.type for s in segs],
         events=[e for _, e in found],
     )
 

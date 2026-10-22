@@ -1,4 +1,4 @@
-{"meta": {"message": "Which change would help most residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "32baa5afcee9c8dd7709ea77e315aed2b7412b6b17305b4460d1f54ca156654b", "model": "mock-scripted", "recorded_at": "2026-10-22T08:18:24+00:00"}}
+{"meta": {"message": "Which change would help most residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "4467e2326f47f98f30ba686920f1cb2fae6331160288da8c62ce40030f8db990", "model": "mock-scripted", "recorded_at": "2026-10-22T09:14:04+00:00"}}
 {"type": "tool.call", "id": "day_test_change-0", "name": "day_test_change", "args": {"day": "storm", "option": 1}}
 {"type": "tool.result", "id": "day_test_change-0", "name": "day_test_change", "summary": "ok"}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}

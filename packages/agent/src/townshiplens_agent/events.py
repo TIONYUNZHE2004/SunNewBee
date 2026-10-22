@@ -49,6 +49,10 @@ class CompareSegment(BaseModel):
     model_config = _ALWAYS
     edge_id: str
     eval: EvalResult  # under the route's own profile (fastest: default; recommended: the profile)
+    # Display only: the walk edge type and length, so the player keeps a walker on a road's verge
+    # (and draws the stop edge at its real length). Never a fact about a pavement.
+    type: str
+    length_m: float
 
 
 class CompareRoute(BaseModel):

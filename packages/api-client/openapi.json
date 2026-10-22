@@ -1631,11 +1631,21 @@
             ],
             "title": "Eval",
             "type": "string"
+          },
+          "length_m": {
+            "title": "Length M",
+            "type": "number"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
           }
         },
         "required": [
           "edge_id",
-          "eval"
+          "eval",
+          "type",
+          "length_m"
         ],
         "title": "CompareSegment",
         "type": "object"
@@ -4498,6 +4508,13 @@
           "route_id": {
             "title": "Route Id",
             "type": "string"
+          },
+          "span_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Span Types",
+            "type": "array"
           },
           "spans": {
             "items": {

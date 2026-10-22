@@ -65,6 +65,10 @@ async def test_mobility_route_question_compares(tiny, tmp_path):
     assert cmp_intent.compare == compare_payload(tiny, d)
     assert cmp_intent.compare.recommended.coordinates == d["recommended"]["geometry"]["coordinates"]
     assert cmp_intent.compare.stop.edge_id == d["stop"]["edge_id"]
+    # each segment carries its edge type and length (display: walkers keep to a road's verge)
+    for seg in cmp_intent.compare.recommended.segments:
+        edge = tiny.edges[seg.edge_id]
+        assert (seg.type, seg.length_m) == (edge.type, round(edge.length_m, 1))
     text = _text(evs)
     assert "not checked yet; it did not count for or against this route" in text
     assert f"{d['extra_minutes']:g} min more than the fastest route" in text
