@@ -1,25 +1,6 @@
 # T-032 · flood visual review
 
-**Open [the embedded PDF](flood-review.pdf) for all 32 images on 33 pages.** It contains the
-20 current light/dark shots, four cinematic strips, and eight first-checkpoint images.
-The current UI source is `ac734983dcb16cc3afd93cca5ddcbf684b563f86`. Historical images are labelled
-as first-checkpoint captures. All images are inside the PDF; no network or sign-in is needed
-after download. File size: 13,594,245 bytes.
-
-This repository is private. GitHub file links require a browser signed in with repository
-access. The earlier `raw.githubusercontent.com` embeds were not a reliable delivery method
-for readers outside the cloud session. The PR now uses ordinary GitHub file links pinned to
-the relevant full commit; no access token is included in a link.
-
-Delivery checks: all 33 PDF pages parse, all 32 screenshot pages contain embedded images,
-and there are no external image links or encrypted pages. Seven sample pages were rendered
-locally, including both building shots and the animation strips. A separate offline ZIP keeps
-all 32 original image files and their source checksums.
-
-For each later visual update: inspect the captures, rebuild and open the PDF, verify every
-image is embedded, then check the published files. A successful request from cloud credentials
-does not establish access for the reader. State any GitHub sign-in requirement and provide the
-downloadable review file with the update.
+The screenshots and frame strips are in this folder (light = `-day`, dark = `-night`). The 13.5 MB review PDF was removed from the repository (control, 22 Oct) to keep the history small; the images below are the same captures.
 
 ## First rendering checkpoint
 
