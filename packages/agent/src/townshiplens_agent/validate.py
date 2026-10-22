@@ -632,6 +632,7 @@ def draft_errors(text: str, rec: TurnRecord) -> list[str]:
         *flood_impact_errors(ans, rec),
         *event_errors(ans, rec),
         *closure_claim_errors(ans, rec),
+        *course_errors(ans, rec),
         *journey_errors(ans, rec),
     ]
 
@@ -811,6 +812,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += flood_impact_errors(ans, rec)
     errs += event_errors(ans, rec)
     errs += closure_claim_errors(ans, rec)
+    errs += course_errors(ans, rec)
     errs += event_coverage_errors(ans, rec)
     errs += flood_naming_errors(ans, rec)
     errs += measurement_errors(ans, rec)
@@ -1706,6 +1708,26 @@ def closure_claim_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     return list(dict.fromkeys(errs))
 
 
+_KM = re.compile(r"(\d+(?:\.\d+)?)\s*(?:km|kilomet(?:re|er)s?)\b", re.IGNORECASE)
+
+
+def course_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """T-028: a course length is the proposed course's (to 0.1 km) or the distance asked for."""
+    if not rec.marathons or ans.answer_status == "cannot_answer":
+        return []
+    allowed: set[float] = set()
+    for m in rec.marathons:
+        km = ((m.get("course") or {}).get("length_m") or 0) / 1000
+        allowed |= {round(km, 1), float(round(km))}
+        if m.get("requested_km"):
+            allowed.add(round(float(m["requested_km"]), 1))
+    text = _strip_names(" ".join([ans.summary, *ans.steps, *ans.caveats]), rec.place_names)
+    said = {round(float(m.group(1)), 1) for m in _KM.finditer(text)}
+    if bad := sorted(v for v in said if not any(abs(v - a) < 0.051 for a in allowed)):
+        return [f"Course lengths {bad} km are not the proposed course's: quote the tool's length."]
+    return []
+
+
 def _plan_numbers(rec: TurnRecord) -> set[int]:
     out: set[int] = set()
     for p in rec.plans:
@@ -2180,6 +2202,7 @@ _ISSUES = (
     ("never predict jams, queues or crowds", "predicted traffic jams or crowds"),
     ("Name the top detour road", "left out the detour roads"),
     ("Give the simulation's suggestions", "left out the suggestions"),
+    ("Course lengths", "gave a course length the tool did not return"),
     ("Detour pressure is for managers only", "showed detour pressure to a resident"),
     ("never give numbers of vehicles", "gave vehicle counts"),
     ("No detour pressure was computed", "stated a detour pressure no tool gave"),

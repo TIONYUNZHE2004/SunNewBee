@@ -576,6 +576,15 @@ def event_answer(d: dict, evidence_ids: list[str]) -> dict:
     kept = [t for t in said if t in per_kind[kinds[t]][:2]]
     steps += [f"Suggestion: {t}" for t in kept]
     caveats = []
+    if on_course := d.get("trips_on_course"):
+        # T-028: trips whose start or end is on the closed course are an access question, not
+        # trips that "newly lose a route"
+        verb = "trip starts or ends" if on_course == 1 else "trips start or end"
+        where = "course" if d.get("course") else "road"
+        caveats.append(
+            f"{on_course} sample {verb} on the closed {where}: plan access for them "
+            f"during the {word}."
+        )
     if len(said) > len(kept):
         caveats.append(
             f"{len(said) - len(kept)} more suggestions of the same kinds are not listed."
@@ -594,6 +603,28 @@ def event_answer(d: dict, evidence_ids: list[str]) -> dict:
         ],
         "caveats": caveats,
     }
+
+
+def marathon_answer(d: dict, evidence_ids: list[str], start_name: str | None = None) -> dict:
+    """T-028: a proposed course and its closure impact, every number from the tool. The course
+    is a proposal on mapped roads, never an approved route; the roads are named in order."""
+    course, impact = d.get("course") or {}, d.get("impact") or {}
+    roads = list(dict.fromkeys(r["name"] for r in course.get("roads") or []))
+    km = round((course.get("length_m") or 0) / 1000, 1)
+    shape = "loop" if course.get("shape") == "loop" else "point-to-point"
+    where = f" from {start_name}" if start_name else ""
+    lead = (
+        f"Proposed {km:g} km {shape} course{where} on mapped roads (a proposal, not an approved "
+        f"route): {', '.join(roads)}."
+    )
+    out = event_answer({**impact, "course": course}, evidence_ids)
+    named = f"With the {(impact.get('event') or {}).get('name')} closures"
+    rest = out["summary"].replace(named, "With the course closed", 1)
+    out["summary"] = f"{lead} {rest}"
+    out["claims"] = [
+        {"text": "Proposed marathon course", "status": "indicative", "evidence_ids": evidence_ids}
+    ]
+    return out
 
 
 def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
@@ -655,7 +686,8 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
             return FinalAnswer(**fields)
     if rec.events and not rec.routes:
         ev = [i for i in [rec.events[-1].get("evidence_id")] if i in rec.evidence]
-        fields = event_answer(rec.events[-1], ev)
+        last = rec.marathons[-1] if rec.marathons and rec.events[-1].get("course") else None
+        fields = marathon_answer(last, ev) if last else event_answer(rec.events[-1], ev)
         fields["caveats"] = [*fields["caveats"], "Answer generated from data without AI wording."]
         return FinalAnswer(**fields)
     if rec.plans and not rec.routes:

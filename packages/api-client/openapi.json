@@ -5516,7 +5516,8 @@
               "day.trip",
               "journey.play",
               "development.play",
-              "closure.show"
+              "closure.show",
+              "marathon.show"
             ],
             "title": "Kind",
             "type": "string"
@@ -5536,6 +5537,16 @@
               }
             ],
             "title": "Lens"
+          },
+          "marathon": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarathonResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "place_id": {
             "anyOf": [

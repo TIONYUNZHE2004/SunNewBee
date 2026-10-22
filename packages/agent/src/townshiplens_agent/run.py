@@ -11,6 +11,7 @@ from pydantic_ai.usage import UsageLimits
 from townshiplens_spatial import tools as sp
 from townshiplens_spatial.events import ClosureImpact
 from townshiplens_spatial.journey import JourneyEvidenceError, build_journey
+from townshiplens_spatial.marathon import MarathonResult
 from townshiplens_spatial.models import Route
 
 from . import agent as agent_mod
@@ -193,6 +194,10 @@ CLOSURE_NOTES = {
         "ms": "Pemberat waktu puncak ialah corak perjalanan andaian, bukan diukur.",
         "zh": "高峰权重是假设的出行模式，并非实测。",
     },
+    "Proposed course on mapped roads, not an approved route.": {
+        "ms": "Laluan cadangan di jalan yang dipetakan, bukan laluan yang diluluskan.",
+        "zh": "基于已绘制道路的建议路线，并非已批准的路线。",
+    },
 }
 
 
@@ -205,7 +210,10 @@ def event_notes(ans: FinalAnswer, rec: TurnRecord, lang: str = "en") -> list[str
     last = rec.events[-1]
     if not last.get("weights_note"):
         return [] if _EVENT_SAID.search(said) else [EVENT_NOTE.get(lang, EVENT_NOTE["en"])]
-    notes = [n for n in (last.get("disclaimer"), last.get("weights_note")) if n]
+    course = last.get("course") or {}
+    notes = [
+        n for n in (course.get("disclaimer"), last.get("disclaimer"), last.get("weights_note")) if n
+    ]
     out = [CLOSURE_NOTES.get(n, {}).get(lang, n) for n in notes]
     return [n for n in out if n.rstrip(".") not in said]
 
@@ -267,6 +275,21 @@ def _urgent(caveat: str, rec: TurnRecord | None) -> bool:
     names |= {p.lower() for p in rec.flooded_endpoints}
     flooded = any(w in low for w in FLOOD_WORDS)
     return flooded and any(n and n in low for n in names)
+
+
+def _marathon_card(rec: TurnRecord, ans: FinalAnswer) -> MarathonResult | None:
+    """The last marathon proposal of this turn (course, impact, playback data) for the
+    management card, the map and "Watch the marathon". Never for residents (pressure)."""
+    if rec.panel != "management" or ans.answer_status == "cannot_answer" or not rec.marathons:
+        return None
+    d = rec.marathons[-1]
+    try:
+        return MarathonResult.model_validate(
+            {**d, "impact": {**(d.get("impact") or {}), "trips": []}}
+        )
+    except ValueError:
+        log.warning("marathon result did not match MarathonResult", exc_info=True)
+        return None
 
 
 def _closure_card(rec: TurnRecord, ans: FinalAnswer) -> ClosureImpact | None:
@@ -450,7 +473,8 @@ def _answer_events(
         intents.append(SceneIntent(kind="whatif.diff"))  # a what-if is always drawn as a diff
     if rec.rollouts and not any(i.kind == "river.rollout" for i in intents):
         intents.append(SceneIntent(kind="river.rollout"))  # the map plays the rollout
-    intents = [i for i in intents if i.kind != "closure.show"]  # server-built only, below
+    # server-built only, below
+    intents = [i for i in intents if i.kind not in ("closure.show", "marathon.show")]
     for it in intents:
         # Only what the model may write; every server-attached field is rebuilt below.
         intent = SceneIntent(**it.model_dump(include=set(AnswerSceneIntent.model_fields)))
@@ -504,7 +528,9 @@ def _answer_events(
                 continue  # no simulation ran this turn
             intent.geojson = diff
         evs.append(SceneIntentEvent(intent=intent))
-    if (closure := _closure_card(rec, ans)) is not None:
+    if (marathon := _marathon_card(rec, ans)) is not None:
+        evs.append(SceneIntentEvent(intent=SceneIntent(kind="marathon.show", marathon=marathon)))
+    elif (closure := _closure_card(rec, ans)) is not None:
         evs.append(SceneIntentEvent(intent=SceneIntent(kind="closure.show", closure=closure)))
 
     ref = 0

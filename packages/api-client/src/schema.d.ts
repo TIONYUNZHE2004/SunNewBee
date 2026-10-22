@@ -3129,9 +3129,10 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip" | "journey.play" | "development.play" | "closure.show";
+            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip" | "journey.play" | "development.play" | "closure.show" | "marathon.show";
             /** Lens */
             lens?: ("access" | "flood" | "waste") | null;
+            marathon?: components["schemas"]["MarathonResult"] | null;
             /** Place Id */
             place_id?: string | null;
             plan?: components["schemas"]["DevelopmentPlan"] | null;

@@ -139,6 +139,12 @@ def _summarise(name: str, res: sp.ToolResult) -> str:
         sm = d.get("summary") or {}
         before, after, total = sm.get("reach_before"), sm.get("reach_after"), sm.get("total")
         return f"what-if: {before} -> {after} of {total} reach"
+    if name == "simulate_marathon" and isinstance(d, dict):
+        imp, course = d.get("impact") or {}, d.get("course") or {}
+        return (
+            f"marathon: {round((course.get('length_m') or 0) / 1000, 1)} km course; "
+            f"{imp.get('trips_affected')} of {imp.get('trips_total')} sample trips affected"
+        )
     if name in ("simulate_event", "simulate_closure") and isinstance(d, dict):
         kind = "event" if name == "simulate_event" else "closures"
         return f"{kind}: {d.get('trips_affected')} of {d.get('trips_total')} sample trips affected"
@@ -387,6 +393,13 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
             for c in kwargs["closures"]
             for s, e in [event_window(c["start"], c["end"], c.get("day"), tz)]
         ]
+    if name == "simulate_marathon":  # T-028: the window is built here, never by the model
+        kwargs["starts_at"], kwargs["ends_at"] = event_window(
+            kwargs.pop("start_time"),
+            kwargs.pop("end_time"),
+            kwargs.pop("day", None),
+            deps.ctx.world.site.timezone,
+        )
     if name == "plan_route":
         # Shown to staff on the VR: describe the request, never copy the user's words (PII).
         kwargs["question_summary"] = route_summary(
@@ -498,6 +511,17 @@ async def call_tool(deps: Deps, name: str, /, **kwargs: Any) -> dict:
         }
     if name == "plan_verifications" and res.ok and isinstance(res.data, dict):
         rec.plans.append(res.data)
+    if name == "simulate_marathon" and res.ok and isinstance(res.data, dict):
+        # The course's impact is a closure simulation: the same trip, pressure and suggestion
+        # checks apply. The course rides along for the course checks and the marathon card.
+        course = res.data.get("course") or {}
+        rec.events.append({**(res.data.get("impact") or {}), "course": course})
+        rec.marathons.append({**res.data, "requested_km": kwargs.get("distance_km")})
+        rec.place_names |= {r["name"] for r in course.get("roads") or []}
+        rec.place_names |= {course.get("start") or "", course.get("finish") or ""} - {""}
+        imp = res.data.get("impact") or {}
+        rec.place_names |= {r["name"] for r in imp.get("detour_roads") or []}
+        rec.place_names |= {p["name"] for p in imp.get("places_cut_off") or []}
     if name in ("simulate_event", "simulate_closure") and res.ok and isinstance(res.data, dict):
         rec.events.append(res.data)
         # road and place names hold digits ("Persiaran Elmina 1/1"): names, not counts
@@ -761,6 +785,21 @@ def _for_model(name: str, out: dict) -> dict:
         for k in _MODEL_CAP.get(name, ()):
             if isinstance(data.get(k), list):
                 data[k] = data[k][:20]
+        if name == "simulate_marathon":  # per-trip rows, ids, animation: map only
+            data.pop("animation", None)
+            course = data.get("course")
+            if isinstance(course, dict):
+                for k in ("segment_ids", "start_node", "finish_node"):
+                    course.pop(k, None)
+            imp = data.get("impact")
+            if isinstance(imp, dict):
+                imp.pop("trips", None)
+                for c in (imp.get("event") or {}).get("closures") or []:
+                    if isinstance(c, dict):
+                        c.pop("segment_ids", None)
+                for r in imp.get("detour_roads") or []:
+                    if isinstance(r, dict):
+                        r.pop("segment_ids", None)
         if name in ("simulate_event", "simulate_closure"):  # per-trip rows, ids: map only
             data.pop("trips", None)
             if isinstance(data.get("event"), dict):
@@ -1179,6 +1218,44 @@ def build_agent(
 
     if "simulate_closure" in sp.TOOLS:  # the backend tool (T-026) is bound once it exists
         register_tool(simulate_closure)
+
+    async def simulate_marathon(
+        ctx: RunContext[Deps],
+        start: str,
+        distance_km: float,
+        start_time: str,
+        end_time: str,
+        day: str | None = None,
+        shape: Literal["loop", "point_to_point"] = "loop",
+        finish: str | None = None,
+        avoid_roads: list[str] | None = None,
+        prefer_roads: list[str] | None = None,
+    ) -> dict:
+        """Management (T-028): propose a marathon or fun-run course on mapped roads and simulate
+        closing it. start (and finish for point_to_point) is a mapped place id or its full name
+        (resolve it with find_place first); distance_km as asked; start_time and end_time as
+        HH:MM local time; day as a weekday ("sunday"), "tomorrow" or YYYY-MM-DD only when the
+        user gives one. Edits from the manager ("avoid Persiaran Elmina", "make it 10 km",
+        "finish at the mall") are a new call with avoid_roads, distance_km or finish. Returns
+        the course (roads in order with lengths; a proposal, not an approved route) and the
+        closure impact: sample trips affected, trips that start or end on the course, places
+        cut off, detour roads with their detour pressure band (managers only), suggestions."""
+        return await call_tool(
+            ctx.deps,
+            "simulate_marathon",
+            start=start,
+            distance_km=distance_km,
+            start_time=start_time,
+            end_time=end_time,
+            day=day,
+            shape=shape,
+            finish=finish,
+            avoid_roads=avoid_roads or [],
+            prefer_roads=prefer_roads or [],
+        )
+
+    if "simulate_marathon" in sp.TOOLS:  # the backend tool (T-028)
+        register_tool(simulate_marathon)
 
     @agent.output_validator
     async def check(ctx: RunContext[Deps], out: FinalAnswer) -> FinalAnswer:

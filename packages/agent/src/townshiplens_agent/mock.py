@@ -27,6 +27,7 @@ from .template import (
     event_answer,
     fixit_answer,
     greeting_answer,
+    marathon_answer,
     my_trip_answer,
     plan_answer,
     rollout_answer,
@@ -524,6 +525,57 @@ def _clock_words(q: str) -> str:
     return re.sub(r"(\d{1,2})点", r"\1", q).replace("到", "-")
 
 
+_MARATHON = r"marathon|maraton|马拉松|fun run|larian"
+
+
+def _marathon(q: str, rets, info: AgentInfo) -> ModelResponse:
+    """T-028: a course proposal from the start place, distance and window in the question."""
+    if not rets:
+        if "simulate_marathon" not in {t.name for t in info.function_tools}:
+            return _cannot("I can't plan a marathon course from our data yet.")
+        start = re.search(
+            r"(?:start(?:ing)?|bermula)\s+(?:at|from|di|dari)\s+(.+?)(?=\s+(?:on|from|and|this|next|at|pada|dari)\b|[,?.]|$)",
+            q,
+        )
+        km = re.search(r"(\d+(?:\.\d+)?)\s*km", q)
+        when = re.search(
+            r"(\d{1,2}(?::\d\d)?)\s*(?:am|pm)?\s*(?:-|–|to|until)\s*(\d{1,2}(?::\d\d)?\s*(?:am|pm)?)",
+            _clock_words(q),
+        )
+        if not start or not km or not when:
+            return _cannot(
+                "Tell me where the run starts, how long it is and its start and end times, "
+                "and I can propose a course."
+            )
+        start_time = re.search(r"\d{1,2}(?::\d\d)?\s*(?:am|pm)?", _clock_words(q)[when.start() :])
+        end = when.group(2).replace(" ", "")
+        if not re.search(r"am|pm", start_time.group(0)) and re.search(r"am|pm", end):
+            start_time_s = start_time.group(0) + re.search(r"am|pm", end).group(0)
+        else:
+            start_time_s = start_time.group(0).replace(" ", "")
+        day = (m := re.search(rf"(?:下)?(?:{_WEEKDAY})", q)) and m.group(0)
+        avoid = re.findall(r"avoid\s+((?:persiaran|jalan|lebuh|lorong|bulatan)\s[^,.?]+)", q)
+        return _call(
+            "simulate_marathon",
+            start=start.group(1).strip().title(),
+            distance_km=float(km.group(1)),
+            start_time=start_time_s,
+            end_time=end,
+            **({"day": day} if day else {}),
+            **({"avoid_roads": [a.strip().title() for a in avoid]} if avoid else {}),
+        )
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):  # unknown start, too long, no course: relay the reason
+        why = " ".join(rets[-1][1].get("warnings") or []) if isinstance(rets[-1][1], dict) else ""
+        return _cannot(why or "I couldn't plan a course on the township model.")
+    imp = d.get("impact") or {}
+    ev = [i for i in _ev_ids(rets) if i == imp.get("evidence_id")]
+    start = re.search(
+        r"(?:start(?:ing)?)\s+(?:at|from)\s+(.+?)(?=\s+(?:on|from|and|this|next|at)\b|[,?.]|$)", q
+    )
+    return _final(**marathon_answer(d, ev, start.group(1).strip().title() if start else None))
+
+
 def _event(q: str, rets, info: AgentInfo) -> ModelResponse:
     if not rets:
         reason = next((r for r, p in _REASON_WORDS if re.search(p, q)), "other")
@@ -745,6 +797,9 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return _tipping(q, rets, info)
     if scope == "all" and re.search(_PLAN, q):
         return _plan(q, rets, info)
+    if scope == "all" and re.search(_MARATHON, q) and re.search(r"\d\s*km\b", q):
+        # a course to plan ("a 5 km marathon from X"); "close Jalan Y for a marathon" is a closure
+        return _marathon(q, rets, info)
     if scope == "all" and re.search(_EVENT, q):
         return _event(q, rets, info)
     if scope == "all" and re.search(_WHATIF, q):
