@@ -39,3 +39,27 @@ describe("MarathonCard (T-028)", () => {
     expect(cam?.rangeM).toBeGreaterThanOrEqual(600);
   });
 });
+
+describe("MarathonCard course rows (T-028 display)", () => {
+  it("merges stretches of one road and folds short unnamed paths into one line", () => {
+    const roads = [
+      { order: 1, name: "Persiaran Tamarind", length_m: 300 },
+      {
+        order: 2,
+        name: "unnamed path near Persiaran Garcinia (north-east, 3 m path)",
+        length_m: 3,
+      },
+      { order: 3, name: "Persiaran Tamarind", length_m: 77 },
+      { order: 4, name: "Persiaran Dillenia", length_m: 489 },
+    ];
+    render(<MarathonCard m={{ ...MARATHON, course: { ...MARATHON.course, roads } }} />);
+    const list = within(screen.getByRole("list", { name: "Course roads in order" }));
+    expect(list.getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "1. Persiaran Tamarind377 m",
+      "2. Persiaran Dillenia489 m",
+    ]);
+    expect(screen.getByTestId("course-short-paths")).toHaveTextContent(
+      "Short connecting paths: 1 stretch, 3 m",
+    );
+  });
+});

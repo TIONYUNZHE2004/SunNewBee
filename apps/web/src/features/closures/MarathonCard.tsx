@@ -1,6 +1,7 @@
 import { useScene } from "../scene/sceneStore";
 import { ClosureResult } from "./ClosureResult";
 import type { MarathonResult } from "./closureSimModel";
+import { courseRows } from "./courseRows";
 import { canPlay } from "./marathonPlay";
 import { useMarathonPlay } from "./marathonPlayStore";
 
@@ -10,17 +11,20 @@ export function watchMarathon(m: MarathonResult) {
   useMarathonPlay.getState().start(m);
 }
 
-/** Course rows shown before "and N more stretches" (the engine's order, never reordered). */
+/** Course rows shown before "and N more roads" (the engine's order, never reordered). */
 export const COURSE_ROWS = 8;
 
 /**
  * T-028: a proposed marathon course under a management answer: its length, the roads in order
- * with their lengths (all the engine's), the proposal label, "Watch the marathon", then the
+ * with their lengths (the engine's, consecutive stretches of one road merged and short unnamed
+ * paths folded into one line; the map draws every stretch), the proposal label, "Watch the marathon", then the
  * closure impact card.
  */
 export function MarathonCard({ m }: { m: MarathonResult }) {
   const { course, impact } = m;
-  const more = course.roads.length - COURSE_ROWS;
+  const { rows, short } = courseRows(course.roads);
+  const hidden = rows.slice(COURSE_ROWS);
+  const hiddenM = hidden.reduce((a, r) => a + r.length_m, 0);
   const shape = course.shape === "loop" ? "loop" : "point-to-point";
   return (
     <section
@@ -35,19 +39,30 @@ export function MarathonCard({ m }: { m: MarathonResult }) {
         <span className="block text-xs text-fg-soft">{course.disclaimer}</span>
       </p>
       <ol aria-label="Course roads in order" className="m-0 list-none space-y-1 p-0">
-        {course.roads.slice(0, COURSE_ROWS).map((r) => (
+        {rows.slice(0, COURSE_ROWS).map((r, i) => (
           <li key={r.order} className="flex justify-between gap-2">
             <span>
-              <span className="text-fg-soft tabular-nums">{r.order}. </span>
+              <span className="text-fg-soft tabular-nums">{i + 1}. </span>
               {r.name}
             </span>
             <span className="shrink-0 tabular-nums text-fg-soft">{Math.round(r.length_m)} m</span>
           </li>
         ))}
       </ol>
-      {more > 0 && (
-        <p className="m-0 text-xs text-fg-soft">
-          and {more} more {more === 1 ? "stretch" : "stretches"}, drawn on the map
+      {(hidden.length > 0 || short.stretches > 0) && (
+        <p className="m-0 space-y-0.5 text-xs text-fg-soft">
+          {hidden.length > 0 && (
+            <span className="block">
+              and {hidden.length} more {hidden.length === 1 ? "road" : "roads"} (
+              {Math.round(hiddenM)} m), drawn on the map
+            </span>
+          )}
+          {short.stretches > 0 && (
+            <span className="block" data-testid="course-short-paths">
+              Short connecting paths: {short.stretches}{" "}
+              {short.stretches === 1 ? "stretch" : "stretches"}, {Math.round(short.length_m)} m
+            </span>
+          )}
         </p>
       )}
       {canPlay(m) && (
