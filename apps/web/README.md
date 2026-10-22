@@ -945,3 +945,7 @@ accepts one optional distance label: flood passes `Travelled` for the wheelchair
 callers retain their default. The mini-map sits separately on the right to keep route limits
 readable. A journey API `no_data` response stays "No mapped connection (data gap)"; a known
 barrier stays a barrier. Technical HTTP codes are not used as resident-facing explanations.
+
+Flood playback hides cached marathon course dressing through the existing overlay wiring;
+it does not change marathon rendering code. Starting a day or rollout scene closes the flood
+story, just as starting another journey does, so only one playback owns the camera.

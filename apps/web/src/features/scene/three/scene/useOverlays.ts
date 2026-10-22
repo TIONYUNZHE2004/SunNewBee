@@ -164,7 +164,7 @@ export function useOverlays({
     return detach;
   }, [engine, overlay, frame, roadNames, roadLabels.data, highlightKey]);
   // T-031 course dressing: arches, km markers, cones at the closure boundary, the closed window
-  const courseMarathon = closureResult?.marathon ?? null;
+  const courseMarathon = floodStory ? null : (closureResult?.marathon ?? null);
   const dressing = useMemo(
     () =>
       courseMarathon && accessData

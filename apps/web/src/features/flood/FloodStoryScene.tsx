@@ -232,7 +232,13 @@ export function FloodStoryScene({
       if (s.result && s.result !== p.result) close();
     });
     const offScene = useScene.subscribe((s, p) => {
-      if (s.scenarioId !== p.scenarioId || (p.lensVisible.flood && !s.lensVisible.flood)) close();
+      if (
+        s.scenarioId !== p.scenarioId ||
+        (p.lensVisible.flood && !s.lensVisible.flood) ||
+        (s.day.on && !p.day.on) ||
+        (s.rollout.on && !p.rollout.on)
+      )
+        close();
     });
     return () => {
       offJourney();
