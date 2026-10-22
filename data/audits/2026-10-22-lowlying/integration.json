@@ -30,6 +30,16 @@
     },
     "not_screened_edge": {
       "id": "seg-1079112114-1",
+      "default": "FAIL",
+      "wheelchair": "FAIL",
+      "drive": "FAIL",
+      "osm_access": "no",
+      "note": "Known access=no barrier remains FAIL at baseline and with missing terrain coverage."
+    },
+    "not_screened_unrestricted_edge": {
+      "id": "seg-24420799-0",
+      "name": "Jalan Paip",
+      "coverage": "uncovered",
       "default": "UNKNOWN",
       "wheelchair": "UNKNOWN",
       "drive": "UNKNOWN"
