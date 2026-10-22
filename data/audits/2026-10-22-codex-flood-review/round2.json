@@ -1,0 +1,54 @@
+{
+  "head": "dc4bdcbf",
+  "terrain_edge_classes": {
+    "possible": 515
+  },
+  "terrain_place_classes": {
+    "possible": 6
+  },
+  "polygon_classes": {
+    "possible": 235
+  },
+  "polygon_count": 235,
+  "coverage_gaps": 1421,
+  "public_numeric_depth_fields": [],
+  "combined_river_likely_preserved": true,
+  "ignored_border_probe": {
+    "place_id": "park-b",
+    "coord": [101.509, 3.181],
+    "gap": "uncovered",
+    "endpoint_flood_default": "UNKNOWN"
+  },
+  "seed_rules": {
+    "terrain_edge": {
+      "default": "UNKNOWN",
+      "wheelchair": "UNKNOWN",
+      "drive": "UNKNOWN"
+    },
+    "river_possible": {
+      "default": "UNKNOWN",
+      "wheelchair": "UNKNOWN",
+      "drive": "FAIL"
+    },
+    "river_likely": {
+      "default": "FAIL",
+      "wheelchair": "FAIL",
+      "drive": "FAIL"
+    },
+    "not_screened": {
+      "default": "FAIL",
+      "wheelchair": "FAIL",
+      "drive": "FAIL"
+    },
+    "terrain_place": {
+      "default": "UNKNOWN",
+      "wheelchair": "UNKNOWN",
+      "drive": "UNKNOWN"
+    },
+    "unrestricted_not_screened": {
+      "default": "UNKNOWN",
+      "wheelchair": "UNKNOWN",
+      "drive": "UNKNOWN"
+    }
+  }
+}
