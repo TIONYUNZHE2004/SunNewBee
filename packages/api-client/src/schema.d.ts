@@ -2955,10 +2955,14 @@ export interface components {
          * ReasonSet
          * @description Per-route reasons from known facts only (spec D2): a field is None when no edge on the
          *     route has a known value for it. Unknown values never count for or against a route.
+         *     `steps` is stricter (R44): None ("not checked yet") unless every edge's step count is known,
+         *     so 0 means every edge is known to have no steps, never a partly known route.
          */
         ReasonSet: {
             /** Covered Share */
             covered_share: number | null;
+            /** Demo Fields */
+            demo_fields: string[];
             /** Distance M */
             distance_m: number | null;
             /** Max Incline Pct */
@@ -3836,6 +3840,11 @@ export interface components {
             at_m: number;
             /** Attribute */
             attribute: string;
+            /**
+             * Demo
+             * @default false
+             */
+            demo: boolean;
             /** Edge Id */
             edge_id: string;
             /** Evidence Id */
