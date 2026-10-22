@@ -99,4 +99,45 @@ def test_empty_coverage_fails_without_writing_a_misleading_empty_layer(tmp_path)
         write_outputs(dest, np.full((5, 5), np.nan), from_origin(101.51, 3.18, 0.001, 0.001), CFG)
     assert not (dest / "flood/lowlying.geojson").exists()
     assert features(np.zeros((5, 5), dtype=bool), from_origin(101, 3, 0.001, 0.001)) == []
-    assert load_config().min_fill_m == 1.0
+    assert load_config().min_fill_m == 2.0  # above GLO-30's 2 m relative accuracy (LE90)
+    assert set(load_config().exclude_landcover) == {"water", "forest", "scrub"}
+
+
+def test_a_basin_under_forest_canopy_is_not_screened(tmp_path):
+    """GLO-30 is a canopy surface: gaps between trees read as pits, so forest is a gap."""
+    dest = tmp_path / "tiny"
+    shutil.copytree(TINY, dest)
+    dem = np.full((8, 8), 10.0)
+    dem[2:6, 2:6] = 0
+    transform = from_origin(101.5085, 3.182, 0.0005, 0.0005)
+    x0, y0 = 101.5085, 3.182
+    forest = [[x0, y0], [x0 + 0.004, y0], [x0 + 0.004, y0 - 0.004], [x0, y0 - 0.004], [x0, y0]]
+    (dest / "base").mkdir(exist_ok=True)
+    (dest / "base/landcover.geojson").write_text(
+        json.dumps(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {"class": "forest"},
+                        "geometry": {"type": "Polygon", "coordinates": [forest]},
+                    }
+                ],
+            }
+        )
+    )
+    canopy = Config(**{**CFG.__dict__, "exclude_landcover": ("forest",)})
+    report = write_outputs(dest, dem, transform, canopy)
+    assert report["lowlying_cells"] == 0 and report["not_screened_cells"] == 64
+    # not screened is a gap (UNKNOWN), never "checked and clear": every element over it
+    bundle = json.loads((dest / "flood/scenarios.json").read_text())
+    gaps = bundle["scenario_coverage"]["lowlying"]
+    world = load_world(dest)
+    inside = [
+        e.id
+        for e in world.edges.values()
+        if all(x0 <= x <= x0 + 0.004 and y0 - 0.004 <= y <= y0 for x, y in e.coords)
+    ]
+    assert inside and all(gaps.get(eid) == "uncovered" for eid in inside)
+    assert write_outputs(dest, dem, transform, CFG)["lowlying_cells"] == 16  # no exclusion

@@ -725,6 +725,8 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
   `map-ui/RolloutTag` (top right) always says "simulation, not a forecast".
 - **Pure helpers** are in `whatif/rolloutModel`.
 
+**Low-lying areas (T-029):** when the world has the `lowlying` scenario, map settings add a "Low-lying areas that may collect water" switch next to the river level (`splitScenario` / `joinScenario`: `stage_p3m` + switch = `stage_p3m+lowlying`; the river-level radios list river stages only). The flood note reads the scenario's own label for non-river kinds (never "River +0 m"). The Stylised view draws terrain areas (class `possible`) with the "possibly flooded" orange hatch, apart from river water: flat, no height, never a water surface or depth.
+
 **Flood impact and road closures (T-027):**
 - **Flood impact.** `lib/api.useFloodImpact` reads `GET /scenarios/{id}/affected`; `flood/impactModel.impactSummary` turns it into counts and markers ("!" likely flooded, "⚠" cut off, both "indicative"; path length only, never a depth).
   - `flood/FloodImpact.FloodImpactCard` sits in the flood note; it skips its notes when the scenario disclaimer already carries them.

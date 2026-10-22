@@ -1,6 +1,9 @@
 # Terrain screening only; these are not water levels or predicted water depths.
-# 1 m fill contrast suppresses sub-metre raster noise; it is not a confidence bound.
-min_fill_m: 1.0
+# Fill contrast must exceed the DEM's own noise: Copernicus GLO-30 relative vertical accuracy
+# is < 2 m (LE90) for slopes <= 20% (Copernicus DEM product handbook; Copernicus Data Space
+# COP-DEM collection page). At 1 m (the first draft) 6.1% of the window was marked, much of it
+# inside that noise; at 2 m 3.5% (data/audits/2026-10-22-lowlying/sensitivity.json).
+min_fill_m: 2.0
 # Four adjacent 30 m cells (~3,600 m²) suppress isolated-cell pits in the surface model.
 min_cells: 4
 # Ignore the outer two cells where a cropped DEM cannot describe a full basin.
@@ -8,3 +11,6 @@ boundary_cells: 2
 connectivity: 8
 # Known mapped open water is shown by the base-water layer, not as a new low spot.
 exclude_mapped_water: true
+# Not screened (a gap, never "dry"): mapped water (shown as water) and forest or scrub, where
+# GLO-30 is a canopy surface and gaps between trees read as pits.
+exclude_landcover: [water, forest, scrub]

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { groupEdgesByStatus, lineFeatures, waterPolygons } from "../../geo";
-import { type EdgeStatus, WATER_COLOR } from "../../styles";
+import { type EdgeStatus, statusStyle, WATER_COLOR } from "../../styles";
 import { localRing, triangulate } from "../cityMesh";
 import type { LocalFrame } from "../frame";
 import { lineToLocal } from "../routeLine";
@@ -47,10 +47,15 @@ export function hatchTexture(): THREE.DataTexture {
 }
 
 /** Triangulated, flat, upward-facing fill of every scenario-water polygon (holes honoured). */
-function fillGeometry(water: unknown, frame: LocalFrame): THREE.BufferGeometry | null {
+function fillGeometry(
+  water: unknown,
+  frame: LocalFrame,
+  possible: boolean,
+): THREE.BufferGeometry | null {
   const pos: number[] = [];
   const uv: number[] = [];
   for (const poly of waterPolygons(water)) {
+    if (poly.possible !== possible) continue;
     const rings = poly.rings.map((r) => localRing(r, frame));
     if (rings.length === 0 || rings.some((r) => r === null)) continue;
     const [contour, ...holes] = rings as [number, number][][];
@@ -90,11 +95,14 @@ export function createFloodLayer(
   ground.name = "flood-ground";
   let texture: THREE.DataTexture | null = null;
 
-  const geo = water ? fillGeometry(water, frame) : null;
-  if (geo) {
-    texture = hatchTexture();
+  // River-stage water in the water colour; low-lying terrain areas (T-029, class "possible")
+  // in the "possibly flooded" colour, so they never read as a water surface
+  for (const possible of [false, true]) {
+    const geo = water ? fillGeometry(water, frame, possible) : null;
+    if (!geo) continue;
+    texture ??= hatchTexture();
     const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(WATER_COLOR),
+      color: new THREE.Color(possible ? statusStyle("flooded_possible").color : WATER_COLOR),
       map: texture,
       transparent: true,
       opacity: FLOOD_ALPHA,
@@ -107,7 +115,7 @@ export function createFloodLayer(
       // Overlay colours go through the composer's OutputPass tone mapping (ruling: accepted for P3).
     });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.name = "flood-fill";
+    mesh.name = possible ? "flood-fill-possible" : "flood-fill";
     mesh.renderOrder = FLOOD_ORDER.fill;
     mesh.frustumCulled = false;
     ground.add(mesh);
