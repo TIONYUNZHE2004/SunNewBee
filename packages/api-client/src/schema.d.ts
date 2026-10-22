@@ -1624,6 +1624,10 @@ export interface components {
              * @enum {string}
              */
             eval: "PASS" | "FAIL" | "UNKNOWN";
+            /** Length M */
+            length_m: number;
+            /** Type */
+            type: string;
         };
         /** CompareVr */
         CompareVr: {
@@ -2737,6 +2741,8 @@ export interface components {
             profile: "default" | "stroller" | "wheelchair" | "older_adult_rest" | "drive";
             /** Route Id */
             route_id: string;
+            /** Span Types */
+            span_types?: string[];
             /** Spans */
             spans: [
                 number,
