@@ -2,7 +2,7 @@
  * Navigation compare copy (spec §5.3, AC-N5 / AC-N6). Every number is filled from the
  * `route.compare` payload (packages/spatial facts), never written here.
  */
-import type { CompareIntent, ReasonSet } from "../compareTypes";
+import type { CompareIntent, ReasonField, ReasonSet } from "../compareTypes";
 
 const ATTRIBUTE_NAMES: Record<string, string> = {
   step_count: "Steps",
@@ -31,11 +31,27 @@ export const metres = (m: number): number => Math.round(m);
 
 export const NOT_CHECKED_YET = "Not checked yet";
 export const REASONS_FOOT = "Reasons use checked facts only.";
-export const DEMO_VALUES = "Demo values · not surveyed";
+export const DEMO_VALUE = "Demo value · not surveyed";
+/** The reasons card marks each demo value with this sign and explains it in its footer (R45). */
+export const DEMO_MARK = "†";
 export const TOAST_TITLE = "Survey ticket queued for staff";
 
-/** "step-free" only when the recommended route has a known 0 steps (AC-N2). */
-export const isStepFree = (c: CompareIntent): boolean => c.reasons.recommended?.steps === 0;
+/**
+ * "step-free" only when the recommended route has a known 0 steps (AC-N2). `steps` is null unless
+ * every edge's step count is known (R44), so a partly checked route is never step-free.
+ */
+export const isStepFree = (c: CompareIntent): boolean => {
+  const s = c.reasons.recommended?.steps;
+  return typeof s === "number" && s === 0;
+};
+
+/** True when this route's shown `field` value rests on placeholder evidence (R45). */
+export const isDemoField = (r: ReasonSet | null | undefined, field: ReasonField): boolean =>
+  !!r && r[field] !== null && r[field] !== undefined && (r.demo_fields ?? []).includes(field);
+
+/** The "step-free" claim (pill, title, Arrived tag) rests on demo step counts. */
+export const stepFreeIsDemo = (c: CompareIntent): boolean =>
+  isStepFree(c) && isDemoField(c.reasons.recommended, "steps");
 
 export function reasonsTitle(c: CompareIntent): string {
   const d = c.extra_minutes ?? 0;
@@ -72,7 +88,14 @@ export function uncheckedLine(c: CompareIntent): string | null {
   return `? ${NOT_CHECKED_YET}: ${attributeName(u.attribute).toLowerCase()} on ${metres(u.length_m)} m of the recommended path (${queued}it did not count for or against).`;
 }
 
-export type ReasonRow = { label: string; fastest: string; recommended: string };
+export type ReasonRow = {
+  label: string;
+  fastest: string;
+  recommended: string;
+  /** The shown value rests on placeholder evidence: marked "Demo value · not surveyed" (R45). */
+  fastestDemo: boolean;
+  recommendedDemo: boolean;
+};
 
 const or = (v: number | null | undefined, f: (n: number) => string) =>
   v === null || v === undefined ? NOT_CHECKED_YET : f(v);
@@ -83,46 +106,35 @@ const width = (n: number) => `${Number(n.toFixed(2))} m`;
 const share = (n: number) => `${Math.round(n * 100)}%`;
 const rests = (n: number) => (n === 0 ? "None" : `${n} on the way`);
 
+const ROWS: [string, ReasonField, (n: number) => string][] = [
+  ["Steps", "steps", steps],
+  ["Steepest slope", "max_incline_pct", pct],
+  ["Narrowest point", "min_width_m", width],
+  ["Covered from sun and rain", "covered_share", share],
+  ["Rest stop on the way", "rest_stops", rests],
+];
+
+const value = (r: ReasonSet | null, f: ReasonField) => r?.[f] as number | null | undefined;
+
 /** The five rows of the reasons card (AC-N6); a null fact reads "Not checked yet", never a guess. */
 export function reasonRows(c: CompareIntent): ReasonRow[] {
-  const f: Partial<ReasonSet> = c.reasons.fastest ?? {};
-  const r: Partial<ReasonSet> = c.reasons.recommended ?? {};
-  return [
-    { label: "Steps", fastest: or(f.steps, steps), recommended: or(r.steps, steps) },
-    {
-      label: "Steepest slope",
-      fastest: or(f.max_incline_pct, pct),
-      recommended: or(r.max_incline_pct, pct),
-    },
-    {
-      label: "Narrowest point",
-      fastest: or(f.min_width_m, width),
-      recommended: or(r.min_width_m, width),
-    },
-    {
-      label: "Covered from sun and rain",
-      fastest: or(f.covered_share, share),
-      recommended: or(r.covered_share, share),
-    },
-    {
-      label: "Rest stop on the way",
-      fastest: or(f.rest_stops, rests),
-      recommended: or(r.rest_stops, rests),
-    },
-  ];
+  const f = c.reasons.fastest;
+  const r = c.reasons.recommended;
+  return ROWS.map(([label, field, fmt]) => ({
+    label,
+    fastest: or(value(f, field), fmt),
+    recommended: or(value(r, field), fmt),
+    fastestDemo: isDemoField(f, field),
+    recommendedDemo: isDemoField(r, field),
+  }));
 }
 
-/** True when a shown value rests on placeholder (team_survey_placeholder) evidence. */
-export const usesDemoValues = (c: CompareIntent): boolean =>
-  !!c.fastest?.demo_evidence || !!c.recommended?.demo_evidence || c.pois.some((p) => p.demo);
+/** True when a value the reasons card shows rests on placeholder evidence (R45). */
+export const reasonsUseDemo = (c: CompareIntent): boolean =>
+  reasonRows(c).some((r) => r.fastestDemo || r.recommendedDemo);
 
-/**
- * Whether the stop fact is a demo value. The wire payload has no evidence type for the stop, so
- * without a route-level flag it follows the POIs: any placeholder POI on this compare means the
- * corridor's facts are placeholders. This can over-label a real fact, never under-label one.
- */
-export const stopIsDemo = (c: CompareIntent): boolean =>
-  c.fastest?.demo_evidence ?? c.pois.some((p) => p.demo);
+/** The stop fact is a demo value: the server's flag from the stop's own evidence (R45). */
+export const stopIsDemo = (c: CompareIntent): boolean => c.stop?.demo === true;
 
 // ---------------------------------------------------------------- 3D overlay copy (B10)
 
@@ -133,6 +145,10 @@ const minutes = (m: number | null | undefined): string =>
 export function fastestPill(c: CompareIntent): string {
   return `Fastest route · ${minutes(c.reasons.fastest?.minutes ?? c.fastest?.est_minutes)} min walking`;
 }
+
+/** The note under the right pill: "Demo value · not surveyed" when "step-free" rests on demo steps. */
+export const recommendedPillNote = (c: CompareIntent): string | undefined =>
+  stepFreeIsDemo(c) ? DEMO_VALUE : undefined;
 
 /** Right pill (AC-N2): "Recommended · step-free · {minutes} min"; "step-free" only with 0 known steps. */
 export function recommendedPill(c: CompareIntent): string {
@@ -153,7 +169,6 @@ export function queryChip(c: CompareIntent): string {
   return `${PROFILE_NAMES[c.profile] ?? c.profile} · ${c.from_place.name || c.from_place.id} → ${c.to_place.name || c.to_place.id}`;
 }
 
-export const DEMO_VALUE = "Demo value · not surveyed";
 export const NOT_COUNTED = "Not counted for or against";
 
 /** The unchecked tag (AC-N4), exactly: "? Not checked yet · {Attribute} on this {m} m · Not counted for or against". */
@@ -251,7 +266,7 @@ export function poiTag(c: CompareIntent, index: number): TagCopy | null {
       return {
         key: "Arrived",
         text: `${c.to_place.name || c.to_place.id}${isStepFree(c) ? " · step-free" : ""}`,
-        note,
+        note: p.demo || stepFreeIsDemo(c) ? DEMO_VALUE : undefined,
         tone: "ok",
       };
     default:

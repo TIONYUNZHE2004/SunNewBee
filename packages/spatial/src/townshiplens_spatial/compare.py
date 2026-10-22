@@ -360,13 +360,15 @@ def _stop(world, fast: Route, prof: Profile, scenario_id, today, evidence) -> St
             ev_id = f"ev-{edge.id}.{attr}"
         else:
             value = edge.osm_tags.get(attr)
+        ev_id = ev_id if ev_id in evidence else None
         return StopPoint(
             edge_id=s.edge_id,
             at_m=at,
             attribute=attr,
             value=value,
             limit=limit,
-            evidence_id=ev_id if ev_id in evidence else None,
+            evidence_id=ev_id,
+            demo=_is_demo(evidence, [ev_id] if ev_id else []),
         )
     return None
 
@@ -432,6 +434,11 @@ def _rest_stops(world: World, route: Route, today: date) -> list[tuple[Any, floa
     return sorted(found.values(), key=lambda pa: (pa[1], pa[0].id))
 
 
+def _is_demo(evidence: dict[str, Evidence], ids) -> bool:
+    """Any of these evidence ids is team_survey_placeholder (a demo value, not surveyed)."""
+    return any(i in evidence and evidence[i].source_type == routing.PLACEHOLDER_SOURCE for i in ids)
+
+
 def _reasons(world, route: Route, prof: Profile, today, evidence, rests) -> ReasonSet:
     steps, inclines, widths = [], [], []
     ev: dict[str, list[str]] = {}
@@ -460,8 +467,13 @@ def _reasons(world, route: Route, prof: Profile, today, evidence, rests) -> Reas
     share = None
     if covered_known and route.distance_m > 0:
         share = round(round(covered_m / route.distance_m / 0.05) * 0.05, 2)
-    return ReasonSet(
-        steps=int(sum(steps)) if steps else None,
+    # R44: a step total is a fact only when every edge's step count is known; a partly known
+    # route is "not checked yet" (None), never step-free.
+    steps_known = bool(route.segments) and len(steps) == len(route.segments)
+    if not steps_known:
+        ev.pop("steps", None)
+    out = ReasonSet(
+        steps=int(sum(steps)) if steps_known else None,
         max_incline_pct=max(abs(v) for v in inclines) if inclines else None,
         min_width_m=min(widths) if widths else None,
         covered_share=share,
@@ -471,6 +483,13 @@ def _reasons(world, route: Route, prof: Profile, today, evidence, rests) -> Reas
         minutes=route.est_minutes,
         evidence_ids={k: list(dict.fromkeys(v)) for k, v in ev.items()},
     )
+    # R45: label exactly the shown values that rest on placeholder evidence.
+    out.demo_fields = [
+        f
+        for f, ids in out.evidence_ids.items()
+        if getattr(out, f, None) is not None and _is_demo(evidence, ids)
+    ]
+    return out
 
 
 def _unchecked(world: World, route: Route) -> list[UncheckedStretch]:
@@ -516,8 +535,15 @@ def _pois(world, route: Route, prof, today, evidence, unchecked, rests) -> list[
 
     def poi(kind, at, value, ids):
         ids = [i for i in dict.fromkeys(ids) if i in evidence]
-        demo = any(evidence[i].source_type == routing.PLACEHOLDER_SOURCE for i in ids)
-        out.append(Poi(kind=kind, at_m=round(at, 1), value=value, evidence_ids=ids, demo=demo))
+        out.append(
+            Poi(
+                kind=kind,
+                at_m=round(at, 1),
+                value=value,
+                evidence_ids=ids,
+                demo=_is_demo(evidence, ids),
+            )
+        )
 
     starts = _starts(world, route)
     kerb_done = covered_done = False

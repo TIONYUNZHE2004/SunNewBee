@@ -20,7 +20,6 @@ export function handCompare(over: Partial<CompareIntent> = {}): CompareIntent {
       [101.5, 3.18],
       [101.501, 3.181],
     ],
-    demo_evidence: true,
   });
   return {
     kind: "route.compare",
@@ -40,6 +39,7 @@ export function handCompare(over: Partial<CompareIntent> = {}): CompareIntent {
       value: 3,
       limit: 0,
       evidence_id: "ev-rt-fast-e2.step_count",
+      demo: true,
     },
     reasons: {
       fastest: {
@@ -50,6 +50,7 @@ export function handCompare(over: Partial<CompareIntent> = {}): CompareIntent {
         rest_stops: 0,
         distance_m: 400,
         minutes: 5.7,
+        demo_fields: ["steps", "max_incline_pct", "min_width_m", "covered_share", "rest_stops"],
       },
       recommended: {
         steps: 0,
@@ -59,6 +60,7 @@ export function handCompare(over: Partial<CompareIntent> = {}): CompareIntent {
         rest_stops: 1,
         distance_m: 520,
         minutes: 7.4,
+        demo_fields: ["steps", "max_incline_pct", "min_width_m", "covered_share", "rest_stops"],
       },
     },
     extra_minutes: 1.7,

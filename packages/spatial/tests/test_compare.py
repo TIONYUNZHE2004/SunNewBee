@@ -195,7 +195,15 @@ def test_fields_are_exactly_the_contract(w):
         "vr",
         "confirm_n",
     }
-    assert set(d["stop"]) == {"edge_id", "at_m", "attribute", "value", "limit", "evidence_id"}
+    assert set(d["stop"]) == {
+        "edge_id",
+        "at_m",
+        "attribute",
+        "value",
+        "limit",
+        "evidence_id",
+        "demo",
+    }
     assert set(d["reasons"]) == {"fastest", "recommended"}
     for rs in d["reasons"].values():
         assert set(rs) == {
@@ -206,6 +214,7 @@ def test_fields_are_exactly_the_contract(w):
             "rest_stops",
             "distance_m",
             "minutes",
+            "demo_fields",
         }
     assert set(d["unchecked"][0]) == {"edge_id", "attribute", "start_m", "end_m", "length_m"}
     assert set(d["pois"][0]) == {"kind", "at_m", "value", "evidence_ids", "demo"}
@@ -226,6 +235,7 @@ def test_routes_stop_and_minutes(w):
         "value": 3,
         "limit": 0.0,
         "evidence_id": "ev-S2.step_count",
+        "demo": True,  # S2's step count is a team_survey_placeholder value (R45)
     }
     assert r.fastest.est_minutes == round(100 / 70, 1)
     assert r.recommended.est_minutes == round(160 / 70, 1)
@@ -244,17 +254,22 @@ def test_reason_values(w):
         "rest_stops": 2,  # bench-1 (on the route) and bench-2 (10 m off); not bench-3/bench-4
         "distance_m": 160.0,
         "minutes": 2.3,
+        # R45: each shown value that rests on placeholder evidence; distance and minutes come
+        # from the mapped walk graph, not a survey.
+        "demo_fields": ["steps", "max_incline_pct", "min_width_m", "covered_share", "rest_stops"],
     }
     fast = r.reasons.fastest.model_dump()
-    # S3 has no claims at all; covered is unknown everywhere -> None, not 0.
+    # S3 has no claims at all; covered is unknown everywhere -> None, not 0. R44: S3's step count
+    # is unknown, so the fastest route's step total is not checked yet (None), not 3.
     assert fast == {
-        "steps": 3,
+        "steps": None,
         "max_incline_pct": 1,
         "min_width_m": 2.0,
         "covered_share": None,
         "rest_stops": None,
         "distance_m": 100.0,
         "minutes": 1.4,
+        "demo_fields": ["max_incline_pct", "min_width_m"],
     }
 
 
@@ -304,7 +319,7 @@ def test_traceability(w):
     r = compare(w, "start", "end", "wheelchair")
     ids = {ev.id for ev in r.evidence}
     for rs in (r.reasons.fastest, r.reasons.recommended):
-        for field, value in rs.model_dump().items():
+        for field, value in rs.model_dump(exclude={"demo_fields"}).items():
             if value is None:
                 assert field not in rs.evidence_ids
                 continue
@@ -315,6 +330,50 @@ def test_traceability(w):
     assert r.stop.evidence_id in ids
     for p in r.pois:
         assert p.evidence_ids and set(p.evidence_ids) <= ids
+
+
+def _with(edge_id: str, claims: dict, edges=EDGES):
+    return [(e[0], e[1], e[2], e[3], e[4], claims) if e[0] == edge_id else e for e in edges]
+
+
+def test_partly_known_steps_are_not_step_free(w):
+    """R44 (final review I-1): one edge with an unknown step count makes the route's step total
+    "not checked yet" (None), never 0, even though every known edge has 0 steps."""
+    assert compare(w, "start", "end", "wheelchair").reasons.recommended.steps == 0
+    l3 = next(e for e in EDGES if e[0] == "L3")
+    claims = {k: v for k, v in l3[5].items() if k != "step_count"}
+    r = compare(build(_with("L3", claims)), "start", "end", "wheelchair")
+    rs = r.reasons.recommended
+    assert rs.steps is None
+    assert "steps" not in rs.evidence_ids and "steps" not in rs.demo_fields
+    assert "step_count" in [u.attribute for u in r.unchecked]
+
+
+def test_steps_known_on_every_edge_sum():
+    s3 = {"step_count": V(0, "staff_survey")}
+    r = compare(build(_with("S3", s3)), "start", "end", "wheelchair")
+    assert r.reasons.fastest.steps == 3
+
+
+def test_demo_flags_follow_the_evidence():
+    """R45 (final review I-2): the stop and each reason value are flagged demo from the evidence
+    they rest on, not guessed from the recommended route's POIs."""
+    surveyed = {"step_count": V(3, "staff_survey")}
+    w2 = build(_with("S2", surveyed))
+    r = compare(w2, "start", "end", "wheelchair")
+    assert r.stop.edge_id == "S2" and r.stop.demo is False
+    s1 = {"step_count": V(0, "staff_survey"), "incline_pct": V(1, "staff_survey"), "width_m": V(2)}
+    r = compare(build(_with("S1", s1, _with("S2", surveyed))), "start", "end", "wheelchair")
+    # S1 still has a placeholder width; S3 has no step count, so steps is None and not flagged
+    assert r.reasons.fastest.demo_fields == ["min_width_m"]
+    # the recommended route is placeholder evidence throughout: every shown value is flagged
+    assert r.reasons.recommended.demo_fields == [
+        "steps",
+        "max_incline_pct",
+        "min_width_m",
+        "covered_share",
+        "rest_stops",
+    ]
 
 
 def test_same_path():
@@ -404,8 +463,9 @@ def test_unknown_neutrality_verified_values(l3_incline, s3_incline, s3_width):
     r = compare(w, "start", "end", "wheelchair")
     assert r.recommended.id == base.recommended.id
     for which in ("fastest", "recommended"):
-        before = getattr(base.reasons, which).model_dump()
-        after = getattr(r.reasons, which).model_dump()
+        # demo_fields lists the non-null fields, so a value becoming known extends it
+        before = getattr(base.reasons, which).model_dump(exclude={"demo_fields"})
+        after = getattr(r.reasons, which).model_dump(exclude={"demo_fields"})
         for field, value in before.items():
             if value is not None:
                 assert after[field] == value, (which, field)

@@ -5121,7 +5121,7 @@
         "type": "object"
       },
       "ReasonSet": {
-        "description": "Per-route reasons from known facts only (spec D2): a field is None when no edge on the\nroute has a known value for it. Unknown values never count for or against a route.",
+        "description": "Per-route reasons from known facts only (spec D2): a field is None when no edge on the\nroute has a known value for it. Unknown values never count for or against a route.\n`steps` is stricter (R44): None (\"not checked yet\") unless every edge's step count is known,\nso 0 means every edge is known to have no steps, never a partly known route.",
         "properties": {
           "covered_share": {
             "anyOf": [
@@ -5133,6 +5133,13 @@
               }
             ],
             "title": "Covered Share"
+          },
+          "demo_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Demo Fields",
+            "type": "array"
           },
           "distance_m": {
             "anyOf": [
@@ -5208,7 +5215,8 @@
           "covered_share",
           "rest_stops",
           "distance_m",
-          "minutes"
+          "minutes",
+          "demo_fields"
         ],
         "title": "ReasonSet",
         "type": "object"
@@ -7626,6 +7634,11 @@
             "title": "Attribute",
             "type": "string"
           },
+          "demo": {
+            "default": false,
+            "title": "Demo",
+            "type": "boolean"
+          },
           "edge_id": {
             "title": "Edge Id",
             "type": "string"
@@ -7662,7 +7675,8 @@
           "attribute",
           "value",
           "limit",
-          "evidence_id"
+          "evidence_id",
+          "demo"
         ],
         "title": "StopPoint",
         "type": "object"

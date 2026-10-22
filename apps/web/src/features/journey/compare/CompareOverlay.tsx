@@ -16,6 +16,7 @@ import {
   poiTag,
   queryChip,
   recommendedPill,
+  recommendedPillNote,
   stopTag,
   type TagCopy,
   uncheckedTagParts,
@@ -257,6 +258,7 @@ export function CompareOverlay() {
           <ComparePills
             left={fastestPill(c)}
             right={recommendedPill(c)}
+            rightNote={recommendedPillNote(c)}
             viewports={vp}
             top={pillsTop}
           />

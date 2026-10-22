@@ -1,17 +1,30 @@
 import type { CSSProperties, Ref } from "react";
 import type { CompareIntent } from "../compareTypes";
 import {
-  DEMO_VALUES,
+  DEMO_MARK,
+  DEMO_VALUE,
   REASONS_FOOT,
   reasonRows,
   reasonsTitle,
+  reasonsUseDemo,
+  stepFreeIsDemo,
   uncheckedLine,
-  usesDemoValues,
 } from "./copy";
+
+/** A value that rests on placeholder evidence: the mark, read out in full (R45). */
+function Demo() {
+  return (
+    <>
+      <span aria-hidden="true">{DEMO_MARK}</span>
+      <span className="sr-only"> ({DEMO_VALUE})</span>
+    </>
+  );
+}
 
 /**
  * "Why this route" (spec §5.3, AC-N6): the five known-fact rows for both routes; a null fact reads
- * "Not checked yet". Used at the end of the 3D playback and, as text, in the List view.
+ * "Not checked yet". Used at the end of the 3D playback and, as text, in the List view. Exactly the
+ * values the server flags as demo (`demo_fields`, R45) carry the mark, explained in the footer.
  */
 export function ReasonsCard({
   compare,
@@ -36,6 +49,7 @@ export function ReasonsCard({
     >
       <h3 id="compare-reasons-h" className="m-0 text-base font-semibold">
         {reasonsTitle(compare)}
+        {stepFreeIsDemo(compare) && <Demo />}
       </h3>
       <table className="mt-2 w-full text-sm">
         <thead>
@@ -57,8 +71,14 @@ export function ReasonsCard({
               <th scope="row" className="py-1 pr-2 text-left font-normal">
                 {r.label}
               </th>
-              <td className="py-1 pr-2">{r.fastest}</td>
-              <td className="py-1">{r.recommended}</td>
+              <td className="py-1 pr-2">
+                {r.fastest}
+                {r.fastestDemo && <Demo />}
+              </td>
+              <td className="py-1">
+                {r.recommended}
+                {r.recommendedDemo && <Demo />}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -66,7 +86,11 @@ export function ReasonsCard({
       <div className="mt-2 space-y-1 text-xs text-fg-soft">
         <p className="m-0">{REASONS_FOOT}</p>
         {unchecked && <p className="m-0">{unchecked}</p>}
-        {usesDemoValues(compare) && <p className="m-0">{DEMO_VALUES}</p>}
+        {reasonsUseDemo(compare) && (
+          <p className="m-0">
+            {DEMO_MARK} {DEMO_VALUE}
+          </p>
+        )}
       </div>
     </section>
   );

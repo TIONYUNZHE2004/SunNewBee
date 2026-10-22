@@ -500,11 +500,15 @@ class StopPoint(BaseModel):
     value: Any = None
     limit: float | None = None  # the profile's hard limit for `attribute`, when it has one
     evidence_id: str | None = None
+    # The value rests on team_survey_placeholder evidence: "Demo value · not surveyed" (R45).
+    demo: bool = False
 
 
 class ReasonSet(BaseModel):
     """Per-route reasons from known facts only (spec D2): a field is None when no edge on the
-    route has a known value for it. Unknown values never count for or against a route."""
+    route has a known value for it. Unknown values never count for or against a route.
+    `steps` is stricter (R44): None ("not checked yet") unless every edge's step count is known,
+    so 0 means every edge is known to have no steps, never a partly known route."""
 
     model_config = _ALWAYS
 
@@ -515,6 +519,9 @@ class ReasonSet(BaseModel):
     rest_stops: int | None = None
     distance_m: float | None = None
     minutes: float | None = None
+    # The non-null fields whose value rests on team_survey_placeholder evidence (R45): the web
+    # labels exactly these "Demo value · not surveyed".
+    demo_fields: list[str] = Field(default_factory=list)
     # Evidence ids behind each non-null field (traceability, AC-B4); not part of the payload.
     evidence_ids: dict[str, list[str]] = Field(default_factory=dict, exclude=True)
 

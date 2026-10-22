@@ -282,6 +282,9 @@ describe("coordinator rulings on the corridor (R29, R30)", () => {
       label: "Rest stop on the way",
       fastest: "Not checked yet",
       recommended: "Not checked yet",
+      // a null value is never marked demo, even when the field is listed (R45)
+      fastestDemo: false,
+      recommendedDemo: false,
     });
     show(c);
     for (let t = 0; t <= 45; t += 0.5) {
@@ -290,12 +293,27 @@ describe("coordinator rulings on the corridor (R29, R30)", () => {
     }
   });
 
-  it("the stop tag is labelled demo from the POIs when the payload has no route-level flag", () => {
+  it("the stop tag is labelled demo exactly from the stop's own flag, never from the POIs (R45)", () => {
     const base = handCompare();
-    const strip = (r: typeof base.fastest) => (r ? { ...r, demo_evidence: undefined } : null);
-    show(handCompare({ fastest: strip(base.fastest), recommended: strip(base.recommended) }));
+    show(handCompare());
     at(20);
     expect(beat("tag-stop")).toHaveTextContent("3 steps");
+    expect(beat("tag-stop")).toHaveTextContent("Demo value · not surveyed");
+    cleanup();
+    // a surveyed stop on a compare whose POIs are all demo values: no demo note
+    show(handCompare({ stop: base.stop ? { ...base.stop, demo: false } : null }));
+    at(20);
+    expect(beat("tag-stop")).toHaveTextContent("3 steps");
+    expect(beat("tag-stop")).not.toHaveTextContent("Demo value");
+    cleanup();
+    // a demo stop on a compare with no demo POI keeps its note (final review I-2)
+    show(
+      handCompare({
+        pois: base.pois.map((p) => ({ ...p, demo: false })),
+        stop: base.stop ? { ...base.stop, demo: true } : null,
+      }),
+    );
+    at(20);
     expect(beat("tag-stop")).toHaveTextContent("Demo value · not surveyed");
   });
 });
@@ -372,18 +390,20 @@ describe("reasons card (AC-N6, AC-N7)", () => {
       "Recommended: the step-free route (+1.7 min)",
     );
     const rows = [...card.querySelectorAll("tbody tr")].map((r) => r.textContent);
+    // each value flagged demo carries the mark, read out in full; a null value never does (R45)
+    const D = "† (Demo value · not surveyed)";
     expect(rows).toEqual([
-      "Steps3 stepsNone",
-      "Steepest slope6%4%",
-      "Narrowest point0.9 m1.2 m",
-      "Covered from sun and rainNot checked yet45%",
-      "Rest stop on the wayNone1 on the way",
+      `Steps3 steps${D}None${D}`,
+      `Steepest slope6%${D}4%${D}`,
+      `Narrowest point0.9 m${D}1.2 m${D}`,
+      `Covered from sun and rainNot checked yet45%${D}`,
+      `Rest stop on the wayNone${D}1 on the way${D}`,
     ]);
     const foot = [...card.querySelectorAll("div p")].map((p) => p.textContent);
     expect(foot).toEqual([
       "Reasons use checked facts only.",
       "? Not checked yet: incline on 40 m of the recommended path (survey queued; it did not count for or against).",
-      "Demo values · not surveyed",
+      "† Demo value · not surveyed",
     ]);
     expect(useCompare.getState().screen?.cardTop).not.toBeNull();
   });
