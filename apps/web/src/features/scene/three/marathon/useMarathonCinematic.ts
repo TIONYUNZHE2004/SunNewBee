@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import type { MarathonResult } from "../../../closures/closureSimModel";
 import { boundaryJunctions } from "../../../closures/courseDressing";
+import { detourLines } from "../../../closures/detourTraffic";
 import {
   MAX_SUGGESTION_TAGS,
   suggestionRoad,
@@ -100,6 +101,11 @@ export function useMarathonCinematic(
     };
   }, [wantKit, kit]);
   useEffect(() => () => kit?.dispose(), [kit]);
+  // the detour roads' stretches on the map: detour traffic by pressure band
+  const detour = useMemo(
+    () => (marathon && accessData ? detourLines(marathon, parseLayer(accessData).edges) : []),
+    [marathon, accessData],
+  );
   const junctions = useMemo(
     () =>
       marathon && accessData
@@ -127,7 +133,7 @@ export function useMarathonCinematic(
       : null;
     // 3D cars (the city's vehicles kit) for the rerouted sample trips
     const cars = roleUniforms
-      ? createMarathonCars(marathon, frame, { lib, manifest, roleUniforms })
+      ? createMarathonCars(marathon, frame, { lib, manifest, roleUniforms }, detour)
       : null;
     const camAt = new THREE.Vector3();
     let offFrame: (() => void) | null = null;
@@ -178,5 +184,5 @@ export function useMarathonCinematic(
       detach();
       engine.requestRender();
     };
-  }, [engine, overlay, frame, marathon, tags, kit, junctions, lib, manifest, roleUniforms]);
+  }, [engine, overlay, frame, marathon, tags, kit, junctions, detour, lib, manifest, roleUniforms]);
 }
