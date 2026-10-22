@@ -60,7 +60,9 @@ describe("T-031 marathon cinematic timeline", () => {
 
   it("numbers come from the engine: roads closed, the median detour, suggestion places", () => {
     expect(roadsClosed(MARATHON)).toBe(2);
-    expect(detourTag(MARATHON)).toBe("Detour (median of rerouted trips): +82.5 m · +0.2 min");
+    expect(detourTag(MARATHON)).toBe(
+      "Detour (median of rerouted trips): +82.5 m · +0.2 min at walking pace",
+    );
     expect(
       detourTag({ ...MARATHON, impact: { ...MARATHON.impact, extra_m_median: null } }),
     ).toBeNull();

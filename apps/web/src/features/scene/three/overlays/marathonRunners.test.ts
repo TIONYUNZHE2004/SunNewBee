@@ -46,7 +46,7 @@ describe("marathon runners overlay (T-028)", () => {
     t = shotStart("car") + 1;
     child.setView?.({ x: 0, y: 100, z: 0 }, 0);
     expect(child.positions().tags).toEqual([
-      "Detour (median of rerouted trips): +82.5 m · +0.2 min",
+      "Detour (median of rerouted trips): +82.5 m · +0.2 min at walking pace",
       "Marshal suggested here",
     ]);
     t = shotStart("run") + 1;

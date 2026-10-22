@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { COURSE_STYLE } from "../closures/closureSimModel";
-import { DETOUR_CARS_NOTE } from "../closures/detourTraffic";
 import {
   END_CARD_FROM_S,
   MarathonEndCard,
@@ -136,7 +135,6 @@ export function MarathonTag() {
                 <span>Runners and cars play on the 3D stylised map.</span>
               )}
               <span>{PLAY_NOTE}</span>
-              <span>{DETOUR_CARS_NOTE}</span>
             </span>
           </div>
           {drawn && <MarathonMiniMap m={result} t={t} />}

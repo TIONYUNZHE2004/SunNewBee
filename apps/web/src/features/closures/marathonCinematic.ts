@@ -89,13 +89,14 @@ export function roadsClosed(m: MarathonResult): number {
 
 /**
  * The detour tag from the engine's numbers: the median extra distance (and minutes) of rerouted
- * sample trips. Per-trip numbers are not sent to the map, so the tag says "median".
+ * sample trips. Minutes are distance/pace estimates, not congestion. Per-trip numbers are not
+ * sent to the map, so the tag says "median".
  */
 export function detourTag(m: MarathonResult): string | null {
   const metres = m.impact.extra_m_median;
   if (metres == null) return null;
   const mins = m.impact.extra_min_median;
-  const min = mins == null ? "" : ` · +${mins} min`;
+  const min = mins == null ? "" : ` · +${mins} min at walking pace`;
   return `Detour (median of rerouted trips): +${metres} m${min}`;
 }
 
