@@ -34,5 +34,24 @@ Overview with a mini-map inset → camera follows the traveller at street level 
 - **Screenshot gate:** each PR has light + dark screenshots (Stylised 3D, 1440×900) of every new shot, plus a short frame strip (3–4 frames) of each animation.
 - Checkpoints: first PR (static polish: shapes/ribbons/barriers) by 01:00 MYT; animation PR by 05:00 MYT; cut-off 07:00 MYT.
 
+## Update (Yunzhe, 22 Oct 22:10 MYT) — the look we want
+Yunzhe's references: realistic animated water rising between buildings (waves, reflections); a marathon scene with barriers, runners and spectators. **These override the softer wording above where they differ.**
+
+**Flood (T-032, Codex):**
+- Realistic animated water surface (e.g. three.js `Water`/`Water2` from `three/examples/jsm` with a normal map; record any copied texture in CREDITS.md) on **river `likely_flooded` areas only**. Water **rises** visually stage by stage (Normal → +1 → +2 → +3 m) as the AI answer plays.
+- The camera then moves to the buildings the water reaches: buildings whose footprint meets a likely-flooded area get a blue band at the base and a tag "In indicative flood area · River +3 m".
+- **No depth markings, no "1 m/2 m" labels, no depth legend.** Small label: "Water look is illustrative; depth not modelled." Low-lying terrain is still never drawn as water (soft `possible` fill only).
+
+**Marathon (T-031, Claude):**
+- Closed course: barriers/cones at closure-boundary junctions and along the course; **runners** on the closed road (reuse `public/city/characters/crowd_*.glb` + devsim/crowd code); **spectators cheering** along the sides and on/at the start-finish arch.
+- Detour roads: **car density follows the pressure band** (high = many slow-moving cars, medium = some, low = few), cars move slowly along the detour; label "Cars are illustrative, not vehicle counts or delays."
+
+**Both — ambient traffic off during a scenario (Yunzhe: "no other car moving around … cars still drive through the flood area"):**
+- While a flood or marathon playback/scene is active, the stylised city's decorative cars stop and hide (or fade out); they come back when the scene closes. Only the scenario's own cars move.
+- **Cloud Claude adds the shared switch first** (small, early PR): a scene-store flag, e.g. `ambientTraffic: boolean` + `setAmbientTraffic(on)`, wired to the decorative car layer. Codex merges davinci after it lands and calls it from the flood playback; Codex does not add its own version.
+
+**Priority order tonight** (07:00 MYT cut-off): Codex — water surface + rise → building tags → follow resident. Claude — ambient-traffic switch → barriers + runners + spectators → detour cars by pressure → follow camera + end card.
+
 ## Log
 - 2026-10-22 13:50 UTC · control · Created.
+- 2026-10-22 14:10 UTC · control · Update: realistic water, no depth marks; marathon runners/spectators/barriers; cars by pressure (2A); ambient traffic off during scenarios (Claude adds the switch).
