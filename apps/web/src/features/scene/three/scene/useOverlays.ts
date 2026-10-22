@@ -8,6 +8,7 @@ import {
   useScenarioWater,
 } from "../../../../lib/api";
 import { closureFeatures } from "../../../closures/closureSimModel";
+import { useMarathonPlay } from "../../../closures/marathonPlayStore";
 import { useDevsim } from "../../../devsim/devsimStore";
 import { impactSummary } from "../../../flood/impactModel";
 import { gapsActive } from "../../../gaps/gapModel";
@@ -20,6 +21,7 @@ import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import type { Boundary } from "../ground/boundary";
 import { createOverlayLayer, type OverlayLayer } from "../overlays/accessLayers";
+import { createMarathonRunners } from "../overlays/marathonRunners";
 import { createRoadLabels } from "../overlays/roadLabels";
 import { useResidents } from "../overlays/useResidents";
 import { lineToLocal } from "../routeLine";
@@ -142,6 +144,22 @@ export function useOverlays({
     engine.requestRender();
     return detach;
   }, [engine, overlay, frame, roadNames, roadLabels.data, highlightKey]);
+  // "Watch the marathon" (T-028): runners and sample cars ride the overlay pass while it plays
+  const marathon = useMarathonPlay((s) => s.result);
+  useEffect(() => {
+    if (!engine || !overlay || !frame || !marathon) return;
+    const detach = overlay.attach(
+      createMarathonRunners(marathon, frame, () => useMarathonPlay.getState().t),
+    );
+    // a frame per playback tick (the engine renders on request)
+    const unsub = useMarathonPlay.subscribe(() => engine.requestRender());
+    engine.requestRender();
+    return () => {
+      unsub();
+      detach();
+      engine.requestRender();
+    };
+  }, [engine, overlay, frame, marathon]);
   useEffect(() => {
     if (!engine || !overlay) return;
     overlay.update({
