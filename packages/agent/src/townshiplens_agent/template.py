@@ -758,7 +758,16 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
                 "Answer generated from data without AI wording.",
             ],
         )
-    rid, route = next(iter(rec.routes.items()))
+    # The first route planned under the answer's scenario (R46: a dry-day compare route never
+    # answers a flood-scenario turn), else the first route.
+    rid, route = next(
+        (
+            (k, r)
+            for k, r in rec.routes.items()
+            if (r.get("scenario_id") or "baseline") == (scenario_id or "baseline")
+        ),
+        next(iter(rec.routes.items())),
+    )
     status = rec.route_status.get(rid, "no_data")
     # Claim text omits raw values: they may contain wording forbidden in flood answers.
     claims = [

@@ -3,7 +3,7 @@ import re
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
 
 from .answer import FinalAnswer
-from .compare_intent import compare_for, unchecked_noun
+from .compare_intent import compare_for, flood_scenario_used, unchecked_noun
 from .developments import ILLUSTRATIVE_WORD, NOT_SDP, restatement
 from .facts import _matches as _fact_matches
 from .facts import (
@@ -830,6 +830,15 @@ def compare_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     if not rec.compares or ans.answer_status == "cannot_answer":
         return []
     errs: list[str] = []
+    if flood_scenario_used(rec):
+        # R46: a compare is a dry-day comparison; under a flood scenario answer from the route
+        # (plan_route with the scenario) and never emit route.compare.
+        if any(i.kind == "route.compare" for i in ans.scene_intents):
+            errs.append(
+                "A flood scenario was used this turn: a compare is a dry-day comparison. Remove "
+                "route.compare and answer from plan_route with the scenario as usual."
+            )
+        return errs
     recommended = {
         d["recommended"]["id"]
         for d in rec.compares

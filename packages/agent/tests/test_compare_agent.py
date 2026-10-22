@@ -241,3 +241,71 @@ async def test_no_route_compare_intent_without_a_recommended_route(tiny, tmp_pat
     evs, rec, _ = await _turn(world, tmp_path, TINY_Q, "wheelchair")
     assert rec.compares[-1]["recommended"] is None
     assert "route.compare" not in [i.kind for i in _intents(evs)]
+
+
+# ------------------------------------------------------------------ final review I-3 (R46)
+
+
+async def _deps(world, tmp_path, scenario=None):
+    import asyncio
+
+    from townshiplens_agent.agent import Deps
+
+    ctx = tools.Ctx(world=world, vrs=VerificationStore(str(tmp_path / "vr.db")))
+    req = ChatRequest(message=TINY_Q, profile="wheelchair", scenario_id=scenario)
+    return Deps(ctx=ctx, rec=TurnRecord(queue=asyncio.Queue()), request=req)
+
+
+ENDS = {"from_id": "park-b", "to_id": "toilet-1", "profile": "wheelchair"}
+
+
+async def test_ui_scenario_is_not_injected_into_compare_routes(tiny, tmp_path):
+    """A compare is a dry-day comparison: the scenario on screen never reaches compare_routes."""
+    from townshiplens_agent.agent import SCENARIO_TOOLS, call_tool
+
+    assert "compare_routes" not in SCENARIO_TOOLS
+    deps = await _deps(tiny, tmp_path, scenario="stage_p1m")
+    await call_tool(deps, "compare_routes", **ENDS)
+    calls = []
+    while not deps.rec.queue.empty():
+        ev = deps.rec.queue.get_nowait()
+        if getattr(ev, "type", None) == "tool.call":
+            calls.append(ev)
+    assert [c.args.get("scenario_id") for c in calls] == [None]
+    assert deps.rec.scenarios_used == set()
+    assert deps.rec.compares[-1]["recommended"]["scenario_id"] is None
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+async def test_compare_under_a_flood_scenario_falls_back_to_the_route_answer(
+    tiny, tmp_path, explicit
+):
+    """R46: once a tool ran with a flood scenario this turn (plan_route with the scenario on
+    screen, or compare_routes given one), there is no compare answer: the validator refuses
+    route.compare, the template answers from the route, and run.py drops the intent."""
+    from townshiplens_agent.agent import call_tool
+    from townshiplens_agent.compare_intent import compare_for
+    from townshiplens_agent.run import _answer_events
+
+    deps = await _deps(tiny, tmp_path, scenario="stage_p1m")
+    if explicit:
+        await call_tool(deps, "compare_routes", **ENDS, scenario_id="stage_p1m")
+    else:
+        await call_tool(deps, "compare_routes", **ENDS)
+        await call_tool(deps, "plan_route", **ENDS)  # the scenario on screen is injected
+    rec = deps.rec
+    assert "stage_p1m" in rec.scenarios_used and rec.compares
+    rid = rec.compares[-1]["recommended"]["id"]
+    assert compare_for(rec, rid) is None
+    ans = template_answer(rec, TINY_Q)
+    assert "route.compare" not in [i.kind for i in ans.scene_intents]
+    assert "fastest route" not in ans.summary
+    assert validate_answer(ans, rec) == []
+    forced = ans.model_copy(
+        update={
+            "scene_intents": [SceneIntent(kind="route.compare", route_id=rid), *ans.scene_intents]
+        }
+    )
+    assert any("dry-day" in e for e in compare_errors(forced, rec))
+    evs = _answer_events(forced, rec, deps.ctx, "stage_p1m", "en")
+    assert "route.compare" not in [e.intent.kind for e in evs if e.type == "scene.intent"]

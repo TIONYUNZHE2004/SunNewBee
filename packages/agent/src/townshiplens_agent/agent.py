@@ -219,9 +219,10 @@ def safe_vr_args(world, kwargs: dict, source: str = "chat") -> dict:
 _safe_vr_args = safe_vr_args  # backwards-compatible alias
 
 
+# compare_routes is not here (R46): a compare is a dry-day comparison, so the UI's scenario is
+# never injected into it (and a compare under a scenario is refused: compare_intent.compare_for).
 SCENARIO_TOOLS = (
     "plan_route",
-    "compare_routes",
     "list_evacuation_centres",
     "affected_places",
     "simulate_what_if",

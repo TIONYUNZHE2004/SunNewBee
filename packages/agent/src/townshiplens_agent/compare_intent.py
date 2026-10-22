@@ -55,10 +55,19 @@ def compare_payload(world, d: dict) -> RouteCompare:
     )
 
 
+def flood_scenario_used(rec) -> bool:
+    """A tool ran with a non-baseline (flood) scenario this turn (R46). A compare is a dry-day
+    comparison: under a scenario there is no compare answer, payload or route.compare intent."""
+    return any(s and s != "baseline" for s in rec.scenarios_used)
+
+
 def compare_for(rec, route_id: str | None) -> dict | None:
     """The compare this turn whose recommended route is `route_id` (the latest one); with no
     route id, the latest compare that has no recommended route (no_data / blocked). Same-path
-    compares are skipped: nothing was compared."""
+    compares are skipped: nothing was compared. None when a flood scenario was used this turn
+    (R46): the answer is then the normal route answer (mock, template, canonical, run.py)."""
+    if flood_scenario_used(rec):
+        return None
     for d in reversed(rec.compares):
         if d.get("same_path"):
             continue  # nothing was compared: that route's answer is plan_route's
