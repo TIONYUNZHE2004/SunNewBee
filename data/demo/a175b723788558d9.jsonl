@@ -1,4 +1,4 @@
-{"meta": {"message": "What happens to residents as the river rises?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "26373af16a5749ce0e8228bb22d2e8fd586e87345e57a22e75e06f309f8cde02", "model": "mock-scripted", "recorded_at": "2026-10-22T09:11:36+00:00"}}
+{"meta": {"message": "What happens to residents as the river rises?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "ea0fc528bae5f82138dd5494ec079f4c9cf9ad2e0358ea497b7eaa77c4045498", "model": "mock-scripted", "recorded_at": "2026-10-22T09:35:55+00:00"}}
 {"type": "tool.call", "id": "rising_river_rollout-0", "name": "rising_river_rollout", "args": {"profiles": null, "n": 30}}
 {"type": "tool.result", "id": "rising_river_rollout-0", "name": "rising_river_rollout", "summary": "ok"}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
