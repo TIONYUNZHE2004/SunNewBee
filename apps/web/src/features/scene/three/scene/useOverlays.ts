@@ -4,6 +4,7 @@ import {
   useFloodImpact,
   useGaps,
   useLayer,
+  useRoadLabels,
   useScenarioWater,
 } from "../../../../lib/api";
 import { closureFeatures } from "../../../closures/closureSimModel";
@@ -19,6 +20,7 @@ import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import type { Boundary } from "../ground/boundary";
 import { createOverlayLayer, type OverlayLayer } from "../overlays/accessLayers";
+import { createRoadLabels } from "../overlays/roadLabels";
 import { useResidents } from "../overlays/useResidents";
 import { lineToLocal } from "../routeLine";
 import type { LayerData } from "./useGround";
@@ -57,6 +59,8 @@ export function useOverlays({
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const whatIf = useScene((s) => s.whatIf);
   const closureResult = useScene((s) => s.closureSim);
+  const roadNames = useSceneSettings((s) => s.roadNames);
+  const roadLabels = useRoadLabels(roadNames);
   // the closure answer's course and detours, drawn on the access layer's own edge geometry
   const closureSim = useMemo(
     () =>
@@ -124,6 +128,20 @@ export function useOverlays({
       setOverlay(null);
     };
   }, [engine, frame]);
+  // Road names (T-028): their own label child; the roads an answer closes or a course uses are
+  // always shown, highlighted
+  const highlightKey = (closureResult?.roads ?? []).join("|");
+  useEffect(() => {
+    if (!engine || !overlay || !frame || !roadNames || !roadLabels.data?.length) return;
+    const child = createRoadLabels(
+      roadLabels.data,
+      frame,
+      new Set(highlightKey ? highlightKey.split("|") : []),
+    );
+    const detach = overlay.attach(child);
+    engine.requestRender();
+    return detach;
+  }, [engine, overlay, frame, roadNames, roadLabels.data, highlightKey]);
   useEffect(() => {
     if (!engine || !overlay) return;
     overlay.update({

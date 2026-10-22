@@ -60,6 +60,19 @@ export const useScenarioWater = (id: string | null) =>
       ),
   });
 
+/** T-028 road names inside the township (display only). A server without the route, or an
+ * unreadable boundary, simply shows no names. */
+export const useRoadLabels = (enabled: boolean) =>
+  useQuery({
+    queryKey: ["road-labels"],
+    enabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: async () => {
+      const { data } = await api.GET("/layers/road-labels");
+      return data ?? [];
+    },
+  });
+
 /** Evacuation centres reachability. May 404/empty under API stubs: callers treat errors as "none". */
 /** T-024: places likely flooded and cut off, and the flooded path length, for one river scenario. */
 export const useFloodImpact = (id: string | null) =>

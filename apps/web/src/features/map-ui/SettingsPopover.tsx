@@ -134,8 +134,18 @@ export function SettingsPopover() {
   const effective = useEffectiveView();
   const { choice, setChoice } = useTheme();
   const { alwaysShow, setAlwaysShow } = useCameraUi();
-  const { motion, quality, pathStatus, fx, setMotion, setQuality, setPathStatus, setFx } =
-    useSceneSettings();
+  const {
+    motion,
+    quality,
+    pathStatus,
+    fx,
+    roadNames,
+    setMotion,
+    setQuality,
+    setPathStatus,
+    setFx,
+    setRoadNames,
+  } = useSceneSettings();
   const available = useMemo(
     () => availableViews(ENV, webglSupported(), hasBuildings),
     [hasBuildings],
@@ -345,6 +355,15 @@ export function SettingsPopover() {
               </Radio>
             </div>
             <StatusLegend />
+            <label className="mt-2 flex min-h-11 items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="size-4 accent-lilac"
+                checked={roadNames}
+                onChange={(e) => setRoadNames(e.target.checked)}
+              />
+              Road names
+            </label>
           </div>
         </div>
       )}

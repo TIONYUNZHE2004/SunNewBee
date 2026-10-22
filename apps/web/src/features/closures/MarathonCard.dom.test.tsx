@@ -29,5 +29,13 @@ describe("MarathonCard (T-028)", () => {
     expect(reduceIntent(emptyAssistant("a"), intent).marathon).toBe(MARATHON);
     useScene.getState().applyIntent(intent);
     expect(useScene.getState().closureSim?.result).toBe(MARATHON.impact);
+    expect(useScene.getState().closureSim?.roads).toEqual([
+      "Persiaran Tamarind",
+      "Persiaran Dillenia",
+    ]);
+    // the camera frames the proposed course
+    const cam = useScene.getState().camera;
+    expect(cam?.center[0]).toBeCloseTo(101.505, 3);
+    expect(cam?.rangeM).toBeGreaterThanOrEqual(600);
   });
 });
