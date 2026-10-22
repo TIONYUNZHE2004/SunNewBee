@@ -958,6 +958,9 @@ barrier stays a barrier. Technical HTTP codes are not used as resident-facing ex
 Flood playback hides cached marathon course dressing through the existing overlay wiring;
 it does not change marathon rendering code. Starting a day or rollout scene closes the flood
 story, just as starting another journey does, so only one playback owns the camera.
+When the story becomes ready, `floodStoryStore.load` turns the shared `ambientTraffic` switch
+off; `close` turns it back on. Decorative moving cars fade out during the story, including
+pause and seek; people remain visible.
 
 The four viewpoint buttons (River rise, Building edge, Resident route, Model limits) seek that
 same timeline without changing play/pause. They adapt Yunzhe's four-image `Doc2.docx` visual
