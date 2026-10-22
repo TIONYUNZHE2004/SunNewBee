@@ -1,6 +1,29 @@
 # T-032 · flood visual review
 
-The screenshots and frame strips are in this folder (light = `-day`, dark = `-night`). The 13.5 MB review PDF was removed from the repository (control, 22 Oct) to keep the history small; the images below are the same captures.
+The capture set contains 42 images: 20 light/dark story shots, four story strips, eight
+water-motion frames, two water-motion strips, and eight first-checkpoint images. The refined
+UI is based on `2081d341`, with river-material blob
+`6295b290990c1af56b1eed6be10621c61693041c`.
+
+Review PDFs are supplied as downloads in the Codex chat: a six-page water-material review
+(new effect, before/after, motion strips) and a complete 43-page review. All images are embedded;
+no network or sign-in is needed after download. The short review is 1,692,237 bytes; the full
+review is 16,673,195 bytes. They stay outside Git, preserving control's cleanup at `ce1a759e`.
+The source screenshots stay in this directory.
+
+This repository is private. GitHub file links need a signed-in account with repository access.
+PR links use full commit hashes. Direct raw-image embeds and temporary access tokens are not
+used. The portable review files provide a separate way to read the captures; Yunzhe confirmed
+that this file-delivery method opens in the chat.
+
+Delivery checks: all 43 full-review pages and all six short-review pages parse; every screenshot
+page has an embedded image, with no external image URL or encryption. Nine full-review pages
+and all six short-review pages were rendered locally. A separate offline ZIP keeps all 42
+original images and their source checksums.
+
+For each later visual update: inspect the captures, rebuild and open the PDFs, verify their
+embedded images, then check the published files and reader access. Cloud-side HTTP success
+alone does not establish reader access.
 
 ## First rendering checkpoint
 
@@ -122,3 +145,23 @@ listed above; no independent switch was added.
 Four further built-app control checks pass: Play advances and Pause freezes; Play at the
 completed end restarts; Restart returns to Normal and plays; Exit during Play removes the
 story without a page error. Both theme capture runs also exit cleanly, with no shader errors.
+
+## Water material refinement (23 Oct MYT)
+
+The two regular waves have been replaced by eight filtered wave bands plus three irregular
+noise-gradient layers. Fresnel reflections and GGX highlights follow the scene's existing
+sun/moon and hemisphere lights. A single 512 × 512 reflection target gives clearer building
+reflections. The colour is deeper teal, with less transparency. Surface height, river classes,
+counts, route evaluation and all honesty notices are unchanged.
+
+The four-frame material strips are [light](water-ripples-strip-day.jpg) and
+[dark](water-ripples-strip-night.jpg). Their original frames are `water-ripples-{day,night}-0..3.jpg`
+at 30.00 / 30.35 / 30.70 / 31.05 screen seconds, with the existing building camera held still.
+These are animation times, not a measured flood progression rate. All 20 story shots and the
+river/resident strips were also refreshed with the new material.
+
+A small local GPU study rendered near/far and light/dark cases without page or shader errors.
+Frame 2 differs from frame 3; seeking back to frame 2 produces identical pixels. The study
+page was removed from the app after testing; the review PDFs show the real Elmina app. The
+31 affected flood/overlay tests, lint, workspace typecheck and production build pass. The full
+web, generated-client, mock-golden and built-app results are reported on PR #40. Review PDFs stay outside Git; source screenshots remain committed.

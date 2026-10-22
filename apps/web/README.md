@@ -907,6 +907,14 @@ Only explicit `likely_flooded` polygons, or the legacy river-only scenario-water
 (`scenario_id` plus `surface_height_m`, no class), enter that renderer. Base water and unknown
 classes cannot enter it.
 
+The refined river material combines eight filtered wave bands with three non-periodic noise
+gradients. Small ripples fade below a screen pixel at distant views, instead of forming a
+regular striped grid. Fresnel reflections and GGX highlights use the existing scene's sun or
+moon and hemisphere light, so colour and brightness follow its day/night mood. A single owned
+512 × 512 reflection target serves the river batch. No normal-map download or new asset is
+required. Noise, ripple phase and visual rise still use the seekable story clock; no visual
+surface parameter enters flood classification or route evaluation.
+
 Low-lying `possible` polygons stay terrain: two corner-cutting passes, intersected with their
 original footprint and the township boundary, a thin outline and translucent fill below roads
 and buildings. Holes are retained. This is display-only smoothing: no seed data, evaluation,
