@@ -943,10 +943,13 @@ function build(
         isBatchedMesh?: boolean;
         instanceColor?: unknown;
       };
-      if (!m.isMesh || m.isBatchedMesh || (shadow && !m.castShadow)) return;
-      const wear = shadow ? [shadowDepthFor(m.material)] : overrides;
+      if (!m.isMesh || m.isBatchedMesh || (shadow && !m.castShadow && !m.customDepthMaterial))
+        return;
+      // a caster's own shadow depth material (the devsim small-prop fade) is compiled as drawn
+      const custom = shadow ? m.customDepthMaterial : undefined;
+      const wear = shadow ? [custom ?? shadowDepthFor(m.material)] : overrides;
       const morph = Object.keys(m.geometry?.morphAttributes ?? {}).length;
-      const key = `${!!m.isSkinnedMesh}|${!!m.isInstancedMesh}|${!!m.instanceColor}|${morph}|${wear[0]?.side}`;
+      const key = `${!!m.isSkinnedMesh}|${!!m.isInstancedMesh}|${!!m.instanceColor}|${morph}|${wear[0]?.side}|${!!custom}`;
       if (seen.has(key)) return;
       seen.add(key);
       for (const ov of wear) {

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { DEVSIM_COLOURS } from "../shared/clayTokens";
 import type { DevsimFrame, DevsimPart } from "./devsimLayer";
-import { smallShadows } from "./devsimView";
+import { createShadowFade } from "./devsimView";
 import { type SiteGeom, TOWER_STOREY_M, type XZ } from "./geom";
 
 const NOOP = () => {};
@@ -129,11 +129,13 @@ export function createScaffold(o: { geom: SiteGeom }): ScaffoldPart {
     ),
   );
   ledgers.name = "devsim-scaffold-ledgers";
+  // thin tubes: shadows in the close beats only, faded with the camera range (set per frame)
+  const fade = own(createShadowFade());
   for (const m of [standards, ledgers]) {
     m.frustumCulled = false;
     m.raycast = NOOP;
-    // thin tubes: shadows in the close beats only (`smallShadows`, set per frame)
     m.castShadow = false;
+    fade.attach(m);
     m.count = 0;
     group.add(m);
   }
@@ -201,9 +203,7 @@ export function createScaffold(o: { geom: SiteGeom }): ScaffoldPart {
     demoState: () => ({ scaffoldTop: top, topFloor: floor, netting: netOn }),
     aoExcluded: () => [net],
     update({ s, t, sp }: DevsimFrame) {
-      const shadows = smallShadows(s);
-      standards.castShadow = shadows;
-      ledgers.castShadow = shadows;
+      fade.set(s);
       const ext = scaffoldExtent(s.floorsBuilt, N);
       floor = ext.topFloor;
       // up while building, once there is a floor: schedule mode (C7 45 s acts) until Handover

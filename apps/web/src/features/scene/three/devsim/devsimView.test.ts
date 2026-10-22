@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { useDevsim } from "../../../devsim/devsimStore";
 import elmina from "../../../devsim/fixtures/plan.elmina.json";
@@ -10,6 +11,7 @@ import { speakerGlow, spotBoost } from "./cast";
 import { createDevsimLayer } from "./devsimLayer";
 import {
   cameraRangeM,
+  createShadowFade,
   DEVSIM_FOV_DEG,
   DEVSIM_SMALL_SHADOW_M,
   devsimAoWeight,
@@ -19,6 +21,7 @@ import {
   devsimMoodSource,
   devsimMoodWeights,
   smallShadows,
+  smallShadowWeight,
 } from "./devsimView";
 import { inRing, siteGeom, TOWER_STOREY_M } from "./geom";
 import { moveInAoKeep, setPieceTiming } from "./setPieces";
@@ -177,6 +180,42 @@ describe("devsim AO and small-prop shadows by range (C10p)", () => {
     expect(DEVSIM_SMALL_SHADOW_M).toBe(220);
     expect(smallShadows(at([22, 26, 14]))).toBe(true);
     expect(smallShadows(at([-150, -240, 130]))).toBe(false);
+  });
+
+  it("small-prop shadows fade with the range, no hard step (66 s plan 32 -> 34.6 s fly-in)", () => {
+    const at = (offset: [number, number, number]) =>
+      ({ camera: { target: [0, 0, 0], offset } }) as unknown as StateAt;
+    const fade = createShadowFade();
+    const mat = new THREE.MeshStandardMaterial();
+    const box = new THREE.InstancedMesh(new THREE.BoxGeometry(), mat, 1);
+    fade.attach(box);
+    const d = box.customDepthMaterial as THREE.MeshDepthMaterial;
+    expect(d.alphaHash).toBe(true);
+    expect(d.depthPacking).toBe(THREE.BasicDepthPacking);
+    expect(d.side).toBe(THREE.BackSide);
+    let prev = 1;
+    for (let r = 150; r <= 240; r += 1) {
+      const s = at([r, 0, 0]);
+      fade.set(s);
+      const w = fade.weight();
+      expect(w, `r=${r}`).toBe(smallShadowWeight(s));
+      expect(d.opacity).toBe(w);
+      // cast exactly while the fade is above 0 (the draw budget of the wide beats stands)
+      expect(box.castShadow, `r=${r}`).toBe(smallShadows(s));
+      expect(box.castShadow).toBe(w > 0);
+      expect(w).toBeLessThanOrEqual(prev);
+      expect(prev - w, `step at r=${r}`).toBeLessThan(0.05);
+      prev = w;
+    }
+    expect(smallShadowWeight(at([170, 0, 0]))).toBe(1);
+    expect(smallShadowWeight(at([220, 0, 0]))).toBe(0);
+    // the legacy fly from the wide shot to the door crosses the band over frames, not one step
+    const L = plan as unknown as DevelopmentPlan;
+    const ws: number[] = [];
+    for (let t = 32; t <= 34.6; t += 1 / 60) ws.push(smallShadowWeight(stateAt(t, L)));
+    for (let i = 1; i < ws.length; i++)
+      expect(Math.abs((ws[i] as number) - (ws[i - 1] as number)), `frame ${i}`).toBeLessThan(0.15);
+    fade.dispose();
   });
 
   it("one range source: the layer's AO weight and the small shadows switch on the same frame", () => {
