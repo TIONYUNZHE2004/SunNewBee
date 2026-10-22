@@ -620,7 +620,9 @@ def marathon_answer(d: dict, evidence_ids: list[str], start_name: str | None = N
     out = event_answer({**impact, "course": course}, evidence_ids)
     named = f"With the {(impact.get('event') or {}).get('name')} closures"
     rest = out["summary"].replace(named, "With the course closed", 1)
-    out["summary"] = f"{lead} {rest}"
+    # a course off its target length says so, as the planner wrote it (never hidden in a note)
+    off = [w for w in course.get("warnings") or [] if w.startswith("Requested ")]
+    out["summary"] = " ".join([lead, *off, rest])
     out["claims"] = [
         {"text": "Proposed marathon course", "status": "indicative", "evidence_ids": evidence_ids}
     ]

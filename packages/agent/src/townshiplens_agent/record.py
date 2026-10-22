@@ -44,6 +44,10 @@ class TurnRecord:
     selection_error: str | None = None
     strict_selection: bool = False
     context_route: dict | None = None
+    # T-028: the session's last marathon request (canonical), for edits ("make it 10 km")
+    context_marathon: dict | None = None
+    # this turn's marathon request in the same canonical form (stored for the next turn)
+    marathon_request: dict | None = None
     # Staff-reported closures plan_route says affect a route (rows with element_name, impact), and
     # every closure row any tool returned this turn (id -> row).
     route_closures: list[dict] = field(default_factory=list)
