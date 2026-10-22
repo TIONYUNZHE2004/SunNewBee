@@ -1,0 +1,18 @@
+@keyframes flood-counter-in {
+  from {
+    opacity: 0.35;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.flood-counter {
+  animation: flood-counter-in 350ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flood-counter {
+    animation: none;
+  }
+}

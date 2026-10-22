@@ -1,6 +1,7 @@
 import { useMemo, useRef } from "react";
 import { useBuildings, useLayer, useSite } from "../../../lib/api";
 import { DevsimMount } from "../../devsim/DevsimMount";
+import { FloodStoryScene } from "../../flood/FloodStoryScene";
 import { JourneyMount } from "../../journey/JourneyMount";
 import { InSlot } from "../../map-ui/mapSlots";
 import { CameraControls, handleMapKey } from "../cesium/controls/CameraControls";
@@ -297,6 +298,7 @@ export default function ThreeScene({
       <PerfOverlay />
       <SlowBanner />
       {decorativeShown && <DecorativeChip />}
+      <FloodStoryScene engine={engine} frame={frame} buildings={buildings} boundary={boundary} />
       {/* Resident journey: ribbon, markers, label, HUD, mini-map and event cards (D-T7). */}
       <JourneyMount
         engine={engine}

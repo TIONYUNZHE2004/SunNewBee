@@ -909,3 +909,31 @@ Low-lying `possible` polygons stay terrain: two corner-cutting passes, intersect
 original footprint and the township boundary, a thin outline and translucent fill below roads
 and buildings. Holes are retained. This is display-only smoothing: no seed data, evaluation,
 route or API counter changes. Invalid polygons are omitted rather than drawn outside evidence.
+
+**Watch the river rise:** select a river scenario in Map settings (or ask a flood question), then
+press **Watch the river rise** below its impact summary. Stylised 3D is required; the button
+waits for that renderer and stays disabled while another trip/playback is open. Pause, Play,
+Restart, Exit and the native time slider control one camera. Reduced motion starts paused.
+
+`features/flood/floodStoryData.ts` resolves Normal / River +1 / +2 / +3 from the live scenario
+list and preloads the water and `/affected?profile=wheelchair` results. Counter changes are
+whole API values, not interpolated figures. The shared overlay receives a deterministic
+presentation clock; pause and seek freeze/reproduce both wave time and visual rise.
+
+The building shot intersects full OSM footprints (including courtyards) with river polygons,
+adds a blue base annotation and reuses the journey POI tag. It never assigns a measured depth
+or a tool flood class to a building. The resident beat reuses `createJourneyLayer`,
+`createHeroLayer`, `journeyCameraAt`, `JourneyHud`, `JourneyMiniMap` and `SimulationLabel`.
+It resolves Pangsapuri Cendana as a residential place, selects the nearest candidate with a
+mapped wheelchair route returned by the evacuation API, then binds the journey and route
+metadata by route id, endpoints, profile and scenario. Missing data stays a visible gap.
+
+Current seed: this route to Surau At Taqwa is unchanged at River +3 m and its access is partly
+unverified. The UI says so; it does not claim a flood detour. A detour claim requires a baseline
+route edge in the +3 m likely-flooded edge set and an after-route without it. OSM candidates
+remain labelled as candidates. End-card counts come from the final API stage, beside the 30 m
+model, drains and flash-flood limits and official guidance links.
+
+Acceptance: `?acceptance=1` exposes `window.__flood` (`start`, `seek`, `play`, `pause`, `close`,
+`state`, `camera`), following the existing journey hook. It makes no LLM calls. See
+[the T-032 capture index](../../docs/superpowers/screenshots/t032/README.md).

@@ -38,6 +38,8 @@ export interface OverlayState {
   floodEdges?: unknown;
   /** A scenario is chosen and the flood lens is on. Also gates the evacuation centres. */
   floodOn?: boolean;
+  /** T-032 deterministic wave/illustrative-rise clock; absent outside the river story. */
+  floodFrame?: () => [seconds: number, rise: number, fade: number];
   /** GET /layers/waste (points) and the waste lens. */
   waste?: unknown;
   wasteOn?: boolean;
@@ -289,7 +291,8 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       };
     },
     setView(c, fovDeg, target) {
-      if (groundGroup.visible) flood?.update(performance.now() / 1000);
+      if (groundGroup.visible)
+        flood?.update(...(last.floodFrame?.() ?? [performance.now() / 1000, 0, 1]));
       // Attached batches also follow the clock, so they are fed before the camera-moved early return.
       for (const ch of children) ch.setView?.(c, performance.now(), fovDeg, target);
       // The engine calls this every frame: relabel only when the camera moved.

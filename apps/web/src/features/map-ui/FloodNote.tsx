@@ -1,6 +1,7 @@
 import { useScenarios } from "../../lib/api";
 import { FloodImpactCard } from "../flood/FloodImpact";
 import { WATER_LOOK_NOTE } from "../flood/floodPresentation";
+import { useFloodStory } from "../flood/floodStoryStore";
 import { FLASH_FLOOD_NOTE } from "../flood/impactModel";
 import { useScene } from "../scene/sceneStore";
 import { InSlot } from "./mapSlots";
@@ -11,7 +12,8 @@ const LINK = "font-medium text-lilac underline underline-offset-2";
 export function FloodNote() {
   const scenarioId = useScene((s) => s.scenarioId);
   const { data } = useScenarios();
-  if (!scenarioId || scenarioId === "baseline") return null;
+  const storyOn = useFloodStory((s) => s.status !== "idle");
+  if (storyOn || !scenarioId || scenarioId === "baseline") return null;
   const sc = data?.find((s) => s.id === scenarioId);
   // T-029: low-lying terrain (stage 0) and river + terrain read by their own label
   const river = (sc?.kind ?? "river_stage") === "river_stage";
