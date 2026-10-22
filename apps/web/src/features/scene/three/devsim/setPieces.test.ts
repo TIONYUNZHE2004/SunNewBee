@@ -58,8 +58,11 @@ describe("set piece timing (adapter)", () => {
     const x = planExtras(C7);
     expect(x.lorryRoute?.path.length).toBe(C7.lorry_route.path.length);
     expect(x.schedule?.months_total).toBe(27);
-    // the 45 s plan sends no playground: the children use the park anchor (C-align ruling)
-    expect(x.playground).toEqual(C7.anchors.park);
+    // the 45 s plan's playground (be-dev); the park anchor only without one
+    const pg = (C7 as unknown as { playground: { lon: number; lat: number } }).playground;
+    expect(x.playground).toEqual([pg.lon, pg.lat]);
+    const noPg = { ...(elmina as object), playground: null } as unknown as DevelopmentPlan;
+    expect(planExtras(noPg).playground).toEqual(C7.anchors.park);
   });
 
   it("schedule mode: the windows are the plan's own (planPlayback: Raya 11-13 s, monsoon 18.5-23 s)", () => {
