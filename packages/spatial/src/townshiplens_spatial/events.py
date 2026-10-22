@@ -725,8 +725,8 @@ def _simulate(world, spec, profiles, at, legacy, max_segments=MAX_SEGMENTS, froz
     warnings = [
         "Sample trips use up to ten origins across resident categories and destinations "
         "near the site centre. Outlying journeys are not represented; this is not measured demand.",
-        "Closures are assessed only at at (default: first closure start); changes later in "
-        "the window are not modelled.",
+        "Closures are assessed only at one moment (by default the first closure start); later "
+        "changes in the window are not modelled.",
         "Extra minutes are travel-distance/pace estimates, not congestion or crowd predictions.",
     ]
     if summary.trips_on_course:
