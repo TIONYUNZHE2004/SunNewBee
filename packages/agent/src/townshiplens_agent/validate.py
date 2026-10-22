@@ -161,6 +161,9 @@ PLAN_AS_FACT = re.compile(
 )
 PLACEHOLDER_SOURCE = "team_survey_placeholder"
 PLACEHOLDER_CAVEAT = "demo values, not yet surveyed"
+# The closure / marathon engine's warning when its sample routes rest on placeholder facts
+# (`events.py`); an answer from such a result must say so (AGENTS.md honesty invariant).
+DEMO_ROUTES_WARNING = "Some routes use demo values, not yet surveyed."
 BANNED_PLACEHOLDER = re.compile(r"\bsurveyed on\b|staff (?:have |has )?checked", re.IGNORECASE)
 VERIFIED_WORD = re.compile(r"\bverified\b", re.IGNORECASE)  # not "unverified"/"partly_unverified"
 # Honest negations before "verified" (fix round 1 of D-T3): "not (yet) (been)", "n't been",
@@ -798,6 +801,15 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
                 f"team_survey_placeholder): add a caveat containing the exact phrase "
                 f"'{PLACEHOLDER_CAVEAT}'."
             )
+    # a closure / marathon simulation whose sample routes rest on demo facts (the engine's
+    # warning) carries no placeholder evidence of its own, so its warning is the signal (Codex,
+    # PR #36 comment 6341828535)
+    demo_impact = any(DEMO_ROUTES_WARNING in (e.get("warnings") or []) for e in rec.events)
+    if demo_impact and ans.answer_status != "cannot_answer" and not has_demo_phrase(all_text):
+        errs.append(
+            "The simulation's sample routes use demo values: add a caveat containing the exact "
+            f"phrase '{PLACEHOLDER_CAVEAT}'."
+        )
     # a rehearsal's river stage comes from the tool (run.py fills it in), not from the model
     if rec.scenarios_used - rec.day_stages and not ans.scenario_id:
         errs.append("A flood scenario tool was used: set scenario_id.")
@@ -2233,6 +2245,7 @@ _ISSUES = (
     ("Do not guess or reassure", "guessed or reassured instead of stating what was checked"),
     ("Placeholder evidence is not verified", "called demo values verified"),
     ("placeholder data", "left out that values are demo values, not yet surveyed"),
+    ("sample routes use demo values", "left out that the simulation's routes use demo values"),
     ("confirmed only on placeholder", "called a demo-value route plainly confirmed"),
     ("Route status contradiction", "named a different route status than the route check found"),
     ("only likely OK", "called an estimated route step-free or accessible"),
