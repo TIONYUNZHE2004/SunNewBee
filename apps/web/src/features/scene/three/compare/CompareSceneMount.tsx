@@ -36,9 +36,16 @@ export const COMPARE_SLOT = "compare";
 /**
  * Where the overview's reasons-card top is assumed to be (AC-N7): the card's reported top, but
  * never lower than the estimate, so a card shorter than estimated never moves the camera at 32 s.
+ * The card sits above the overlay's player dock (`dockTop`, V2 fix N-b/N-c), else above the map's
+ * bottom edge.
  */
-export function overviewCardTop(h: number, reported: number | null): number {
-  const est = h - CARD_BOTTOM_PX - CARD_EST_PX;
+export function overviewCardTop(
+  h: number,
+  reported: number | null,
+  dockTop: number | null = null,
+): number {
+  const floor = dockTop != null && dockTop > 0 ? Math.min(h, dockTop) - 8 : h - CARD_BOTTOM_PX;
+  const est = floor - CARD_EST_PX;
   return reported == null ? est : Math.min(reported, est);
 }
 
@@ -134,6 +141,7 @@ export function CompareSceneMount({
     const sv: SplitView = {
       left: { camera: new THREE.PerspectiveCamera(50, 1, 2, 30000), look: new THREE.Vector3() },
       right: { camera: new THREE.PerspectiveCamera(50, 1, 2, 30000), look: new THREE.Vector3() },
+      beforeSide: (side) => l.setSide(side),
     };
     let splitOn = false;
 
@@ -158,7 +166,8 @@ export function CompareSceneMount({
     const overview = (): CamPose => {
       const size = engine.pickView().size;
       area ??= host ? measureMapArea(host) : { w: size[0], h: size[1], top: 0 };
-      const cardTop = overviewCardTop(area.h, useCompare.getState().screen?.cardTop ?? null);
+      const cs = useCompare.getState();
+      const cardTop = overviewCardTop(area.h, cs.screen?.cardTop ?? null, cs.dockTop);
       const key = `${size[0]}x${size[1]}|${area.w}x${area.h}|${area.top ?? 0}|${cardTop}`;
       if (!ov || ov.key !== key) {
         const cam = new THREE.PerspectiveCamera(VFOV_DEG, size[0] / Math.max(1, size[1]), 2, 30000);

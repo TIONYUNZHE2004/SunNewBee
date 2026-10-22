@@ -198,6 +198,28 @@ describe("Engine.setSplit (B8)", () => {
     }
   });
 
+  it("tells the split's owner which half it draws before each, and null after (V2 N-a)", async () => {
+    const { e, sv } = await setup();
+    try {
+      const sides: (string | null)[] = [];
+      e.setSplit?.({
+        ...sv,
+        beforeSide: (side) => {
+          sides.push(side);
+          if (side) spy.log.push(`side:${side}`);
+        },
+      });
+      spy.log.length = 0;
+      sides.length = 0;
+      e.renderNow?.();
+      expect(sides).toEqual(["left", "right", null]);
+      const seq = spy.log.filter((l) => /^(side|composer)/.test(l));
+      expect(seq).toEqual(["side:left", "composer", "side:right", "composer"]);
+    } finally {
+      e.dispose();
+    }
+  });
+
   it("the shadow map is drawn once per half (C10p L1): each composer render asks for it", async () => {
     const { e, sv } = await setup();
     try {

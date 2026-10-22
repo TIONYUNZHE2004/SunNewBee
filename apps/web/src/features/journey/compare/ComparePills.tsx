@@ -11,10 +11,13 @@ export function ComparePills({
   left,
   right,
   viewports,
+  top = 64,
 }: {
   left: string;
   right: string;
   viewports: Viewports | null;
+  /** The pills' top edge, CSS px of the stage: below the map's top stack (V2 fix N-a). */
+  top?: number;
 }) {
   const half = "calc((100% - var(--panel-w,0px)) / 2)";
   const l = viewports
@@ -33,13 +36,13 @@ export function ComparePills({
         className="absolute bottom-0 top-0 -ml-px w-[3px] bg-surface shadow-[0_0_0_1px_var(--c-edge)]"
         style={{ left: r.left }}
       />
-      <div className="absolute top-16 flex justify-center" style={l}>
+      <div className="absolute flex justify-center" style={{ ...l, top }}>
         <span data-beat="split-pill-fastest" className={pill}>
           <span aria-hidden="true" className="size-2.5 rounded-full bg-cmp-fastest" />
           {left}
         </span>
       </div>
-      <div className="absolute top-16 flex justify-center" style={r}>
+      <div className="absolute flex justify-center" style={{ ...r, top }}>
         <span data-beat="split-pill-recommended" className={pill}>
           <span aria-hidden="true" className="size-2.5 rounded-full bg-cmp-recommended" />
           {right}

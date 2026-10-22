@@ -1,3 +1,5 @@
+import { useCompare } from "../journey/compareStore";
+import { isPlayableCompare } from "../journey/compareTypes";
 import { useJourney } from "../journey/journeyStore";
 import { useScene } from "../scene/sceneStore";
 import { ROUTE_STYLE, statusStyle } from "../scene/styles";
@@ -47,7 +49,10 @@ export function RouteTag() {
   const route = useScene((s) => s.route);
   const journey = useJourney((s) => s.plan); // the trip being shown
   const clearRoute = useScene((s) => s.clearRoute);
-  if (!route && !journey) return null;
+  // While the compare playback plays, its own pills name both routes (V2 fix N-a): this legend
+  // would cover the left pill. Exit trip brings it back.
+  const comparing = useCompare((s) => isPlayableCompare(s.payload));
+  if ((!route && !journey) || comparing) return null;
   return (
     <InSlot name="route">
       <div className="flex items-center gap-2 glass rounded-2xl py-1 pl-3 pr-1 text-sm text-fg motion-safe:animate-[fadeIn_200ms_ease-out]">

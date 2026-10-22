@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { useCompare } from "../journey/compareStore";
+import { handCompare } from "../journey/fixtures/compareHand";
 import demo from "../journey/fixtures/demoPlan.json";
 import type { JourneyPlan } from "../journey/timeline";
 import { useScene } from "../scene/sceneStore";
@@ -20,7 +22,10 @@ const route = () =>
     },
   } as never);
 
-afterEach(() => useScene.getState().reset());
+afterEach(() => {
+  useCompare.getState().clear();
+  useScene.getState().reset();
+});
 
 describe("RouteTag", () => {
   it("a plain route shows the blue Suggested route swatch", () => {
@@ -48,5 +53,16 @@ describe("RouteTag", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear route from map" }));
     expect(useScene.getState().route).toBeNull();
     expect(useScene.getState().journey).toBeNull();
+  });
+
+  it("is hidden while the compare playback plays (it covered the left pill, V2 N-a); Exit brings it back", () => {
+    act(route);
+    render(<RouteTag />);
+    expect(screen.getByText("Suggested route")).toBeInTheDocument();
+    act(() => useCompare.getState().load(handCompare()));
+    expect(screen.queryByText("Suggested route")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Clear route from map" })).toBeNull();
+    act(() => useCompare.getState().clear());
+    expect(screen.getByText("Suggested route")).toBeInTheDocument();
   });
 });

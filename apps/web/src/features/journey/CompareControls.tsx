@@ -12,7 +12,7 @@ const btn =
  * in the List view, which has no split-screen player: there only Exit trip is offered (the reasons
  * card and toast are shown as text, see CompareListSection).
  */
-export function CompareControlsView({ player }: { player: boolean }) {
+export function CompareControlsView({ player, row = false }: { player: boolean; row?: boolean }) {
   useCompareDriver();
   const loaded = useCompare((s) => !!s.payload);
   const t = useCompare((s) => s.t);
@@ -21,8 +21,17 @@ export function CompareControlsView({ player }: { player: boolean }) {
   const st = useCompare.getState();
   const done = !playing && t >= COMPARE_TOTAL_S;
   return (
-    <section aria-label="Trip controls" data-testid="compare-controls" className="space-y-2">
+    <section
+      aria-label="Trip controls"
+      data-testid="compare-controls"
+      className={row ? "flex flex-wrap items-center gap-2" : "space-y-2"}
+    >
       <div className="flex flex-wrap items-center gap-2">
+        {player && done && (
+          <span role="status" className="pr-1 text-sm font-medium">
+            Trip finished
+          </span>
+        )}
         {player && (
           <>
             <button
@@ -47,7 +56,7 @@ export function CompareControlsView({ player }: { player: boolean }) {
           type="range"
           aria-label="Trip position"
           aria-valuetext={`${t.toFixed(0)} of ${COMPARE_TOTAL_S} seconds`}
-          className="w-full"
+          className={row ? "w-40 min-w-0 flex-1" : "w-full"}
           min={0}
           max={COMPARE_TOTAL_S}
           step="any"
@@ -70,8 +79,8 @@ export function CompareControlsView({ player }: { player: boolean }) {
   );
 }
 
-export function CompareControls() {
-  return <CompareControlsView player={useEffectiveView() !== "list"} />;
+export function CompareControls({ row = false }: { row?: boolean }) {
+  return <CompareControlsView player={useEffectiveView() !== "list"} row={row} />;
 }
 
 /** Controls only on the answer whose compare the player holds; gone after Exit or another answer's Watch. */

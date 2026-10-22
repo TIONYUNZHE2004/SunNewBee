@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { honestyViolations } from "../../../test/honesty";
+import { BottomStack, TopStack } from "../../map-ui/mapSlots";
 import { type CompareScreen, compareTimelineOf, EMPTY_SCREEN, useCompare } from "../compareStore";
 import type { CompareIntent } from "../compareTypes";
 import { handCompare } from "../fixtures/compareHand";
 import { CompareListSection } from "./CompareListSection";
-import { CompareOverlay } from "./CompareOverlay";
+import { CompareOverlay, pillTop, reasonsWidth } from "./CompareOverlay";
 import {
   GREETINGS,
   greetingFor,
@@ -296,6 +297,58 @@ describe("coordinator rulings on the corridor (R29, R30)", () => {
     at(20);
     expect(beat("tag-stop")).toHaveTextContent("3 steps");
     expect(beat("tag-stop")).toHaveTextContent("Demo value · not surveyed");
+  });
+});
+
+describe("the compare's chrome never covers its pills (V2 fix N-a, N-c)", () => {
+  function showInMap() {
+    useCompare.getState().load(handCompare());
+    return render(
+      <QueryClientProvider client={qc}>
+        <div data-testid="map">
+          <CompareOverlay />
+          <TopStack />
+          <BottomStack />
+        </div>
+      </QueryClientProvider>,
+    );
+  }
+
+  it("label, player and reasons card sit in the bottom stack, the top stack stays empty", () => {
+    showInMap();
+    at(5);
+    const top = screen.getByTestId("top-stack");
+    const bottom = screen.getByTestId("bottom-stack");
+    expect(top.querySelector('[data-slot="sim"]')?.childElementCount).toBe(0);
+    const overlay = screen.getByTestId("compare-overlay");
+    expect(bottom.contains(overlay)).toBe(true);
+    // one player on the map: one Exit trip, no separate trip bar
+    expect(screen.getAllByRole("button", { name: "Exit trip" })).toHaveLength(1);
+    expect(screen.queryByTestId("journey-trip-bar")).toBeNull();
+    expect(
+      within(overlay).getByRole("note", {
+        name: "Simulation · indicative times, not a prediction",
+      }),
+    ).toBeInTheDocument();
+    at(1.5);
+    expect(bottom.contains(beat("intro"))).toBe(true);
+    at(33);
+    const card = beat("reasons") as HTMLElement;
+    expect(bottom.contains(card)).toBe(true);
+    // the card comes before the player: the dock is under it, above the decorative note
+    const dock = screen.getByTestId("compare-dock");
+    expect(card.compareDocumentPosition(dock) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("the pills sit below the map's top stack; the card fits the visible map", () => {
+    expect(pillTop(0)).toBe(64);
+    expect(pillTop(65)).toBe(73);
+    expect(reasonsWidth(922)).toBe(760);
+    expect(reasonsWidth(600)).toBe(568);
+    showInMap();
+    at(5);
+    const pill = beat("split-pill-fastest")?.parentElement as HTMLElement;
+    expect(pill.style.top).toBe("64px"); // jsdom: no layout, the top stack measures 0
   });
 });
 
