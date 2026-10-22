@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { collectProbe, registerDomProbe, registerProbe } from "./anchors";
 import { useDevsim } from "./devsimStore";
-import provisional from "./fixtures/plan.provisional.json";
+import provisional from "./fixtures/plan.elmina.json";
 import type { DevelopmentPlan } from "./types";
 
 const plan = provisional as unknown as DevelopmentPlan;
@@ -20,7 +20,7 @@ describe("devsimStore", () => {
   it("seek clamps to [0, total_s]", () => {
     d().start(plan, "brief");
     d().seek(500);
-    expect(d().t).toBe(66);
+    expect(d().t).toBe(45);
     d().seek(-3);
     expect(d().t).toBe(0);
     d().seek(Number.NaN);

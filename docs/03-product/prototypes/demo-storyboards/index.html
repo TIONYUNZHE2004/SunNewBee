@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo Storyboards Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* PROTOTYPE, throwaway. Two 45 s storyboards on a made-up clay block; layout and story only. */
+:root {
+  --ink: #2c2a3a; --ink-soft: #5d5a6e; --paper: #fffaf2; --paper-2: #f4ecdf; --line: #e3d8c6;
+  --ok: #2fa97c; --unknown: #8b7fd6; --fail: #d2544f; --warn: #e8931f; --hero: #f5c518; --sim: #6b8fd6;
+  --display: "Nunito", "Segoe UI", system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: #cfe8f6; color: var(--ink); font-family: var(--display); overflow: hidden; }
+#top { position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 20; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: var(--paper); border-bottom: 2px solid var(--line); }
+#top h1 { font-size: 15px; margin: 0 8px 0 0; }
+.tab { font: inherit; font-weight: 800; border: 0; border-radius: 999px; padding: 7px 14px; background: var(--paper-2); color: var(--ink); cursor: pointer; }
+.tab[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+#proto { margin-left: auto; font-size: 12px; font-weight: 800; color: #7a5a00; background: #fff0c9; padding: 4px 10px; border-radius: 999px; }
+#stage { position: fixed; top: 52px; left: 0; right: 0; bottom: 56px; overflow: hidden; }
+canvas#gl { display: block; width: 100%; height: 100%; }
+#overlay { position: absolute; inset: 0; pointer-events: none; }
+#overlay > *, #bldui { pointer-events: none; }
+#bar { position: fixed; left: 0; right: 0; bottom: 0; height: 56px; z-index: 20; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: var(--paper); border-top: 2px solid var(--line); }
+#bar button { font: inherit; font-weight: 800; border: 0; border-radius: 999px; padding: 7px 14px; background: var(--ink); color: var(--paper); cursor: pointer; min-width: 84px; }
+#scrub { flex: 1; accent-color: var(--ink); }
+#clock { font-family: var(--mono); font-size: 13px; min-width: 92px; text-align: right; }
+#beat { font-size: 13px; color: var(--ink-soft); min-width: 230px; }
+
+.pill { position: absolute; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: var(--paper); box-shadow: 0 2px 0 var(--line); font-weight: 800; font-size: 13px; white-space: nowrap; }
+.pill small { font-weight: 600; color: var(--ink-soft); }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.divider { position: absolute; top: 0; bottom: 0; left: 50%; width: 3px; margin-left: -1px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+
+/* World-anchored tags */
+.tag { position: absolute; transform: translate(-50%, calc(-100% - 12px)); background: var(--paper); border-radius: 12px; padding: 6px 10px; font-size: 12.5px; font-weight: 700; box-shadow: 0 3px 0 var(--line), 0 8px 20px rgba(44,42,58,.15); white-space: nowrap; transition: opacity .2s; }
+.tag::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: inherit; transform: translateX(-50%) rotate(45deg); }
+.tag .k { display: inline-block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: #fff; padding: 1px 7px; border-radius: 999px; margin-right: 6px; vertical-align: 1px; }
+.tag .demo { display: block; font-size: 10.5px; font-weight: 600; color: #7a5a00; margin-top: 2px; }
+.tag.fail { background: #fff1ef; } .tag.unknown { background: #f3f0ff; }
+.bubble { position: absolute; transform: translate(-50%, calc(-100% - 14px)); background: #fff; border-radius: 16px; padding: 7px 12px; font-size: 13px; font-weight: 700; box-shadow: 0 3px 0 #d9e3f5; max-width: 220px; }
+.bubble::after { content: ""; position: absolute; left: 22px; bottom: -7px; width: 14px; height: 14px; background: #fff; transform: rotate(45deg); }
+.bubble .sim { display: block; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: var(--sim); margin-top: 2px; font-weight: 800; }
+
+/* Navigation */
+#tickets { position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 8px; background: var(--paper); border-radius: 999px; padding: 6px 12px 6px 8px; box-shadow: 0 3px 0 var(--line); font-weight: 800; font-size: 13px; }
+#tickets .ic { width: 26px; height: 26px; border-radius: 8px; background: var(--unknown); color: #fff; display: grid; place-items: center; font-size: 14px; }
+#tickets .n { min-width: 22px; height: 22px; border-radius: 11px; background: var(--ink); color: #fff; display: grid; place-items: center; font-size: 12px; }
+#tickets.bump .n { background: var(--unknown); transform: scale(1.25); transition: transform .2s; }
+.ticket { position: absolute; width: 230px; background: var(--paper); border-left: 5px solid var(--unknown); border-radius: 12px; padding: 8px 10px; font-size: 12px; box-shadow: 0 10px 30px rgba(44,42,58,.25); transform: translate(-50%, -50%); }
+.ticket b { display: block; font-size: 12.5px; }
+#toast { position: absolute; top: 58px; right: 12px; width: 300px; background: var(--paper); border-radius: 14px; padding: 10px 12px; box-shadow: 0 3px 0 var(--line), 0 10px 30px rgba(44,42,58,.18); font-size: 12.5px; line-height: 1.4; }
+#toast b { display: block; }
+#reasons { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); background: var(--paper); border-radius: 20px; padding: 14px 18px; box-shadow: 0 4px 0 var(--line), 0 18px 40px rgba(44,42,58,.22); }
+#reasons h2 { margin: 0 0 8px; font-size: 17px; }
+#reasons table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+#reasons th, #reasons td { text-align: left; padding: 5px 8px; border-bottom: 1px dashed var(--line); }
+#reasons th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+#reasons td.good { color: #1f7a57; font-weight: 800; } #reasons td.bad { color: var(--fail); font-weight: 800; }
+#reasons .foot { margin-top: 8px; font-size: 12px; color: var(--ink-soft); display: flex; gap: 14px; flex-wrap: wrap; }
+#reasons .foot span.u { color: #5a4fb0; font-weight: 700; }
+
+/* Building */
+#hyp { position: absolute; top: 12px; left: 12px; }
+#hud { position: absolute; top: 12px; right: 12px; display: grid; grid-template-columns: repeat(4, auto); gap: 2px; background: var(--paper); border-radius: 16px; padding: 8px 10px; box-shadow: 0 3px 0 var(--line); }
+#hud div { padding: 2px 10px; text-align: center; }
+#hud b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
+#hud span { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+#hud em { grid-column: 1 / -1; font-style: normal; font-size: 10.5px; color: #7a5a00; text-align: center; }
+#tl { position: absolute; left: 12px; right: 12px; bottom: 12px; background: var(--paper); border-radius: 16px; padding: 10px 14px 8px; box-shadow: 0 3px 0 var(--line); }
+#tl .track { position: relative; height: 22px; border-radius: 8px; background: var(--paper-2); overflow: hidden; }
+#tl .fill { position: absolute; top: 0; bottom: 0; left: 0; background: #ffd98a; }
+#tl .mon { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(79,127,209,.28) 0 6px, rgba(79,127,209,.12) 6px 12px); }
+#tl .hol { position: absolute; top: 3px; bottom: 3px; width: 2px; background: #c0566b; opacity: .55; }
+#tl .hol.big { width: 4px; opacity: 1; top: 0; bottom: 0; }
+#tl .now { position: absolute; top: -3px; bottom: -3px; width: 3px; background: var(--ink); border-radius: 2px; }
+#tl .labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-soft); margin-top: 4px; }
+#tl .legend { display: flex; gap: 14px; font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+#tl .legend i { display: inline-block; width: 12px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+#banner { position: absolute; top: 66px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--paper); border-radius: 14px; padding: 8px 16px; font-weight: 800; font-size: 14px; box-shadow: 0 10px 30px rgba(44,42,58,.25); text-align: center; }
+#banner small { display: block; font-weight: 600; font-size: 11.5px; opacity: .8; }
+.card { position: absolute; background: var(--paper); border-radius: 18px; padding: 12px 14px; box-shadow: 0 4px 0 var(--line), 0 14px 34px rgba(44,42,58,.18); font-size: 13px; line-height: 1.4; width: 300px; }
+.card h3 { margin: 2px 0 6px; font-size: 15px; }
+.card .row { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dashed var(--line); padding: 3px 0; }
+.card .src { font-size: 11px; color: var(--ink-soft); margin-top: 6px; }
+#brief { position: absolute; top: 0; right: 0; bottom: 0; width: 440px; background: var(--paper); border-left: 2px solid var(--line); overflow-y: auto; padding: 14px 16px 90px; transition: transform .5s; pointer-events: auto; }
+#brief.off { transform: translateX(110%); }
+#brief h2 { margin: 0 0 2px; font-size: 18px; }
+#brief .sub { font-size: 12px; color: var(--ink-soft); margin-bottom: 10px; }
+#brief section { border-top: 2px solid var(--line); padding: 8px 0; }
+#brief h4 { margin: 0 0 4px; font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-soft); }
+#brief .row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 2px 0; }
+#brief .row span:last-child { font-weight: 800; text-align: right; }
+#brief .badge { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 6px; margin-left: 6px; }
+#brief .b-route { background: #e3f4ec; color: #1f7a57; } #brief .b-flood { background: #e6eefc; color: #2f5fb0; } #brief .b-est { background: #fff0c9; color: #7a5a00; } #brief .b-cal { background: #fde7ea; color: #a43a4e; }
+#brief table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+#brief td, #brief th { padding: 3px 4px; text-align: center; border-bottom: 1px dashed var(--line); }
+#brief th:first-child, #brief td:first-child { text-align: left; }
+#brief td.u { color: #5a4fb0; font-weight: 800; }
+#people { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; }
+.person { border: 0; font: inherit; background: var(--paper-2); border-radius: 12px; padding: 6px 4px; cursor: pointer; text-align: center; font-size: 11px; line-height: 1.2; }
+.person:hover, .person:focus-visible { outline: 2px solid var(--ink); }
+.person .av { width: 28px; height: 28px; border-radius: 50%; margin: 0 auto 3px; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 12px; }
+.person small { display: block; color: var(--ink-soft); }
+#detail { background: var(--paper-2); border-radius: 14px; padding: 10px 12px; margin-top: 8px; font-size: 13px; line-height: 1.45; }
+#detail h5 { margin: 0; font-size: 15px; }
+#detail .meta { font-size: 12px; color: var(--ink-soft); margin-bottom: 6px; }
+#detail .ph { margin: 6px 0; padding: 6px 8px; background: var(--paper); border-radius: 10px; }
+#detail .ph b { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); display: block; }
+#detail .facts { font-size: 12px; background: #e3f4ec; border-radius: 10px; padding: 6px 8px; }
+#detail button { font: inherit; font-size: 12px; font-weight: 800; border: 0; background: none; color: var(--ink-soft); cursor: pointer; padding: 0; margin-bottom: 4px; }
+.simtag { font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: var(--sim); font-weight: 800; }
+#resBtn { position: absolute; left: 12px; top: 60px; pointer-events: auto; display: flex; align-items: center; gap: 8px; font: inherit; font-weight: 800; font-size: 14px; border: 0; border-radius: 999px; padding: 8px 16px 8px 8px; background: var(--ink); color: var(--paper); cursor: pointer; box-shadow: 0 6px 20px rgba(44,42,58,.3); animation: pulse 1.6s ease-in-out infinite; }
+#resBtn .avs { display: flex; } #resBtn .avs i { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--ink); margin-right: -7px; }
+#resBtn .avs { margin-right: 8px; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 8px rgba(245,197,24,.35), 0 6px 20px rgba(44,42,58,.3); } }
+#resPanel { position: absolute; left: 12px; top: 108px; bottom: 120px; width: 400px; background: var(--paper); border-radius: 18px; padding: 12px 14px; box-shadow: 0 4px 0 var(--line), 0 18px 40px rgba(44,42,58,.25); overflow-y: auto; pointer-events: auto; }
+.rp-head { display: flex; justify-content: space-between; align-items: center; font-size: 16px; }
+.rp-head button { border: 0; background: var(--paper-2); border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font: inherit; }
+.rp-sub { font-size: 12px; color: var(--ink-soft); margin: 2px 0 6px; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="top">
+  <h1>Demo storyboards</h1>
+  <button class="tab" data-demo="nav" aria-pressed="true">1 · Navigation (wheelchair)</button>
+  <button class="tab" data-demo="bld" aria-pressed="false">2 · Building (management)</button>
+  <span id="proto">PROTOTYPE · made-up map · every number is a placeholder</span>
+</div>
+
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <div id="overlay">
+    <!-- Navigation overlay -->
+    <div id="navui">
+      <div class="divider" id="divider"></div>
+      <div class="pill" style="top:12px;left:12px"><span class="dot" style="background:#e07a3a"></span>Fastest route <small id="lmin"></small></div>
+      <div class="pill" style="top:12px;left:calc(50% + 12px)"><span class="dot" style="background:var(--ok)"></span>Recommended · step-free <small id="rmin"></small></div>
+      <div class="pill" style="top:52px;left:12px"><small>Wheelchair · Car Park B → Playground</small></div>
+      <div id="tickets"><span class="ic">✓</span>Tickets <span class="n" id="tn">0</span></div>
+      <div class="ticket" id="flyer" hidden><b>Survey queued</b>Incline not checked on this path</div>
+      <div id="toast" hidden><b>Survey ticket queued for staff</b>Incline on 40 m of the recommended path is not checked yet. Checking it would confirm <b style="display:inline">7 wheelchair trips</b>. <span class="simtag" style="color:#7a5a00">placeholder N</span></div>
+      <div id="reasons" hidden>
+        <h2>Recommended: the step-free route (+<span id="dmin"></span> min)</h2>
+        <table>
+          <tr><th></th><th>Fastest</th><th>Recommended</th></tr>
+          <tr><td>Steps</td><td class="bad">3 steps ✗</td><td class="good">None ✓</td></tr>
+          <tr><td>Steepest slope</td><td>6%</td><td class="good">4% (limit 8.3%)</td></tr>
+          <tr><td>Narrowest point</td><td class="bad">0.9 m</td><td class="good">1.2 m</td></tr>
+          <tr><td>Covered from sun and rain</td><td>10%</td><td class="good">45%</td></tr>
+          <tr><td>Rest stop on the way</td><td>None</td><td class="good">Bench at 300 m</td></tr>
+        </table>
+        <div class="foot"><span>Reasons use checked facts only.</span><span class="u">? Not checked yet: incline on 40 m of the recommended path (survey queued; it did not count for or against).</span><span>Demo values · not surveyed</span></div>
+      </div>
+    </div>
+    <!-- Building overlay -->
+    <div id="bldui" hidden>
+      <div class="pill" id="hyp"><span class="dot" style="background:var(--hero)"></span>Hypothetical tower · not an SDP project <small>30 storeys · ~500 homes</small></div>
+      <div id="hud">
+        <div><b id="hMonth">0</b><span>Month</span></div>
+        <div><b id="hFloors">0/30</b><span>Floors</span></div>
+        <div><b id="hCost">RM 0 M</b><span>Spent (est.)</span></div>
+        <div><b id="hLost">0 d</b><span>Days lost</span></div>
+        <em>Estimate from published benchmarks · placeholder values</em>
+      </div>
+      <div id="banner" hidden></div>
+      <div class="card" id="hoard" style="top:60px;left:12px" hidden>
+        <h3>Hoarding impact</h3>
+        <div class="row"><span>Homes with a ≥2-min longer walk</span><b>38</b></div>
+        <div class="row"><span>Longest extra walk</span><b>4 min</b></div>
+        <div class="row"><span>Step-free links cut (wheelchair)</span><b>1</b></div>
+        <div class="row"><span>Best hoarding side</span><b>North (−21 homes)</b></div>
+        <div class="src">Routing engine · placeholder numbers</div>
+      </div>
+      <button id="resBtn" hidden><span class="avs"><i style="background:#c0566b"></i><i style="background:#4f7fd1"></i><i style="background:#2fa97c"></i></span>Simulated residents · 40</button>
+      <div id="resPanel" hidden>
+        <div class="rp-head"><b>Simulated residents · 40</b><button id="resClose" aria-label="Close">✕</button></div>
+        <div class="rp-sub">20 move into the tower, 20 live nearby · <span class="simtag">Simulated reactions</span></div>
+        <div id="people"></div>
+        <div id="detail" hidden></div>
+      </div>
+      <div id="tl">
+        <div class="track" id="track"><div class="fill" id="fill"></div><div class="now" id="now"></div></div>
+        <div class="labels"><span>Jan 2027 · site possession</span><span>Jan 2028</span><span>Jan 2029</span><span>Jan 2030 · handover</span></div>
+        <div class="legend"><span><i style="background:#c0566b"></i>Public holiday (all shown as ticks)</span><span><i style="background:rgba(79,127,209,.4)"></i>Northeast monsoon (Nov–Mar)</span><span><i style="background:#ffd98a"></i>Progress</span></div>
+      </div>
+      <aside id="brief" class="off" aria-label="Impact brief">
+        <h2>Impact brief</h2>
+        <div class="sub">Hypothetical tower on a real parcel · facts from the world model, estimates labelled</div>
+        <section><h4>During construction</h4>
+          <div class="row"><span>Homes with a ≥2-min longer walk <span class="badge b-route">ROUTE</span></span><span>38 · max 4 min</span></div>
+          <div class="row"><span>Lorry route passes a school <span class="badge b-route">ROUTE</span></span><span>SK Elmina · 7–8 am</span></div>
+          <div class="row"><span>Duration <span class="badge b-est">ESTIMATE</span></span><span>36 months</span></div>
+          <div class="row"><span>Days lost: holidays · rain <span class="badge b-cal">CALENDAR</span></span><span>41 · 28</span></div>
+          <div class="row"><span>Construction cost <span class="badge b-est">ESTIMATE</span></span><span>RM 260 M</span></div>
+        </section>
+        <section><h4>At handover</h4>
+          <div class="row"><span>Entrance road cut from <span class="badge b-flood">FLOOD</span></span><span>+3 m scenario</span></div>
+          <div class="row"><span>Nearest evacuation candidate</span><span>9 min walk</span></div>
+          <div class="row" style="font-size:11px;color:var(--ink-soft)"><span>Indicative scenario, not a forecast.</span><span></span></div>
+        </section>
+        <section><h4>Daily life (walk minutes)</h4>
+          <table><tr><th></th><th>Walk</th><th>Stroller</th><th>Wheelchair</th></tr>
+            <tr><td>Urban park</td><td>6</td><td>7</td><td>8</td></tr>
+            <tr><td>Lakeside mall</td><td>12</td><td>14</td><td class="u">?</td></tr>
+            <tr><td>Clinic</td><td>9</td><td>10</td><td>11</td></tr>
+            <tr><td>School</td><td>7</td><td class="u">?</td><td class="u">?</td></tr></table>
+          <div style="font-size:11px;color:#5a4fb0;margin-top:3px">? = a path on the way is not checked yet</div>
+        </section>
+      </aside>
+    </div>
+    <div id="anchors"></div>
+  </div>
+</div>
+
+<div id="bar">
+  <button id="play">Play</button>
+  <input id="scrub" type="range" min="0" max="45" step="0.05" value="0" aria-label="Timeline">
+  <span id="beat"></span>
+  <span id="clock">0.0 / 45 s</span>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from "three";
+
+const TOTAL = 45;
+const $ = (id) => document.getElementById(id);
+const stage = $("stage"), anchors = $("anchors");
+const renderer = new THREE.WebGLRenderer({ canvas: $("gl"), antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.toneMapping = THREE.NeutralToneMapping;
+
+// ---------- shared clay helpers ----------
+const mats = new Map();
+const mat = (c, extra = {}) => {
+  const key = c + JSON.stringify(extra);
+  if (!mats.has(key)) mats.set(key, new THREE.MeshStandardMaterial({ color: c, roughness: 0.92, flatShading: true, ...extra }));
+  return mats.get(key);
+};
+function box(scene, w, h, d, c, x, y, z, opts = {}) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), opts.material ?? mat(c));
+  m.position.set(x, y + h / 2, z); m.castShadow = opts.shadow ?? true; m.receiveShadow = true;
+  scene.add(m); return m;
+}
+function tree(scene, x, z, s = 1) {
+  box(scene, 0.8 * s, 4 * s, 0.8 * s, 0x8a5a3c, x, 0, z);
+  const c = new THREE.Mesh(new THREE.IcosahedronGeometry(3.2 * s, 0), mat(0x5fae6a));
+  c.position.set(x, 5.5 * s, z); c.castShadow = true; scene.add(c);
+}
+function person(color, h = 3.2) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, h * 0.55, 8), mat(color));
+  body.position.y = h * 0.3; body.castShadow = true; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(h * 0.2, 12, 10), mat(0xf1c9a5));
+  head.position.y = h * 0.72; head.castShadow = true; g.add(head);
+  return g;
+}
+function baseScene() {
+  const s = new THREE.Scene();
+  s.background = new THREE.Color(0xcfe8f6);
+  s.fog = new THREE.Fog(0xcfe8f6, 260, 520);
+  s.add(new THREE.HemisphereLight(0xfff6e8, 0x9fb5a0, 1.6));
+  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+  sun.position.set(80, 140, 60); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -220, right: 220, top: 220, bottom: -220, far: 500 });
+  s.add(sun);
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), mat(0xb9d6a3));
+  g.rotation.x = -Math.PI / 2; g.receiveShadow = true; s.add(g);
+  return s;
+}
+function road(scene, x1, z1, x2, z2, w = 10, c = 0x9aa0ab) {
+  const len = Math.hypot(x2 - x1, z2 - z1);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, len + w), mat(c));
+  m.position.set((x1 + x2) / 2, 0.07, (z1 + z2) / 2);
+  m.rotation.y = Math.atan2(x2 - x1, z2 - z1); m.receiveShadow = true; scene.add(m);
+}
+function ribbon(scene, pts, color, w = 2.6, y = 0.35) {
+  const g = new THREE.Group();
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [x1, z1] = pts[i], [x2, z2] = pts[i + 1];
+    const len = Math.hypot(x2 - x1, z2 - z1);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.25, len + w * 0.5), mat(color, { emissive: color, emissiveIntensity: 0.25 }));
+    m.position.set((x1 + x2) / 2, y, (z1 + z2) / 2); m.rotation.y = Math.atan2(x2 - x1, z2 - z1);
+    g.add(m);
+  }
+  scene.add(g); return g;
+}
+function polyline(pts) {
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const L = cum[cum.length - 1];
+  return {
+    L, cum,
+    at(d) {
+      d = Math.max(0, Math.min(L, d));
+      let i = 1; while (i < cum.length - 1 && cum[i] < d) i++;
+      const [x1, z1] = pts[i - 1], [x2, z2] = pts[i];
+      const f = (d - cum[i - 1]) / (cum[i] - cum[i - 1] || 1);
+      return { x: x1 + (x2 - x1) * f, z: z1 + (z2 - z1) * f, h: Math.atan2(x2 - x1, z2 - z1) };
+    },
+  };
+}
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const ease = (v) => v * v * (3 - 2 * v);
+const win = (t, a, b) => t >= a && t < b;
+
+// World-anchored HTML (tags, bubbles). view: "L" | "R" | "M"
+function makeAnchor(html, cls, pos, view, from, to) {
+  const el = document.createElement("div");
+  el.className = cls; el.innerHTML = html; el.hidden = true; anchors.appendChild(el);
+  return { el, pos: new THREE.Vector3(...pos), view, from, to };
+}
+function project(v, cam, rect) {
+  const p = v.clone().project(cam);
+  return { x: rect.x + (p.x + 1) / 2 * rect.w, y: (1 - p.y) / 2 * rect.h, behind: p.z > 1 };
+}
+
+// ================= NAVIGATION =================
+const nav = (() => {
+  const scene = baseScene();
+  // blocks and streets
+  for (const x of [-120, -60, 0, 60, 120]) road(scene, x, -140, x, 140, 8);
+  for (const z of [-90, -30, 30, 90]) road(scene, -150, z, 150, z, 8);
+  const blocks = [];
+  for (const x of [-90, -30, 30, 90]) for (const z of [-60, 0, 60]) {
+    if ((x === -30 && z === 0) || (x === 90 && z === -60) || (x === -90 && z === 60)) continue; // plaza, playground, car park
+    blocks.push([x, z]);
+  }
+  blocks.forEach(([x, z], i) => {
+    const h = 8 + ((i * 37) % 5) * 5;
+    box(scene, 34, h, 30, [0xf2d7b6, 0xe8c4c4, 0xd7e3f0, 0xf0e2b8][i % 4], x, 0, z);
+  });
+  for (let i = 0; i < 40; i++) tree(scene, -140 + ((i * 53) % 280), -130 + ((i * 89) % 260), 0.8);
+  // raised plaza with steps where the fast route leaves it
+  box(scene, 50, 1.6, 50, 0xe6dccb, -30, 0, 0);
+  const steps = new THREE.Group(); steps.position.set(-7, 0, -23); steps.rotation.y = Math.PI / 4; scene.add(steps);
+  for (let k = 0; k < 3; k++) box(steps, 10, 1.6 - k * 0.5, 2.4, 0xcfc3ae, 0, 0, k * 2.4);
+  // car park, playground
+  box(scene, 34, 0.3, 30, 0xa7adb6, -90, 0, 60, { shadow: false });
+  box(scene, 34, 0.4, 30, 0xf5c518, 90, 0, -60);
+  const slide = box(scene, 3, 4, 8, 0xe07a3a, 92, 0, -62);
+  // covered walkway (translucent roof so the camera still sees the rider), bench
+  for (let x = -55; x <= -5; x += 10) { box(scene, 0.6, 6, 0.6, 0x7d8a99, x, 0, 95); box(scene, 0.6, 6, 0.6, 0x7d8a99, x, 0, 85); }
+  box(scene, 54, 0.5, 11, 0x4f7fd1, -30, 6, 90, { material: new THREE.MeshStandardMaterial({ color: 0x4f7fd1, transparent: true, opacity: 0.45 }), shadow: true });
+  box(scene, 4, 1.1, 1.4, 0x8a5a3c, 5, 0, 0);
+
+  const fastPts = [[-60, 90], [-60, 30], [0, -30], [60, -30]];
+  const recPts = [[-60, 90], [0, 90], [0, -30], [60, -30]];
+  const fast = polyline(fastPts), rec = polyline(recPts);
+  ribbon(scene, fastPts, 0xe07a3a, 2.2, 1.75);
+  ribbon(scene, recPts, 0x2fa97c, 2.6, 0.5);
+  ribbon(scene, [[-11, -19], [-4, -26]], 0xd2544f, 3.4, 1.8); // steps: known FAIL
+  ribbon(scene, [[0, 50], [0, 12]], 0x8b7fd6, 3.0, 0.6); // not checked yet
+  const STEPS_D = 60 + Math.hypot(49, 49);
+  const greeter = person(0xc0566b, 4.2); greeter.position.set(-22, 0, 97); greeter.scale.setScalar(1.3); scene.add(greeter);
+
+  function chair(color) {
+    const g = new THREE.Group();
+    box(g, 2.6, 0.5, 2.6, 0x34405a, 0, 1.2, 0, { shadow: true });
+    box(g, 2.6, 2.4, 0.4, 0x34405a, 0, 1.4, -1.2);
+    const wheels = [];
+    for (const sx of [-1.5, 1.5]) {
+      const w = new THREE.Mesh(new THREE.TorusGeometry(1.3, 0.28, 6, 14), mat(0x222831));
+      w.rotation.y = Math.PI / 2; w.position.set(sx, 1.3, -0.2); g.add(w); wheels.push(w);
+    }
+    const p = person(color, 3.6); p.position.set(0, 1.0, -0.2); p.scale.setScalar(0.95); g.add(p);
+    g.scale.setScalar(1.3); scene.add(g); return { g, wheels };
+  }
+  const L = chair(0xe07a3a), R = chair(0x2fa97c);
+
+  const camL = new THREE.PerspectiveCamera(50, 1, 1, 1200), camR = camL.clone();
+  const T0 = 3, SPEED = rec.L / 26; // both start at 3 s; recommended arrives at 29 s
+  const lMin = Math.round(fast.L * 1.5 / 50), rMin = Math.round(rec.L * 1.5 / 50);
+  $("lmin").textContent = `· ${lMin} min walking`; $("rmin").textContent = `· ${rMin} min`; $("dmin").textContent = String(rMin - lMin);
+
+  const tags = [
+    makeAnchor('<span class="k" style="background:#2fa97c">Kerb ramp</span>Flush kerb<span class="demo">Demo value · not surveyed</span>', "tag", [-56, 4, 90], "R", 3, 5.5),
+    makeAnchor('<span class="k" style="background:#4f7fd1">Covered</span>Covered walkway · 60 m', "tag", [-38, 9, 90], "R", 4.5, 7),
+    makeAnchor('<span class="k" style="background:#2fa97c">Slope</span>Ramp 4% (limit 8.3%)', "tag", [0, 4, 75], "R", 10.3, 13.3),
+    makeAnchor('<span class="k" style="background:#8b7fd6">? Not checked yet</span>Incline on this 40 m<span class="demo">Not counted for or against</span>', "tag unknown", [0, 4, 31], "R", 13.6, 18),
+    makeAnchor('<span class="k" style="background:#4f7fd1">Rest</span>Bench · shaded', "tag", [5, 4, 0], "R", 19.5, 23),
+    makeAnchor('<span class="k" style="background:#d2544f">Not passable</span>3 steps · no ramp<span class="demo">Demo value · not surveyed</span>', "tag fail", [-8, 5, -22], "L", 16.7, 31),
+    makeAnchor('<span class="k" style="background:#e07a3a">Fastest</span>Through the plaza', "tag", [-40, 5, 10], "L", 10, 14),
+    makeAnchor('Selamat pagi! 👋<span class="sim">Simulated resident</span>', "bubble", [-22, 7.5, 97], "R", 7, 10),
+    makeAnchor('<span class="k" style="background:#2fa97c">Arrived</span>Playground · step-free', "tag", [60, 5, -30], "R", 29, 31.5),
+  ];
+  for (const a of tags) a.el.dataset.demo = "nav";
+
+  const beats = [[0, "Brief: wheelchair, Car Park B → Playground"], [3, "Both routes start together"], [13.6, "Unchecked stretch → survey ticket"], [16.7, "Fastest route stops at 3 steps"], [29, "Recommended route arrives"], [31, "Why this route"]];
+
+  function chase(cam, p, t, vw) {
+    const back = 42, up = 26;
+    const tx = p.x - Math.sin(p.h) * back, tz = p.z - Math.cos(p.h) * back;
+    const over = ease(clamp01((t - 30.5) / 1.5));
+    const ox = 0, oz = 95, oy = 190;
+    const want = new THREE.Vector3(tx + (ox - tx) * over, up + (oy - up) * over, tz + (oz + 120 - tz) * over);
+    if (cam.position.lengthSq() === 0 || t < 0.2) cam.position.copy(want); else cam.position.lerp(want, 0.08);
+    const look = new THREE.Vector3(p.x + Math.sin(p.h) * 12 + (ox - p.x) * over, 0, p.z + Math.cos(p.h) * 12 + (oz - 20 - p.z) * over);
+    cam.lookAt(look);
+    cam.aspect = vw; cam.updateProjectionMatrix();
+  }
+
+  function update(t, W, H) {
+    const dR = Math.max(0, (t - T0) * SPEED), dL = Math.min(dR, STEPS_D - 2);
+    for (const [who, line, d] of [[L, fast, dL], [R, rec, dR]]) {
+      const p = line.at(d);
+      who.g.position.set(p.x, line === fast && d > 62 ? 1.9 : 0.4, p.z); who.g.rotation.y = p.h;
+      for (const w of who.wheels) w.rotation.x = d / 1.3;
+    }
+    greeter.rotation.y = Math.sin(t * 3) * 0.3 * (win(t, 10.5, 14.5) ? 1 : 0);
+    slide.rotation.y = 0;
+    const aspect = (W / 2) / H;
+    chase(camL, { ...fast.at(dL) }, t, aspect);
+    chase(camR, { ...rec.at(dR) }, t, aspect);
+    const rects = { L: { x: 0, w: W / 2, h: H }, R: { x: W / 2, w: W / 2, h: H } };
+    const merged = t >= 31.5;
+    $("divider").hidden = merged;
+    if (merged) {
+      camR.aspect = W / H; camR.updateProjectionMatrix();
+      renderer.setViewport(0, 0, W, H); renderer.render(scene, camR);
+      for (const a of tags) a.el.hidden = true;
+    } else {
+    renderer.setScissorTest(true);
+    renderer.setViewport(0, 0, W / 2, H); renderer.setScissor(0, 0, W / 2, H); renderer.render(scene, camL);
+    renderer.setViewport(W / 2, 0, W / 2, H); renderer.setScissor(W / 2, 0, W / 2, H); renderer.render(scene, camR);
+    renderer.setScissorTest(false);
+    for (const a of tags) {
+      const on = win(t, a.from, a.to);
+      a.el.hidden = !on; if (!on) continue;
+      const s = project(a.pos, a.view === "L" ? camL : camR, rects[a.view]);
+      const inside = !s.behind && s.x > rects[a.view].x + 20 && s.x < rects[a.view].x + rects[a.view].w - 20;
+      a.el.style.opacity = inside ? 1 : 0;
+      a.el.style.left = `${s.x}px`; a.el.style.top = `${s.y}px`;
+    }
+    }
+    // ticket flight: from the unchecked stretch to the Tickets chip
+    const fl = $("flyer"), fT0 = 17.6, fT1 = 19.4;
+    fl.hidden = !win(t, fT0, fT1);
+    if (!fl.hidden) {
+      const s = project(new THREE.Vector3(0, 4, 31), camR, rects.R);
+      const k = ease((t - fT0) / (fT1 - fT0));
+      const ex = W - 70, ey = 24;
+      fl.style.left = `${s.x + (ex - s.x) * k}px`; fl.style.top = `${s.y + (ey - s.y) * k - Math.sin(k * Math.PI) * 60}px`;
+      fl.style.transform = `translate(-50%,-50%) scale(${1 - 0.75 * k})`; fl.style.opacity = String(1 - 0.6 * k);
+    }
+    $("tn").textContent = t >= fT1 ? "1" : "0";
+    $("tickets").classList.toggle("bump", win(t, fT1, fT1 + 0.6));
+    $("toast").hidden = !win(t, fT1, 25);
+    $("reasons").hidden = t < 32;
+  }
+  return { update, beats };
+})();
+
+// ================= BUILDING =================
+const bld = (() => {
+  const scene = baseScene();
+  for (const x of [-150, -50, 50, 150]) road(scene, x, -200, x, 200, 10);
+  for (const z of [-110, -20, 70]) road(scene, -220, z, 220, z, 10);
+  // neighbourhood: terrace rows, school, park, mall
+  for (let i = 0; i < 12; i++) {
+    box(scene, 12, 7, 10, [0xf2d7b6, 0xe8c4c4, 0xd7e3f0][i % 3], -120 + (i % 4) * 16, 0, 20 + Math.floor(i / 4) * 14);
+    box(scene, 12, 7, 10, [0xf0e2b8, 0xe8c4c4, 0xd7e3f0][i % 3], 70 + (i % 4) * 16, 0, -60 + Math.floor(i / 4) * 14);
+  }
+  box(scene, 40, 10, 22, 0xf3b6a0, -100, 0, -60); // school
+  const flag = box(scene, 0.5, 14, 0.5, 0x777777, -78, 0, -48);
+  box(scene, 60, 14, 40, 0xc8d3e8, -100, 0, 130); // mall
+  for (let i = 0; i < 14; i++) tree(scene, 80 + (i % 5) * 14, 100 + Math.floor(i / 5) * 14, 1.1); // park
+  const play = box(scene, 26, 0.4, 20, 0xf5c518, 120, 0, 120);
+  for (let i = 0; i < 30; i++) tree(scene, -200 + ((i * 71) % 400), -190 + ((i * 113) % 380), 0.9);
+  // parcel
+  box(scene, 80, 0.3, 70, 0xc9a77c, 0, 0, 25, { shadow: false });
+  const carpark = box(scene, 30, 0.35, 24, 0xa7adb6, 26, 0, 46, { shadow: false });
+
+  // hoarding
+  const hoard = new THREE.Group(); scene.add(hoard);
+  for (const [x, z, w, d] of [[0, -10, 82, 1], [0, 60, 82, 1], [-41, 25, 1, 70], [41, 25, 1, 70]]) box(hoard, w, 4, d, 0xe8931f, x, 0, z);
+  const detour = ribbon(scene, [[-50, 0], [-50, -20], [50, -20], [50, 70]], 0xd2544f, 1.8, 0.4);
+  // tower floors
+  const floors = [], FL = 30, FH = 1.6;
+  const podium = box(scene, 34, 6, 30, 0xe6dccb, -6, 0, 25);
+  for (let i = 0; i < FL; i++) floors.push(box(scene, 22, FH * 0.92, 20, i % 2 ? 0xf6efe3 : 0xefe4d2, -6, 6 + i * FH, 25));
+  const roof = box(scene, 23, 1.2, 21, 0x7d8a99, -6, 6 + FL * FH, 25);
+  // windows (instanced; lit at handover)
+  const winGeo = new THREE.BoxGeometry(3, 0.8, 0.3);
+  const winMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, emissive: 0xffffff, emissiveIntensity: 0 });
+  const wins = new THREE.InstancedMesh(winGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }), FL * 16);
+  const order = [];
+  { const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1); let n = 0;
+    for (let f = 0; f < FL; f++) for (let side = 0; side < 4; side++) for (let k = 0; k < 4; k++) {
+      const off = -7.5 + k * 5, y = 6 + f * FH + 0.7;
+      const pos = side === 0 ? [-6 + off, y, 35.1] : side === 1 ? [-6 + off, y, 14.9] : side === 2 ? [4.9, y, 25 + off] : [-16.9, y, 25 + off];
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), side >= 2 ? Math.PI / 2 : 0);
+      m.compose(new THREE.Vector3(...pos), q, s); wins.setMatrixAt(n, m); wins.setColorAt(n, new THREE.Color(0x56627a));
+      order.push(((n * 2654435761) % 1000) / 1000); n++;
+    } }
+  scene.add(wins); winMat.dispose();
+  // scaffold + netting
+  const net = new THREE.Mesh(new THREE.BoxGeometry(25, 1, 23), new THREE.MeshStandardMaterial({ color: 0x3fa35b, transparent: true, opacity: 0.45, roughness: 1 }));
+  scene.add(net);
+  const scaf = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(25.5, 1, 23.5, 4, 1, 4)), new THREE.LineBasicMaterial({ color: 0x8a6d3b }));
+  scene.add(scaf);
+  // crane
+  const crane = new THREE.Group(); scene.add(crane); crane.position.set(18, 0, 8);
+  box(crane, 2, 72, 2, 0xf5c518, 0, 0, 0);
+  const jib = new THREE.Group(); jib.position.y = 72; crane.add(jib);
+  box(jib, 56, 1.6, 1.6, 0xf5c518, 18, 0, 0); box(jib, 3, 3, 3, 0x555555, -12, -1.5, 0);
+  const hook = box(jib, 0.3, 30, 0.3, 0x333333, 30, -30, 0);
+  const load = box(jib, 4, 2, 4, 0x8a6d3b, 30, -32, 0);
+  // piling rig
+  const rig = new THREE.Group(); scene.add(rig);
+  box(rig, 6, 3, 8, 0xd2544f, 0, 0, 0); box(rig, 1.2, 24, 1.2, 0x333333, 0, 3, 3);
+  // lorries on the lorry route (closed loop: in on one lane, out on the other)
+  const lorryLoop = polyline([[-220, -17], [-50, -17], [-20, -17], [-20, -8], [-26, -8], [-26, -23], [-50, -23], [-220, -23], [-220, -17]]);
+  const lorries = [0, 1, 2].map(() => { const g = new THREE.Group(); box(g, 4.5, 4, 9, 0xf0f0f0, 0, 0.6, -1.5); box(g, 4.5, 3.5, 3.5, 0xe07a3a, 0, 0.6, 4.6); scene.add(g); return g; });
+  const lorryRouteRibbon = ribbon(scene, [[-220, -20], [-20, -20], [-20, -10]], 0xe8931f, 1.4, 0.3);
+  // workers
+  const workers = Array.from({ length: 14 }, (_, i) => { const p = person(0xf5c518, 3); scene.add(p); p.userData.seed = i; return p; });
+  // move-in: moving lorries, boxes, residents, cars, kids
+  const movers = [0, 1].map(() => { const g = new THREE.Group(); box(g, 5, 5.5, 11, 0x4f7fd1, 0, 0.6, 0); scene.add(g); return g; });
+  const boxes = Array.from({ length: 10 }, (_, i) => box(scene, 1.6, 1.6, 1.6, 0xc49a6c, -2 + (i % 5) * 2, 0, 44 + Math.floor(i / 5) * 2));
+  const newcomers = Array.from({ length: 12 }, (_, i) => { const p = person([0xc0566b, 0x4f7fd1, 0x2fa97c, 0xe07a3a][i % 4], 3.4); scene.add(p); return p; });
+  const cars = Array.from({ length: 8 }, (_, i) => { const g = new THREE.Group(); box(g, 3.4, 2, 6, [0xd2544f, 0xf0f0f0, 0x34405a, 0x8b7fd6][i % 4], 0, 0.5, 0); scene.add(g); return g; });
+  const kids = Array.from({ length: 6 }, (_, i) => { const p = person([0xf5c518, 0xe8931f, 0x8b7fd6][i % 3], 2.2); scene.add(p); return p; });
+  // rain
+  const RN = 2500, rainGeo = new THREE.BufferGeometry(), rainBase = new Float32Array(RN * 3);
+  for (let i = 0; i < RN; i++) { rainBase[i * 3] = (Math.random() - 0.5) * 360; rainBase[i * 3 + 1] = Math.random() * 120; rainBase[i * 3 + 2] = (Math.random() - 0.5) * 360; }
+  rainGeo.setAttribute("position", new THREE.BufferAttribute(rainBase.slice(), 3));
+  const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0x6b8fd6, size: 0.9, transparent: true, opacity: 0.7 }));
+  scene.add(rain);
+
+  const cam = new THREE.PerspectiveCamera(42, 1, 1, 1500);
+
+  // calendar: months from Jan 2027 (approximate placeholder dates)
+  const HOL = [];
+  const yearly = [[0.0, "New Year"], [1.15, "Chinese New Year"], [4.0, "Labour Day"], [4.6, "Wesak"], [5.2, "Agong's Birthday"], [7.97, "Merdeka"], [8.5, "Malaysia Day"], [9.9, "Deepavali"], [11.8, "Christmas"]];
+  const raya = [2.6, 13.9, 25.5], haji = [4.9, 16.6, 28.1];
+  for (let y = 0; y < 3; y++) { for (const [m, n] of yearly) HOL.push({ m: y * 12 + m, n }); HOL.push({ m: raya[y], n: "Hari Raya Aidilfitri", big: y === 1 }); HOL.push({ m: haji[y], n: "Hari Raya Haji" }); }
+  const MONSOON = [[0, 3], [10, 15], [22, 27], [34, 36]];
+  const track = $("track");
+  for (const [a, b] of MONSOON) { const d = document.createElement("div"); d.className = "mon"; d.style.left = `${a / 36 * 100}%`; d.style.width = `${(b - a) / 36 * 100}%`; track.appendChild(d); }
+  for (const h of HOL) { const d = document.createElement("div"); d.className = "hol" + (h.big ? " big" : ""); d.title = h.n; d.style.left = `${h.m / 36 * 100}%`; track.appendChild(d); }
+  track.appendChild($("now"));
+
+  // real seconds -> project month, with a hold at Hari Raya and a slow monsoon stretch
+  const KEYS = [[0, 0], [3, 0], [11, 13.9], [13, 13.9], [18.5, 22], [23, 27], [27, 36], [45, 36]];
+  function month(t) {
+    for (let i = 1; i < KEYS.length; i++) if (t <= KEYS[i][0]) { const [a, ma] = KEYS[i - 1], [b, mb] = KEYS[i]; return ma + (mb - ma) * ((t - a) / (b - a || 1)); }
+    return 36;
+  }
+  const inMonsoon = (m) => MONSOON.some(([a, b]) => m >= a && m < b);
+
+  const tags = [
+    makeAnchor('<span class="k" style="background:#d2544f">Detour</span>Footpath closed · +4 min for 38 homes', "tag fail", [-50, 4, -10], "M", 4, 9.5),
+    makeAnchor('<span class="k" style="background:#e8931f">Lorry route</span>Passes SK Elmina · 7–8 am', "tag", [-80, 14, -40], "M", 8.5, 12.5),
+    makeAnchor('Bising sikit pagi-pagi… tapi ok la.<span class="sim">Simulated · Pak Cik Halim</span>', "bubble", [-104, 9, 34], "M", 5.5, 9),
+    makeAnchor('Hujan lagi, crane stop.<span class="sim">Simulated · site worker</span>', "bubble", [10, 14, 10], "M", 19.5, 22.5),
+    makeAnchor('Dapat kunci! Finally home.<span class="sim">Simulated · Mei Ling</span>', "bubble", [-2, 7, 46], "M", 28.5, 32),
+    makeAnchor('Jom main!<span class="sim">Simulated · Arjun, 7</span>', "bubble", [120, 5, 120], "M", 33, 36.5),
+  ];
+
+  const beats = [[0, "Brief: hypothetical tower on a real parcel"], [3, "Hoarding up → impact summary"], [8.5, "Lorries, crane, floors rising"], [11, "Hari Raya: site closed ~2 weeks"], [18.5, "Northeast monsoon slows work"], [27, "Handover: move-in day"], [33, "Daily life + impact brief · residents button appears"], [39, "Tap Simulated residents · 40"], [41, "Open one resident"]];
+
+  let lastMonth = -1;
+  function update(t, W, H) {
+    const m = month(t), building = t >= 3 && t < 27, handover = t >= 27;
+    const raining = building && inMonsoon(m), raya = win(t, 11, 13), slow = win(t, 18.5, 23);
+    // tower progress
+    const fl = Math.round(clamp01((m - 6) / 26) * FL);
+    podium.visible = m > 4;
+    floors.forEach((f, i) => (f.visible = i < fl));
+    roof.visible = fl >= FL;
+    wins.count = fl * 16;
+    const lit = clamp01((t - 28) / 6);
+    const c = new THREE.Color();
+    for (let i = 0; i < FL * 16; i++) wins.setColorAt(i, c.set(handover && order[i] < lit * 0.85 ? 0xffd27a : 0x56627a));
+    wins.instanceColor.needsUpdate = true;
+    const topY = 6 + fl * FH + 2;
+    net.visible = scaf.visible = building && fl > 0;
+    net.scale.y = scaf.scale.y = Math.max(1, topY - 6); net.position.set(-6, 6 + (topY - 6) / 2, 25); scaf.position.copy(net.position);
+    hoard.visible = t >= 3.5 && !handover; detour.visible = t >= 4 && !handover;
+    lorryRouteRibbon.visible = win(t, 8.5, 27);
+    crane.visible = building;
+    if (building && !raya && !(slow && raining)) jib.rotation.y = Math.sin(t * 0.7) * 1.3;
+    load.position.y = -32 + Math.sin(t * 1.4) * 6; hook.scale.y = 1;
+    rig.visible = win(t, 3.5, 8.5); rig.position.set(-14 + Math.round(((t * 1.5) % 5)) * 4, 0.3, 18 + Math.round(((t * 0.7) % 3)) * 4);
+    lorries.forEach((g, i) => {
+      g.visible = building && t > 5 && !raya;
+      const p = lorryLoop.at(((t * 28 + i * lorryLoop.L / 3) % lorryLoop.L));
+      g.position.set(p.x, 0, p.z); g.rotation.y = p.h;
+    });
+    workers.forEach((p, i) => {
+      p.visible = building && !raya;
+      const a = t * (0.3 + (i % 3) * 0.1) + i;
+      p.position.set(-6 + Math.cos(a) * (16 + (i % 4) * 3), 0.3, 25 + Math.sin(a * 1.3) * 14);
+    });
+    rain.visible = raining;
+    if (raining) { const a = rain.geometry.attributes.position; for (let i = 0; i < RN; i++) a.array[i * 3 + 1] = (rainBase[i * 3 + 1] - t * 70 % 120 + 120) % 120; a.needsUpdate = true; }
+    scene.background.set(raining ? 0xaebfcf : 0xcfe8f6); scene.fog.color.copy(scene.background);
+    // move-in
+    const mv = clamp01((t - 27) / 3);
+    movers.forEach((g, i) => { g.visible = handover; g.position.set(-60 + mv * (50 + i * 10), 0, -14 - i * 8 + (mv > 0.99 ? 0 : 0)); g.rotation.y = Math.PI / 2; });
+    boxes.forEach((b, i) => (b.visible = win(t, 29 + i * 0.15, 36)));
+    newcomers.forEach((p, i) => {
+      const k = clamp01((t - 29 - i * 0.35) / 3);
+      p.visible = handover && k > 0 && k < 1;
+      p.position.set(-30 + k * 26 + (i % 3) * 2, 0.3, -12 + k * 46 - (i % 4));
+    });
+    cars.forEach((g, i) => {
+      const k = clamp01((t - 30 - i * 0.6) / 2.5);
+      g.visible = handover && k > 0;
+      g.position.set(50 - k * 34 + (i % 4) * 0.5, 0.2, 70 - k * 10 + (k > 0.99 ? (i % 4) * 5 - 32 : -32 + i * 0)); g.position.x = 50 - k * (34 - (i % 4) * 7); g.rotation.y = k < 1 ? -Math.PI / 2 : 0;
+    });
+    kids.forEach((p, i) => { p.visible = t >= 32.5; const a = t * 2 + i; p.position.set(120 + Math.cos(a) * 8, 0.6, 120 + Math.sin(a) * 6); });
+    flag.visible = true; play.visible = true; carpark.visible = true;
+    // camera: slow orbit; move-in closer; brief shifts view left
+    const ang = -0.6 + t * 0.035, close = ease(clamp01((t - 27) / 3)) * (1 - ease(clamp01((t - 33) / 2)) * 0.5);
+    const r = 210 - close * 90, y = 120 - close * 55;
+    cam.position.lerp(new THREE.Vector3(Math.sin(ang) * r - 20, y, Math.cos(ang) * r + 25), 0.06);
+    cam.lookAt(-10, close * 6 + 8, 20);
+    cam.aspect = W / H;
+    const shift = ease(clamp01((t - 33) / 1.5)) * 200;
+    if (shift > 1) cam.setViewOffset(W, H, shift, 0, W, H); else cam.clearViewOffset();
+    cam.updateProjectionMatrix();
+    renderer.setViewport(0, 0, W, H); renderer.render(scene, cam);
+    // overlay
+    const rect = { x: 0, w: W, h: H };
+    for (const a of tags) {
+      const on = win(t, a.from, a.to); a.el.hidden = !on; if (!on) continue;
+      const s = project(a.pos, cam, rect); a.el.style.left = `${s.x}px`; a.el.style.top = `${s.y}px`; a.el.style.opacity = s.behind ? 0 : 1;
+    }
+    $("hMonth").textContent = String(Math.floor(m));
+    $("hFloors").textContent = `${fl}/30`;
+    $("hCost").textContent = `RM ${Math.round(260 * ease(clamp01(m / 36)))} M`;
+    const holLost = HOL.filter((h) => h.m <= m).length + (m >= 13.9 ? 10 : 0);
+    let rainLost = 0; for (const [a, b] of MONSOON) rainLost += Math.max(0, Math.min(m, b) - a) * 2.6;
+    $("hLost").textContent = `${Math.round(holLost + rainLost)} d`;
+    $("fill").style.width = `${m / 36 * 100}%`; $("now").style.left = `calc(${m / 36 * 100}% - 1px)`;
+    const bn = $("banner");
+    const ban = raya ? ["Hari Raya Aidilfitri · site closed ~2 weeks", "Most workers travel home · schedule +10 days"] : (slow && raining) ? ["Northeast monsoon", "Rain stops the crane on wet days · ~2.6 days lost a month"] : win(t, 27, 30.5) ? ["Handover · keys to ~500 homes", "Hoarding down · footpath reopens"] : null;
+    bn.hidden = !ban; if (ban) bn.innerHTML = `${ban[0]}<small>${ban[1]}</small>`;
+    $("hoard").hidden = !win(t, 4, 9.5);
+    $("tl").style.right = t >= 33 ? "456px" : "12px";
+    $("hud").style.right = t >= 33 ? "456px" : "12px";
+    $("brief").classList.toggle("off", t < 33);
+    $("resBtn").hidden = t < 33;
+    if (t < 33) $("resPanel").hidden = true;
+    if (t >= 39 && lastMonth < 39) { $("resPanel").hidden = false; closePerson(); }
+    if (t >= 41 && lastMonth < 41) openPerson(2);
+    if (t < 39 && lastMonth >= 39) $("resPanel").hidden = true;
+    lastMonth = t;
+  }
+
+  // 40 simulated residents (placeholder names and lines)
+  const names = ["Pak Cik Halim", "Farid", "Mei Ling", "Zainab", "Arjun", "Nurul", "Kok Wai", "Priya", "Aisyah", "Daniel", "Siti", "Wei Jie", "Kavitha", "Hafiz", "Mak Cik Rohani", "Jason", "Amirah", "Raj", "Hui Min", "Imran",
+    "Lina", "Azman", "Shalini", "Chee Keong", "Fatimah", "Ravi", "Yasmin", "Boon Hock", "Aina", "Suresh", "Syafiq", "Grace", "Hamidah", "Vinod", "Irdina", "Kenneth", "Salmah", "Thinesh", "Puteri", "Ah Seng"];
+  const roles = ["Retiree, uses a walker", "Delivery rider", "New owner, young family", "Wheelchair user", "Schoolboy, 7", "Nurse, night shift", "Shop owner", "Teacher", "University student", "Remote worker"];
+  const colours = ["#c0566b", "#4f7fd1", "#2fa97c", "#e07a3a", "#8b7fd6", "#d2a23a"];
+  const people = names.map((n, i) => ({ n, role: roles[i % roles.length], tower: i % 2 === 1, c: colours[i % colours.length], detour: 2 + (i * 7) % 3, park: 5 + (i * 3) % 6 }));
+  people[2] = { ...people[2], tower: true };
+  const grid = $("people");
+  people.forEach((p, i) => {
+    const b = document.createElement("button"); b.className = "person";
+    b.innerHTML = `<div class="av" style="background:${p.c}">${p.n.replace(/^(Pak Cik|Mak Cik) /, "")[0]}</div>${p.n}<small>${p.tower ? "New tower" : "Neighbour"}</small>`;
+    b.onclick = () => openPerson(i); grid.appendChild(b);
+  });
+  function openPerson(i) {
+    const p = people[i], d = $("detail");
+    d.hidden = false; grid.hidden = true;
+    d.innerHTML = `<button id="back">← All 40 residents</button><h5>${p.n}</h5><div class="meta">${p.role} · ${p.tower ? "moves into the new tower" : "lives nearby"} <span class="simtag">Simulated reactions</span></div>
+      <div class="facts"><b>From the world model</b><br>Extra walk during construction: ${p.tower ? "—" : `${p.detour} min`} · Walk to Urban Park: ${p.park} min · Lakeside Mall: 12 min</div>
+      <div class="ph"><b>During construction</b>${p.tower ? "Watched the tower go up from the showroom photos. The rainy months worried me about delays." : `The hoarding added ${p.detour} minutes to my morning walk. Mornings were noisy, but the site was quiet over Raya.`}</div>
+      <div class="ph"><b>Handover</b>${p.tower ? "Got the keys in January. Moving day was busy, but the lift lobby worked well with boxes." : "The footpath reopened the same week. Good to see the street lights back on."}</div>
+      <div class="ph"><b>Daily life</b>${p.tower ? `The park is ${p.park} minutes on foot. I'd like a shaded path to the mall.` : "More people at the playground now. Parking near the school is tighter at 7 am."}</div>
+      <div style="font-size:11px;color:var(--ink-soft)">Lines are written for the simulation; every number comes from the world model.</div>`;
+    $("back").onclick = closePerson;
+  }
+  function closePerson() { $("detail").hidden = true; grid.hidden = false; }
+  $("resBtn").onclick = () => { $("resPanel").hidden = !$("resPanel").hidden; closePerson(); };
+  $("resClose").onclick = () => { $("resPanel").hidden = true; };
+  return { update, beats, tags };
+})();
+
+// ---------- driver ----------
+let demo = "nav", t = 0, playing = false, prev = performance.now();
+function setDemo(d) {
+  demo = d; t = 0; playing = false; $("play").textContent = "Play";
+  document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.demo === d)));
+  $("navui").hidden = d !== "nav"; $("bldui").hidden = d !== "bld";
+  for (const el of anchors.children) el.hidden = true;
+}
+document.querySelectorAll(".tab").forEach((b) => (b.onclick = () => setDemo(b.dataset.demo)));
+$("play").onclick = () => { if (t >= TOTAL) t = 0; playing = !playing; $("play").textContent = playing ? "Pause" : "Play"; };
+$("scrub").oninput = (e) => { t = Number(e.target.value); playing = false; $("play").textContent = "Play"; };
+function frame(now) {
+  const dt = Math.min(0.1, (now - prev) / 1000); prev = now;
+  if (playing) { t += dt; if (t >= TOTAL) { t = TOTAL; playing = false; $("play").textContent = "Replay"; } }
+  const W = stage.clientWidth, H = stage.clientHeight;
+  if (renderer.domElement.width !== Math.floor(W * renderer.getPixelRatio())) renderer.setSize(W, H, false);
+  for (const el of anchors.children) if (el.dataset.demo !== undefined && el.dataset.demo !== demo) el.hidden = true;
+  const d = demo === "nav" ? nav : bld;
+  if (demo === "nav") for (const a of bld.tags) a.el.hidden = true;
+  d.update(t, W, H);
+  if (demo === "bld") for (const el of anchors.children) if (el.dataset.demo === "nav") el.hidden = true;
+  $("scrub").value = String(t);
+  $("clock").textContent = `${t.toFixed(1)} / ${TOTAL} s`;
+  $("beat").textContent = [...d.beats].reverse().find(([s]) => t >= s)?.[1] ?? "";
+  requestAnimationFrame(frame);
+}
+window.__demo = { seek: (s) => { t = s; playing = false; }, play: () => { playing = true; }, set: setDemo };
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

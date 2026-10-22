@@ -30,6 +30,17 @@ This includes the illustrative toilet and benches: a name or coordinate is not a
 existence claim. Transported name evidence and amenity/route metadata keep this source, so
 clients show **Demo value · not surveyed**. Field-survey replacements keep their own source.
 
+**Demo corridor (navigation compare).** `build_overlay.py` also writes placeholder claims for the
+two routes of `DEMO_CORRIDOR` (Elmina Lakeside Mall → Surau Kiambang): the fastest walk crosses
+the real OSM steps `seg-1346147887-0` (`step_count` 3); the wheelchair route has `step_count`,
+`incline_pct`, `width_m`, `covered` and crossing `kerb` values on every edge except one 60 m
+stretch whose incline is left unknown on purpose (the survey-ticket demo). Major roads get no
+width. No bench is claimed, because no OSM bench lies within 15 m of the route. The claims are
+verified and dated 2026-10-18, so the evaluator counts them as known, but their source is the
+placeholder. `data/scripts/pick_demo_corridor.py` prints the candidate pairs. Re-running
+`build_overlay.py` reproduces `access/overlay.geojson` byte for byte
+(`data/scripts/tests/test_build_overlay_corridor.py`).
+
 For an older committed overlay, add only the missing existence metadata with
 `uv run python data/scripts/build_overlay.py --provenance-only`. This narrow regeneration
 preserves every coordinate, segment and existing claim, needs no network/DEM, and is idempotent.
@@ -90,7 +101,7 @@ Envelope bbox (s,w,n,e) = 3.150, 101.460, 3.240, 101.530.
 - ways fetched: 7036 (6631 walk + 460 major-road ways, 51 `secondary_link`s in both fetches, 4 `foot=no` dropped); walk segments: 16148, of which 909 `major_road` (`base/walk.geojson`, ~5 MB)
 - places: 227 imported; 3 duplicates of hero places removed by `build_overlay.py` (`osm-way-1308938137`, `osm-way-1318133036`, `osm-way-1346154592`) -> 224 in `base/places.geojson`, plus 7 overlay places = 231 total. 220 imported places have a walk node: point places within 60 m, area places by the Task 43 rule below (146 of the 231 seed places are `node_inferred` area snaps). Since Task 31 the walk graph has 74 components and the largest holds 95.2% of nodes; before major roads were imported it was 199 components and 32%
 - hydrology features: 204 (display only)
-- overlay: 18 edges + 7 places (`park-b`, `lakeside-mall`, `playground`, `toilet-urban-park`, `bench-urban-1..3`)
+- overlay: 74 edges (P1/P2 + demo corridor) + 7 places (`park-b`, `lakeside-mall`, `playground`, `toilet-urban-park`, `bench-urban-1..3`)
 - P1 416 m (via unknown ramp) vs verified detour P2 441 m
 
 ## Major roads (Task 31)

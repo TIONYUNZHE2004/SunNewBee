@@ -9,6 +9,8 @@ import {
 import { useDevsim } from "../../../devsim/devsimStore";
 import { impactSummary } from "../../../flood/impactModel";
 import { gapsActive } from "../../../gaps/gapModel";
+import { useCompare } from "../../../journey/compareStore";
+import { isPlayableCompare } from "../../../journey/compareTypes";
 import { useJourney } from "../../../journey/journeyStore";
 import { type LonLat, pointFeatures } from "../../geo";
 import { useSceneSettings } from "../../sceneSettingsStore";
@@ -46,6 +48,9 @@ export function useOverlays({
   // While a journey plays, its own ribbon (features/journey) draws the trip's route by status; the
   // blue overlay line would sit on top of it (overlay pass), so it steps aside.
   const journeyOn = useJourney((s) => !!s.plan);
+  // The same while the compare playback plays (V2 fix N-a): its own ribbons draw both routes in the
+  // compare colours, in both halves; the answer's route line would cover them.
+  const compareOn = useCompare((s) => isPlayableCompare(s.payload));
   // A Development Simulation runs its own camera beats: the place markers stay off its stage.
   const devsimOn = useDevsim((s) => s.status !== "idle");
   const profile = useScene((s) => s.profile);
@@ -122,7 +127,7 @@ export function useOverlays({
       pathStatus,
       gaps: gapsQ.data ?? null,
       gapsOn,
-      route: routeOn && !journeyOn ? (route?.geojson ?? null) : null,
+      route: routeOn && !journeyOn && !compareOn ? (route?.geojson ?? null) : null,
       whatIf,
       closureSim,
       water: waterQ.data ?? null,
@@ -136,7 +141,7 @@ export function useOverlays({
       boundary,
       keepPlaceIds,
       keepNear,
-      tripOnly: journeyOn || devsimOn,
+      tripOnly: journeyOn || compareOn || devsimOn,
     });
     setMarkerCount(accessVisible ? overlay.drawnPlaces() : 0);
     engine.requestRender();
@@ -150,6 +155,7 @@ export function useOverlays({
     gapsOn,
     routeOn,
     journeyOn,
+    compareOn,
     devsimOn,
     route,
     whatIf,

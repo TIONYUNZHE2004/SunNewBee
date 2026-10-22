@@ -1,6 +1,7 @@
 import re
 
 from .answer import Claim, FinalAnswer
+from .compare_intent import compare_for, unchecked_noun
 from .developments import EVIDENCE_PREFIX, devsim_answer
 from .events import SceneIntent
 from .journeys import PLAYABLE, journey_facts, journey_steps, start_time_for
@@ -596,6 +597,77 @@ def event_answer(d: dict, evidence_ids: list[str]) -> dict:
     }
 
 
+# ---------------------------------------------------------------- navigation compare (B4)
+COMPARE_PROFILES = frozenset({"wheelchair", "stroller", "older_adult_rest"})
+_WHO = {
+    "wheelchair": "a wheelchair",
+    "stroller": "a stroller",
+    "older_adult_rest": "an older adult who needs rests",
+}
+
+
+def _g(v: float) -> str:
+    return f"{v:g}"
+
+
+def _about_min(v: float) -> str:
+    return _g(round(v)) if v >= 10 else _g(round(v, 1))
+
+
+def compare_summary(d: dict, a: str, b: str, demo: bool) -> str | None:
+    """The recommendation line(s) of a compare answer, every number copied from compare_routes'
+    data (reasons, extra_minutes, minutes). None when there is nothing to compare (same path,
+    no recommended route): the answer then reads like a plan_route answer."""
+    rec = d.get("recommended")
+    if rec is None or d.get("same_path") or d.get("fastest") is None:
+        return None
+    rr = d["reasons"]["recommended"] or {}
+    fr = d["reasons"]["fastest"] or {}
+    # "recorded", never a bare "step-free": the route may hold map estimates (route_binding)
+    head = "the route with no recorded steps" if rr.get("steps") == 0 else "this route"
+    if demo:
+        head += " (demo values, not yet surveyed)"
+    who = _WHO.get(d.get("profile") or "", "this profile")
+    lines = [
+        f"Recommended for {who} from {a} to {b}: {head}.",
+        f"It takes about {_about_min(rec['est_minutes'])} min, "
+        f"{_g(d.get('extra_minutes') or 0)} min more than the fastest route.",
+    ]
+    reasons = []
+    if fr.get("steps"):
+        reasons.append(f"the fastest route has {fr['steps']} steps")
+    if rr.get("max_incline_pct") is not None:
+        reasons.append(f"the recommended route's steepest slope is {_g(rr['max_incline_pct'])}%")
+    if rr.get("min_width_m") is not None:
+        reasons.append(f"its narrowest point is {_g(rr['min_width_m'])} m wide")
+    if reasons:
+        text = ", ".join(reasons[:-1]) + (" and " if len(reasons) > 1 else "") + reasons[-1]
+        lines.append(text[0].upper() + text[1:] + ".")
+    return " ".join(lines)
+
+
+def compare_caveats(d: dict) -> list[str]:
+    """One line per unchecked stretch of the recommended route: not checked yet, not counted for
+    or against it, and the survey ticket when the tool filed one."""
+    if d.get("recommended") is None or d.get("same_path"):
+        return []
+    filed = d.get("vr") or {}
+    out = []
+    for u in d.get("unchecked") or []:
+        noun = unchecked_noun(u["attribute"])
+        ticket = (
+            "; a survey ticket was filed"
+            if filed.get("target_id") == u["edge_id"] and filed.get("attribute") == u["attribute"]
+            else ""
+        )
+        # "On N m ... the width": "Width on N m" would read as a width of N m (facts.py)
+        out.append(
+            f"On {_g(u['length_m'])} m of the recommended path the {noun} is not checked yet; "
+            f"it did not count for or against this route{ticket}."
+        )
+    return out
+
+
 def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     if rec.selection_error:
         return FinalAnswer(
@@ -698,7 +770,16 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
                 "Answer generated from data without AI wording.",
             ],
         )
-    rid, route = next(iter(rec.routes.items()))
+    # The first route planned under the answer's scenario (R46: a dry-day compare route never
+    # answers a flood-scenario turn), else the first route.
+    rid, route = next(
+        (
+            (k, r)
+            for k, r in rec.routes.items()
+            if (r.get("scenario_id") or "baseline") == (scenario_id or "baseline")
+        ),
+        next(iter(rec.routes.items())),
+    )
     status = rec.route_status.get(rid, "no_data")
     # Claim text omits raw values: they may contain wording forbidden in flood answers.
     claims = [
@@ -762,6 +843,12 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
         intents.append(
             SceneIntent(kind="journey.play", route_id=rid, start_time=start_time_for(question))
         )
+    if (cmp := compare_for(rec, rid)) is not None:
+        demo = any(e.source_type == PLACEHOLDER_SOURCE for e in rec.evidence.values())
+        if line := compare_summary(cmp, cmp["from_name"], cmp["to_name"], demo):
+            summary = line
+        caveats = compare_caveats(cmp) + caveats
+        intents.insert(0, SceneIntent(kind="route.compare", route_id=rid))
     return FinalAnswer(
         answer_status="answered"
         if status == "confirmed"

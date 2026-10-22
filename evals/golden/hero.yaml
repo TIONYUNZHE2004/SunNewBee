@@ -119,3 +119,8 @@
   message: "Simulate a 30-storey, 500-home tower near Lakeside Mall, from construction to daily life"
   profile: default
   expect: { tools_include: [simulate_development], events_include: [scene.intent, citation], intents_include: [development.play], done_status_in: [answered], text_includes: ["illustrative", "not an SDP project", "Brief: 30 storeys"], text_excludes: [" safe", "selamat", "flood", " deep"] }
+- id: nav-compare-wheelchair
+  world: elmina  # the demo corridor (build_overlay DEMO_CORRIDOR, demo polish B5): fastest walk crosses real OSM steps
+  message: "Wheelchair route from Elmina Lakeside Mall to Surau Kiambang?"
+  profile: wheelchair
+  expect: { tools_include: [find_place, compare_routes], events_include: [scene.intent, citation, verification.requested], intents_include: [route.compare, route.highlight], done_status_in: [partial], text_includes: ["demo values, not yet surveyed", "not checked yet"], text_excludes: [" safe", "selamat", " deep"], mock_only: { text_includes: ["1.3 min more than the fastest route", "the fastest route has 3 steps", "a survey ticket was filed"] } }

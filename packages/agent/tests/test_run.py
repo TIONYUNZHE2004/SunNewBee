@@ -70,7 +70,8 @@ async def test_tool_events_pair_up(ctx):
     calls = [(e.id, e.name) for e in evs if e.type == "tool.call"]
     results = [(e.id, e.name) for e in evs if e.type == "tool.result"]
     assert calls == results
-    assert [n for _, n in calls] == ["find_place", "find_place", "plan_route"]
+    # a stroller route: compare_routes first; same path, so plan_route answers (B4)
+    assert [n for _, n in calls] == ["find_place", "find_place", "compare_routes", "plan_route"]
     # tool events stream before the answer events
     first_text = next(i for i, e in enumerate(evs) if e.type == "text.delta")
     last_tool = max(i for i, e in enumerate(evs) if e.type in ("tool.call", "tool.result"))
@@ -281,7 +282,8 @@ async def test_dynamic_instructions_carry_ui_context(ctx):
     assert "You are TownshipLens" in seen["instructions"]
     assert "profile=wheelchair" in seen["instructions"]
     assert "active_scenario=stage_p3m" in seen["instructions"]
-    assert sorted(t.name for t in agent._function_toolset.tools.values()) == sorted(tools.TOOLS)
+    expected = sorted(tools.TOOLS)  # every spatial tool, compare_routes included (B4)
+    assert sorted(t.name for t in agent._function_toolset.tools.values()) == expected
 
 
 def test_model_for_mock_and_openrouter():

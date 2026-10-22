@@ -2,11 +2,15 @@
  * Development Simulation timeline (spec 2026-10-21 §4.2–§4.4, §5.3, §7; AC-F1, AC-F2, Q4).
  *
  * Pure maths, no Three.js: `stateAt(t, plan)` gives everything one frame needs at screen second t.
+ * Two timelines: the 45 s building plan (C7: it carries `schedule` and `month_keys`; demo polish
+ * §6.3, see "the 45 s building timeline" below) and the legacy 66 s plan (no schedule), kept for the
+ * legacy test fixture the 3D lane's tests still read until they move to the 45 s plan.
  * Ported from the approved prototype (docs/03-product/prototypes/developer-lens/index.html: `ACTS`,
  * `sunAt`, `WORK`, `homesAt`, `BUBBLES`, `ENVELOPE`, `CAM`, the HUD clock in `render`). Facts and
  * copy come from the plan; the clock, month, occupancy and flow are display values of the
  * simulation clock and are never cited as facts (spec §3).
  */
+import { BUILD_BEATS, monthAt, planPlayback } from "./schedulePlayback";
 import type { Act, DevelopmentPlan, StateAt } from "./types";
 
 // ---------- prototype constants ----------
@@ -40,10 +44,6 @@ const MOVERS = 8;
 const LORRIES_AT = 33;
 /** Hoarding comes down over 1.6 s after Handover starts. */
 const HOARDING_OFF = HAND[0] + 1.6;
-/** An envelope flies for this long after its bubble ends; the feedback counter steps when it lands. */
-export const ENVELOPE_FLIGHT_S = 1.2;
-/** The "What residents raised" card shows from here. */
-export const END_CARD_AT = 63.3;
 /** Fast-forward speed of the decorative flow in Construction and Handover (spec §7). */
 export const FAST_FORWARD = 8;
 /** Share of households in by the end of Handover, and the extra share in by the end of Daily Life
@@ -184,7 +184,8 @@ export type AnchorName =
   | "node"
   | "junction"
   | "park"
-  | "mall";
+  | "mall"
+  | "worker";
 /** A camera target: a named anchor, a blend of two, or a point `path` metres out from the door. */
 export type TargetAnchor =
   | AnchorName
@@ -351,6 +352,7 @@ export function camFrame(plan: DevelopmentPlan): CamFrame {
       junction: ll(plan.anchors.junction),
       park: ll(plan.anchors.park),
       mall: ll(plan.anchors.mall),
+      worker: plan.anchors.worker ? ll(plan.anchors.worker) : site,
     },
   };
   frames.set(plan, f);
@@ -376,12 +378,16 @@ function resolveOffset(k: CamKey, f: CamFrame): [number, number, number] {
 }
 
 /** The camera at t: target [lon, lat, h] and offset [east, north, up], eased between keyframes. */
-export function cameraAt(t: number, plan: DevelopmentPlan): StateAt["camera"] {
+export function cameraAt(
+  t: number,
+  plan: DevelopmentPlan,
+  keys: readonly CamKey[] = isBuildPlan(plan) ? BUILD_CAM_KEYS : CAM_KEYS,
+): StateAt["camera"] {
   const f = camFrame(plan);
   let i = 0;
-  while (i < CAM_KEYS.length - 2 && t > (CAM_KEYS[i + 1] as CamKey).t) i++;
-  const a = CAM_KEYS[i] as CamKey;
-  const b = CAM_KEYS[i + 1] as CamKey;
+  while (i < keys.length - 2 && t > (keys[i + 1] as CamKey).t) i++;
+  const a = keys[i] as CamKey;
+  const b = keys[i + 1] as CamKey;
   const u = b.cut ? (t >= b.t ? 1 : 0) : ease(span(t, a.t, b.t));
   const ta = resolveTarget(a, f);
   const tb = resolveTarget(b, f);
@@ -395,56 +401,192 @@ export function cameraAt(t: number, plan: DevelopmentPlan): StateAt["camera"] {
   };
 }
 
-// ---------- the frame ----------
-/** One end-card item's envelope: it flies from the speaker when `afterBubble` ends and the
- * feedback counter steps when it lands. */
-export interface FeedbackBeat {
-  /** Index into `plan.end_card.items`. */
-  item: number;
-  /** The bubble whose end launches the envelope. */
-  afterBubble: number;
-  /** Launch and landing (screen s). */
-  t0: number;
-  t1: number;
+/** 1 for a key that frames the site (the site, or a blend with it), else 0 (a person, the door). */
+const siteKey = (k: CamKey): number => {
+  const a = k.targetAnchor;
+  if (a === "site") return 1;
+  if (typeof a === "object" && "lerp" in a)
+    return a.lerp[0] === "site" || a.lerp[1] === "site" ? 1 : 0;
+  return 0;
+};
+
+/**
+ * How much the camera at t frames the site (0..1, V2 fix B-a): 1 on keys aimed at the site or a
+ * blend with it (the hoarding and Halim's detour, the tower, the Daily Life wide shot), 0 on keys
+ * aimed at a person or the door (Farid, the move-in), eased between keys exactly as `cameraAt`
+ * moves the camera, so the framing never jumps.
+ */
+export function cameraSiteWeight(
+  t: number,
+  plan: DevelopmentPlan,
+  keys: readonly CamKey[] = isBuildPlan(plan) ? BUILD_CAM_KEYS : CAM_KEYS,
+): number {
+  let i = 0;
+  while (i < keys.length - 2 && t > (keys[i + 1] as CamKey).t) i++;
+  const a = keys[i] as CamKey;
+  const b = keys[i + 1] as CamKey;
+  const u = b.cut ? (t >= b.t ? 1 : 0) : ease(span(t, a.t, b.t));
+  return siteKey(a) + (siteKey(b) - siteKey(a)) * u;
+}
+
+// ---------- the 45 s building timeline (demo polish §6.3) ----------
+
+/** True for the 45 s building plan (C7): it carries the schedule and its month keys. */
+export function isBuildPlan(plan: DevelopmentPlan): boolean {
+  const p = plan as Partial<DevelopmentPlan>;
+  return !!p.schedule && Array.isArray(p.schedule.floors_by_month);
+}
+
+/** Spec §6.3 screen times (s) of the 45 s building timeline beyond the month mapping. */
+export const BUILD_T = {
+  /** Brief overview 0–3 s, Construction 3–27 s, Handover 27–33 s, Daily Life 33–45 s. */
+  construction: [BUILD_BEATS.monthsFrom, BUILD_BEATS.handover] as const,
+  handover: [BUILD_BEATS.handover, 33] as const,
+  daily: [33, BUILD_BEATS.end] as const,
+  /** Hoarding up (and the detour drawn) at 3.5 s; down 1 s into Handover (27–30.5 s banner). */
+  hoarding: [3.5, 28] as const,
+  /** Moving lorries at the entrance (C10 lorries park by 29.5 s and leave at 33.5 s). */
+  lorries: [27, 33.5] as const,
+  /** Movers walk in from 29 s (12 movers, one every 0.25 s, 1.3 s each: in by ~33 s). */
+  movers: [29, 33.05] as const,
+  /** Windows light floor by floor over 28–33 s to `litTarget` (C10 `SET_PIECE_S.moveIn.lit`). */
+  lit: [28, 33] as const,
+  litTarget: 0.9,
+  /** …and on to `litDaily` by the end of Daily Life. */
+  litDaily: 0.95,
+  /** The Impact Brief slides in (and the residents button appears). */
+  brief: 33,
+} as const;
+
+/**
+ * Camera keyframes for the 45 s plan (the 66 s cut's subjects, retimed to §6.3): the Brief
+ * overview, the hoarding and Halim's detour, the lorry route and the Raya hold from the south-west,
+ * Farid beside the tower (waypoint in, cut out, F3), the monsoon stretch, the topped-out tower, the
+ * move-in at the door, and the Daily Life wide shot the Impact Brief sits beside (the renderer
+ * frames each beat's subject in the map area the overlays leave clear: `cameraSiteWeight`).
+ */
+export const BUILD_CAM_KEYS: readonly CamKey[] = [
+  { t: 0, targetAnchor: "site", h: 0, offset: [-200, -520, 520] },
+  { t: 3.4, targetAnchor: { lerp: ["site", "halimMid", 0.55] }, h: 10, offset: [-24, -190, 104] },
+  { t: 8.6, targetAnchor: { lerp: ["site", "halimMid", 0.58] }, h: 10, offset: [-16, -168, 88] },
+  { t: 10.4, targetAnchor: "site", h: 26, offset: [-130, -180, 95] },
+  { t: 13.0, targetAnchor: "site", h: 30, offset: [-140, -192, 100] },
+  { t: 13.6, targetAnchor: "farid", h: 4, offset: [-20, -30, 100] },
+  { t: 14.0, targetAnchor: "farid", h: 4, offset: [-32, -30, 22] },
+  { t: 16.7, targetAnchor: "farid", h: 4, offset: [-28, -27, 19] },
+  { t: 17.0, targetAnchor: "site", h: 30, offset: [-125, -175, 92], cut: true },
+  { t: 18.4, targetAnchor: "site", h: 30, offset: [-120, -170, 88] },
+  { t: 23.0, targetAnchor: "site", h: 36, offset: [-138, -200, 104] },
+  { t: 26.6, targetAnchor: "site", h: 45, offset: [-150, -240, 130] },
+  { t: 28.2, targetAnchor: { path: 8 }, h: 3, offset: { entrance: [42, 40, 26] } },
+  { t: 32.6, targetAnchor: { path: 8 }, h: 3, offset: { entrance: [38, 36, 23] } },
+  {
+    t: 33.0,
+    targetAnchor: { lerp: ["site", "mall", 0.6] },
+    h: 20,
+    offset: [-120, -460, 300],
+    cut: true,
+  },
+  { t: 45, targetAnchor: { lerp: ["site", "mall", 0.6] }, h: 20, offset: [-135, -490, 315] },
+];
+
+/**
+ * Floors topped out at fractional month m: the schedule's end-of-month counts, rising linearly
+ * through each month (so the tower grows smoothly while the HUD shows the month's own row).
+ */
+export function buildFloorsAt(plan: DevelopmentPlan, m: number): number {
+  const f = plan.schedule.floors_by_month;
+  if (f.length === 0) return 0;
+  const i = Math.max(0, Math.min(f.length - 1, Math.floor(m)));
+  const prev = i > 0 ? (f[i - 1] as number) : 0;
+  const cur = f[i] as number;
+  return Math.min(plan.site.storeys, prev + (cur - prev) * clamp01(m - i));
 }
 
 /**
- * Owner ruling (2026-10-21, after the product video): the Resident feedback counter counts what
- * residents raised, so it ends equal to the end card's item count. Each end-card item files one
- * envelope when its beat is spoken: the footpath item after Halim's bubble 1, the school-run item
- * after Mei Ling's bubble 5, the park and mall item after Arjun's bubble 7 (the last bubble when
- * the plan has no bubble 7). Derived from `plan.end_card.items`, so a plan without the detour item
- * (spec §13) files one fewer envelope. Sorted by landing time.
+ * Lit-window share in whole floors: 0 before 28 s, rising monotonically to 0.9 by 33 s, then to
+ * 0.95 by 45 s. The same curve as the 3D move-in (`setPieces.ts` `litShareAt`), so its counter and
+ * this one agree.
  */
-const beatsCache = new WeakMap<DevelopmentPlan, FeedbackBeat[]>();
-export function feedbackBeats(plan: DevelopmentPlan): FeedbackBeat[] {
-  const hit = beatsCache.get(plan);
-  if (hit) return hit;
-  const byN = (n: number) => plan.bubbles.find((b) => b.n === n);
-  const last = [...plan.bubbles].sort((a, b) => a.t1 - b.t1).at(-1);
-  const out: FeedbackBeat[] = [];
-  plan.end_card.items.forEach((it, item) => {
-    const n = /footpath/i.test(it.text) ? 1 : /school-run/i.test(it.text) ? 5 : 7;
-    const b = byN(n) ?? last;
-    if (!b) return;
-    // rounded to the ms, so the counter steps exactly at the landing second
-    const t1 = Math.round((b.t1 + ENVELOPE_FLIGHT_S) * 1000) / 1000;
-    out.push({ item, afterBubble: b.n, t0: b.t1, t1 });
-  });
-  out.sort((a, b) => a.t1 - b.t1);
-  beatsCache.set(plan, out);
-  return out;
+export function buildLitAt(t: number, storeys: number): number {
+  const n = Math.max(1, storeys);
+  const whole = (k: number) => Math.floor(k * n + 1e-9) / n;
+  if (t < BUILD_T.lit[1]) return whole(BUILD_T.litTarget * ease(span(t, ...BUILD_T.lit)));
+  return whole(
+    BUILD_T.litTarget + (BUILD_T.litDaily - BUILD_T.litTarget) * span(t, ...BUILD_T.daily),
+  );
 }
 
-/** Bubble 5 (the school-run complaint): its end launches that item's envelope. */
-export function envelopeWindow(plan: DevelopmentPlan): [number, number] | null {
-  const b = feedbackBeats(plan).find((x) => x.afterBubble === 5);
-  return b ? [b.t0, b.t1] : null;
+/** Homes occupied (display value): lit share × homes, rounded (the 3D `moveInCounter`). */
+export const buildOccupancyAt = (t: number, plan: DevelopmentPlan) =>
+  Math.round(buildLitAt(t, plan.site.storeys) * plan.site.homes);
+
+/** Seconds of site work by t (Construction minus the Hari Raya hold), for the crane's slew. */
+function buildWorkAt(t: number, raya: readonly [number, number] | null): number {
+  const [a, b] = BUILD_T.construction;
+  const u = Math.max(a, Math.min(b, t));
+  const hold = raya ? Math.max(0, Math.min(u, raya[1]) - raya[0]) : 0;
+  return u - a - hold;
 }
 
-/** Everything one frame needs at screen second t (clamped to [0, total]). Deterministic. */
-export function stateAt(tIn: number, plan: DevelopmentPlan): StateAt {
-  const t = Math.max(0, Math.min(plan.total_s, Number.isFinite(tIn) ? tIn : 0));
+/**
+ * The sun (display only): a late-morning day through the build and handover (the 45 s timeline
+ * shows months, not days, so no day/night strobe), easing to late afternoon over Daily Life.
+ */
+function buildSunAt(t: number): StateAt["sun"] {
+  if (t < BUILD_T.daily[0]) return { phase01: 0.45, elevation: 1, isNight: false };
+  const u = ease(span(t, ...BUILD_T.daily));
+  return { phase01: 0.45 + 0.27 * u, elevation: 1 - 0.6 * u, isNight: false };
+}
+
+function buildClockAt(t: number, plan: DevelopmentPlan, m: number): StateAt["simClock"] {
+  const sch = plan.schedule;
+  const i = Math.max(0, Math.min(sch.months_total - 1, Math.floor(m)));
+  if (t < BUILD_T.construction[0]) return { label: "—" };
+  if (t < BUILD_T.handover[0])
+    return { label: `Month ${i + 1} of ${sch.months_total}`, month: i + 1 };
+  if (t < BUILD_T.daily[0]) return { label: "Handover", month: sch.months_total };
+  return { label: "After handover" };
+}
+
+function buildStateAt(t: number, plan: DevelopmentPlan): StateAt {
+  const pb = planPlayback(plan);
+  const m = monthAt(t, pb.keys);
+  const storeys = plan.site.storeys;
+  const [c0, c1] = BUILD_T.construction;
+  const inRaya = !!pb.raya && t >= pb.raya[0] && t < pb.raya[1];
+  const cons = t >= c0 && t < c1;
+  const w = buildWorkAt(t, pb.raya);
+  const fast = t >= c0 && t < BUILD_T.handover[1];
+  return {
+    act: actAt(t, plan.acts).name,
+    simClock: buildClockAt(t, plan, m),
+    sun: buildSunAt(t),
+    occupancy: buildOccupancyAt(t, plan),
+    floorsBuilt: t < c0 ? 0 : t >= c1 ? storeys : buildFloorsAt(plan, m),
+    workersActive: cons && !inRaya,
+    windowsLitFraction: buildLitAt(t, storeys),
+    hoarding: t >= BUILD_T.hoarding[0] && t < BUILD_T.hoarding[1],
+    crane: { slewRad: Math.sin(w * 0.9) * 1.3 + 0.6, beaconOn: false },
+    lorries: t >= BUILD_T.lorries[0] && t < BUILD_T.lorries[1],
+    movers: { queueProgress: span(t, ...BUILD_T.movers) },
+    bubbles: plan.bubbles
+      .filter((b) => t >= b.t0 && t < b.t1)
+      .map((b) => ({ n: b.n, who: b.who, text: b.text, tag: b.tag ?? null })),
+    camera: cameraAt(t, plan, BUILD_CAM_KEYS),
+    flow: {
+      timeScale: fast ? FAST_FORWARD : 1,
+      peopleDensity: inRaya ? 0.6 : 1,
+      vehicleDensity: inRaya ? 0.5 : 1,
+    },
+    brief: t >= BUILD_T.brief,
+  };
+}
+
+// ---------- the legacy 66 s frame ----------
+
+/** The legacy 66 s plan's frame (no schedule): the prototype-derived developer-lens timeline. */
+function legacyStateAt(t: number, plan: DevelopmentPlan): StateAt {
   const sun = sunAt(t);
   const day = dayness(sun.e);
   const isNight = day < 0.5;
@@ -452,8 +594,6 @@ export function stateAt(tIn: number, plan: DevelopmentPlan): StateAt {
   const cons = t >= CON[0] && t < CON[1] - 0.4;
   const w = cons ? workAt(t) : 0;
   const lit = occupiedShare(t);
-  const beats = feedbackBeats(plan);
-  const flying = beats.find((b) => t >= b.t0 && t < b.t1);
   return {
     act: actAt(t, plan.acts).name,
     simClock: simClockAt(t),
@@ -475,12 +615,14 @@ export function stateAt(tIn: number, plan: DevelopmentPlan): StateAt {
     bubbles: plan.bubbles
       .filter((b) => t >= b.t0 && t < b.t1)
       .map((b) => ({ n: b.n, who: b.who, text: b.text, tag: b.tag ?? null })),
-    feedbackCount: beats.filter((b) => t >= b.t1).length,
-    envelope: flying
-      ? { progress: ease(span(t, flying.t0, flying.t1)), from: flying.afterBubble }
-      : null,
-    camera: cameraAt(t, plan),
+    camera: cameraAt(t, plan, CAM_KEYS),
     flow: flowAt(t),
-    endCard: t >= END_CARD_AT,
+    brief: false,
   };
+}
+
+/** Everything one frame needs at screen second t (clamped to [0, total]). Deterministic. */
+export function stateAt(tIn: number, plan: DevelopmentPlan): StateAt {
+  const t = Math.max(0, Math.min(plan.total_s, Number.isFinite(tIn) ? tIn : 0));
+  return isBuildPlan(plan) ? buildStateAt(t, plan) : legacyStateAt(t, plan);
 }

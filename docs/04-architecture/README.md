@@ -22,7 +22,7 @@ flowchart LR
     REST["REST: site, layers, places, routes,<br/>scenarios, evacuation, VRs"]
     CH["/chat SSE"]
     AG["Agent (PydanticAI → OpenRouter)<br/>+ validator + redactor"]
-    TL["Tool layer (10 tools)"]
+    TL["Tool layer (22 tools)"]
     RT["Routing engine<br/>NetworkX: walk / step-free / drive<br/>strict→lenient, scenario overlay"]
     SC["Scenario store<br/>precomputed HAND flood scenarios"]
     VRQ["Verification workflow"]
@@ -72,6 +72,7 @@ flowchart LR
 | [ai-assistant-design.md](ai-assistant-design.md): tools, prompt, validator, VR triggers, flood guardrails | ● | ● | ●●● |
 | [3d-pipeline.md](3d-pipeline.md): Cesium hero, water, layers, fallbacks | | ●●● | |
 | [resident-agents-design.md](resident-agents-design.md): tester incl. flood invariants | ● | ● | ●●● |
+| [devsim-estimates-sources.md](devsim-estimates-sources.md): sources for the Development Simulation's cost, schedule, holiday and rain estimates | ●● | ● | ● |
 | [../02-research/flood-disaster-lens.md](../02-research/flood-disaster-lens.md): flood data and method | ●●● | ● | ●● |
 
 ## Canonical names cheat-sheet

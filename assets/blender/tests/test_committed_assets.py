@@ -150,3 +150,20 @@ def test_committed_manifest_top_is_the_glb_lod0_top():
         for v, spec in a["variants"].items():
             hi = info.nodes[f"{asset_id}__{v}__LOD0"].bounds[1]
             assert spec["top"] == pytest.approx(hi[1], abs=1e-3), (asset_id, v)
+
+
+def test_committed_two_wheelers_carry_a_rider():
+    """AC-L5: every rider variant's node records the `rider` part at every LOD (glTF node
+    extras `tl_parts`: the join keeps one mesh node per LOD, so the part is named there), and
+    the delivery moped also its `delivery_box`. No other vehicle has a rider."""
+    m = _manifest()
+    if m is None or "vehicles" not in m["assets"]:
+        pytest.skip("no vehicles kit committed yet")
+    spec = specs.ASSETS["vehicles"]
+    info = read_glb(CITY / spec.file)
+    for v in spec.variants:
+        for lod in range(len(v.tris)):
+            node = info.nodes[f"vehicles__{v.id}__LOD{lod}"]
+            parts = set(filter(None, node.extras.get("tl_parts", "").split(",")))
+            assert ("rider" in parts) is v.rider, (v.id, lod, parts)
+            assert ("delivery_box" in parts) is (v.id == "delivery_moto"), (v.id, lod, parts)

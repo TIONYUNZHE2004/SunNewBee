@@ -6,6 +6,8 @@ import { type AssistantMessage, isRefusal, isTemplateFallback } from "../chat/ch
 import { describeUncertainty, groupUncertainty } from "../chat/uncertainty";
 import { useElementNames } from "../chat/useElementNames";
 import { TripStrip } from "../day/TripStrip";
+import { OwnCompareControls } from "../journey/CompareControls";
+import { isPlayableCompare } from "../journey/compareTypes";
 import { OwnJourneyControls } from "../journey/OwnJourneyControls";
 import { WatchTripButton } from "../journey/WatchTripButton";
 import { AnswerText } from "./AnswerText";
@@ -90,10 +92,14 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
       )}
       {m.text && <AnswerText text={m.text} done={m.done} />}
       {m.text && <RouteSummary m={m} />}
-      {m.text && m.journey && (
+      {m.text && (m.journey || isPlayableCompare(m.compare)) && (
         <div className="space-y-2">
-          <WatchTripButton plan={m.journey.plan} />
-          <OwnJourneyControls plan={m.journey.plan} />
+          <WatchTripButton plan={m.journey?.plan} compare={m.compare} />
+          {isPlayableCompare(m.compare) ? (
+            <OwnCompareControls compare={m.compare} />
+          ) : (
+            m.journey && <OwnJourneyControls plan={m.journey.plan} />
+          )}
         </div>
       )}
       {m.text && m.trip && <TripStrip meta={m.trip} />}

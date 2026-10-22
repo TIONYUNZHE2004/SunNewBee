@@ -173,11 +173,12 @@ export function useCameraOps({
     });
   }, [engine, frame, focusPoint]);
 
-  // Look point in the middle of the map area left of the side panel (phones use the sheet).
+  // Look point in the middle of the map area left of the side panel (phones use the sheet). The
+  // Development Simulation's camera frames its own subject in the map area its overlays leave
+  // clear (the driver's view offset, V2 fix B-a; spec 2026-10-21 §6.2, AC-W6).
   useEffect(() => {
     if (!engine) return;
-    const panel = mapPanelOverlapPx(panelOpen, isWide(), innerWidth);
-    engine.setViewOffset(panel);
+    engine.setViewOffset(mapPanelOverlapPx(panelOpen, isWide(), innerWidth));
   }, [engine, panelOpen]);
 
   // Camera actions (buttons, keyboard, double-click).

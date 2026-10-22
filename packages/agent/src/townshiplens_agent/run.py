@@ -16,6 +16,7 @@ from . import agent as agent_mod
 from . import demo
 from .answer import FinalAnswer
 from .canonical import canonical_route_answer
+from .compare_intent import compare_for, compare_payload
 from .developments import BRIEF
 from .draft import DraftStreamer
 from .events import (
@@ -439,6 +440,16 @@ def _answer_events(
             intent.route_status = route.get("status")
             intent.distance_m = route.get("distance_m")
             intent.est_minutes = route.get("est_minutes")
+        if intent.kind == "route.compare":
+            d = compare_for(rec, intent.route_id)
+            if (
+                d is None
+                or d.get("recommended") is None
+                or ans.answer_status == "cannot_answer"
+                or rec.selection_error
+            ):
+                continue  # no compare_routes result with a recommended route this turn
+            intent.compare = compare_payload(ctx.world, d)
         if intent.kind == "journey.play":
             intent.journey = _journey(ctx, rec, intent)
             if intent.journey is None:

@@ -23,8 +23,7 @@ from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
 FIXTURE = (
-    Path(__file__).resolve().parents[3]
-    / "apps/web/src/features/devsim/fixtures/plan.provisional.json"
+    Path(__file__).resolve().parents[3] / "apps/web/src/features/devsim/fixtures/plan.elmina.json"
 )
 HAS_DEVSIM = importlib.util.find_spec("townshiplens_spatial.devsim") is not None
 

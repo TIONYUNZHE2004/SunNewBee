@@ -34,6 +34,14 @@ import {
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
 import { type Clearance, createLift } from "./clearance";
+import {
+  applySideProjection,
+  pickCameraFor,
+  type SplitLayout,
+  sideAt,
+  splitLayout,
+  UnionFrustum,
+} from "./compare/splitView";
 import { cullFrustum, shadowPadM } from "./cull";
 import { createEnvTexture, ENV_SIGMA, fillEnvTexture, loadEnvFile } from "./envMap";
 import { createGpuPacer } from "./gpuPacer";
@@ -118,6 +126,11 @@ export interface DevsimOverlay {
   ): void;
   /** Glows and paint the AO G-buffer must leave out (they would read as solid occluders). */
   aoExcluded?(): readonly THREE.Object3D[];
+  /**
+   * The AO weight (0..1) for a camera `rangeM` from its look point (C10p: the wide devsim shots
+   * drop AO to fit the AC-P2 draw budget). 0 turns the pass off; absent means 1.
+   */
+  aoWeight?(rangeM: number): number;
   dispose(): void;
 }
 
@@ -310,10 +323,49 @@ export interface Engine {
   /** Unrecoverable runtime failure (context lost, shader compile/link error): the caller falls back. */
   onFatal(cb: (err: Error) => void): () => void;
   gl(): WebGL2RenderingContext;
-  /** What the shared picker needs: the camera, the overlay and main scenes, the canvas CSS size. */
-  pickView(): { camera: THREE.Camera; roots: THREE.Object3D[]; size: [number, number] };
+  /**
+   * What the shared picker needs: the camera, the overlay and main scenes, the canvas CSS size.
+   * While split (`setSplit`), the camera is the one drawing the half under `at` (canvas CSS px;
+   * default: the last pointer position over the canvas), with a projection over the whole canvas.
+   */
+  pickView(at?: { x: number; y: number }): {
+    camera: THREE.Camera;
+    roots: THREE.Object3D[];
+    size: [number, number];
+  };
+  /**
+   * Split screen (navigation compare, demo polish B8): while set, every frame draws the scene twice
+   * through the composer, the left camera in the left half of the visible map and the right one in
+   * the right half (`compare/splitView.ts`), each with its look point as the shadow and focus
+   * centre. The engine camera (the camera driver's pose) still drives LOD and streaming; culling
+   * uses both views. The cameras' pose and fov are read every frame; null ends the split.
+   */
+  setSplit?(s: SplitView | null): void;
+  /** The split layout in use (canvas CSS px), or null when not split. */
+  splitLayout?(): SplitLayout | null;
   dispose(): void;
 }
+
+/** One half of a split screen: its camera and the ground point it looks at (local metres). */
+export interface SplitCam {
+  camera: THREE.PerspectiveCamera;
+  look: THREE.Vector3;
+}
+export interface SplitView {
+  left: SplitCam;
+  right: SplitCam;
+  /**
+   * Called before each half is drawn ("left", "right") and with null once both are: a layer can
+   * draw differently per half (the compare draws each half's own route on top, V2 fix N-a).
+   */
+  beforeSide?(side: "left" | "right" | null): void;
+}
+
+/**
+ * Post effects left out while split (B8, AC-P1 ruling, spec §11 fallback): two views doubled the
+ * GTAO and bokeh cost; the halves draw with shadows, bloom and tone mapping only.
+ */
+export const SPLIT_FX_OFF = { ao: true, dof: true } as const;
 
 /** A pose from a camera driver (`Engine.setCameraDriver`), local metres. */
 export interface DrivenCamera {
@@ -327,6 +379,13 @@ export interface DrivenCamera {
    * clock (the Development Simulation's seek) pins it.
    */
   fovDeg?: number;
+  /**
+   * The projection window's offset (CSS px, `camera.setViewOffset` x and y) to render with, in
+   * place of the side panel's: a point the driver projects at (x, y) without it is drawn at
+   * (x - dx, y - dy). The Development Simulation frames its subject in the map area its overlays
+   * leave clear (V2 fix B-a). Without it the panel's offset applies.
+   */
+  viewOffset?: readonly [number, number];
 }
 export type CameraDriver = (
   now: number,
@@ -576,6 +635,11 @@ function build(
   // three r186 removed PCFSoftShadowMap: it warns once and uses PCFShadowMap. Ask for that directly
   // so the console stays clean. r186 PCF honours `shadow.radius` (soft kernel, B-T4: SHADOW).
   renderer.shadowMap.type = THREE.PCFShadowMap;
+  // C10p: the sun's shadow map is drawn once per composer render (see `renderComposer`), not on
+  // every `renderer.render(scene)`: the GTAO pass renders the scene again for its normal/depth
+  // buffer, and with autoUpdate that redrew every caster a second time with the same light and
+  // camera (same map, so no pixel changes).
+  renderer.shadowMap.autoUpdate = false;
   renderer.info.autoReset = false;
 
   let disposed = false;
@@ -891,10 +955,13 @@ function build(
         isBatchedMesh?: boolean;
         instanceColor?: unknown;
       };
-      if (!m.isMesh || m.isBatchedMesh || (shadow && !m.castShadow)) return;
-      const wear = shadow ? [shadowDepthFor(m.material)] : overrides;
+      if (!m.isMesh || m.isBatchedMesh || (shadow && !m.castShadow && !m.customDepthMaterial))
+        return;
+      // a caster's own shadow depth material (the devsim small-prop fade) is compiled as drawn
+      const custom = shadow ? m.customDepthMaterial : undefined;
+      const wear = shadow ? [custom ?? shadowDepthFor(m.material)] : overrides;
       const morph = Object.keys(m.geometry?.morphAttributes ?? {}).length;
-      const key = `${!!m.isSkinnedMesh}|${!!m.isInstancedMesh}|${!!m.instanceColor}|${morph}|${wear[0]?.side}`;
+      const key = `${!!m.isSkinnedMesh}|${!!m.isInstancedMesh}|${!!m.instanceColor}|${morph}|${wear[0]?.side}|${!!custom}`;
       if (seen.has(key)) return;
       seen.add(key);
       for (const ov of wear) {
@@ -1138,6 +1205,24 @@ function build(
   let frames = 0;
   let size: [number, number] = [1, 1];
   let panelPx = 0;
+  /** The split screen (B8): its two cameras and the layout for the current canvas. */
+  let split: SplitView | null = null;
+  let layout: SplitLayout | null = null;
+  /** The last pointer x over the canvas (CSS px): pickView's half while split. */
+  let pointerX = 0;
+  /** The width the composer and line resolutions use: the render rect while split, else the canvas. */
+  const drawW = () => (layout ? layout.renderW : size[0]);
+  const pickCam = new THREE.PerspectiveCamera();
+  const onPointer = (e: PointerEvent) => {
+    const r = canvas.getBoundingClientRect();
+    pointerX = e.clientX - r.left;
+  };
+  canvas.addEventListener("pointermove", onPointer);
+  canvas.addEventListener("pointerdown", onPointer);
+  undo.push(() => {
+    canvas.removeEventListener("pointermove", onPointer);
+    canvas.removeEventListener("pointerdown", onPointer);
+  });
   let bounds: Bounds = { min: [0, 0], max: [0, 0] };
   /** The slab's camera fit (A-T5): set with the slab, null without one (the tiny fixture). */
   let fit: CameraFit | null = null;
@@ -1321,6 +1406,7 @@ function build(
   let focusSet = false;
   let tierNow: Tier = tier;
   const bokehSkip: THREE.Object3D[] = [];
+  const bokehAnimated: THREE.Object3D[] = [];
   const focusNow = (out: THREE.Vector3) =>
     focusSet ? out.copy(focusPoint) : out.copy(controls.target);
   const focusTmp = new THREE.Vector3();
@@ -1373,7 +1459,9 @@ function build(
     });
     for (const p of passes) p.dispose();
     composer.dispose();
-    const [w, h] = size;
+    // split: each half's render rect (both halves share the composer)
+    const w = drawW();
+    const h = size[1];
     composer = new EffectComposer(renderer);
     composer.setPixelRatio(pr);
     passes = [new RenderPass(scene, camera)];
@@ -1418,14 +1506,26 @@ function build(
     // drawn after it (overlay pass, renderJourneyMarkers) and are never blurred.
     bokehPass = null;
     if (spec.dof && dofWanted) {
-      bokehPass = new CityBokehPass(scene, camera, () => {
-        bokehSkip.length = 0;
-        bokehSkip.push(sky.mesh);
-        if (currentTreeCut.value) for (const o of decorCuttable()) bokehSkip.push(o);
-        if (overlays) bokehSkip.push(overlays.lineGroup);
-        if (journey) bokehSkip.push(journey.ribbon);
-        return bokehSkip;
-      });
+      bokehPass = new CityBokehPass(
+        scene,
+        camera,
+        () => {
+          bokehSkip.length = 0;
+          bokehSkip.push(sky.mesh);
+          if (currentTreeCut.value) for (const o of decorCuttable()) bokehSkip.push(o);
+          if (overlays) bokehSkip.push(overlays.lineGroup);
+          if (journey) bokehSkip.push(journey.ribbon);
+          return bokehSkip;
+        },
+        () => {
+          // A3 (AC-L12): the crowd and agents write depth in their drawn pose (their depth twins)
+          bokehAnimated.length = 0;
+          if (motionLayer) bokehAnimated.push(motionLayer.group);
+          // the devsim cast's crowd too (its renderers carry the same twins; other meshes untouched)
+          if (devsim) bokehAnimated.push(devsim.group);
+          return bokehAnimated;
+        },
+      );
       aimBokeh();
       passes.push(bokehPass);
     }
@@ -1516,6 +1616,8 @@ function build(
   let driving = false;
   /** The driver's pinned fov (DrivenCamera.fovDeg), or null: the rig's. */
   let drivenFov: number | null = null;
+  /** The driver's view offset (DrivenCamera.viewOffset), or null: the panel's. */
+  let drivenOffset: [number, number] | null = null;
   const _cur = {
     position: [0, 0, 0] as [number, number, number],
     look: [0, 0, 0] as [number, number, number],
@@ -1533,6 +1635,14 @@ function build(
       pose = driver(now, _cur);
     }
     drivenFov = pose?.fovDeg ?? null;
+    const off = pose?.viewOffset ?? null;
+    if (
+      (off === null) !== (drivenOffset === null) ||
+      (off && drivenOffset && (off[0] !== drivenOffset[0] || off[1] !== drivenOffset[1]))
+    ) {
+      drivenOffset = off ? [off[0], off[1]] : null;
+      applyViewOffset();
+    }
     if (!pose) {
       if (driving) {
         driving = false;
@@ -1562,6 +1672,134 @@ function build(
     liftM = 0;
     lifted.set(Number.NaN, 0, 0);
     return { driven: true, animating: !!pose.animating };
+  };
+
+  // The scene pass always draws into the same target (ITER2 AC-D18). The composer ping-pongs its
+  // two targets once per swapping pass, so when a pass turns on or off (the depth of field once
+  // the journey sets its subject) the scene pass moved to the other target, where none of the
+  // city's programs had drawn yet: ANGLE / D3D11 built their executables there at the dive
+  // (~66 first draws, one 160-360 ms frame at Ask+1.3-1.6 s). Nothing reads the scene target
+  // across frames (the scene pass clears it), so pinning it changes no pixel.
+  const pinSceneTarget = () => {
+    if (
+      composer.renderTarget1 &&
+      composer.readBuffer !== composer.renderTarget1 &&
+      typeof composer.swapBuffers === "function"
+    )
+      composer.swapBuffers();
+  };
+
+  /** Whether the devsim AO weight changed the AO pass (so leaving devsim restores it). */
+  let devsimAoHeld = false;
+  /** The devsim layer's AO weight for this frame's range (C10p), or the pass restored after it. */
+  const applyDevsimAo = () => {
+    if (!aoPass) {
+      devsimAoHeld = false;
+      return;
+    }
+    const base = lastPreset?.aoBlend ?? AO_PARAMS.blendIntensity;
+    if (devsim?.aoWeight && !split) {
+      const w = Math.max(
+        0,
+        Math.min(1, devsim.aoWeight(camera.position.distanceTo(controls.target))),
+      );
+      aoPass.enabled = w > 0;
+      aoPass.blendIntensity = base * w;
+      devsimAoHeld = true;
+    } else if (devsimAoHeld) {
+      aoPass.enabled = true;
+      aoPass.blendIntensity = base;
+      devsimAoHeld = false;
+    }
+  };
+  /** One composer render; its scene pass (the first) redraws the shadow map, later passes reuse it. */
+  const renderComposer = () => {
+    renderer.shadowMap.needsUpdate = true;
+    composer.render();
+    renderer.shadowMap.needsUpdate = false;
+  };
+
+  // Split screen (B8): both views' frusta for culling, and the two-pass draw.
+  const unionCull = new UnionFrustum();
+  const splitM = new THREE.Matrix4();
+  const splitFrustum = (padM: number): THREE.Frustum => {
+    if (!split || !layout) return frustum;
+    for (const [side, f] of [
+      ["left", unionCull.a],
+      ["right", unionCull.b],
+    ] as const) {
+      const c = split[side].camera;
+      applySideProjection(c, layout, side);
+      cullFrustum(c, padM, f, splitM);
+    }
+    return unionCull;
+  };
+  const savedPos = new THREE.Vector3();
+  const savedQuat = new THREE.Quaternion();
+  const savedTarget = new THREE.Vector3();
+  /**
+   * Draws the two halves: the engine camera takes each side camera's pose, fov and side
+   * projection in turn (every pass holds the engine camera), the shadow box and depth-of-field
+   * focus follow that side's look point, and the composer renders into the side's render rect,
+   * scissored to its visible part. The camera and target are put back afterwards.
+   */
+  const renderSplit = (sv: SplitView, l: SplitLayout) => {
+    const [W, H] = l.size;
+    savedPos.copy(camera.position);
+    savedQuat.copy(camera.quaternion);
+    savedTarget.copy(controls.target);
+    const fov = camera.fov;
+    // AC-P1 ruling: ambient occlusion and depth of field are off in split mode (each half is
+    // small, the contact shadows read little there, and they doubled the frame cost)
+    const aoOn = aoPass?.enabled ?? false;
+    const dofOn = bokehPass?.enabled ?? false;
+    if (aoPass) aoPass.enabled = !SPLIT_FX_OFF.ao;
+    if (bokehPass) bokehPass.enabled = !SPLIT_FX_OFF.dof && dofOn;
+    renderer.setScissorTest(true);
+    try {
+      for (const side of ["left", "right"] as const) {
+        sv.beforeSide?.(side);
+        const c = sv[side];
+        const s = l[side];
+        camera.position.copy(c.camera.position);
+        camera.quaternion.copy(c.camera.quaternion);
+        camera.fov = c.camera.fov;
+        applySideProjection(camera, l, side);
+        camera.updateMatrixWorld();
+        controls.target.copy(c.look);
+        placeLight();
+        overlays?.setView(camera.position, camera.fov);
+        aimBokeh();
+        const x0 = Math.max(0, s.vx);
+        const x1 = Math.min(W, s.vx + l.renderW);
+        renderer.setViewport(s.vx, 0, l.renderW, H);
+        renderer.setScissor(x0, 0, Math.max(0, x1 - x0), H);
+        pinSceneTarget();
+        renderComposer();
+      }
+    } finally {
+      sv.beforeSide?.(null);
+      if (aoPass) aoPass.enabled = aoOn;
+      if (bokehPass) bokehPass.enabled = dofOn;
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, W, H);
+      renderer.setScissor(0, 0, W, H);
+      camera.position.copy(savedPos);
+      camera.quaternion.copy(savedQuat);
+      camera.fov = fov;
+      controls.target.copy(savedTarget);
+      applyViewOffset();
+      camera.updateMatrixWorld();
+    }
+  };
+  /** Composer, line and ribbon resolutions for the current canvas and split. */
+  const syncDrawSize = () => {
+    const [w, h] = size;
+    layout = split ? splitLayout(w, h, panelPx) : null;
+    const dw = drawW();
+    composer.setSize(dw, h);
+    overlays?.setResolution(dw, h);
+    journey?.setResolution(dw, h);
   };
 
   let cameraOverride: {
@@ -1619,14 +1857,10 @@ function build(
       // The shadow box half size is the shadow frame's (placeLight); no casters needed once faded.
       if (assets) {
         const sf = shadowFrame(rangeM, sun.shadow.mapSize.x);
+        const pad = shadowPadM(sun.castShadow && sf.strength > 0, sf.halfSize);
         assets.update(
           camera.position,
-          cullFrustum(
-            camera,
-            shadowPadM(sun.castShadow && sf.strength > 0, sf.halfSize),
-            cull,
-            viewProj,
-          ),
+          split ? splitFrustum(pad) : cullFrustum(camera, pad, cull, viewProj),
         );
       }
       lodTick.target.x = controls.target.x;
@@ -1654,7 +1888,12 @@ function build(
       frustum.setFromProjectionMatrix(
         viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
       );
-      motionLayer.tick(tripMs ?? clock.at, camera.position, frustum, tripMs !== null);
+      motionLayer.tick(
+        tripMs ?? clock.at,
+        camera.position,
+        split ? splitFrustum(0) : frustum,
+        tripMs !== null,
+      );
     }
     if (tripMs !== null) motion.uTime.value = tripMs / 1000;
     placeLight();
@@ -1669,6 +1908,7 @@ function build(
       );
     }
     devsim?.beforeRender(camera, size, now);
+    applyDevsimAo();
     aimBokeh();
     const tRender = performance.now();
     // The scene pass always draws into the same target (ITER2 AC-D18). The composer ping-pongs its
@@ -1677,14 +1917,12 @@ function build(
     // city's programs had drawn yet: ANGLE / D3D11 built their executables there at the dive
     // (~66 first draws, one 160-360 ms frame at Ask+1.3-1.6 s). Nothing reads the scene target
     // across frames (the scene pass clears it), so pinning it changes no pixel.
-    if (
-      composer.renderTarget1 &&
-      composer.readBuffer !== composer.renderTarget1 &&
-      typeof composer.swapBuffers === "function"
-    )
-      composer.swapBuffers();
-    composer.render();
-    renderJourneyMarkers();
+    if (split && layout) renderSplit(split, layout);
+    else {
+      pinSceneTarget();
+      renderComposer();
+      renderJourneyMarkers();
+    }
     if (warming.length > 0) {
       for (const g of warming) releaseWarmDraws(g);
       warming = [];
@@ -1743,7 +1981,8 @@ function build(
   const applyViewOffset = () => {
     const [w, h] = size;
     camera.aspect = w / h;
-    if (panelPx > 0) camera.setViewOffset(...viewOffsetFor(w, h, panelPx));
+    if (drivenOffset) camera.setViewOffset(w, h, drivenOffset[0], drivenOffset[1], w, h);
+    else if (panelPx > 0) camera.setViewOffset(...viewOffsetFor(w, h, panelPx));
     else camera.clearViewOffset();
     camera.updateProjectionMatrix();
   };
@@ -2028,7 +2267,7 @@ function build(
         pendingOverlays = null;
         dropOverlays();
         overlays = o;
-        o.setResolution(size[0], size[1]);
+        o.setResolution(drawW(), size[1]);
         o.setPixelRatio(pixelRatio);
         syncDashes(true);
         overlayScene.add(o.group);
@@ -2067,7 +2306,7 @@ function build(
         if (disposed || pendingJourney !== j) return;
         pendingJourney = null;
         journey = j;
-        j.setResolution(size[0], size[1]);
+        j.setResolution(drawW(), size[1]);
         scene.add(j.ribbon);
         swapped = true;
         requestRender();
@@ -2219,6 +2458,7 @@ function build(
     setViewOffset(px) {
       if (disposed) return;
       panelPx = px;
+      if (split) syncDrawSize();
       applyViewOffset();
       requestRender();
     },
@@ -2226,9 +2466,7 @@ function build(
       if (disposed || w <= 0 || h <= 0) return;
       size = [w, h];
       renderer.setSize(w, h, false);
-      composer.setSize(w, h);
-      overlays?.setResolution(w, h);
-      journey?.setResolution(w, h);
+      syncDrawSize();
       syncDashes(true);
       applyViewOffset();
       requestRender();
@@ -2256,7 +2494,30 @@ function build(
       return () => fatalCbs.delete(cb);
     },
     gl: () => renderer.getContext() as WebGL2RenderingContext,
-    pickView: () => ({ camera, roots: [overlayScene, scene], size: [size[0], size[1]] }),
+    pickView(at) {
+      const roots = [overlayScene, scene];
+      if (split && layout) {
+        const side = sideAt(layout, at?.x ?? pointerX);
+        return {
+          camera: pickCameraFor(split[side].camera, layout, side, pickCam),
+          roots,
+          size: [size[0], size[1]],
+        };
+      }
+      return { camera, roots, size: [size[0], size[1]] };
+    },
+    setSplit(sv) {
+      if (disposed) return;
+      const was = !!split;
+      split = sv;
+      if (was !== !!sv) {
+        syncDrawSize();
+        // the side cameras own the view: no orbit input meanwhile (the driver turns it off too)
+        if (!sv) applyViewOffset();
+      }
+      requestRender();
+    },
+    splitLayout: () => layout,
     dispose() {
       if (disposed) return;
       disposed = true;

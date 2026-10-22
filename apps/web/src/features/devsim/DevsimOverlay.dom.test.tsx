@@ -1,18 +1,24 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TopStack } from "../map-ui/mapSlots";
 import { collectProbe, useDevsimAnchors } from "./anchors";
+import { hoardingCardOn, hoardingCardWindow } from "./buildModel";
 import { bubbleViews, DevsimOverlay } from "./DevsimOverlay";
 import { useDevsim } from "./devsimStore";
-import provisional from "./fixtures/plan.provisional.json";
+import elmina from "./fixtures/plan.elmina.json";
 import { NOT_AVAILABLE } from "./intent";
 import { RouteTag } from "./RouteTag";
 import type { DevelopmentPlan } from "./types";
 
-const plan = provisional as unknown as DevelopmentPlan;
+const plan = elmina as unknown as DevelopmentPlan;
 const vp = { w: 1000, h: 700, top: 120, avoid: [] };
 const d = () => useDevsim.getState();
 const at = (t: number) => act(() => d().seek(t));
+const bubble = (n: number) => plan.bubbles.find((b) => b.n === n) as DevelopmentPlan["bubbles"][0];
+const banner = (k: string) =>
+  plan.banners.find((b) => b.kind === k) as DevelopmentPlan["banners"][0];
+const tag = (k: string) => plan.tags.find((b) => b.kind === k) as DevelopmentPlan["tags"][0];
 
 beforeEach(() => {
   d().stop();
@@ -20,29 +26,78 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("DevsimOverlay", () => {
+describe("DevsimOverlay (45 s building plan)", () => {
   it("shows nothing while idle", () => {
     const { container } = render(<DevsimOverlay viewport={vp} />);
     expect(container.textContent).toBe("");
   });
 
-  it("badge, HUD and labels are present (D8, D3)", () => {
+  it("badge, estimate HUD, schedule bar and labels are present (D8, AC-W2)", () => {
     d().start(plan, "b");
     render(<DevsimOverlay viewport={vp} />);
-    at(10);
+    at(8);
     expect(screen.getByTestId("devsim-sim-badge")).toHaveTextContent("Simulation · illustrative");
-    expect(screen.getByTestId("devsim-hypothetical")).toHaveAccessibleName(
-      "Hypothetical development · not an SDP project · 30 storeys · ~500 homes",
-    );
-    expect(screen.getByTestId("devsim-hypothetical")).toHaveTextContent(
-      "Hypothetical developmentnot an SDP project · 30 storeys · ~500 homes",
-    );
     expect(screen.getByText("Decorative details are illustrative.")).toBeInTheDocument();
-    const hud = screen.getByTestId("devsim-hud");
-    expect(within(hud).getByTestId("devsim-hud-act")).toHaveTextContent("Construction");
-    expect(within(hud).getByTestId("devsim-hud-when")).toHaveTextContent(/^Month \d+ of 24$/);
-    expect(within(hud).getByText("Homes occupied")).toBeInTheDocument();
+    const hud = screen.getByTestId("devsim-estimate-hud");
+    expect(within(hud).getByTestId("devsim-hud-cost")).toHaveTextContent(/^RM \d+ M$/);
+    expect(within(hud).getByTestId("devsim-hud-lost")).toHaveTextContent(/^\d+ d$/);
+    expect(within(hud).getByTestId("devsim-hud-footnote")).toHaveTextContent(
+      "Estimate from published benchmarks",
+    );
+    expect(within(hud).queryByTestId("devsim-hud-homes")).toBeNull();
+    expect(screen.getByTestId("devsim-schedule-bar")).toBeInTheDocument();
     expect(screen.getByTestId("devsim-controls")).toBeInTheDocument();
+  });
+
+  it('"Hypothetical tower · not an SDP project" is visible throughout (AC-W9)', () => {
+    d().start(plan, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    for (let t = 0; t <= plan.total_s; t += 0.5) {
+      at(t);
+      const labels = screen.getAllByTestId("devsim-hypothetical");
+      expect(labels, `t=${t}`).toHaveLength(1);
+      expect(labels[0]).toHaveAccessibleName(plan.labels.hypothetical);
+      expect(plan.labels.hypothetical.startsWith("Hypothetical tower · not an SDP project")).toBe(
+        true,
+      );
+    }
+  });
+
+  it("homes moved in from handover: labelled simulated, outside the estimate HUD (no ESTIMATE)", () => {
+    d().start(plan, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    at(26.9);
+    expect(screen.queryByTestId("devsim-movein-counter")).toBeNull();
+    at(27.5);
+    const c = screen.getByTestId("devsim-movein-counter");
+    expect(c).toHaveTextContent(`0/${plan.site.homes}`);
+    expect(c).toHaveTextContent("Homes moved in (simulated)");
+    // not inside the estimate HUD, not under its footnote, no source badge of its own
+    const hud = screen.getByTestId("devsim-estimate-hud");
+    expect(hud.contains(c)).toBe(false);
+    expect(c.contains(screen.getByTestId("devsim-hud-footnote"))).toBe(false);
+    expect(c.querySelector("[data-testid=devsim-estimate-badge],[data-badge]")).toBeNull();
+    expect(c.textContent).not.toMatch(/ESTIMATE|benchmark/i);
+    expect(within(hud).queryByText(/moved in|occupied/i)).toBeNull();
+    at(33);
+    expect(screen.getByTestId("devsim-movein-counter")).toHaveTextContent(
+      `${Math.round(0.9 * plan.site.homes)}/${plan.site.homes}`,
+    );
+  });
+
+  it("a legacy plan without a schedule plays bare: no HUD, brief, banners or residents", () => {
+    const legacy = { ...plan, schedule: undefined } as unknown as DevelopmentPlan;
+    d().start(legacy, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    for (const t of [6, 12, 30, 40]) {
+      at(t);
+      expect(screen.queryByTestId("devsim-estimate-hud")).toBeNull();
+      expect(screen.queryByTestId("devsim-impact-brief")).toBeNull();
+      expect(screen.queryByTestId("devsim-banner")).toBeNull();
+      expect(screen.queryByTestId("devsim-hoarding-card")).toBeNull();
+    }
+    expect(screen.getByTestId("devsim-controls")).toBeInTheDocument();
+    expect(screen.getByTestId("devsim-hypothetical")).toBeInTheDocument();
   });
 
   it("the decorative note can be left to the renderer", () => {
@@ -61,41 +116,121 @@ describe("DevsimOverlay", () => {
     expect(label.style.top).toBe("300px");
   });
 
-  it("bubbles: the plan's text and speaker, in a fixed stack without 3D, with the ROUTE ENGINE tag", () => {
+  it("hoarding impact card at the plan's detour-tag window: the plan's rows, with the hoarded side row", () => {
+    const w = tag("detour");
     d().start(plan, "b");
     render(<DevsimOverlay viewport={vp} />);
-    at(19);
-    const stack = screen.getByTestId("devsim-bubble-stack");
-    const b = within(stack).getByTestId("devsim-bubble");
-    expect(b).toHaveTextContent("Pak Cik Halim");
-    expect(b).toHaveTextContent("Footpath closed lah, must walk the other side now");
-    expect(within(b).getByTestId("devsim-route-tag")).toHaveTextContent(
-      "ROUTE ENGINE+3 min walk · 2,516 → 2,754 m",
-    );
-    at(24);
-    expect(screen.getByTestId("devsim-bubble")).toHaveTextContent("So noisy lah");
-    expect(screen.queryByTestId("devsim-route-tag")).toBeNull();
-    at(30);
-    expect(screen.queryByTestId("devsim-bubble")).toBeNull();
+    at(w.t0 - 0.05);
+    expect(screen.queryByTestId("devsim-hoarding-card")).toBeNull();
+    at(w.t0);
+    const card = screen.getByTestId("devsim-hoarding-card");
+    const rows = plan.brief.sections[0]?.rows ?? [];
+    const pick = (k: string) => rows.find((r) => r.key === k);
+    for (const k of ["homes_2min_plus", "wheelchair_links_cut", "best_side"]) {
+      const r = pick(k);
+      expect(r, k).toBeTruthy();
+      const el = card.querySelector(`[data-key="${k}"]`);
+      expect(el).toHaveTextContent(`${r?.label}${r?.value}`);
+    }
+    expect(card).toHaveTextContent(plan.impact.provenance);
+    at(w.t1);
+    expect(screen.queryByTestId("devsim-hoarding-card")).toBeNull();
+  });
+
+  it("detour and lorry tags at the plan's windows; the lorry tag names the first sensitive place (R16)", () => {
+    d().start(plan, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    const lorry = tag("lorry");
+    at(lorry.t0 - 0.05);
+    expect(document.querySelector('[data-kind="lorry"]')).toBeNull();
+    at(lorry.t0);
+    const el = document.querySelector('[data-kind="lorry"]');
+    expect(el).toHaveTextContent(lorry.text);
+    const first = plan.lorry_route.sensitive[0];
+    if (first) {
+      expect(el).toHaveTextContent(first.name);
+      const isSchool = first.type === "school" || first.type === "kindergarten";
+      if (!isSchool) expect(el?.textContent ?? "").not.toMatch(/school/i);
+    }
+    at(tag("detour").t0 + 0.1);
+    expect(document.querySelector('[data-kind="detour"]')).toHaveTextContent(tag("detour").text);
+  });
+
+  it("a tag the 3D view projects is anchored at its point", () => {
+    d().start(plan, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    at(tag("lorry").t0 + 0.5);
+    act(() => useDevsimAnchors.getState().set({ tagPoints: { lorry: [420, 260] } }));
+    const el = document.querySelector('[data-kind="lorry"]') as HTMLElement;
+    expect(el.style.left).toBe("420px");
+    expect(el.style.top).toBe("260px");
+  });
+
+  it("Raya, monsoon and handover banners: the plan's windows, title, text and badges (R25)", () => {
+    d().start(plan, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    for (const k of ["raya", "monsoon", "handover"]) {
+      const b = banner(k);
+      at(b.t0 - 0.05);
+      expect(document.querySelector(`[data-kind="${k}"]`), `${k} before`).toBeNull();
+      at((b.t0 + b.t1) / 2);
+      const el = document.querySelector(`[data-kind="${k}"]`) as HTMLElement;
+      expect(el).toHaveTextContent(b.title);
+      expect(el).toHaveTextContent(b.text);
+      expect(
+        [...el.querySelectorAll("[data-badge]")].map((x) => (x as HTMLElement).dataset.badge),
+      ).toEqual(b.badges);
+      at(b.t1);
+      expect(document.querySelector(`[data-kind="${k}"]`), `${k} after`).toBeNull();
+    }
+    // the monsoon text states the days the plan says were lost, never more
+    const mon = plan.schedule.monsoon_set_piece;
+    if (mon && mon.months.every((m) => m.days_lost === 0))
+      expect(banner("monsoon").text).not.toMatch(/days lost a month|per month lost/i);
+  });
+
+  it("bubbles at the plan's windows (±0.05 s; AC-W8), stacked without 3D, with the ROUTE ENGINE tag", () => {
+    d().start(plan, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    for (const b of plan.bubbles) {
+      at(b.t0 - 0.05);
+      const before = screen.queryAllByTestId("devsim-bubble").map((e) => e.textContent ?? "");
+      expect(
+        before.some((x) => x.includes(b.text)),
+        `bubble ${b.n} before`,
+      ).toBe(false);
+      at(b.t0 + 0.05);
+      const on = screen
+        .getAllByTestId("devsim-bubble")
+        .find((e) => e.textContent?.includes(b.text));
+      expect(on, `bubble ${b.n} on`).toBeTruthy();
+      if (b.tag) expect(on?.textContent).toContain(b.tag.split(" · ").slice(1).join(" · "));
+      at(b.t1);
+      const after = screen.queryAllByTestId("devsim-bubble").map((e) => e.textContent ?? "");
+      expect(
+        after.some((x) => x.includes(b.text)),
+        `bubble ${b.n} after`,
+      ).toBe(false);
+    }
+    at(bubble(1).t0 + 0.1);
+    expect(screen.getByTestId("devsim-bubble-stack")).toBeInTheDocument();
   });
 
   it("each new bubble is announced once to screen readers, labelled simulated (Minor 6)", () => {
     d().start(plan, "b");
     render(<DevsimOverlay viewport={vp} />);
-    at(19);
+    at(bubble(2).t0 + 0.1);
     const live = screen.getByTestId("devsim-bubble-live");
     expect(live).toHaveAttribute("aria-live", "polite");
-    expect(live).toHaveTextContent(
-      "Simulated reaction, Pak Cik Halim: Footpath closed lah, must walk the other side now",
-    );
-    at(30);
+    expect(live).toHaveTextContent(`Simulated reaction, Farid: ${bubble(2).text}`);
+    at(17);
     expect(live.textContent).toBe("");
   });
 
   it("bubbles sit by the speaker when 3D gives them, inside the map area and off the speaker", () => {
     d().start(plan, "b");
     render(<DevsimOverlay viewport={vp} />);
-    at(54);
+    at(bubble(6).t0 + 0.2);
     act(() =>
       useDevsimAnchors.getState().set({
         speaker: { x: 480, y: 400, w: 30, h: 90 },
@@ -103,71 +238,135 @@ describe("DevsimOverlay", () => {
       }),
     );
     const b = screen.getByTestId("devsim-bubble");
-    // jsdom has no layout: the estimated 240 x 110 box, above the speaker and their name tag
     expect(b.dataset.side).toBe("above");
-    expect(b.style.left).toBe("375px");
     expect(Number.parseFloat(b.style.top) + 110).toBeLessThanOrEqual(400 - 28);
     expect(Number.parseFloat(b.style.top)).toBeGreaterThanOrEqual(120);
   });
 
-  it("AC-F5 (owner ruling): an envelope per end-card item; Resident feedback goes 0 -> 1 -> 2 -> 3", () => {
+  it("two bubbles at once each anchor at their own speaker (Zainab and Arjun, 36.5–37 s)", () => {
     d().start(plan, "b");
     render(<DevsimOverlay viewport={vp} />);
-    const count = () => screen.getByTestId("devsim-feedback-count");
-    at(20);
-    expect(count()).toHaveTextContent("0");
-    at(22);
-    expect(screen.getByTestId("devsim-envelope")).toBeInTheDocument();
-    expect(count()).toHaveTextContent("0");
-    at(23);
-    expect(screen.queryByTestId("devsim-envelope")).toBeNull();
-    expect(count()).toHaveTextContent("1");
-    at(49);
-    expect(count()).toHaveTextContent("1");
-    expect(screen.queryByTestId("devsim-envelope")).toBeNull();
-    at(51);
-    expect(screen.getByTestId("devsim-envelope")).toBeInTheDocument();
-    expect(count()).toHaveTextContent("1");
-    at(52);
-    expect(screen.queryByTestId("devsim-envelope")).toBeNull();
-    expect(count()).toHaveTextContent("2");
-    at(62.2);
-    expect(screen.getByTestId("devsim-envelope")).toBeInTheDocument();
-    at(66);
-    expect(count()).toHaveTextContent("3");
-    expect(screen.getByRole("status", { name: "Resident feedback: 3" })).toBeInTheDocument();
-    // the counter equals the end card's items
-    expect(screen.getAllByTestId("devsim-end-item")).toHaveLength(3);
+    at(36.7);
+    const zainab = { x: 250, y: 420, w: 30, h: 90 };
+    const arjun = { x: 700, y: 420, w: 30, h: 90 };
+    act(() =>
+      useDevsimAnchors.getState().set({
+        speaker: zainab,
+        speakerHead: [265, 420],
+        speakers: [
+          { id: "zainab", rect: zainab, head: [265, 420] },
+          { id: "arjun", rect: arjun, head: [715, 420] },
+        ],
+      }),
+    );
+    const bs = screen.getAllByTestId("devsim-bubble");
+    expect(bs).toHaveLength(2);
+    expect(screen.queryByTestId("devsim-bubble-stack")).toBeNull();
+    const centre = (el: HTMLElement) => Number.parseFloat(el.style.left) + 120;
+    const byName = (name: string) => bs.find((b) => b.textContent?.includes(name)) as HTMLElement;
+    // each bubble is centred over its own speaker, not both at the first speaker
+    expect(Math.abs(centre(byName("Zainab")) - 265)).toBeLessThan(2);
+    expect(Math.abs(centre(byName("Arjun")) - 715)).toBeLessThan(2);
   });
 
-  it("the end card copy equals spec §4.5", () => {
+  it("a second bubble whose speaker is not drawn goes to the stack, not onto the first speaker", () => {
     d().start(plan, "b");
     render(<DevsimOverlay viewport={vp} />);
-    at(62);
+    at(36.7);
+    const zainab = { x: 250, y: 420, w: 30, h: 90 };
+    act(() =>
+      useDevsimAnchors.getState().set({
+        speaker: zainab,
+        speakerHead: [265, 420],
+        speakers: [{ id: "zainab", rect: zainab, head: [265, 420] }],
+      }),
+    );
+    const stack = screen.getByTestId("devsim-bubble-stack");
+    expect(within(stack).getAllByTestId("devsim-bubble")).toHaveLength(1);
+    expect(stack).toHaveTextContent("Arjun");
+  });
+
+  it("from 33 s: the Impact Brief and the residents button (AC-W6, AC-W7); no end card, no feedback envelope", () => {
+    d().start(plan, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    at(32.9);
+    expect(screen.queryByTestId("devsim-impact-brief")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Simulated residents/ })).toBeNull();
+    at(33.6);
+    const brief = screen.getByTestId("devsim-impact-brief");
+    expect(within(brief).getByRole("heading", { name: plan.brief.title })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Simulated residents · 40/ })).toBeInTheDocument();
     expect(screen.queryByTestId("devsim-end-card")).toBeNull();
-    at(66);
-    const card = screen.getByTestId("devsim-end-card");
-    expect(within(card).getByRole("heading", { name: "What residents raised" })).toBeVisible();
-    expect(card).toHaveTextContent(
-      "Simulated reactions · Hypothetical development · not an SDP project",
-    );
-    const items = within(card).getAllByTestId("devsim-end-item");
-    expect(items.map((li) => li.textContent)).toEqual([
-      "Building work closes the footpath beside the site: the walk to the mall gets about 3 min longer (2,516 m → 2,754 m).ROUTE ENGINE",
-      "Parents complain about the morning school-run jam at the junction.SIMULATED",
-      "Residents like having Urban Park 9 min and the mall 10 min away on foot.ROUTE ENGINESIMULATED",
-    ]);
-    // §4.5 layout: numbered items, key phrases in bold
-    expect(card.querySelector("ol")?.className).toMatch(/list-decimal/);
-    expect([...card.querySelectorAll("strong")].map((b) => b.textContent)).toEqual([
-      "about 3 min longer",
-      "morning school-run jam",
-      "Urban Park 9 min",
-      "the mall 10 min",
-    ]);
-    expect(card).toHaveTextContent(
-      "ROUTE ENGINE numbers come from the mapped walk network. SIMULATED marks invented reactions.",
-    );
+    expect(screen.queryByTestId("devsim-feedback")).toBeNull();
+    expect(screen.queryByTestId("devsim-envelope")).toBeNull();
+    // seeking back hides it again
+    at(20);
+    expect(screen.queryByTestId("devsim-impact-brief")).toBeNull();
+  });
+
+  it("the residents panel opens by the script at 39 s and Mei Ling at 41 s while playing", () => {
+    d().start(plan, "b");
+    render(<DevsimOverlay viewport={vp} />);
+    act(() => {
+      d().seek(38.5);
+      d().play();
+    });
+    for (let t = 38.5; t <= 41.25; t += 0.25) at(t);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveTextContent("Mei Ling");
+  });
+
+  it("publishes the map area its overlays leave clear: left of the brief from 33 s, right of the left stack (V2 B-a)", () => {
+    // jsdom has no layout: the stage, the left stack and the brief get boxes by their markers
+    const boxes: [string, { x: number; y: number; w: number; h: number }][] = [
+      ['[data-testid="stage"]', { x: 0, y: 0, w: 1000, h: 800 }],
+      ['[data-testid="devsim-overlay"]', { x: 16, y: 16, w: 440, h: 480 }],
+      ['[data-devsim="brief"]', { x: 584, y: 0, w: 416, h: 800 }],
+      ['[data-devsim="bars"]', { x: 120, y: 600, w: 672, h: 150 }],
+    ];
+    const spy = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      const b = boxes.find(([sel]) => this.matches(sel))?.[1] ?? { x: 0, y: 0, w: 0, h: 0 };
+      return {
+        x: b.x,
+        y: b.y,
+        left: b.x,
+        top: b.y,
+        width: b.w,
+        height: b.h,
+        right: b.x + b.w,
+        bottom: b.y + b.h,
+        toJSON: () => b,
+      } as DOMRect;
+    });
+    try {
+      d().start(plan, "b");
+      const stage = { current: null as HTMLDivElement | null };
+      render(
+        <>
+          <div
+            data-testid="stage"
+            ref={(el) => {
+              stage.current = el;
+            }}
+          />
+          <TopStack />
+        </>,
+      );
+      const { unmount } = render(<DevsimOverlay viewport={vp} stageRef={stage} />);
+      at(7);
+      // before the brief: right of the left stack, above the bars
+      expect(d().clear).toEqual({ x: 456, y: 0, w: 544, h: 600 });
+      at(40);
+      // the brief (jsdom: its marker box) takes the right; the clear area is left of it
+      const c = d().clear as { x: number; y: number; w: number; h: number };
+      expect(c.x + c.w).toBeLessThanOrEqual(584);
+      unmount();
+      expect(d().clear).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("playback bar: pause, play, restart, scrub, close", () => {
@@ -178,9 +377,9 @@ describe("DevsimOverlay", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     expect(d().playing).toBe(false);
     fireEvent.change(screen.getByRole("slider", { name: "Simulation timeline" }), {
-      target: { value: "500" },
+      target: { value: "600" },
     });
-    expect(d().t).toBe(33);
+    expect(d().t).toBeCloseTo(27, 5);
     expect(screen.getByTestId("devsim-act")).toHaveTextContent("Handover");
     fireEvent.click(screen.getByRole("button", { name: "Restart" }));
     expect(d()).toMatchObject({ t: 0, playing: true });
@@ -203,12 +402,10 @@ describe("DevsimOverlay", () => {
       const { container, unmount } = render(<DevsimOverlay viewport={vp} />);
       expect(screen.getByRole("alert")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Close simulation" }));
-      // idle is what the 3D scene keys the hidden markers and the camera controls on
       expect(d().status).toBe("idle");
       expect(container.textContent).toBe("");
       unmount();
     }
-    // a host's own close handler is used when given
     d().start(null, "b");
     act(() => d().setStatus("unavailable"));
     let closed = 0;
@@ -265,21 +462,35 @@ describe("DevsimOverlay", () => {
 describe("RouteTag", () => {
   it("splits the plan's tag into its source and its numbers", () => {
     render(<RouteTag tag="ROUTE ENGINE · 659 m · 9 min walk" />);
-    const tag = screen.getByTestId("devsim-route-tag");
-    expect(tag).toHaveAccessibleName("ROUTE ENGINE · 659 m · 9 min walk");
-    expect(tag.firstElementChild).toHaveTextContent("ROUTE ENGINE");
-    expect(tag.lastElementChild).toHaveTextContent("659 m · 9 min walk");
+    const t = screen.getByTestId("devsim-route-tag");
+    expect(t).toHaveAccessibleName("ROUTE ENGINE · 659 m · 9 min walk");
+    expect(t.firstElementChild).toHaveTextContent("ROUTE ENGINE");
+    expect(t.lastElementChild).toHaveTextContent("659 m · 9 min walk");
   });
 });
 
 describe("pure placement", () => {
   it("bubbleViews names the speaker from the cast", () => {
-    expect(bubbleViews(plan, 59)).toEqual([
+    expect(bubbleViews(plan, bubble(7).t0 + 1.5)).toEqual([
       expect.objectContaining({
         n: 7,
         tone: "pos",
         speaker: expect.objectContaining({ name: "Arjun" }),
       }),
     ]);
+  });
+});
+
+describe("hoarding card window", () => {
+  it("follows the plan's detour tag, else 4–9.5 s", () => {
+    const moved = {
+      ...plan,
+      tags: plan.tags.map((g) => (g.kind === "detour" ? { ...g, t0: 5, t1: 8 } : g)),
+    };
+    expect(hoardingCardWindow(moved)).toMatchObject({ t0: 5, t1: 8 });
+    expect(hoardingCardOn(moved, 4.5)).toBe(false);
+    expect(hoardingCardOn(moved, 5)).toBe(true);
+    const none = { ...plan, tags: plan.tags.filter((g) => g.kind !== "detour") };
+    expect(hoardingCardWindow(none)).toEqual({ t0: 4, t1: 9.5 });
   });
 });

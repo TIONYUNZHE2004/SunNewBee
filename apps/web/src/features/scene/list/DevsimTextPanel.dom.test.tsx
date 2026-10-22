@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useDevsim } from "../../devsim/devsimStore";
-import provisional from "../../devsim/fixtures/plan.provisional.json";
+import provisional from "../../devsim/fixtures/plan.elmina.json";
 import type { DevelopmentPlan } from "../../devsim/types";
 import { DevsimTextPanel } from "./DevsimTextPanel";
 

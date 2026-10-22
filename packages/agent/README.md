@@ -106,7 +106,7 @@ counts read only the classifiers 个间张处级座条部 ("两段…的台阶" 
 ```
 user message ─► Agent (instructions = prompts/system.md + UI context)
                   │
-                  ├─ 10 tools ─► townshiplens_spatial.tools.TOOLS   (facts, evidence, VRs)
+                  ├─ 22 tools ─► townshiplens_spatial.tools.TOOLS   (facts, evidence, VRs)
                   │     └─ agent.call_tool records into TurnRecord ──► queue ─► tool.call /
                   │        (evidence, routes, route status,                      tool.result /
                   │         scenarios used, VRs)                                 verification.requested
@@ -217,6 +217,23 @@ model is dropped, because the label line already says it.
 - **Validator** (`validate.journey_errors`, AC-D5): rejects a `journey.play` whose route was not returned this turn, has no plan, or has no `start_time`; rejects rest-stop or unchecked-place counts that differ from the plan (extraction rules in the comment above `journey_errors`); with a played demo plan, requires "demo values, not yet surveyed"; when nothing on the plan is staff-verified, rejects "verified".
 - **Answer lines** (`journeys.journey_steps`, shared by the mock and template, after the prototype chat bubble): "No known barrier on the step-free path, with 3 rest stops on the way (demo values, not yet surveyed)." and "Not checked yet: 3 places on the way, including the Persiaran Elmina crossing, Persiaran Tamarind and a ramp."
 - The plan equals `POST /journeys` for the same endpoints, profile, scenario and start time (AC-D4, `apps/api/tests/test_journeys_api.py`). Tests: `tests/test_journey_intent.py`, `tests/test_journey_answer.py` (AC-D5, AC-D6 wording scan); golden case `journey-demo-walker` (`world: elmina`).
+
+### Navigation compare (`route.compare`, demo polish B4, spec 2026-10-21 §5.1)
+
+- **When.** A route question whose profile is wheelchair, stroller or older_adult_rest, with no flood scenario active, calls `compare_routes` (prompt rule 3c; the mock does find_place ×2, then `compare_routes`). The tool is in `ACCESS_FLOOD_TOOLS`. Like `plan_route`, it gets the effective profile, the endpoint guard and a place-names-only `question_summary` (`route_summary`, PDPA).
+- **Nothing to compare.** If the result is `same_path` (the shortest walk already works for the profile), `no_data` or `blocked`, the mock (and prompt rule 3c) then calls `plan_route` and answers as before, with closures, the rest search and journey requests. The tool files no compare ticket on a same path.
+- **Record.** `call_tool` (`_record_compare`) records the recommended route like a `plan_route` route: measurement subject, notes, journey plan, `rec.routes` (first). The fastest walk is a measurement subject only, so its own status and estimates never qualify the answer. The tool's ticket is streamed as `verification.requested` and stored in `rec.vrs`. The data goes to `rec.compares` with `from_id`, `to_id`, `from_name` and `to_name`.
+- **Intents.** `route.compare` (route_id = recommended id), then `route.highlight` and `journey.play` of the recommended route, so the List and Mapbox views and the ordinary walk keep working. `run.py` attaches `SceneIntent.compare` (`events.RouteCompare`, built by `compare_intent.compare_payload` from the recorded data). The model never writes a number into it.
+- **Answer.** `template.compare_summary` and `template.compare_caveats` are shared by the mock, the template and the canonical route answer. The summary is one recommendation line plus up to three reasons with their numbers; each unchecked stretch is a caveat ("… is not checked yet; it did not count for or against this route; a survey ticket was filed."). Placeholder evidence keeps "demo values, not yet surveyed".
+- **Validator** (`validate.compare_errors`):
+  - `route.compare` must name the recommended route;
+  - the summary's numbers must be `compare_routes` values;
+  - each unchecked stretch must be named as not checked yet.
+  - `_recorded_values` includes `rec.compares`.
+- **Closures (fix round 1).** `compare_routes` names staff-reported closures that stop or reshape the recommended route (`_closure_notes` with compare's own search) in its warnings and evidence, and adds `data.closures` only when there are any. `_record_compare` puts them in `rec.route_closures`, so the closure-line rule applies as for `plan_route`.
+- **Demo qualifier (fix round 1).** "demo values, not yet surveyed" hedges no estimate claim. It excuses only a demo-valued "step-free" in its own sentence, and only on a turn with placeholder evidence (`route_binding.demo_step_free`). "accessible" and "barrier-free" stay estimate claims.
+- **Rest-limit profiles (R31).** older_adult_rest is recommended `plan_route`'s rest-aware route. If the shortest walk breaks no known rule, the compare is `same_path`.
+- **Tests:** `tests/test_compare_agent.py`, `tests/test_demo_hedge.py`; golden case `nav-compare-wheelchair` (`world: elmina`, the B5 demo corridor).
 
 **Fix-it search and MCP (Cycle 4):**
 - **`find_fixes`:** beam search over imagined fixes on the world model (`townshiplens_spatial.fixit`).

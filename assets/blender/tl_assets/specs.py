@@ -62,6 +62,7 @@ class Variant:
     y_range: tuple[float, float] | None = None  # allowed LOD0 y max (replaces size h ± 1)
     x_range: tuple[float, float] | None = None  # allowed LOD0 x extent (replaces size w)
     z_range: tuple[float, float] | None = None  # allowed LOD0 z extent (replaces size d)
+    rider: bool = False  # vehicles: a seated rider is part of the model (two-wheelers)
 
 
 @dataclass(frozen=True)
@@ -144,6 +145,26 @@ _KIT_DEFAULT: dict[str, Palette] = {  # [?] starting values
     "default": (("#d8d6d0", "#62666c", "#8a8f96"),),
 }
 
+# Vehicles: (paint, rider jacket and delivery box, rider skin). The web picks one entry per
+# vehicle uniformly, so repeats are the weights: white, silver and grey 6 of 10 (60 %), then
+# red, blue, black and maroon. Cars use only the paint slot. Jackets avoid the water hue (the
+# 2nd slot is checked as a roof colour) and every colour keeps luminance >= 0.08.
+_VEHICLE_PAINT: dict[str, Palette] = {
+    "default": (
+        ("#f2f1ed", "#6a4a6a", "#b9835a"),  # white
+        ("#eeede8", "#5b5f66", "#9a6844"),  # white
+        ("#f4f3ef", "#8a4b3c", "#c89670"),  # white
+        ("#c3c6ca", "#4f6b5a", "#a8744c"),  # silver
+        ("#b9bdc2", "#6b6f75", "#c08a62"),  # silver
+        ("#8d9198", "#8a6a3c", "#a06c48"),  # grey
+        ("#b23a35", "#4b5563", "#b9835a"),  # red
+        ("#2f5d9c", "#7a5c48", "#9a6844"),  # blue
+        ("#505359", "#7a4a3c", "#c89670"),  # black (lifted to the 0.08 luminance floor)
+        ("#8e3444", "#5b5f66", "#a8744c"),  # maroon
+    ),
+}
+PAINT_NEUTRAL = ("#f2f1ed", "#eeede8", "#f4f3ef", "#c3c6ca", "#b9bdc2", "#8d9198")
+
 RESIDENTIAL_ARCHETYPES = frozenset(
     {"link_intermediate", "link_long", "superlink", "semi_d", "bungalow", "townhouse"}
 )
@@ -155,7 +176,7 @@ PALETTES: dict[str, dict[str, Palette]] = {
     "residential": _RESIDENTIAL,
     "commercial": _COMMERCIAL,
     "people": _KIT_DEFAULT,
-    "vehicles": _KIT_DEFAULT,
+    "vehicles": _VEHICLE_PAINT,
     "trees": _KIT_DEFAULT,
     "furniture": _KIT_DEFAULT,
     "construction": _KIT_DEFAULT,
@@ -315,7 +336,7 @@ def _mid(rng: tuple[float, float]) -> float:
     return round((rng[0] + rng[1]) / 2, 2)
 
 
-def _kv(vid: str, size, tris, max_m, *, x=None, y=None, z=None) -> Variant:
+def _kv(vid: str, size, tris, max_m, *, x=None, y=None, z=None, rider=False) -> Variant:
     """A kit variant; any axis with a range takes the middle of that range as its size."""
     w, h, d = size
     size = (_mid(x) if x else w, _mid(y) if y else h, _mid(z) if z else d)
@@ -327,6 +348,7 @@ def _kv(vid: str, size, tris, max_m, *, x=None, y=None, z=None) -> Variant:
         y_range=y,
         x_range=x,
         z_range=z,
+        rider=rider,
     )
 
 
@@ -408,18 +430,21 @@ _PEOPLE = _kit(
 _CAR_LODS = (3000, 400)
 _HEAVY_LODS = (5000, 600)
 _CAR_MAX = (150.0, 1500.0)
-_VEHICLES = _kit(  # z_range = length; unbranded
+# Generic shapes in the spirit of local streets (spec A4): descriptive ids, never a make or
+# model. z_range = length; each range holds the built length x (1 -+ jitter 0.02).
+_VEHICLES = _kit(
     "vehicles",
     [
-        _kv("hatchback", (1.7, 1.5, 3.85), _CAR_LODS, _CAR_MAX, z=(3.7, 4.0)),
-        _kv("city_car", (1.6, 1.5, 3.7), _CAR_LODS, _CAR_MAX, z=(3.6, 3.8)),
-        _kv("sedan", (1.8, 1.45, 4.6), _CAR_LODS, _CAR_MAX, z=(4.4, 4.8)),
-        _kv("mpv", (1.8, 1.7, 4.7), _CAR_LODS, _CAR_MAX, z=(4.5, 4.9)),
-        _kv("pickup", (1.85, 1.8, 5.25), _CAR_LODS, _CAR_MAX, z=(5.1, 5.4)),
-        _kv("motorcycle", (0.75, 1.1, 1.95), _CAR_LODS, _CAR_MAX, z=(1.8, 2.1)),
-        _kv("delivery_motorcycle", (0.75, 1.3, 2.0), _CAR_LODS, _CAR_MAX, z=(1.8, 2.2)),
-        _kv("bus", (2.5, 3.2, 11.5), _HEAVY_LODS, _CAR_MAX, z=(10.5, 12.5)),
-        _kv("lorry", (2.4, 3.2, 8.0), _HEAVY_LODS, _CAR_MAX, z=(7.0, 9.0)),
+        _kv("compact_hatch", (1.7, 1.5, 3.9), _CAR_LODS, _CAR_MAX, z=(3.8, 4.0)),
+        _kv("micro_hatch", (1.6, 1.5, 3.7), _CAR_LODS, _CAR_MAX, z=(3.6, 3.8)),
+        _kv("small_sedan", (1.7, 1.5, 4.3), _CAR_LODS, _CAR_MAX, z=(4.2, 4.4)),
+        _kv("mpv", (1.7, 1.7, 4.4), _CAR_LODS, _CAR_MAX, z=(4.3, 4.5)),
+        _kv("pickup", (1.85, 1.8, 5.3), _CAR_LODS, _CAR_MAX, z=(5.15, 5.45)),
+        _kv("kapchai", (0.75, 1.6, 1.875), _CAR_LODS, _CAR_MAX, z=(1.75, 2.0), rider=True),
+        _kv("delivery_moto", (0.75, 1.6, 2.0), _CAR_LODS, _CAR_MAX, z=(1.85, 2.15), rider=True),
+        _kv("bicycle", (0.6, 1.7, 1.7), _CAR_LODS, _CAR_MAX, z=(1.6, 1.8), rider=True),
+        _kv("bus", (2.5, 3.2, 12.0), _HEAVY_LODS, _CAR_MAX, z=(11.5, 12.5)),
+        _kv("lorry", (2.2, 3.0, 7.0), _HEAVY_LODS, _CAR_MAX, z=(6.6, 7.4)),
     ],
     jitter={"scale": 0.02},
 )
