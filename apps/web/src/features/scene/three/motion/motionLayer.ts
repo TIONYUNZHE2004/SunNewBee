@@ -98,6 +98,9 @@ export interface FlowSamples {
   vehicles: readonly (readonly [number, number, number])[];
 }
 
+/** Ambient vehicles fade out / in over this long when the ambient-traffic switch changes. */
+export const AMBIENT_FADE_MS = 600;
+
 /** Sampling step (m) when clipping a path out of an avoid zone. */
 const AVOID_STEP_M = 1;
 /** A clipped route shorter than this is not walked (the person is not drawn). */
@@ -379,6 +382,12 @@ export function createMotionLayer(
    * as given (the caller's clock is already flow time, so a seek stays deterministic).
    */
   setFlow(f: MotionFlow | null): void;
+  /**
+   * Ambient traffic (T-031 `sceneStore.ambientTraffic`): false fades the decorative vehicles out
+   * over AMBIENT_FADE_MS and keeps them hidden while a scenario plays its own cars; true fades them
+   * back. People are not affected.
+   */
+  setVehicles(on: boolean): void;
   /** Positions drawn by the last tick (probe samples). */
   samples(): FlowSamples;
   crowd: CrowdRenderer | null;
@@ -549,6 +558,14 @@ export function createMotionLayer(
    */
   let share = 1;
   let flow: MotionFlow | null = null;
+  /** Ambient vehicles on / off and when it last changed (wall ms; null: never, fully shown). */
+  let vehiclesOn = true;
+  let vehiclesAt: number | null = null;
+  const vehicleFade = (nowMs: number) => {
+    if (vehiclesAt === null) return vehiclesOn ? 1 : 0;
+    const u = Math.max(0, Math.min(1, (nowMs - vehiclesAt) / AMBIENT_FADE_MS));
+    return vehiclesOn ? u : 1 - u;
+  };
   /** Re-anchored flow clock: wall seconds and flow seconds at the last timeScale change. */
   let anchor: { wall: number; eff: number; scale: number } | null = null;
   let lastWall = 0;
@@ -684,6 +701,11 @@ export function createMotionLayer(
     setDensity(w) {
       share = Math.min(1, densityFor(w) / DENSITY_PEAK);
     },
+    setVehicles(on) {
+      if (on === vehiclesOn) return;
+      vehiclesOn = on;
+      vehiclesAt = performance.now();
+    },
     setFlow(f) {
       // a new avoid zone: clip every person's route now, not lazily on the first frame drawn
       // (gate 2: a 228 ms first frame after a seek)
@@ -724,6 +746,7 @@ export function createMotionLayer(
         return { yaw, dt: 0, mem };
       };
       for (const b of allBuckets) b.n = 0;
+      const vf = vehicleFade(performance.now());
       lights?.begin();
       const watch = uturnWatchOn();
       if (watch) uturnTickBegin(t);
@@ -734,8 +757,9 @@ export function createMotionLayer(
         if (!ag) continue;
         poseAt(ag, t, pose);
         const tangent = pose.yaw;
-        // A1: a fading agent at the very end / start of its lap is not drawn at all
-        const fade = fadeAt(ag, t, fo).opacity;
+        // A1: a fading agent at the very end / start of its lap is not drawn at all; vehicles
+        // also fade with the ambient-traffic switch (a scenario playing its own cars)
+        const fade = fadeAt(ag, t, fo).opacity * (s.agent.kind === "vehicle" ? vf : 1);
         if (fade <= 0) continue;
         if (s.agent.kind === "vehicle" && flow?.avoidVehicles?.(pose.x, pose.z)) continue;
         if (!keepClear(ag, hero, t)) continue;
